@@ -1,0 +1,48 @@
+Selavy.image                                    = {image}
+Selavy.sbid                                     = {sbid}
+Selavy.sourceIdBase                             = SB{sbid}
+Selavy.imageHistory                             = ["Produced with ASKAPsoft version 0.24.4", "Processed with ASKAP pipeline version 0.24.4", "Processed with ACES software revision 48354", "Processed with ASKAP pipelines on 2019-08-07T09:35:37", "Processed with CASA version 5.3.0-143.el7"]
+Selavy.imagetype                                = fits
+#
+# These parameters define the measurement of spectral indices
+Selavy.spectralTermsFromTaylor                  = true
+Selavy.findSpectralTerms                        = [true, false]
+Selavy.nsubx                                    = 6
+Selavy.nsuby                                    = 3
+Selavy.overlapx                                 = 0
+Selavy.overlapy                                 = 0
+#
+Selavy.resultsFile                             = selavy-{image_base}.txt
+Selavy.writeDuchampFiles                        = false
+Selavy.subimageAnnotationFile                   = ""
+#
+# Detection threshold
+Selavy.snrCut                                   = 5
+Selavy.flagGrowth                               = true
+Selavy.growthThreshold                          = 3
+#
+Selavy.VariableThreshold                        = true
+Selavy.VariableThreshold.boxSize                = 50
+#Selavy.VariableThreshold.ThresholdImageName     = detThresh.{image_base}
+#Selavy.VariableThreshold.NoiseImageName         = noiseMap.{image_base}
+#Selavy.VariableThreshold.AverageImageName       = meanMap.{image_base}
+#Selavy.VariableThreshold.SNRimageName           = snrMap.{image_base}
+#Selavy.VariableThreshold.imagetype              = fits
+Selavy.Weights                                  = false
+#
+Selavy.Fitter.doFit                             = true
+Selavy.Fitter.fitTypes                          = [full]
+Selavy.Fitter.numGaussFromGuess                 = true
+Selavy.Fitter.maxReducedChisq                   = 10.
+Selavy.Fitter.imagetype                         = fits
+#
+Selavy.threshSpatial                            = 5
+Selavy.flagAdjacent                             = true
+#
+Selavy.minPix                                   = 3
+Selavy.minVoxels                                = 3
+Selavy.minChannels                              = 1
+Selavy.sortingParam                             = -pflux
+#
+# Not performing RM Synthesis for this case
+Selavy.RMSynthesis                              = false

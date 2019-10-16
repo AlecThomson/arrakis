@@ -1,0 +1,21 @@
+#!/bin/bash -l
+#SBATCH --partition=workq
+#SBATCH --clusters={clusters}
+#SBATCH --account={account}
+#SBATCH --export=NONE
+#SBATCH --ntasks=19
+#SBATCH --ntasks-per-node=20
+#SBATCH --time={time}
+#SBATCH --job-name={job_name}
+
+module load slurm
+module unload python
+module load python
+module use /group/askap/modulefiles
+module load askapdata
+module unload askapsoft
+module load askapsoft/0.24.4
+module unload askappipeline
+module load askappipeline/0.24.4
+
+srun --export=ALL --ntasks=19 --ntasks-per-node=20 selavy -c {parset} >> selavy_${{SLURM_JOB_ID}}.log
