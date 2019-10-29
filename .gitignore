@@ -109,3 +109,5 @@ racs_db/
 # logs
 *.log
 *.err
+*.e*
+*.o*
