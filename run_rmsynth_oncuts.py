@@ -21,7 +21,7 @@ def rmsythoncut(args):
     newvalues = { "$set": { "rmsynth": True } }
     collection.update_one(myquery, newvalues)
 
-def main(pool, verbose=False)
+def main(pool, verbose=False):
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
