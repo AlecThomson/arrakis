@@ -77,7 +77,6 @@ if __name__ == "__main__":
             pool.wait()
             sys.exit(0)
 
-    datadir = args.datadir[0]
 
     main(pool,
         verbose=verbose
