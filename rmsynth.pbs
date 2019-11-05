@@ -1,0 +1,11 @@
+##### Select resources #####
+#PBS -N SPICERACS-RMSYNTH
+#PBS -l select=1:ncpus=28:mpiprocs=28
+##### Queue #####
+#PBS -q largemem
+##### Mail Options #####
+# Send an email at job start, end and if aborted
+#PBS -m abe
+##### Change to your working directory #####
+##### Execute Program #####
+mpirun -np 28 python ~/possalec/RACS/run_rmsynth_oncuts.py --mpi
