@@ -6,6 +6,15 @@
 ##### Mail Options #####
 # Send an email at job start, end and if aborted
 #PBS -m abe
+#### Output File #####
+#PBS -o ~/possalec/RACS/rms.out
+#### Error File #####
+#PBS -e ~/possalec/RACS/rms.err
 ##### Change to your working directory #####
 ##### Execute Program #####
-mpirun -np 28 python ~/possalec/RACS/run_rmsynth_oncuts.py --mpi
+
+mongod --dbpath database/ &
+
+cd ~/possalec/RACS/
+
+python ~/possalec/RACS/run_rmsynth_oncuts.py --ncores 28 -v 1>prog_rms.out 2>&1
