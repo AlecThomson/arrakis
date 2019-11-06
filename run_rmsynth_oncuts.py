@@ -3,11 +3,22 @@ import os
 import pymongo
 
 def rmsythoncut(args):
-    i, collection, doc, verbose = args
+    i, verbose = args
 
-    iname = doc['island_name']
-    qfile = doc['q_file']
-    ufile = doc['u_file']
+
+    client = pymongo.MongoClient()  # default connection (ie, local)
+    mydb = client['racs']  # Create/open database
+    collection = mydb['spice']  # Create/open collection
+
+    # Basic querey
+    myquery = { "resolved": False }
+
+
+    doc = mycol.find(myquery).sort("flux_int", -1)
+
+    iname = doc[i]['island_name']
+    qfile = doc[i]['q_file']
+    ufile = doc[i]['u_file']
 
 
 
@@ -36,7 +47,7 @@ def main(pool, verbose=False):
 
     if verbose: print(f'Running RMsynth on {count} sources')
 
-    inputs = [[i, mycol, mydoc[i], verbose] for i in range(count)]
+    inputs = [[i, verbose] for i in range(count)]
     list(pool.map(rmsythoncut, inputs))
     pool.close()
 
