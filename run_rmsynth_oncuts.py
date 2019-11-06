@@ -14,7 +14,7 @@ def rmsythoncut(args):
     myquery = { "resolved": False }
 
 
-    doc = mycol.find(myquery).sort("flux_int", -1)
+    doc = collection.find(myquery).sort("flux_int", -1)
 
     iname = doc[i]['island_name']
     qfile = doc[i]['q_file']
