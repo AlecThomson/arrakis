@@ -35,7 +35,6 @@ def getdata(cubedir, tabledir, verbose=True):
 
     # Get selvay data from VOTab
     i_tab = Table.read(voisle[0], format='votable')
-    c_tab = Table.read(vocomp[0], format='votable')
 
     # Read data using Spectral cube
     i_taylor = SpectralCube.read(selavyfits[0], mode='denywrite')
