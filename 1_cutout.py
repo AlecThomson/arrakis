@@ -48,7 +48,7 @@ def getdata(cubedir, tabledir, verbose=True):
         "i_tab": i_tab,
         "i_taylor": i_taylor,
         "wcs_taylor": wcs_taylor,
-        "wcs_cube": wcs_cube
+        "wcs_cube": wcs_cube,
         "i_cube": i_cube,
         "q_cube": q_cube,
         "u_cube": u_cube
