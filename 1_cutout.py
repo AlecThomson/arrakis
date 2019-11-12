@@ -5,6 +5,7 @@ from tqdm import trange, tqdm
 from astropy.wcs import WCS
 from astropy.table import Table
 import sys
+import os
 
 
 def getdata(cubedir, tabledir, verbose=True):
@@ -83,8 +84,8 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         print(f'Saving to {outdir}/')
     source_dict_list = []
 
-    i_cube = datadict['i_cube'],
-    q_cube = datadict['q_cube'],
+    i_cube = datadict['i_cube']
+    q_cube = datadict['q_cube']
     u_cube = datadict['u_cube']
     if not dryrun:
         try:
@@ -94,7 +95,11 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
             print('Directory exists.')
 
     # TO-DO: Max cut on size
-    for i in trange(len(datadict['i_tab']), disable=(not verbose)):
+    for i in trange(
+        len(datadict['i_tab']),
+        disable=(not verbose),
+        desc='Extracting cubelets'
+    ):
         source_dict = {}
         # Skip if source is outside of cube bounds
         if (y_max[i] > i_cube.shape[2] or x_max[i] > i_cube.shape[2] or
@@ -122,35 +127,41 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
                 int(x_min[i]-pad*dx[i]):int(x_max[i]+pad*dx[i])
             ]
 
-            i_cutout.meta['OBJECT'] = datadict.i_tab['col_island_name'][i]
-            q_cutout.meta['OBJECT'] = datadict.i_tab['col_island_name'][i]
-            u_cutout.meta['OBJECT'] = datadict.i_tab['col_island_name'][i]
+            i_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
+            q_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
+            u_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
             i_cutouts.append(i_cutout)
             q_cutouts.append(q_cutout)
             u_cutouts.append(u_cutout)
 
             source_dict['header'] = i_cutout.header
-            for name in datadict.i_tab.colnames:
-                source_dict[name.replace('col_', '')] = datadict.i_tab[name][i]
+            for name in datadict['i_tab'].colnames:
+                source_dict[name.replace('col_', '')
+                            ] = datadict['i_tab'][name][i]
             source_dict_list.append(source_dict)
         else:
             i_cutout = i_cube[:, y_min[i]:y_max[i], x_min[i]:x_max[i]]
             q_cutout = q_cube[:, y_min[i]:y_max[i], x_min[i]:x_max[i]]
             u_cutout = u_cube[:, y_min[i]:y_max[i], x_min[i]:x_max[i]]
-            i_cutout.meta['OBJECT'] = datadict.i_tab['col_island_name'][i]
-            q_cutout.meta['OBJECT'] = datadict.i_tab['col_island_name'][i]
-            u_cutout.meta['OBJECT'] = datadict.i_tab['col_island_name'][i]
+            i_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
+            q_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
+            u_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
             i_cutouts.append(i_cutout)
             q_cutouts.append(q_cutout)
             u_cutouts.append(u_cutout)
 
             source_dict['header'] = i_cutout.header
-            for name in datadict.i_tab.colnames:
-                source_dict[name.replace('col_', '')] = datadict.i_tab[name][i]
+            for name in datadict['i_tab'].colnames:
+                source_dict[name.replace('col_', '')
+                            ] = datadict['i_tab'][name][i]
             source_dict_list.append(source_dict)
 
     # Set up locations where files will be saved
-    for i in trange(len(source_dict_list), disable=(not verbose)):
+    for i in trange(
+        len(source_dict_list),
+        disable=(not verbose),
+        desc='Finding locations'
+    ):
         for stoke in ['i', 'q', 'u']:
             name = source_dict_list[i]['island_name']
             outname = f'{outdir}/{name}.cutout.{stoke}.fits'
@@ -164,11 +175,22 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     return cutouts, source_dict_list
 
 
-def getsize(cutouts):
-    sizes_bytes = []
-    for i in trange(len(cutouts)):
-        sizes_bytes.append(cutouts[i][0, :, :].nbytes*cutouts[i].shape[0]*1e-6)
+def getbytes(cutout):
+    return cutout[0, :, :].nbytes*cutout.shape[0]*1e-6
 
+
+def getsize(pool, cutouts):
+    if args.mpi:
+        sizes_bytes = list(
+            pool.map(getbytes, [cutouts[i] for i in range(len(cutouts))])
+        )
+    else:
+        sizes_bytes = list(tqdm(
+            pool.imap_unordered(getbytes, [cutouts[i]
+                                           for i in range(len(cutouts))]),
+            total=len(cutouts),
+            desc='Getting sizes')
+        )
     sizes_bytes = np.array(sizes_bytes)
     print('Size in MB: ', sizes_bytes.sum())
     print('Size in GB: ', sizes_bytes.sum()/1000)
@@ -207,7 +229,8 @@ def writeloop(pool, cutouts, source_dict_list):
                     [[source_dict_list[i], cutouts[stoke][i], stoke]
                      for i in range(len(cutouts[stoke]))]
                 ),
-                total=len(i_cutouts)
+                total=len(cutouts[stoke]),
+                desc=f'Stokes {stoke}''
             )
             )
 
@@ -231,6 +254,8 @@ def main(pool=None, args=None, verbose=True):
 
     # Make cutouts
     outdir = args.outdir
+    if outdir[-1] == '/':
+        outdir = outdir[:-1]
     pad = args.pad
     dryrun = args.dryrun
     if verbose:
@@ -246,12 +271,12 @@ def main(pool=None, args=None, verbose=True):
     if args.getsize:
         if verbose:
             print('Checking size of single cube...')
-        getsize(cutouts['i'])
+        getsize(pool, cutouts['i'])
 
     if not dryrun:
         if verbose:
             print('Writing to disk...')
-        writeloop(pool, cutouts)
+        writeloop(pool, cutouts, source_dict_list)
 
     pool.close()
     if verbose:
