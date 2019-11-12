@@ -232,6 +232,7 @@ def main(pool=None, args=None, verbose=True):
     if verbose:
         print('Making cutouts....')
     cutouts, source_dict_list = makecutout(
+        datadict
         outdir=outdir,
         pad=pad,
         dryrun=dryrun,
