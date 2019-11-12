@@ -59,15 +59,15 @@ def getdata(cubedir, tabledir, verbose=True):
 def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
 
     # Get bounding boxes in WCS
-    ra_min, dec_min, freq = datadict.wcs_taylor.all_pix2world(
-        datadict.i_tab['col_x_min'], datadict.i_tab['col_y_min'], 0, 0)
-    ra_max, dec_max, freq = datadict.wcs_taylor.all_pix2world(
-        datadict.i_tab['col_x_max'], datadict.i_tab['col_y_max'], 0, 0)
+    ra_min, dec_min, freq = datadict['wcs_taylor'].all_pix2world(
+        datadict['i_tab']['col_x_min'], datadict['i_tab']['col_y_min'], 0, 0)
+    ra_max, dec_max, freq = datadict['wcs_taylor'].all_pix2world(
+        datadict['i_tab']['col_x_max'], datadict['i_tab']['col_y_max'], 0, 0)
 
     # Get bounding boxes in cube pixels
-    x_min, y_min, _ = np.array(wcs_cube.all_world2pix(
+    x_min, y_min, _ = np.array(datadict['wcs_cube'].all_world2pix(
         ra_min, dec_min, freq, 0)).astype(int)
-    x_max, y_max, _ = np.array(wcs_cube.all_world2pix(
+    x_max, y_max, _ = np.array(datadict['wcs_cube'].all_world2pix(
         ra_max, dec_max, freq, 0)).astype(int)
     dy, dx = y_max - y_min, x_max-x_min
 
@@ -82,6 +82,9 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         print(f'Saving to {outdir}/')
     source_dict_list = []
 
+    i_cube = datadict['i_cube'],
+    q_cube = datadict['q_cube'],
+    u_cube = datadict['u_cube']
     if not dryrun:
         try:
             os.mkdir(outdir)
@@ -90,7 +93,7 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
             print('Directory exists.')
 
     # TO-DO: Max cut on size
-    for i in trange(len(datadict.i_tab), disable=(not verbose)):
+    for i in trange(len(datadict['i_tab']), disable=(not verbose)):
         source_dict = {}
         # Skip if source is outside of cube bounds
         if (y_max[i] > i_cube.shape[2] or x_max[i] > i_cube.shape[2] or
