@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 from glob import glob
 from spectral_cube import SpectralCube
@@ -6,6 +8,15 @@ from astropy.wcs import WCS
 from astropy.table import Table
 import sys
 import os
+from dataclasses import dataclass, asdict, make_dataclass
+import dataclasses
+from astropy.io.fits import Header
+import astropy.units as u
+import json
+import pymongo
+from astropy.io import fits
+import time
+import warnings
 
 
 def getdata(cubedir, tabledir, verbose=True):
@@ -59,7 +70,26 @@ def getdata(cubedir, tabledir, verbose=True):
 
 
 def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
+    """Main cutout task.
 
+    Takes in table data from Selavy, and cuts out data cubes using
+    SpectralCube.
+
+    Args:
+        datadict (dict): Dictionary containing tables and cubes.
+
+    Kwargs:
+        outdir (str): Directory to save data to.
+        pad (float): Fractional padding around Selavy islands to cut out.
+        dryrun (bool): Whether to do a dry-run (save no files).
+        verbose (bool): Print out messages.
+
+    Returns:
+        cutouts (dict): Contains lists of I, Q, and U cutouts.
+        source_dict_list (list): List of dictionaries which contain the
+            metadata of each source.
+
+    """
     # Get bounding boxes in WCS
     ra_min, dec_min, freq = datadict['wcs_taylor'].all_pix2world(
         datadict['i_tab']['col_x_min'], datadict['i_tab']['col_y_min'], 0, 0)
@@ -176,53 +206,111 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
 
 
 def getbytes(cutout):
-    return cutout[0, :, :].nbytes*cutout.shape[0]*1e-6
+    """Worker task for size estimate.
+
+    Args:
+        cutout (SpectralCube): The cutout around a source.
+
+    Returns:
+        mbytes (float): The size of the cutout in MB
+
+    """
+
+    mbytes = cutout[0, :, :].nbytes*cutout.shape[0]*1e-6
+    return mbytes
 
 
-def getsize(pool, cutouts):
-    if args.mpi:
+def getsize(pool, cutouts, verbose=True):
+    """Find the size of all cutouts in a cube.
+
+    Args:
+        pool (Pool): The Shwimmbad or Multiprocessing pool for
+            parallelisation.
+        cutouts (dict): Contains lists of I, Q, and U cutouts.
+
+    Kwargs:
+        verbose (bool): Print out messages.
+
+    """
+    if (pool.__class__.__name__ is 'MPIPool' or
+         pool.__class__.__name__ is 'SerialPool'):
+        if verbose: print(f'Getting sizes...')
+        tic = time.perf_counter()
         sizes_bytes = list(
-            pool.map(getbytes, [cutouts[i] for i in range(len(cutouts))])
+            pool.map(getbytes, [cutouts[i] for i in range(len(cutouts))]
+                     )
         )
-    else:
+        toc = time.perf_counter()
+        if verbose: print(f'Time taken was {toc - tic}s')
+
+    elif pool.__class__.__name__ is 'MultiPool':
         sizes_bytes = list(tqdm(
             pool.imap_unordered(getbytes, [cutouts[i]
                                            for i in range(len(cutouts))]),
             total=len(cutouts),
-            desc='Getting sizes')
+            desc='Getting sizes',
+            disable=(not verbose)
         )
+        )
+
     sizes_bytes = np.array(sizes_bytes)
     print('Size in MB: ', sizes_bytes.sum())
     print('Size in GB: ', sizes_bytes.sum()/1000)
 
 
 def writefits(arg):
-    """Write cutouts to disk.
+    """Worker that cutouts to disk.
 
     Writes a cutout, as stored in source_dict, to disk. The file
     location should already be specified in source_dict. This format is
     intended for parallel use with pool.map syntax.
 
     Args:
-        arg: The tuple of (i, stoke)
-            i: The index of the source in source_dict to write to disk.
-                stoke: Which Stokes to write. Is a string of either 'i',
-                    'q', or 'u'.
+        arg: The tuple of (source_dict, cutout, stoke)
+            source_dict (dict): Source metadata.
+            cutout (SpectralCube): Cutout data to write.
+            stoke (str): Which Stokes to write. Is a string of either 'i',
+                'q', or 'u'.
+
     """
     source_dict, cutout, stoke = arg
     outfile = source_dict[f'{stoke}_file']
     cutout.write(outfile, format='fits', overwrite=True)
 
 
-def writeloop(pool, cutouts, source_dict_list):
+def writeloop(pool, cutouts, source_dict_list, verbose=True):
+    """Main loop for writing to disk
+
+    Loops over all sources in I, Q, and U, and writes to disk in
+    parallel.
+
+    Args:
+        pool (Pool): The Shwimmbad or Multiprocessing pool for
+            parallelisation.
+        cutouts (dict): Contains lists of I, Q, and U cutouts.
+        source_dict_list (list): List of dictionaries which contain the
+            metadata of each source.
+
+    Kwargs:
+        verbose (bool): Print out messages.
+
+    """
     for stoke in ['i', 'q', 'u']:
-        if args.mpi:
+        if (pool.__class__.__name__ is 'MPIPool' or 
+            pool.__class__.__name__ is 'SerialPool'):
+            if verbose: print(f'Writing Stokes {stoke}...')
+            tic = time.perf_counter()
             pool.map(
                 writefits,
                 [[source_dict_list[i], cutouts[stoke][i], stoke]
                     for i in range(len(cutouts[stoke]))]
             )
-        else:
+            toc = time.perf_counter()
+            if verbose:
+                print(f'Time taken was {toc - tic}s')
+
+        elif pool.__class__.__name__ is 'MultiPool':
+            print('Beep')
             list(tqdm(
                 pool.imap_unordered(
                     writefits,
@@ -230,13 +318,98 @@ def writeloop(pool, cutouts, source_dict_list):
                      for i in range(len(cutouts[stoke]))]
                 ),
                 total=len(cutouts[stoke]),
-                desc=f'Stokes {stoke}''
+                desc=f'Stokes {stoke}',
+                disable=(not verbose)
             )
             )
+
+
+def head2dict(h):
+    """Convert FITS header to a dict.
+
+    Writes a cutout, as stored in source_dict, to disk. The file location
+    should already be specified in source_dict. This format is intended 
+    for parallel use with pool.map syntax.
+
+    Args:
+        h: An astropy FITS header.
+
+    Returns:
+        data (dict): The FITS head converted to a dict.
+
+    """
+    data = {}
+    for c in h.__dict__['_cards']:
+        if c[0] == '':
+            continue
+        data[c[0]] = c[1]
+    return(data)
+
+
+class MyEncoder(json.JSONEncoder):
+    """Cutom JSON encorder.
+
+    Parses the data stored in source_dict to JSON without
+    errors.
+
+    """
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, fits.Header):
+            return head2dict(obj)
+        elif dataclasses.is_dataclass(obj):
+            return dataclasses.asdict(obj)
+        else:
+            return super(MyEncoder, self).default(obj)
+
+
+def database(source_dict_list, verbose=True):
+    """Add data to MongoDB.
+
+    Args:
+        source_dict_list (list): List of dictionaries which contain the
+            metadata of each source.
+
+    Kwargs:
+        verbose (bool): Print out messages.
+
+    """
+    client = pymongo.MongoClient()  # default connection (ie, local)
+    mydb = client['racs']  # Create/open database
+    mycol = mydb['spice']  # Create/open collection
+
+    for source_dict in tqdm(
+        source_dict_list,
+        desc='Loading into DB',
+        disable=(not verbose)
+    ):
+        json_data = json.loads(json.dumps(source_dict, cls=MyEncoder))
+        name = source_dict['island_name']
+        count = mycol.count_documents({'island_name': name})
+
+        if count > 0:
+            # Replace existing
+            cursor = mycol.find({'island_name': name})
+            for doc in cursor:
+                result = mycol.replace_one({'_id': doc['_id']}, json_data)
+        else:
+            # Insert new
+            result = mycol.insert_one(json_data)
+    # Check if all cutouts are in collection
+    count = mycol.count_documents({})
+    if verbose: print('Total documents:', count)
+    client.close()
 
 
 def main(pool=None, args=None, verbose=True):
     """The main script.
+
     """
     # Sort out args
     cubedir = args.cubedir
@@ -248,8 +421,7 @@ def main(pool=None, args=None, verbose=True):
         tabledir = tabledir[:-1]
 
     # Read in data
-    if verbose:
-        print('Reading data...')
+    if verbose: print('Reading data...')
     datadict = getdata(cubedir, tabledir, verbose=verbose)
 
     # Make cutouts
@@ -258,8 +430,7 @@ def main(pool=None, args=None, verbose=True):
         outdir = outdir[:-1]
     pad = args.pad
     dryrun = args.dryrun
-    if verbose:
-        print('Making cutouts....')
+    if verbose: print('Making cutouts....')
     cutouts, source_dict_list = makecutout(
         datadict,
         outdir=outdir,
@@ -268,25 +439,29 @@ def main(pool=None, args=None, verbose=True):
         verbose=verbose
     )
 
+    # Check size of cube
     if args.getsize:
-        if verbose:
-            print('Checking size of single cube...')
-        getsize(pool, cutouts['i'])
+        if verbose: print('Checking size of single cube...')
+        getsize(pool, cutouts['i'], verbose=verbose)
 
+    # Write to disk
     if not dryrun:
-        if verbose:
-            print('Writing to disk...')
-        writeloop(pool, cutouts, source_dict_list)
+        if verbose: print('Writing to disk...')
+        writeloop(pool, cutouts, source_dict_list, verbose=verbose)
 
-    pool.close()
-    if verbose:
-        print('Done!')
+    # Update MongoDB
+    if args.database:
+        if verbose: print('Updating MongoDB...')
+        database(source_dict_list, verbose=True)
+
+    if verbose: print('Done!')
 
 
 if __name__ == "__main__":
     import argparse
     import schwimmbad
-
+    from astropy.utils.exceptions import AstropyWarning
+    warnings.simplefilter('ignore', category=AstropyWarning)
     # Help string to be shown using the -h option
     descStr = """
     Produce cutouts of a given RACS field.
@@ -344,6 +519,13 @@ if __name__ == "__main__":
         help="Estimate size of cutouts [False]."
     )
 
+    parser.add_argument(
+        "-m",
+        dest="database",
+        action="store_true",
+        help="Add data to MongoDB [False]."
+    )
+
     group = parser.add_mutually_exclusive_group()
 
     group.add_argument(
@@ -361,12 +543,26 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
     verbose = args.verbose
 
-    if args.mpi:
-        if not pool.is_master():
-            pool.wait()
-            sys.exit(0)
 
-    main(pool=pool, args=args, verbose=verbose)
+    if args.database:
+        if verbose: print('Testing MongoDB connection...')
+        client = pymongo.MongoClient()  # default connection (ie, local)
+        try:
+            client.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose: print('MongoDB connection succesful!')
+        client.close()
+    
+    with schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores) as pool:
+        if args.mpi:
+            if not pool.is_master():
+                pool.wait()
+                sys.exit(0)
+        if verbose: print(f"Using pool: {pool.__class__.__name__}")
+
+
+        main(pool=pool, args=args, verbose=verbose)
