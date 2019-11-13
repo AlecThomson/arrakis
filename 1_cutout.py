@@ -69,7 +69,7 @@ def getdata(cubedir, tabledir, verbose=True):
     return datadict
 
 
-def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
+def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     """Main cutout task.
 
     Takes in table data from Selavy, and cuts out data cubes using
@@ -90,6 +90,9 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
             metadata of each source.
 
     """
+    if not pool.is_master():
+        pool.wait()
+        sys.exit(0)
     # Get bounding boxes in WCS
     ra_min, dec_min, freq = datadict['wcs_taylor'].all_pix2world(
         datadict['i_tab']['col_x_min'], datadict['i_tab']['col_y_min'], 0, 0)
@@ -102,18 +105,18 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     x_max, y_max, _ = np.array(datadict['wcs_cube'].all_world2pix(
         ra_max, dec_max, freq, 0)).astype(int)
     dy, dx = y_max - y_min, x_max-x_min
-
+    
     # Init cutouts
     i_cutouts = []
     q_cutouts = []
     u_cutouts = []
     outdir = f'{outdir}/cutouts'
     if dryrun:
-        print('Dry run -- not saving to disk.')
+        if verbose: print('Dry run -- not saving to disk.')
     else:
-        print(f'Saving to {outdir}/')
+        if verbose: print(f'Saving to {outdir}/')
     source_dict_list = []
-
+    
     i_cube = datadict['i_cube']
     q_cube = datadict['q_cube']
     u_cube = datadict['u_cube']
@@ -123,18 +126,20 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
             print('Made directory.')
         except FileExistsError:
             print('Directory exists.')
-
+    
     # TO-DO: Max cut on size
     for i in trange(
         len(datadict['i_tab']),
+        total = len(datadict['i_tab']),
         disable=(not verbose),
         desc='Extracting cubelets'
-    ):
+        ):
         source_dict = {}
         # Skip if source is outside of cube bounds
         if (y_max[i] > i_cube.shape[2] or x_max[i] > i_cube.shape[2] or
                 x_min[i] < 0 or y_min[i] < 0):
             continue
+        
         # Check if pad puts bbox outside of cube
         elif (int(y_min[i]-pad*dy[i]) > 0 and
               int(x_min[i]-pad*dx[i]) > 0 and
@@ -202,6 +207,7 @@ def makecutout(datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         "q": q_cutouts,
         "u": u_cutouts
     }
+    
     return cutouts, source_dict_list
 
 
@@ -306,8 +312,7 @@ def writeloop(pool, cutouts, source_dict_list, verbose=True):
                     for i in range(len(cutouts[stoke]))]
             )
             toc = time.perf_counter()
-            if verbose:
-                print(f'Time taken was {toc - tic}s')
+            if verbose: print(f'Time taken was {toc - tic}s')
 
         elif pool.__class__.__name__ is 'MultiPool':
             print('Beep')
@@ -407,10 +412,10 @@ def database(source_dict_list, verbose=True):
     client.close()
 
 
-def main(pool=None, args=None, verbose=True):
-    """The main script.
-
-    """
+def main(pool, args, verbose=True):
+    if not pool.is_master():
+        pool.wait()
+        sys.exit(0)
     # Sort out args
     cubedir = args.cubedir
     tabledir = args.tabledir
@@ -431,7 +436,7 @@ def main(pool=None, args=None, verbose=True):
     pad = args.pad
     dryrun = args.dryrun
     if verbose: print('Making cutouts....')
-    cutouts, source_dict_list = makecutout(
+    cutouts, source_dict_list = makecutout(pool,
         datadict,
         outdir=outdir,
         pad=pad,
@@ -544,7 +549,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     verbose = args.verbose
-
+    pool =  schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
+    if args.mpi:
+        if not pool.is_master():
+            pool.wait()
+            sys.exit(0)
+    if verbose: 
+        print(f"Using pool: {pool.__class__.__name__}")
 
     if args.database:
         if verbose: print('Testing MongoDB connection...')
@@ -556,13 +567,6 @@ if __name__ == "__main__":
         else:
             if verbose: print('MongoDB connection succesful!')
         client.close()
-    
-    with schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores) as pool:
-        if args.mpi:
-            if not pool.is_master():
-                pool.wait()
-                sys.exit(0)
-        if verbose: print(f"Using pool: {pool.__class__.__name__}")
 
-
-        main(pool=pool, args=args, verbose=verbose)
+    main(pool, args, verbose=verbose)
+    pool.close()
