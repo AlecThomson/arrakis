@@ -358,7 +358,7 @@ class MyEncoder(json.JSONEncoder):
 
     """
 
-    def default(self, obj):
+    def default(self, obj): # pylint: disable=E0202
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):
@@ -412,9 +412,9 @@ def database(source_dict_list, verbose=True):
 
 
 def main(pool, args, verbose=True):
-    if not pool.is_master():
-        pool.wait()
-        sys.exit(0)
+    """Main script.
+
+    """
     # Sort out args
     cubedir = args.cubedir
     tabledir = args.tabledir
