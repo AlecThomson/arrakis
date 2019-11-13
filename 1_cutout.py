@@ -315,7 +315,6 @@ def writeloop(pool, cutouts, source_dict_list, verbose=True):
             if verbose: print(f'Time taken was {toc - tic}s')
 
         elif pool.__class__.__name__ is 'MultiPool':
-            print('Beep')
             list(tqdm(
                 pool.imap_unordered(
                     writefits,
