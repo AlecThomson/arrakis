@@ -1,4 +1,4 @@
-#!/usr/bin/env python -u
+#!/usr/bin/env upython
 
 import numpy as np
 from glob import glob
