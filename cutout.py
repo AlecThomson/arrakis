@@ -465,11 +465,28 @@ if __name__ == "__main__":
     import argparse
     import schwimmbad
     from astropy.utils.exceptions import AstropyWarning
+    sys.stdout.flush()
     warnings.simplefilter('ignore', category=AstropyWarning)
     # Help string to be shown using the -h option
-    descStr = """
+    bannerstr = """
+
+    ███████╗██████╗ ██╗ ██████╗███████╗    ██████╗  █████╗  ██████╗███████╗
+    ██╔════╝██╔══██╗██║██╔════╝██╔════╝    ██╔══██╗██╔══██╗██╔════╝██╔════╝
+    ███████╗██████╔╝██║██║     █████╗█████╗██████╔╝███████║██║     ███████╗
+    ╚════██║██╔═══╝ ██║██║     ██╔══╝╚════╝██╔══██╗██╔══██║██║     ╚════██║
+    ███████║██║     ██║╚██████╗███████╗    ██║  ██║██║  ██║╚██████╗███████║
+    ╚══════╝╚═╝     ╚═╝ ╚═════╝╚══════╝    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝
+                                                                        
+    """
+
+    descStr = f"""
+    {bannerstr}
     SPICE-RACS Stage 1:
     Produce cutouts of a given RACS field.
+
+    To use with MPI:
+       mpirun -n $NPROCS python -u cutout.py $cubedir $tabledir 
+       $outdir --mpi
     """
 
     # Parse the command line options

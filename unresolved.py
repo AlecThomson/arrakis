@@ -288,10 +288,21 @@ if __name__ == "__main__":
     from astropy.utils.exceptions import AstropyWarning
     warnings.simplefilter('ignore', category=AstropyWarning)
 
+    bannerstr = """
+
+    ███████╗██████╗ ██╗ ██████╗███████╗    ██████╗  █████╗  ██████╗███████╗
+    ██╔════╝██╔══██╗██║██╔════╝██╔════╝    ██╔══██╗██╔══██╗██╔════╝██╔════╝
+    ███████╗██████╔╝██║██║     █████╗█████╗██████╔╝███████║██║     ███████╗
+    ╚════██║██╔═══╝ ██║██║     ██╔══╝╚════╝██╔══██╗██╔══██║██║     ╚════██║
+    ███████║██║     ██║╚██████╗███████╗    ██║  ██║██║  ██║╚██████╗███████║
+    ╚══════╝╚═╝     ╚═╝ ╚═════╝╚══════╝    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝
+                                                                        
+    """
     # Help string to be shown using the -h option
-    descStr = """
+    descStr = f"""
+    {bannerstr}
     SPICE-RACS Stage 2:
-    Find unresolved sources
+    Find unresolved sources from selavy catalogue.
     """
 
     # Parse the command line options
