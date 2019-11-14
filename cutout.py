@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python -u
 
 import numpy as np
 from glob import glob
@@ -17,10 +17,6 @@ import pymongo
 from astropy.io import fits
 import time
 import warnings
-
-# Set print to always flush
-def print():
-    return print(flush=True)
 
 def getdata(cubedir, tabledir, verbose=True):
     """Get the spectral and source-finding data.
