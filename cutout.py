@@ -401,10 +401,10 @@ def database(source_dict_list, verbose=True):
             # Replace existing
             cursor = mycol.find({'island_name': name})
             for doc in cursor:
-                result = mycol.replace_one({'_id': doc['_id']}, json_data)
+                mycol.replace_one({'_id': doc['_id']}, json_data)
         else:
             # Insert new
-            result = mycol.insert_one(json_data)
+            mycol.insert_one(json_data)
     # Check if all cutouts are in collection
     count = mycol.count_documents({})
     if verbose: print('Total documents:', count)

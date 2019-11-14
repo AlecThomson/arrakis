@@ -75,7 +75,7 @@ def updatedb_comp(mycol, loners, verbose=True):
         for field in fields:
             newvalues = {"$set": {field.replace('col', 'comp'):
                                   float(loners[field][i])}}
-            result = mycol.update_one(myquery, newvalues)
+            mycol.update_one(myquery, newvalues)
 
     if verbose:
         print(f'{updated} sources updated.')
