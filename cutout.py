@@ -7,7 +7,6 @@ from tqdm import trange, tqdm
 from astropy.wcs import WCS
 from astropy.table import Table
 import sys
-sys.stdout.flush()
 import os
 from dataclasses import dataclass, asdict, make_dataclass
 import dataclasses
@@ -19,6 +18,9 @@ from astropy.io import fits
 import time
 import warnings
 
+# Set print to always flush
+def print():
+    return print(flush=True)
 
 def getdata(cubedir, tabledir, verbose=True):
     """Get the spectral and source-finding data.
