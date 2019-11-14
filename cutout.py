@@ -7,6 +7,7 @@ from tqdm import trange, tqdm
 from astropy.wcs import WCS
 from astropy.table import Table
 import sys
+sys.stdout.flush()
 import os
 from dataclasses import dataclass, asdict, make_dataclass
 import dataclasses
@@ -465,7 +466,6 @@ if __name__ == "__main__":
     import argparse
     import schwimmbad
     from astropy.utils.exceptions import AstropyWarning
-    sys.stdout.flush()
     warnings.simplefilter('ignore', category=AstropyWarning)
     # Help string to be shown using the -h option
     logostr = """
