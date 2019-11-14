@@ -287,20 +287,22 @@ if __name__ == "__main__":
     import schwimmbad
     from astropy.utils.exceptions import AstropyWarning
     warnings.simplefilter('ignore', category=AstropyWarning)
-
-    bannerstr = """
-
-    ███████╗██████╗ ██╗ ██████╗███████╗    ██████╗  █████╗  ██████╗███████╗
-    ██╔════╝██╔══██╗██║██╔════╝██╔════╝    ██╔══██╗██╔══██╗██╔════╝██╔════╝
-    ███████╗██████╔╝██║██║     █████╗█████╗██████╔╝███████║██║     ███████╗
-    ╚════██║██╔═══╝ ██║██║     ██╔══╝╚════╝██╔══██╗██╔══██║██║     ╚════██║
-    ███████║██║     ██║╚██████╗███████╗    ██║  ██║██║  ██║╚██████╗███████║
-    ╚══════╝╚═╝     ╚═╝ ╚═════╝╚══════╝    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝
-                                                                        
-    """
     # Help string to be shown using the -h option
+    logostr = """
+     mmm   mmm   mmm   mmm   mmm 
+     )-(   )-(   )-(   )-(   )-( 
+    ( S ) ( P ) ( I ) ( C ) ( E )
+    |   | |   | |   | |   | |   |
+    |___| |___| |___| |___| |___|
+     mmm     mmm     mmm     mmm 
+     )-(     )-(     )-(     )-( 
+    ( R )   ( A )   ( C )   ( S )
+    |   |   |   |   |   |   |   |
+    |___|   |___|   |___|   |___|
+
+    """
     descStr = f"""
-    {bannerstr}
+    {logostr}
     SPICE-RACS Stage 2:
     Find unresolved sources from selavy catalogue.
     """
