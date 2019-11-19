@@ -89,9 +89,6 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
             metadata of each source.
 
     """
-    if not pool.is_master():
-        pool.wait()
-        sys.exit(0)
     # Get bounding boxes in WCS
     ra_min, dec_min, freq = datadict['wcs_taylor'].all_pix2world(
         datadict['i_tab']['col_x_min'], datadict['i_tab']['col_y_min'], 0, 0)
