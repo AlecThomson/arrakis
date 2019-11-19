@@ -1,4 +1,4 @@
 # SPICE-RACS
-Spectra and Polarization In Cutouts of Extragalactic Sources from RACS
+**S**pectra and **P**olarization **I**n **C**utouts of **E**xtragalactic **S**ources from **R**ACS
 
 Scripts for processing polarizaed RACS data products.
