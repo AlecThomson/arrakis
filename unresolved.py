@@ -99,7 +99,7 @@ def getflux(mycol, verbose=True):
     # Find single component sources
     myquery = {'$and': [{"n_components": {"$lt": 2}},
                         {'comp_flux_peak': {"$exists": True}}]}
-    mydoc = mycol.find(myquery) 
+    mydoc = mycol.find(myquery)
     count = mycol.count_documents(myquery)
     if verbose:
         print(f'Using {count} sources.')

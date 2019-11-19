@@ -9,7 +9,12 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "args": ["/avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/",
+                    "/avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/selavy-cont-image.i.SB8583.cont.RACS_test4_1.05_1049-31A.linmos.taylor.0.restored/",
+                    "/avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/",
+                    "-v"
+            ]
         }
     ]
 }
