@@ -55,6 +55,12 @@ def getdata(cubedir, tabledir, verbose=True):
     q_cube = SpectralCube.read(cubes[1], mode='denywrite')
     u_cube = SpectralCube.read(cubes[2], mode='denywrite')
 
+    # Mask out using Stokes I == 0 -- seems to be the current fill value
+    mask = ~(i_cube == 0*u.jansky/u.beam)
+    i_cube = i_cube.with_mask(mask)
+    q_cube = q_cube.with_mask(mask)
+    u_cube = u_cube.with_mask(mask)
+
     datadict = {
         "i_tab": i_tab,
         "i_taylor": i_taylor,

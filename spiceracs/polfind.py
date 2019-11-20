@@ -6,38 +6,39 @@ from astropy.io import fits
 from tqdm import tqdm, trange
 
 class moments:
-    def __init__(self, cube, verbose=True):
+    def __init__(self, cube, pool, verbose=True):
         self.cube = cube
         self.verbose = verbose
+        self.pool = pool
 
-    def mu(self, outdir='.'):
+    def mu(self, outdir='.', stoke=''):
         """
         Mean moment - freq axis first
         """
-        countfile = f'{outdir}/count.fits'
+        momfile = f'{outdir}/moment.mu.{stoke}.fits'
         blank = self.cube[0]
-        blank.write(countfile, overwrite=True, format='fits')
-        blank_data = (~np.isnan(self.cube[0])).astype(int)
+        blank.write(momfile, overwrite=True, format='fits')
         
-        with fits.open(countfile, mode='update') as outfh:
-            outfh[0].data = blank_data
-            outfh.flush()
-            #if verbose:
-            #    print(f'Init with {outfile}...')
+        if self.verbose:
+            print(f'Writing to {momfile}...')
+            print(f'Looping over y-axis to save memory...')
+        with fits.open(momfile, mode='update', memmap=True) as outfh:
+            for i in trange(
+                    self.cube.shape[1],
+                    desc='Looping over y-axis'
+                ):
+                yav = self.cube[:,i,:].mean(axis=0)
+                outfh[0].data[i,:] = yav
+                outfh.flush()
+        with fits.open(momfile, mode='denywrite') as outfh:
+            print(outfh[0].data)
 
-            #n = self.cube.shape[0]
-            for i, plane in enumerate(tqdm(self.cube)):
-                if i == 0:
-                    continue
-                else:
-                    data = ~np.isnan(plane)
-                    data = data.astype(int)
-                    outfh[0].data += data
-                    #plane[~np.isfinite(plane)] = 0 
-                    #outfh[0].data += plane.hdu.data/n
-                    outfh.flush()
-
-
+    def muworker(args):
+        i, strip, outfh = args
+        yav = strip.mean(axis=0)
+        outfh[0].data[i,:] = yav
+        outfh.flush()
+        
     def sigma(self):
         """
         Standard deviation moment - freq axis first
@@ -47,13 +48,13 @@ class moments:
         return sigma
 
 
-def momentloop(datadict, outdir, verbose=True):
+def momentloop(datadict, outdir='.', verbose=True):
     for stokes in ['q', 'u']:
         if verbose:
             print(f'Making moments for Stokes {stokes}...')
         mom = moments(datadict[f'{stokes}_cube'], verbose=verbose)
         outfile = f'{outdir}/moment.{stokes}.fits'
-        mom.mu(outfile=outfile)
+        mom.mu(outdir=outdir, stoke=stokes)
         
 
 
