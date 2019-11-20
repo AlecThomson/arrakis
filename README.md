@@ -1,18 +1,6 @@
 # SPICE-RACS
 **S**pectra and **P**olarization **I**n **C**utouts of **E**xtragalactic **S**ources from **R**ACS
 
-```
- mmm   mmm   mmm   mmm   mmm
- )-(   )-(   )-(   )-(   )-(
-( S ) ( P ) ( I ) ( C ) ( E )
-|   | |   | |   | |   | |   |
-|___| |___| |___| |___| |___|
- mmm     mmm     mmm     mmm
- )-(     )-(     )-(     )-(
-( R )   ( A )   ( C )   ( S )
-|   |   |   |   |   |   |   |
-|___|   |___|   |___|   |___|
-```
 Scripts for processing polarized RACS data products.
 
 
