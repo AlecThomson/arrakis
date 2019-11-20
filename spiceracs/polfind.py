@@ -6,10 +6,9 @@ from astropy.io import fits
 from tqdm import tqdm, trange
 
 class moments:
-    def __init__(self, cube, pool, verbose=True):
+    def __init__(self, cube, verbose=True):
         self.cube = cube
         self.verbose = verbose
-        self.pool = pool
 
     def mu(self, outdir='.', stoke=''):
         """
@@ -21,23 +20,17 @@ class moments:
         
         if self.verbose:
             print(f'Writing to {momfile}...')
-            print(f'Looping over y-axis to save memory...')
         with fits.open(momfile, mode='update', memmap=True) as outfh:
             for i in trange(
                     self.cube.shape[1],
-                    desc='Looping over y-axis'
+                    desc='Looping over y-axis to save memory',
+                    disable=(not self.verbose)
                 ):
                 yav = self.cube[:,i,:].mean(axis=0)
                 outfh[0].data[i,:] = yav
                 outfh.flush()
-        with fits.open(momfile, mode='denywrite') as outfh:
-            print(outfh[0].data)
 
-    def muworker(args):
-        i, strip, outfh = args
-        yav = strip.mean(axis=0)
-        outfh[0].data[i,:] = yav
-        outfh.flush()
+
         
     def sigma(self):
         """
