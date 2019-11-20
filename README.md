@@ -1,7 +1,7 @@
 # SPICE-RACS
 **S**pectra and **P**olarization **I**n **C**utouts of **E**xtragalactic **S**ources from **R**ACS
 
-```mermaid
+```
  mmm   mmm   mmm   mmm   mmm
  )-(   )-(   )-(   )-(   )-(
 ( S ) ( P ) ( I ) ( C ) ( E )
