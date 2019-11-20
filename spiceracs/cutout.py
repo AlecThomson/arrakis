@@ -456,8 +456,9 @@ def main(pool, args, verbose=True):
 
     if verbose: print('Done!')
 
-
-if __name__ == "__main__":
+def cli():
+    """Command-line interface.
+    """
     import argparse
     import schwimmbad
     from astropy.utils.exceptions import AstropyWarning
@@ -585,3 +586,6 @@ if __name__ == "__main__":
 
     main(pool, args, verbose=verbose)
     pool.close()
+
+if __name__ == "__main__":
+    cli()

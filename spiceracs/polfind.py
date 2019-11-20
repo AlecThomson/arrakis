@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from cutout import getdata
+from spiceracs.cutout import getdata
 import warnings
 import numpy as np
 from astropy.io import fits
@@ -14,12 +14,12 @@ class moments:
         """
         Mean moment - freq axis first
         """
-        countfile = f'{outdir}/ '
+        countfile = f'{outdir}/count.fits'
         blank = self.cube[0]
-        blank.write(outfile, overwrite=True, format='fits')
+        blank.write(countfile, overwrite=True, format='fits')
         blank_data = (~np.isnan(self.cube[0])).astype(int)
         
-        with fits.open(outfile, mode='update') as outfh:
+        with fits.open(countfile, mode='update') as outfh:
             outfh[0].data = blank_data
             outfh.flush()
             #if verbose:
@@ -81,8 +81,9 @@ def main(args, verbose=True):
     if verbose:
         print('Done!')
 
-
-if __name__ == "__main__":
+def cli():
+    """Command-line interface.
+    """
     import argparse
     from astropy.utils.exceptions import AstropyWarning
     warnings.simplefilter('ignore', category=AstropyWarning)
@@ -177,3 +178,6 @@ if __name__ == "__main__":
         client.close()
 
     main(args, verbose=verbose)
+
+if __name__ == "__main__":
+    cli()
