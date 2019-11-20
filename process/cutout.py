@@ -101,7 +101,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     x_max, y_max, _ = np.array(datadict['wcs_cube'].all_world2pix(
         ra_max, dec_max, freq, 0)).astype(int)
     dy, dx = y_max - y_min, x_max-x_min
-    
+
     # Init cutouts
     i_cutouts = []
     q_cutouts = []
@@ -112,7 +112,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     else:
         if verbose: print(f'Saving to {outdir}/')
     source_dict_list = []
-    
+
     i_cube = datadict['i_cube']
     q_cube = datadict['q_cube']
     u_cube = datadict['u_cube']
@@ -122,7 +122,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
             print('Made directory.')
         except FileExistsError:
             print('Directory exists.')
-    
+
     # TO-DO: Max cut on size
     for i in trange(
         len(datadict['i_tab']),
@@ -135,7 +135,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         if (y_max[i] > i_cube.shape[2] or x_max[i] > i_cube.shape[2] or
                 x_min[i] < 0 or y_min[i] < 0):
             continue
-        
+
         # Check if pad puts bbox outside of cube
         elif (int(y_min[i]-pad*dy[i]) > 0 and
               int(x_min[i]-pad*dx[i]) > 0 and
@@ -203,7 +203,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         "q": q_cutouts,
         "u": u_cutouts
     }
-    
+
     return cutouts, source_dict_list
 
 
@@ -298,7 +298,7 @@ def writeloop(pool, cutouts, source_dict_list, verbose=True):
 
     """
     for stoke in ['i', 'q', 'u']:
-        if (pool.__class__.__name__ is 'MPIPool' or 
+        if (pool.__class__.__name__ is 'MPIPool' or
             pool.__class__.__name__ is 'SerialPool'):
             if verbose: print(f'Writing Stokes {stoke}...')
             tic = time.perf_counter()
@@ -328,7 +328,7 @@ def head2dict(h):
     """Convert FITS header to a dict.
 
     Writes a cutout, as stored in source_dict, to disk. The file location
-    should already be specified in source_dict. This format is intended 
+    should already be specified in source_dict. This format is intended
     for parallel use with pool.map syntax.
 
     Args:
@@ -464,13 +464,13 @@ if __name__ == "__main__":
     warnings.simplefilter('ignore', category=AstropyWarning)
     # Help string to be shown using the -h option
     logostr = """
-     mmm   mmm   mmm   mmm   mmm 
-     )-(   )-(   )-(   )-(   )-( 
+     mmm   mmm   mmm   mmm   mmm
+     )-(   )-(   )-(   )-(   )-(
     ( S ) ( P ) ( I ) ( C ) ( E )
     |   | |   | |   | |   | |   |
     |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm 
-     )-(     )-(     )-(     )-( 
+     mmm     mmm     mmm     mmm
+     )-(     )-(     )-(     )-(
     ( R )   ( A )   ( C )   ( S )
     |   |   |   |   |   |   |   |
     |___|   |___|   |___|   |___|
@@ -480,10 +480,10 @@ if __name__ == "__main__":
     descStr = f"""
     {logostr}
     SPICE-RACS Stage 1:
-    Produce cutouts of a given RACS field.
+    Produce cubelets from a RACS field using a Selavy table.
 
     To use with MPI:
-       mpirun -n $NPROCS python -u cutout.py $cubedir $tabledir 
+       mpirun -n $NPROCS python -u cutout.py $cubedir $tabledir
        $outdir --mpi
     """
 
@@ -569,7 +569,7 @@ if __name__ == "__main__":
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
-    if verbose: 
+    if verbose:
         print(f"Using pool: {pool.__class__.__name__}")
 
     if args.database:
