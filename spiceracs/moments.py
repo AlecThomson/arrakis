@@ -8,7 +8,8 @@ from tqdm import tqdm, trange
 import os
 import pdb
 import pymongo
-
+import functools
+print = functools.partial(print, flush=True)
 
 class moments:
     """Methods for produce moment maps.

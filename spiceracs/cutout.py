@@ -12,6 +12,8 @@ import pymongo
 from astropy.io import fits
 import time
 import warnings
+import functools
+print = functools.partial(print, flush=True)
 
 
 

@@ -8,6 +8,8 @@ from glob import glob
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import pdb
+import functools
+print = functools.partial(print, flush=True)
 
 
 def getdata(tabledir, verbose=True):

@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-"""
-"""
-
 import os
 import stat
 from tqdm import tqdm
@@ -10,6 +7,8 @@ from spectral_cube import SpectralCube
 from astropy.table import Table
 from astropy.wcs import WCS
 import astropy.units as u
+import functools
+print = functools.partial(print, flush=True)
 
 def getdata(cubedir, tabledir, verbose=True):
     """Get the spectral and source-finding data.
