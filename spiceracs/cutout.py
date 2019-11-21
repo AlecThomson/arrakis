@@ -1,77 +1,18 @@
 #!/usr/bin/env python
-
+from spiceracs.utils import getdata
 import numpy as np
-from glob import glob
-from spectral_cube import SpectralCube
 from tqdm import trange, tqdm
-from astropy.wcs import WCS
-from astropy.table import Table
 import sys
 import os
 from dataclasses import dataclass, asdict, make_dataclass
 import dataclasses
 from astropy.io.fits import Header
-import astropy.units as u
 import json
 import pymongo
 from astropy.io import fits
 import time
 import warnings
 
-def getdata(cubedir, tabledir, verbose=True):
-    """Get the spectral and source-finding data.
-
-    Args:
-        cubedir: Directory containing data cubes in FITS format.
-        tabledir: Directory containing Selavy results.
-
-    Kwargs:
-        verbose (bool): Whether to print messages.
-
-    Returns:
-        datadict (dict): Dictionary of necessary astropy tables and
-            Spectral cubes.
-
-    """
-    # Glob out the necessary files
-    # Data cubes
-    cubes = glob(f'{cubedir}/image.restored.*contcube*linmos*fits')
-    selavyfits = glob(f'{tabledir}/comp*.fits')  # Selavy images
-    voisle = glob(f'{tabledir}/*island*.xml')  # Selvay VOTab
-
-    if verbose:
-        print('Getting islands from:', voisle, '\n')
-        print('Getting spectral data from:', cubes, '\n')
-        print('Getting source location data from:', selavyfits[0], '\n')
-
-    # Get selvay data from VOTab
-    i_tab = Table.read(voisle[0], format='votable')
-
-    # Read data using Spectral cube
-    i_taylor = SpectralCube.read(selavyfits[0], mode='denywrite')
-    wcs_taylor = WCS(i_taylor.header)
-    i_cube = SpectralCube.read(cubes[0], mode='denywrite')
-    wcs_cube = WCS(i_cube.header)
-    q_cube = SpectralCube.read(cubes[1], mode='denywrite')
-    u_cube = SpectralCube.read(cubes[2], mode='denywrite')
-
-    # Mask out using Stokes I == 0 -- seems to be the current fill value
-    mask = ~(i_cube == 0*u.jansky/u.beam)
-    i_cube = i_cube.with_mask(mask)
-    q_cube = q_cube.with_mask(mask)
-    u_cube = u_cube.with_mask(mask)
-
-    datadict = {
-        "i_tab": i_tab,
-        "i_taylor": i_taylor,
-        "wcs_taylor": wcs_taylor,
-        "wcs_cube": wcs_cube,
-        "i_cube": i_cube,
-        "q_cube": q_cube,
-        "u_cube": u_cube
-    }
-
-    return datadict
 
 
 def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):

@@ -44,7 +44,7 @@ setup(
     entry_points={
         'console_scripts': ['spicecutout=spiceracs.cutout:cli',
                             'spiceunresolved=spiceracs.unresolved:cli',
-                            'spicepolfind=spiceracs.polfind:cli'
+                            'spicemoments=spiceracs.moments:cli'
                             ],
     },
     install_requires=REQUIRED,
