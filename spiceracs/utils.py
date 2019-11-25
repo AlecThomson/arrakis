@@ -10,6 +10,32 @@ import astropy.units as u
 import functools
 print = functools.partial(print, flush=True)
 
+def gettable(tabledir, keyword, verbose=True):
+    """Get the spectral and source-finding data.
+
+    Args:
+        tabledir (str): Directory containing Selavy results.
+        keyword (str): Glob out files containing '*.keyword.*'.
+
+    Kwargs:
+        verbose (bool): Whether to print messages.
+
+    Returns:
+        datadict (dict): Dictionary of necessary astropy tables and
+            Spectral cubes.
+
+    """
+    # Glob out the necessary files
+    files = glob(f'{tabledir}/*.{keyword}.*.xml')  # Selvay VOTab
+    filename = files[0]
+    if verbose:
+        print(f'Getting table data from {filename}...')
+
+    # Get selvay data from VOTab
+    table = Table.read(filename, format='votable')
+
+    return table, filename
+
 def getdata(cubedir, tabledir, verbose=True):
     """Get the spectral and source-finding data.
 
@@ -29,15 +55,14 @@ def getdata(cubedir, tabledir, verbose=True):
     # Data cubes
     cubes = glob(f'{cubedir}/image.restored.*contcube*linmos*fits')
     selavyfits = glob(f'{tabledir}/comp*.fits')  # Selavy images
-    voisle = glob(f'{tabledir}/*island*.xml')  # Selvay VOTab
+    # Get selvay data from VOTab
+    i_tab, voisle = gettable(tabledir, 'island', verbose=verbose) # Selvay VOTab
 
     if verbose:
-        print('Getting islands from:', voisle, '\n')
-        print('Getting spectral data from:', cubes, '\n')
-        print('Getting source location data from:', selavyfits[0], '\n')
+        print(f'Getting spectral data from: {cubes}', '\n')
+        print(f'Getting source location data from:', selavyfits[0], '\n')
 
-    # Get selvay data from VOTab
-    i_tab = Table.read(voisle[0], format='votable')
+    
 
     # Read data using Spectral cube
     i_taylor = SpectralCube.read(selavyfits[0], mode='denywrite')

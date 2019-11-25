@@ -1,6 +1,6 @@
 #!/usr/bin/env python
+from spiceracs.utils import gettable
 import numpy as np
-from astropy.table import Table
 import pymongo
 from tqdm import tqdm, trange
 import warnings
@@ -10,32 +10,6 @@ from matplotlib.colors import LogNorm
 import pdb
 import functools
 print = functools.partial(print, flush=True)
-
-
-def getdata(tabledir, verbose=True):
-    """Get the spectral and source-finding data.
-
-    Args:
-        tabledir: Directory containing Selavy results.
-
-    Kwargs:
-        verbose (bool): Whether to print messages.
-
-    Returns:
-        datadict (dict): Dictionary of necessary astropy tables and
-            Spectral cubes.
-
-    """
-    # Glob out the necessary files
-    vocomp = glob(f'{tabledir}/*components*.xml')  # Selvay VOTab
-
-    if verbose:
-        print('Getting components from:', vocomp[0], '\n')
-
-    # Get selvay data from VOTab
-    components = Table.read(vocomp[0], format='votable')
-
-    return components
 
 
 def updatedb_comp(mycol, loners, verbose=True):
@@ -237,12 +211,20 @@ def main(args, verbose=True):
 
     if verbose:
         print('Reading catalogue...')
-    components = getdata(tabledir, verbose=verbose)
+    components, tablename = gettable(tabledir, 'components', verbose=verbose)
 
     # Find single-component sources
     if verbose:
         print('Finding single-component sources...')
     loners = components[components['col_has_siblings'] == 0]
+
+    # Save to table for future use
+    outfile = tablename.replace('.components.','.single-components.')
+    if verbose:
+        print(f'Saving to {outfile}')
+    loners.write(outfile)
+
+    # Add index
     loners.add_index('col_island_id')
     if verbose:
         print(f'Found {len(loners)} single-component sources.')
