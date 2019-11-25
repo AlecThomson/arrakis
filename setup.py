@@ -18,7 +18,7 @@ EMAIL='alec.thomson@anu.edu.au'
 
 REQUIRED = [
     'numpy', 'matplotlib', 'astropy', 'spectral_cube', 'tqdm',
-    'pymongo', 'schwimmbad',
+    'pymongo', 'schwimmbad', 'AegeanTools'
 ]
 
 
@@ -44,7 +44,8 @@ setup(
     entry_points={
         'console_scripts': ['spicecutout=spiceracs.cutout:cli',
                             'spiceunresolved=spiceracs.unresolved:cli',
-                            'spicemoments=spiceracs.moments:cli'
+                            'spicemoments=spiceracs.moments:cli',
+                            'spicepolfind=spiceracs.polfind:cli'
                             ],
     },
     install_requires=REQUIRED,
