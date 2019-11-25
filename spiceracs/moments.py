@@ -11,18 +11,27 @@ import pymongo
 import functools
 print = functools.partial(print, flush=True)
 
+
 class moments:
     """Methods for produce moment maps.
     """
 
-    def __init__(self, cube, verbose=True):
+    def __init__(self, cube, basename, verbose=True):
         self.cube = cube
         self.verbose = verbose
+        self.basename = basename
 
     def mu(self, outdir='.', stoke=''):
         """Mean moment - freq axis first
         """
-        momfile = f'{outdir}/moment.mu.{stoke}.fits'
+        try:
+            os.mkdir(f'{outdir}/moments/')
+            print('Made directory.')
+        except FileExistsError:
+            print('Directory exists.')
+        momfilename = self.basename.replace(
+            '.i.', f'.{stoke}.').replace('contcube', 'mu')
+        momfile = f'{outdir}/moments/{momfilename}'
         blank = self.cube[0]
         blank.write(momfile, overwrite=True, format='fits')
 
@@ -34,7 +43,7 @@ class moments:
                 desc='Looping over y-axis to save memory',
                 disable=(not self.verbose)
             ):
-                yav = self.cube[:, i, :].mean(axis=0)
+                yav = np.nanmean(np.array(self.cube[:, i, :]), axis=0)
                 outfh[0].data[i, :] = yav
                 outfh.flush()
 
@@ -42,7 +51,15 @@ class moments:
         """
         Standard deviation moment - freq axis first
         """
-        momfile = f'{outdir}/moment.sigma.{stoke}.fits'
+        try:
+            os.mkdir(f'{outdir}/moments/')
+            print('Made directory.')
+        except FileExistsError:
+            print('Directory exists.')
+
+        momfilename = self.basename.replace(
+            '.i.', f'.{stoke}.').replace('contcube', 'sigma')
+        momfile = f'{outdir}/moments/{momfilename}'
         blank = self.cube[0]
         blank.write(momfile, overwrite=True, format='fits')
 
@@ -54,7 +71,7 @@ class moments:
                 desc='Looping over y-axis to save memory',
                 disable=(not self.verbose)
             ):
-                ystd = self.cube[:, i, :].std(axis=0, ddof=1)
+                ystd = np.nanstd(np.array(self.cube[:, i, :]), axis=0, ddof=1)
                 outfh[0].data[i, :] = ystd
                 outfh.flush()
 
@@ -72,11 +89,11 @@ def momentloop(datadict, outdir='.', verbose=True):
     Returns:
 
     """
+    basename = os.path.basename(datadict['i_file'])
     for stokes in ['p', 'q', 'u']:
         if verbose:
             print(f'Making moments for Stokes {stokes}...')
-        mom = moments(datadict[f'{stokes}_cube'], verbose=verbose)
-        outfile = f'{outdir}/moment.{stokes}.fits'
+        mom = moments(datadict[f'{stokes}_cube'], basename, verbose=verbose)
         if verbose:
             print(f'Making mean...')
         mom.mu(outdir=outdir, stoke=stokes)
@@ -85,7 +102,7 @@ def momentloop(datadict, outdir='.', verbose=True):
         mom.sigma(outdir=outdir, stoke=stokes)
 
 
-def makepi(datadict, verbose=True):
+def makepi(datadict, outdir='.', verbose=True):
     """Make a polarized itensity cube.
 
     Note: PI cube will be saved to same dir as other cubes.
@@ -101,7 +118,14 @@ def makepi(datadict, verbose=True):
         updated with PI data.
 
     """
-    pifile = datadict['i_file'].replace('.i.', '.p.')
+    try:
+        os.mkdir(f'{outdir}/moments/')
+        print('Made directory.')
+    except FileExistsError:
+        print('Directory exists.')
+
+    pifilename = os.path.basename(datadict['i_file'].replace('.i.', '.p.'))
+    pifile = f'{outdir}/moments/{pifilename}'
     if verbose:
         print(f'Writing to {pifile}...')
     try:
@@ -153,7 +177,7 @@ def main(args, verbose=True):
     # Make PI cube
     if verbose:
         print('Making polarized intensity cube...')
-    datadict = makepi(datadict, verbose=verbose)
+    datadict = makepi(datadict, outdir=outdir, verbose=verbose)
 
     # Compute moments
     if verbose:
@@ -188,9 +212,9 @@ def cli():
     descStr = f"""
     {logostr}
     SPICE-RACS Stage 3:
-    Produce 'Faraday' moments.
+    Produce 'Faraday' moments. Files will be saved to 'outdir/moments/'.
 
-    Note: A PI cube will also be produced, and saved with other cubes.
+    Note: A PI cube will also be produced.
 
     """
 
