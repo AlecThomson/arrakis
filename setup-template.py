@@ -12,17 +12,18 @@ from shutil import rmtree
 from setuptools import find_packages, setup, Command
 
 # Package meta-data.
-NAME = 'mypackage'
-DESCRIPTION = 'My short description for my project.'
-URL = 'https://github.com/me/myproject'
-EMAIL = 'me@example.com'
-AUTHOR = 'Awesome Soul'
+NAME = 'spiceracs'
+DESCRIPTION = 'Processing polarized RACS data products.'
+URL = 'https://github.com/AlecThomson/SPICERACS'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = '0.1.0'
+VERSION = None  # Read from __version__.py
+AUTHOR = 'Alec Thomson'
+EMAIL='alec.thomson@anu.edu.au'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    # 'requests', 'maya', 'records',
+    'numpy', 'matplotlib', 'astropy', 'spectral_cube', 'tqdm',
+    'pymongo', 'schwimmbad', 'AegeanTools'
 ]
 
 # What packages are optional?
@@ -103,26 +104,28 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
-    # If your package is a single module, use this instead of 'packages':
-    # py_modules=['mypackage'],
-
-    # entry_points={
-    #     'console_scripts': ['mycli=mymodule:cli'],
-    # },
+    packages=['spiceracs'],
+    entry_points={
+        'console_scripts': ['spicecutout=spiceracs.cutout:cli',
+                            'spiceunresolved=spiceracs.unresolved:cli',
+                            'spicemoments=spiceracs.moments:cli',
+                            'spicepolfind=spiceracs.polfind:cli'
+                            ],
+    },
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
-    license='MIT',
+    license='BSD 3-clause "New" or "Revised License',
     classifiers=[
         # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: BSD 3-Clause License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: Implementation :: CPython',
-        'Programming Language :: Python :: Implementation :: PyPy'
+        'Intended Audience :: Science/Research',
+        'Topic :: Scientific/Engineering :: Astronomy',
+        'Development Status :: 3 - Alpha',
     ],
     # $ setup.py publish support.
     cmdclass={
