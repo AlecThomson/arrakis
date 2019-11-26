@@ -5,6 +5,9 @@ import multiprocessing
 from tqdm import tqdm, trange
 from glob import glob
 import warnings
+import functools
+print = functools.partial(print, flush=True)
+
 
 def dobane(filename, n_cores=1, verbose=True):
     """Run BANE on moment map.
@@ -22,7 +25,10 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
     """
     if verbose:
         print(f'Running Aegean on {filename}...')
-    tablename = filename.replace('.fits', '.vot')
+    tablename = f"{filename.replace('.fits', '.vot')},\
+    {filename.replace('.fits', '_isle.reg')}".replace(
+            "   ", ""
+        ).replace(" ", "")
     # Defaults
     INNERCLIP = 5
     OUTERCLIP = 4
@@ -36,7 +42,9 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
 
     command = f'aegean {filename} --autoload --seedclip {INNERCLIP} \
         --floodclip {OUTERCLIP} --cores={n_cores} \
-            {negative} --table {tablename}'
+        {negative} --table {tablename}'.replace(
+            "   ", " "
+        )
     proc = subprocess.run(command, shell=True,
                           capture_output=(not verbose),
                           encoding="utf-8", check=True)
@@ -45,14 +53,14 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
 def getmoments(momdir, verbose=True):
     """Get moment files
     """
+    moments = {}
     for stoke in ['p', 'q', 'u']:
-        mu = glob(f'{momdir}/*.{stoke}.*.mu.*.fits')
-        sigma = glob(f'{momdir}/*.{stoke}.*.sigma.*.fits')
-
-        moments = {
-            f"{stoke}_mu": mu,
-            f"{stoke}_sigma": sigma
-        }
+        mu = glob(f'{momdir}/*.{stoke}.*.mu.*linmos.fits')
+        sigma = glob(f'{momdir}/*.{stoke}.*.sigma.*.linmos.fits')
+        moments.update({
+            f"{stoke}_mu": mu[0],
+            f"{stoke}_sigma": sigma[0]
+        })
     return moments
 
 
@@ -70,14 +78,16 @@ def baneloop(moments, n_cores=1, verbose=True):
 def aegeanloop(moments, n_cores=1, verbose=True):
     """Loop Aegean over files.
     """
-    for stoke in tqdm(
-            ['p', 'q', 'u'],
-            disable=(not verbose),
-            desc='Running Aegean'
-            ):
-        for moment in ['mu', 'sigma']:
-            doaegean(moments[f'{stoke}_{moment}'], stoke, moment,
-                     n_cores=n_cores, verbose=verbose)
+    with tqdm(
+        total=6,
+        disable=(not verbose), 
+        desc='Running Aegean'
+        ) as pbar:
+        for stoke in ['p', 'q', 'u']:
+            for moment in ['mu', 'sigma']:
+                doaegean(moments[f'{stoke}_{moment}'], moment, stoke,
+                        n_cores=n_cores, verbose=verbose)
+                pbar.update(1)
 
 def squishtables(Verbose=True):
     command = f'java -jar spiceracs/stilts.jar tmatch2\
@@ -86,10 +96,11 @@ def squishtables(Verbose=True):
                  join=1or2 matcher=sky params=10 \
                      values1="RA Dec" values2="RA Dec" \
                          omode=out out=comb.vot'
-    
+
     proc = subprocess.run(command, shell=True,
                           capture_output=(not verbose),
                           encoding="utf-8", check=True)
+
 
 def main(args, verbose=True):
     """Main script.
