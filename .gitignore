@@ -111,3 +111,6 @@ racs_db/
 *.err
 *.e*
 *.o*
+
+# vscode
+.vscode
