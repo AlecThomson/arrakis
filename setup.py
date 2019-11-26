@@ -60,4 +60,7 @@ setup(
         'Topic :: Scientific/Engineering :: Astronomy',
     ],
     test_suite='tests',
+    package_data={
+        'spiceracs': ['../stilts/stilts.jar'],
+    }
 )
