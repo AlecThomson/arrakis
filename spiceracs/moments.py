@@ -44,6 +44,7 @@ class moments:
                 disable=(not self.verbose)
             ):
                 yav = np.nanmean(np.array(self.cube[:, i, :]), axis=0)
+                yav[yav == 0] = np.nan
                 outfh[0].data[i, :] = yav
                 outfh.flush()
 
@@ -72,6 +73,7 @@ class moments:
                 disable=(not self.verbose)
             ):
                 ystd = np.nanstd(np.array(self.cube[:, i, :]), axis=0, ddof=1)
+                ystd[ystd == 0] = np.nan
                 outfh[0].data[i, :] = ystd
                 outfh.flush()
 
