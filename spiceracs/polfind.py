@@ -14,8 +14,8 @@ def dobane(filename, n_cores=1, verbose=True):
     """
     if verbose:
         print(f'Running BANE on {filename}')
-    command = f'BANE {filename} --cores={n_cores}'
-    proc = subprocess.run(command, shell=True,
+    command = ['BANE', filename, f'--cores={n_cores}']
+    proc = subprocess.run(command,
                           capture_output=(not verbose),
                           encoding="utf-8", check=True)
 
@@ -26,9 +26,9 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
     if verbose:
         print(f'Running Aegean on {filename}...')
     tablename = f"{filename.replace('.fits', '.vot')},\
-    {filename.replace('.fits', '_isle.reg')}".replace(
-            "   ", ""
-        ).replace(" ", "")
+    {filename.replace('.fits', '.reg')}".replace("   ", "").replace(
+        " ", ""
+    )
     # Defaults
     INNERCLIP = 5
     OUTERCLIP = 4
@@ -40,12 +40,10 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
     elif (stoke == 'q' or stoke == 'u') and moment == 'mu':
         negative = '--negative'
 
-    command = f'aegean {filename} --autoload --seedclip {INNERCLIP} \
-        --floodclip {OUTERCLIP} --cores={n_cores} \
-        {negative} --table {tablename}'.replace(
-            "   ", " "
-        )
-    proc = subprocess.run(command, shell=True,
+    command = ['aegean', filename, '--autoload', '--island',
+               f'--seedclip {INNERCLIP}', f'--floodclip {OUTERCLIP}',
+               f'--cores={n_cores}', negative, f'--table {tablename}']
+    proc = subprocess.run(command,
                           capture_output=(not verbose),
                           encoding="utf-8", check=True)
 
@@ -80,26 +78,23 @@ def aegeanloop(moments, n_cores=1, verbose=True):
     """
     with tqdm(
         total=6,
-        disable=(not verbose), 
+        disable=(not verbose),
         desc='Running Aegean'
-        ) as pbar:
+    ) as pbar:
         for stoke in ['p', 'q', 'u']:
             for moment in ['mu', 'sigma']:
                 doaegean(moments[f'{stoke}_{moment}'], moment, stoke,
-                        n_cores=n_cores, verbose=verbose)
+                         n_cores=n_cores, verbose=verbose)
                 pbar.update(1)
 
-def squishtables(Verbose=True):
-    command = f'java -jar spiceracs/stilts.jar tmatch2\
-         ifmt1=votable ifmt2=votable \
-             in1=p.mu_comp.vot in2=u.sigma_comp.vot \
-                 join=1or2 matcher=sky params=10 \
-                     values1="RA Dec" values2="RA Dec" \
-                         omode=out out=comb.vot'
 
-    proc = subprocess.run(command, shell=True,
-                          capture_output=(not verbose),
-                          encoding="utf-8", check=True)
+def squishtables(verbose=True):
+    stiltspath = Path(os.path.realpath(__file__)
+                      ).parent.parent/"stilts"/"stilts.jar"
+    command = ['java','-jar', stiltspath,'-h']
+    proc = subprocess.run(command,
+                        capture_output=(not verbose),
+                        encoding="utf-8", check=True)
 
 
 def main(args, verbose=True):
@@ -128,6 +123,9 @@ def main(args, verbose=True):
 
     # Run Aegean
     aegeanloop(moments, n_cores=n_cores, verbose=verbose)
+
+    # Merge tables
+    squishtables()
 
     if verbose:
         print('Done!')
