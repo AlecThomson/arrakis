@@ -26,7 +26,7 @@ def gettable(tabledir, keyword, verbose=True):
 
     """
     # Glob out the necessary files
-    files = glob(f'{tabledir}/*.{keyword}.*.xml')  # Selvay VOTab
+    files = glob(f'{tabledir}/*.{keyword}*.xml')  # Selvay VOTab
     filename = files[0]
     if verbose:
         print(f'Getting table data from {filename}...')
@@ -53,10 +53,10 @@ def getdata(cubedir, tabledir, verbose=True):
     """
     # Glob out the necessary files
     # Data cubes
-    cubes = glob(f'{cubedir}/image.restored.*contcube*linmos*fits')
+    cubes = glob(f'{cubedir}/image.restored.*contcube*linmos.fits')
     selavyfits = glob(f'{tabledir}/comp*.fits')  # Selavy images
     # Get selvay data from VOTab
-    i_tab, voisle = gettable(tabledir, 'island', verbose=verbose) # Selvay VOTab
+    i_tab, voisle = gettable(tabledir, 'islands', verbose=verbose) # Selvay VOTab
 
     if verbose:
         print(f'Getting spectral data from: {cubes}', '\n')
