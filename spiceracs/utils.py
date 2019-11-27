@@ -10,6 +10,36 @@ import astropy.units as u
 import functools
 print = functools.partial(print, flush=True)
 
+def getfreq(cube, outdir=None, filename=None, verbose=True):
+    """Get list of frequencies from FITS data.
+
+    Args:
+        cube (str or SpectralCube): File or cube to get spectral
+    """
+    
+    # If cube is a file, open with SpectralCube
+    if type(cube) is str:
+        cube = SpectralCube.read(cube, mode='denywrite')
+    
+    # Test that cube is Spectral cube
+    assert cube is SpectralCube, "cube should be a SpectralCube!"
+
+    # Get frequencies
+    freq = cube.spectral_axis
+    
+    # Write to file if outdir is specified
+    if outdir is not None:
+        if outdir[-1] == '/':
+            outdir = outdir[:-1]
+        if filename is None:
+            outfile = f'{outdir}/frequencies.txt'
+        else:
+            outfile = f'{outdir}/{filename}'
+        if verbose:
+            print(f'Saving to {outfile}')
+        np.savetext(outfile, freq)
+    return freq
+
 def gettable(tabledir, keyword, verbose=True):
     """Get the spectral and source-finding data.
 
