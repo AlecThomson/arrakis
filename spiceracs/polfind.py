@@ -5,6 +5,8 @@ import multiprocessing
 from tqdm import tqdm, trange
 from glob import glob
 import warnings
+from pathlib import Path
+import os
 import functools
 print = functools.partial(print, flush=True)
 
@@ -25,24 +27,27 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
     """
     if verbose:
         print(f'Running Aegean on {filename}...')
-    tablename = f"{filename.replace('.fits', '.vot')},\
+    tablename = f"{filename.replace('.fits', '.xml')},\
     {filename.replace('.fits', '.reg')}".replace("   ", "").replace(
         " ", ""
     )
     # Defaults
-    INNERCLIP = 5
-    OUTERCLIP = 4
-    negative = ''
+    INNERCLIP = '5'
+    OUTERCLIP = '4'
 
     if stoke == 'p':
-        INNERCLIP = 6
-        OUTERCLIP = 5
-    elif (stoke == 'q' or stoke == 'u') and moment == 'mu':
-        negative = '--negative'
+        INNERCLIP = '6'
+        OUTERCLIP = '5'
 
     command = ['aegean', filename, '--autoload', '--island',
-               f'--seedclip {INNERCLIP}', f'--floodclip {OUTERCLIP}',
-               f'--cores={n_cores}', negative, f'--table {tablename}']
+               '--seedclip', INNERCLIP, '--floodclip', OUTERCLIP,
+               f'--cores={n_cores}', '--table', tablename]
+
+    if (stoke == 'q' or stoke == 'u') and moment == 'mu':
+        negative = '--negative'
+        command.append(negative)
+
+
     proc = subprocess.run(command,
                           capture_output=(not verbose),
                           encoding="utf-8", check=True)
@@ -90,7 +95,7 @@ def aegeanloop(moments, n_cores=1, verbose=True):
 
 def squishtables(verbose=True):
     stiltspath = Path(os.path.realpath(__file__)
-                      ).parent.parent/"stilts"/"stilts.jar"
+                      ).parent.parent/"thirdparty"/"stilts"/"stilts.jar"
     command = ['java','-jar', stiltspath,'-h']
     proc = subprocess.run(command,
                         capture_output=(not verbose),
@@ -119,13 +124,16 @@ def main(args, verbose=True):
     moments = getmoments(momdir, verbose=verbose)
 
     # Run BANE
-    baneloop(moments, n_cores=n_cores, verbose=verbose)
+    if args.do_bane:
+        baneloop(moments, n_cores=n_cores, verbose=verbose)
 
     # Run Aegean
-    aegeanloop(moments, n_cores=n_cores, verbose=verbose)
+    if args.do_aegean:
+        aegeanloop(moments, n_cores=n_cores, verbose=verbose)
 
     # Merge tables
-    squishtables()
+    if args.do_merge:
+        squishtables()
 
     if verbose:
         print('Done!')
@@ -189,6 +197,27 @@ def cli():
         "--ncores",
         dest="n_cores",
         type=int, help="Number of processes [use all available].")
+
+    parser.add_argument(
+        "--bane",
+        dest="do_bane",
+        action="store_true",
+        help="Run BANE [False]."
+    )
+
+    parser.add_argument(
+        "--aegean",
+        dest="do_aegean",
+        action="store_true",
+        help="Run Aegean [False]."
+    )
+
+    parser.add_argument(
+        "--merge",
+        dest="do_merge",
+        action="store_true",
+        help="Merge output tables [False]."
+    )
 
     args = parser.parse_args()
     verbose = args.verbose

@@ -83,8 +83,9 @@ class UploadCommand(Command):
         self.status('Building Source and Wheel (universal) distribution…')
         os.system('{0} setup.py sdist bdist_wheel --universal'.format(sys.executable))
 
-        self.status('Uploading the package to PyPI via Twine…')
-        os.system('twine upload dist/*')
+        # Leave out until code is public
+        #self.status('Uploading the package to PyPI via Twine…')
+        #os.system('twine upload dist/*')
 
         self.status('Pushing git tags…')
         os.system('git tag v{0}'.format(about['__version__']))
@@ -131,4 +132,8 @@ setup(
     cmdclass={
         'upload': UploadCommand,
     },
+    test_suite='tests',
+    package_data={
+        'spiceracs': ['..thirdparty/stilts/stilts.jar'],
+    }
 )
