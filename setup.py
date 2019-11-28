@@ -18,7 +18,7 @@ URL = 'https://github.com/AlecThomson/SPICERACS'
 REQUIRES_PYTHON = '>=3.6.0'
 VERSION = None  # Read from __version__.py
 AUTHOR = 'Alec Thomson'
-EMAIL='alec.thomson@anu.edu.au'
+EMAIL = 'alec.thomson@anu.edu.au'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -81,7 +81,8 @@ class UploadCommand(Command):
             pass
 
         self.status('Building Source and Wheel (universal) distribution…')
-        os.system('{0} setup.py sdist bdist_wheel --universal'.format(sys.executable))
+        os.system(
+            '{0} setup.py sdist bdist_wheel --universal'.format(sys.executable))
 
         # Leave out until code is public
         #self.status('Uploading the package to PyPI via Twine…')
