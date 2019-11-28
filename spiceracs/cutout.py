@@ -16,7 +16,6 @@ import functools
 print = functools.partial(print, flush=True)
 
 
-
 def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     """Main cutout task.
 
@@ -38,6 +37,8 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
             metadata of each source.
 
     """
+    if outdir[-1] == '/':
+        outdir = outdir[:-1]
     # Get bounding boxes in WCS
     ra_min, dec_min, freq = datadict['wcs_taylor'].all_pix2world(
         datadict['i_tab']['col_x_min'], datadict['i_tab']['col_y_min'], 0, 0)
@@ -57,9 +58,11 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     u_cutouts = []
     outdir = f'{outdir}/cutouts'
     if dryrun:
-        if verbose: print('Dry run -- not saving to disk.')
+        if verbose:
+            print('Dry run -- not saving to disk.')
     else:
-        if verbose: print(f'Saving to {outdir}/')
+        if verbose:
+            print(f'Saving to {outdir}/')
     source_dict_list = []
 
     i_cube = datadict['i_cube']
@@ -75,10 +78,10 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     # TO-DO: Max cut on size
     for i in trange(
         len(datadict['i_tab']),
-        total = len(datadict['i_tab']),
+        total=len(datadict['i_tab']),
         disable=(not verbose),
         desc='Extracting cubelets'
-        ):
+    ):
         source_dict = {}
         # Skip if source is outside of cube bounds
         if (y_max[i] > i_cube.shape[2] or x_max[i] > i_cube.shape[2] or
@@ -184,15 +187,17 @@ def getsize(pool, cutouts, verbose=True):
 
     """
     if (pool.__class__.__name__ is 'MPIPool' or
-         pool.__class__.__name__ is 'SerialPool'):
-        if verbose: print(f'Getting sizes...')
+            pool.__class__.__name__ is 'SerialPool'):
+        if verbose:
+            print(f'Getting sizes...')
         tic = time.perf_counter()
         sizes_bytes = list(
             pool.map(getbytes, [cutouts[i] for i in range(len(cutouts))]
                      )
         )
         toc = time.perf_counter()
-        if verbose: print(f'Time taken was {toc - tic}s')
+        if verbose:
+            print(f'Time taken was {toc - tic}s')
 
     elif pool.__class__.__name__ is 'MultiPool':
         sizes_bytes = list(tqdm(
@@ -248,8 +253,9 @@ def writeloop(pool, cutouts, source_dict_list, verbose=True):
     """
     for stoke in ['i', 'q', 'u']:
         if (pool.__class__.__name__ is 'MPIPool' or
-            pool.__class__.__name__ is 'SerialPool'):
-            if verbose: print(f'Writing Stokes {stoke}...')
+                pool.__class__.__name__ is 'SerialPool'):
+            if verbose:
+                print(f'Writing Stokes {stoke}...')
             tic = time.perf_counter()
             pool.map(
                 writefits,
@@ -257,7 +263,8 @@ def writeloop(pool, cutouts, source_dict_list, verbose=True):
                     for i in range(len(cutouts[stoke]))]
             )
             toc = time.perf_counter()
-            if verbose: print(f'Time taken was {toc - tic}s')
+            if verbose:
+                print(f'Time taken was {toc - tic}s')
 
         elif pool.__class__.__name__ is 'MultiPool':
             list(tqdm(
@@ -303,7 +310,7 @@ class MyEncoder(json.JSONEncoder):
 
     """
 
-    def default(self, obj): # pylint: disable=E0202
+    def default(self, obj):  # pylint: disable=E0202
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):
@@ -352,7 +359,8 @@ def database(source_dict_list, verbose=True):
             mycol.insert_one(json_data)
     # Check if all cutouts are in collection
     count = mycol.count_documents({})
-    if verbose: print('Total documents:', count)
+    if verbose:
+        print('Total documents:', count)
     client.close()
 
 
@@ -363,47 +371,47 @@ def main(pool, args, verbose=True):
     # Sort out args
     cubedir = args.cubedir
     tabledir = args.tabledir
-    if cubedir[-1] == '/':
-        cubedir = cubedir[:-1]
-
-    if tabledir[-1] == '/':
-        tabledir = tabledir[:-1]
 
     # Read in data
-    if verbose: print('Reading data...')
+    if verbose:
+        print('Reading data...')
     datadict = getdata(cubedir, tabledir, verbose=verbose)
 
     # Make cutouts
-    outdir = args.outdir
-    if outdir[-1] == '/':
-        outdir = outdir[:-1]
     pad = args.pad
     dryrun = args.dryrun
-    if verbose: print('Making cutouts....')
+    if verbose:
+        print('Making cutouts....')
+    outdir = args.outdir
     cutouts, source_dict_list = makecutout(pool,
-        datadict,
-        outdir=outdir,
-        pad=pad,
-        dryrun=dryrun,
-        verbose=verbose
-    )
+                                           datadict,
+                                           outdir=outdir,
+                                           pad=pad,
+                                           dryrun=dryrun,
+                                           verbose=verbose
+                                           )
 
     # Check size of cube
     if args.getsize:
-        if verbose: print('Checking size of single cube...')
+        if verbose:
+            print('Checking size of single cube...')
         getsize(pool, cutouts['i'], verbose=verbose)
 
     # Write to disk
     if not dryrun:
-        if verbose: print('Writing to disk...')
+        if verbose:
+            print('Writing to disk...')
         writeloop(pool, cutouts, source_dict_list, verbose=verbose)
 
     # Update MongoDB
     if args.database:
-        if verbose: print('Updating MongoDB...')
+        if verbose:
+            print('Updating MongoDB...')
         database(source_dict_list, verbose=True)
 
-    if verbose: print('Done!')
+    if verbose:
+        print('Done!')
+
 
 def cli():
     """Command-line interface.
@@ -514,7 +522,7 @@ def cli():
 
     args = parser.parse_args()
     verbose = args.verbose
-    pool =  schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
+    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
     if args.mpi:
         if not pool.is_master():
             pool.wait()
@@ -523,18 +531,21 @@ def cli():
         print(f"Using pool: {pool.__class__.__name__}")
 
     if args.database:
-        if verbose: print('Testing MongoDB connection...')
+        if verbose:
+            print('Testing MongoDB connection...')
         client = pymongo.MongoClient()  # default connection (ie, local)
         try:
             client.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
             raise Exception("Please ensure 'mongod' is running")
         else:
-            if verbose: print('MongoDB connection succesful!')
+            if verbose:
+                print('MongoDB connection succesful!')
         client.close()
 
     main(pool, args, verbose=verbose)
     pool.close()
+
 
 if __name__ == "__main__":
     cli()

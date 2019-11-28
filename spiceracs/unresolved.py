@@ -206,8 +206,6 @@ def main(args, verbose=True):
     """Main script.
     """
     tabledir = args.tabledir
-    if tabledir[-1] == '/':
-        tabledir = tabledir[:-1]
 
     if verbose:
         print('Reading catalogue...')

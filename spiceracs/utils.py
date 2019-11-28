@@ -10,23 +10,41 @@ import astropy.units as u
 import functools
 print = functools.partial(print, flush=True)
 
+
 def getfreq(cube, outdir=None, filename=None, verbose=True):
     """Get list of frequencies from FITS data.
 
+    Gets the frequency list from a given cube. Can optionally save
+    frequency list to disk.
+
     Args:
         cube (str or SpectralCube): File or cube to get spectral
+            axis from. If a file, it will be opened using SpectralCube.
+
+    Kwargs:
+        outdir (str): Where to save the output file. If not given, data
+            will not be saved to disk.
+
+        filename (str): Name of frequency list file. Requires 'outdir'
+            to also be specified.
+
+        verbose (bool): Whether to print messages.
+
+    Returns:
+        freq (list): Frequencies of each channel in the input cube.
+
     """
-    
+
     # If cube is a file, open with SpectralCube
     if type(cube) is str:
         cube = SpectralCube.read(cube, mode='denywrite')
-    
+
     # Test that cube is Spectral cube
     assert cube is SpectralCube, "cube should be a SpectralCube!"
 
     # Get frequencies
     freq = cube.spectral_axis
-    
+
     # Write to file if outdir is specified
     if outdir is not None:
         if outdir[-1] == '/':
@@ -39,6 +57,7 @@ def getfreq(cube, outdir=None, filename=None, verbose=True):
             print(f'Saving to {outfile}')
         np.savetext(outfile, freq)
     return freq
+
 
 def gettable(tabledir, keyword, verbose=True):
     """Get the spectral and source-finding data.
@@ -55,6 +74,8 @@ def gettable(tabledir, keyword, verbose=True):
             Spectral cubes.
 
     """
+    if tabledir[-1] == '/':
+        tabledir = tabledir[:-1]
     # Glob out the necessary files
     files = glob(f'{tabledir}/*.{keyword}*.xml')  # Selvay VOTab
     filename = files[0]
@@ -65,6 +86,7 @@ def gettable(tabledir, keyword, verbose=True):
     table = Table.read(filename, format='votable')
 
     return table, filename
+
 
 def getdata(cubedir, tabledir, verbose=True):
     """Get the spectral and source-finding data.
@@ -81,18 +103,22 @@ def getdata(cubedir, tabledir, verbose=True):
             Spectral cubes.
 
     """
+    if cubedir[-1] == '/':
+        cubedir = cubedir[:-1]
+
+    if tabledir[-1] == '/':
+        tabledir = tabledir[:-1]
     # Glob out the necessary files
     # Data cubes
     cubes = glob(f'{cubedir}/image.restored.*contcube*linmos.fits')
     selavyfits = glob(f'{tabledir}/comp*.fits')  # Selavy images
     # Get selvay data from VOTab
-    i_tab, voisle = gettable(tabledir, 'islands', verbose=verbose) # Selvay VOTab
+    i_tab, voisle = gettable(
+        tabledir, 'islands', verbose=verbose)  # Selvay VOTab
 
     if verbose:
         print(f'Getting spectral data from: {cubes}', '\n')
         print(f'Getting source location data from:', selavyfits[0], '\n')
-
-    
 
     # Read data using Spectral cube
     i_taylor = SpectralCube.read(selavyfits[0], mode='denywrite')
@@ -122,6 +148,7 @@ def getdata(cubedir, tabledir, verbose=True):
     }
 
     return datadict
+
 
 class Error(OSError):
     pass

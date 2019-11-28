@@ -47,7 +47,6 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
         negative = '--negative'
         command.append(negative)
 
-
     proc = subprocess.run(command,
                           capture_output=(not verbose),
                           encoding="utf-8", check=True)
@@ -56,6 +55,9 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
 def getmoments(momdir, verbose=True):
     """Get moment files
     """
+    if momdir[-1] == '/':
+        momdir = momdir[:-1]
+
     moments = {}
     for stoke in ['p', 'q', 'u']:
         mu = glob(f'{momdir}/*.{stoke}.*.mu.*linmos.fits')
@@ -96,10 +98,10 @@ def aegeanloop(moments, n_cores=1, verbose=True):
 def squishtables(verbose=True):
     stiltspath = Path(os.path.realpath(__file__)
                       ).parent.parent/"thirdparty"/"stilts"/"stilts.jar"
-    command = ['java','-jar', stiltspath,'-h']
+    command = ['java', '-jar', stiltspath, '-h']
     proc = subprocess.run(command,
-                        capture_output=(not verbose),
-                        encoding="utf-8", check=True)
+                          capture_output=(not verbose),
+                          encoding="utf-8", check=True)
 
 
 def main(args, verbose=True):
@@ -108,11 +110,6 @@ def main(args, verbose=True):
     # Sort out args
     momdir = args.momdir
     tabledir = args.tabledir
-    if momdir[-1] == '/':
-        momdir = momdir[:-1]
-
-    if tabledir[-1] == '/':
-        tabledir = tabledir[:-1]
 
     n_cores = args.n_cores
     if args.n_cores is None:

@@ -120,6 +120,8 @@ def makepi(datadict, outdir='.', verbose=True):
         updated with PI data.
 
     """
+    if outdir[-1] == '/':
+        outdir = outdir[:-1]
     try:
         os.mkdir(f'{outdir}/moments/')
         print('Made directory.')
@@ -162,15 +164,7 @@ def main(args, verbose=True):
     # Sort out args
     cubedir = args.cubedir
     tabledir = args.tabledir
-    if cubedir[-1] == '/':
-        cubedir = cubedir[:-1]
-
-    if tabledir[-1] == '/':
-        tabledir = tabledir[:-1]
-
     outdir = args.outdir
-    if outdir[-1] == '/':
-        outdir = outdir[:-1]
     # Read in data
     if verbose:
         print('Reading data...')
