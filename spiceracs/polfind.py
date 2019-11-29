@@ -165,14 +165,25 @@ def squishtables(catdir='.', component=False, verbose=True):
     catnames = [cats[key] for key in cats.keys()]
     
 
-    # Run STILTS
+    # Run STILTS -- xmatch pol tables
     inN = [catnames[0], catnames[1]]
     valuesN = ['ra dec', 'ra dec']
     tmatchtwo(inN, valuesN, join='1or2', out='temp1.xml' verbose=verbose)
 
-    for i in range(len(catnames)):
-        inN = [f'temp', ]
-        tmatchtwo()
+    for i in range(1,4):
+        inN = [f'temp{i}.xml', catnames[i+2]]
+        tmatchtwo(inN, valuesN, out=f'temp{i+1}.xml')
+
+
+    # Run STILTS -- xmatch with I cat
+    inN = ['temp6.xml', icat]
+    valuesN = ['ra dec', 'ra_deg_cont dec_deg_cont']
+    tmatchtwo(inN, out='final.xml', join='1and2')
+
+    #clean up
+    for i in range(5):
+        os.remove(f'temp{i}.xml')
+
 
 def main(args, verbose=True):
     """Main script.
