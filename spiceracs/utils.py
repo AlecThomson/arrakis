@@ -1,14 +1,236 @@
 #!/usr/bin/env python
+import numpy as np
 import os
 import stat
 from tqdm import tqdm
 from glob import glob
 from spectral_cube import SpectralCube
+import subprocess
+from pathlib import Path
 from astropy.table import Table
 from astropy.wcs import WCS
 import astropy.units as u
 import functools
 print = functools.partial(print, flush=True)
+
+
+def tmatchtwo(inN, valuesN, matcher='sky', params=10, omode='out',
+            out='tmatch.default.xml', join='1or2', verbose=True):
+    """
+    inN = <tableN>       (StarTable)
+        The location of input table #N. This may take one of the
+        following forms:
+            A filename.
+            A URL.
+            The special value "-", meaning standard input. In this case
+            the input format must be given explicitly using the ifmtN
+            parameter. Note that not all formats can be streamed in this
+            way.
+            A system command line with either a "<" character at the
+            start, or a "|" character at the end ("<syscmd" or
+            "syscmd|"). This executes the given pipeline and reads from
+            its standard output. This will probably only work on
+            unix-like systems.
+
+    valuesN = <expr-list>       (String[])
+        Defines the values from table N which are used to determine
+        whether a match has occurred. These will typically be coordinate
+        values such as RA and Dec and perhaps some per-row error values
+        as well, though exactly what values are required is determined
+        by the kind of match as determined by matcher. Depending on the
+        kind of match, the number and type of the values required will
+        be different. Multiple values should be separated by whitespace;
+        if whitespace occurs within a single value it must be 'quoted'
+        or "quoted". Elements of the expression list are commonly just
+        column names, but may be algebraic expressions calculated from
+        zero or more columns as explained in Section 10.
+
+    matcher = <matcher-name>       (MatchEngine)
+        Defines the nature of the matching that will be performed. 
+        Depending on the name supplied, this may be positional matching
+        using celestial or Cartesian coordinates, exact matching on the
+        value of a string column, or other things. A list and
+        explanation of the available matching algorithms is given in
+        Section 7.1. The value supplied for this parameter determines
+        the meanings of the values required by the params, values* and
+        tuning parameter(s).
+        [Default: sky]
+
+    params = <match-params>       (String[])
+        Determines the parameters of this match. This is typically one
+        or more tolerances such as error radii. It may contain zero or
+        more values; the values that are required depend on the match
+        type selected by the matcher parameter. If it contains multiple 
+        alues, they must be separated by spaces; values which contain a
+        space can be 'quoted' or "quoted".    
+
+    omode = out|meta|stats|count|cgi|discard|topcat|samp|plastic
+                |tosql|gui       (ProcessingMode)
+        The mode in which the result table will be output. The default
+        mode is out, which means that the result will be written as a
+        new table to disk or elsewhere, as determined by the out and
+        ofmt parameters. However, there are other possibilities, which
+        correspond to uses to which a table can be put other than
+        outputting it, such as displaying metadata, calculating
+        statistics, or populating a table in an SQL database. For some
+        values of this parameter, additional parameters (<mode-args>)
+        are required to determine the exact behaviour.
+        [Default: out]
+    
+    out = <out-table>       (TableConsumer)
+        The location of the output table. This is usually a filename to
+        write to. If it is equal to the special value "-" (the default)
+        the output table will be written to standard output.
+        This parameter must only be given if omode has its default
+        value of "out".
+        [Default: -]
+    
+    join = 1and2|1or2|all1|all2|1not2|2not1|1xor2       (JoinType)
+        Determines which rows are included in the output table. The
+        matching algorithm determines which of the rows from the first
+        table correspond to which rows from the second. This parameter
+        determines what to do with that information. Perhaps the most
+        obvious thing is to write out a table containing only rows which
+        correspond to a row in both of the two input tables. However,
+        you may also want to see the unmatched rows from one or both
+        input tables, or rows present in one table but unmatched in the
+        other, or other possibilities. The options are:
+            1and2: An output row for each row represented in both input
+                tables (INNER JOIN)
+            1or2: An output row for each row represented in either or
+                both of the input tables (FULL OUTER JOIN)
+            all1: An output row for each matched or unmatched row in
+                table 1 (LEFT OUTER JOIN)
+            all2: An output row for each matched or unmatched row in
+                table 2 (RIGHT OUTER JOIN)
+            1not2: An output row only for rows which appear in the first
+                table but are not matched in the second table
+            2not1: An output row only for rows which appear in the
+                second table but are not matched in the first table
+            1xor2: An output row only for rows represented in one of the
+                input tables but not the other one
+        [Default: 1and2]
+
+    """
+    assert len(inN) == 2, 'Can only match 2 tables!'
+    assert len(valuesN) == 2, 'Can only match 2 tables!'
+    assert len(inN) == len(valuesN), 'Need same number of inputs (2).'
+    stiltspath = Path(os.path.realpath(__file__)
+                      ).parent.parent/"thirdparty"/"stilts"/"stilts.jar"
+    # Construct command
+    if verbose:
+        progress = 'log'
+    if not verbose:
+        progress = 'none'
+    command = ['java', '-jar', stiltspath, 'tmatch2',
+               f'matcher={matcher}', f'params={params}',
+               f'omode={omode}', f'out={out}', f'progress={progress}',
+               f'join={join}'
+               ]
+    for i in range(len(inN)):
+        command.append(f'in{i+1}={inN[i]}')
+        command.append(f'values{i+1}={valuesN[i]}')
+    command = [str(i) for i in command]
+    # Run STILTS
+    proc = subprocess.run(command,
+                          capture_output=(not verbose),
+                          encoding="utf-8", check=True)
+
+
+def tmatchn(nin, inN, valuesN,
+            matcher='sky', params=10, omode='out',
+            out='tmatch.default.xml', verbose=True):
+    """Run STILTS tmatchn
+    nin = <count>       (Integer)
+        The number of input tables for this task. For each of the input
+        tables N there will be associated parameters ifmtN, inN and
+        icmdN.
+
+    inN = <tableN>       (StarTable)
+        The location of input table #N. This may take one of the
+        following forms:
+            A filename.
+            A URL.
+            The special value "-", meaning standard input. In this case
+            the input format must be given explicitly using the ifmtN
+            parameter. Note that not all formats can be streamed in this
+            way.
+            A system command line with either a "<" character at the
+            start, or a "|" character at the end ("<syscmd" or
+            "syscmd|"). This executes the given pipeline and reads from
+            its standard output. This will probably only work on
+            unix-like systems.
+
+    valuesN = <expr-list>       (String[])
+        Defines the values from table N which are used to determine
+        whether a match has occurred. These will typically be coordinate
+        values such as RA and Dec and perhaps some per-row error values
+        as well, though exactly what values are required is determined
+        by the kind of match as determined by matcher. Depending on the
+        kind of match, the number and type of the values required will
+        be different. Multiple values should be separated by whitespace;
+        if whitespace occurs within a single value it must be 'quoted'
+        or "quoted". Elements of the expression list are commonly just
+        column names, but may be algebraic expressions calculated from
+        zero or more columns as explained in Section 10.
+
+    matcher = <matcher-name>       (MatchEngine)
+        Defines the nature of the matching that will be performed.
+        Depending on the name supplied, this may be positional matching
+        using celestial or Cartesian coordinates, exact matching on the
+        value of a string column, or other things. A list and
+        explanation of the available matching algorithms is given in
+        Section 7.1. The value supplied for this parameter determines
+        the meanings of the values required by the params, values* and
+        tuning parameter(s).
+        [Default: sky]
+
+    params = <match-params>       (String[])
+        Determines the parameters of this match. This is typically one
+        or more tolerances such as error radii. It may contain zero or
+        more values; the values that are required depend on the match
+        type selected by the matcher parameter. If it contains multiple
+        values, they must be separated by spaces; values which contain a
+        space can be 'quoted' or "quoted".
+
+    omode = out|meta|stats|count|cgi|discard|topcat|samp|plastic|tosql|gui
+            (ProcessingMode)
+        The mode in which the result table will be output. The default
+        mode is out, which means that the result will be written as a
+        new table to disk or elsewhere, as determined by the out and
+        ofmt parameters. However, there are other possibilities, which
+        correspond to uses to which a table can be put other than
+        outputting it, such as displaying metadata, calculating
+        statistics, or populating a table in an SQL database. For some
+        values of this parameter, additional parameters (<mode-args>)
+        are required to determine the exact behaviour.
+        [Default: out]
+    out = <out-table>       (TableConsumer)
+        The location of the output table. This is usually a filename to
+        write to. If it is equal to the special value "-" (the default)
+        the output table will be written to standard output.
+        This parameter must only be given if omode has its default value 
+        of "out".
+        [Default: -]
+    """
+    stiltspath = Path(os.path.realpath(__file__)
+                      ).parent.parent/"thirdparty"/"stilts"/"stilts.jar"
+    # Construct command
+    if verbose:
+        progress = 'log'
+    if not verbose:
+        progress = 'none'
+    command = ['java', '-jar', stiltspath, 'tmatchn', f'nin={nin}',
+               f'matcher={matcher}', f'params={params}',
+               f'omode={omode}', f'out={out}', f'progress={progress}']
+    for i in range(len(inN)):
+        command.append(f'in{i+1}={inN[i]}')
+        command.append(f'values{i+1}={valuesN[i]}')
+    command = [str(i) for i in command]
+    # Run STILTS
+    proc = subprocess.run(command,
+                          capture_output=(not verbose),
+                          encoding="utf-8", check=True)
 
 
 def getfreq(cube, outdir=None, filename=None, verbose=True):

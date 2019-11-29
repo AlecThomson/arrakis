@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-from spiceracs.utils import gettable
+from spiceracs.utils import gettable, tmatchn, tmatchtwo
 import subprocess
 import multiprocessing
 from tqdm import tqdm, trange
 from glob import glob
 import warnings
-from pathlib import Path
 import os
 import functools
 print = functools.partial(print, flush=True)
@@ -13,6 +12,14 @@ print = functools.partial(print, flush=True)
 
 def dobane(filename, n_cores=1, verbose=True):
     """Run BANE on moment map.
+
+    Args:
+        filename (str): FITS file to run BANE on.
+
+    Kwargs:
+        n_cores (int): Number of cores to run BANE with.
+        verbose (bool): Print out messages.
+
     """
     if verbose:
         print(f'Running BANE on {filename}')
@@ -24,6 +31,20 @@ def dobane(filename, n_cores=1, verbose=True):
 
 def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
     """Run Aegean on moment map.
+
+    Note: Assumes BANE has been run previously.
+
+    Args:
+        filename (str): FITS file to run BANE on.
+        moment (str): Which 'Faraday' moment is contained within the
+            file. Can be 'mu' or 'sigma'
+        stoke (str): Which Stokes is containted within the file. Can be
+            'p', 'q' or 'u'.
+
+    Kwargs:
+        n_cores (int): Number of cores to run BANE with.
+        verbose (bool): Print out messages.
+
     """
     if verbose:
         print(f'Running Aegean on {filename}...')
@@ -52,8 +73,16 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
                           encoding="utf-8", check=True)
 
 
-def getmoments(momdir, verbose=True):
-    """Get moment files
+def getmoments(momdir='.', verbose=True):
+    """Get moment files.
+
+    Kwargs:
+        momdir (str): Directory containing moment maps.
+        verbose (bool): Print out messages.
+
+    Returns:
+        moments (dict): Filenames of momemt maps.
+
     """
     if momdir[-1] == '/':
         momdir = momdir[:-1]
@@ -71,6 +100,14 @@ def getmoments(momdir, verbose=True):
 
 def baneloop(moments, n_cores=1, verbose=True):
     """Loop BANE over files.
+
+    Args:
+        moments (dict): Filenames of momemt maps.
+
+    Kwargs:
+        n_cores (int): Number of cores to run BANE with.
+        verbose (bool): Print out messages.
+
     """
     for key in tqdm(
             moments,
@@ -82,6 +119,14 @@ def baneloop(moments, n_cores=1, verbose=True):
 
 def aegeanloop(moments, n_cores=1, verbose=True):
     """Loop Aegean over files.
+
+    Args:
+        moments (dict): Filenames of momemt maps.
+
+    Kwargs:
+        n_cores (int): Number of cores to run BANE with.
+        verbose (bool): Print out messages.
+
     """
     with tqdm(
         total=6,
@@ -95,14 +140,39 @@ def aegeanloop(moments, n_cores=1, verbose=True):
                 pbar.update(1)
 
 
-def squishtables(verbose=True):
-    stiltspath = Path(os.path.realpath(__file__)
-                      ).parent.parent/"thirdparty"/"stilts"/"stilts.jar"
-    command = ['java', '-jar', stiltspath, '-h']
-    proc = subprocess.run(command,
-                          capture_output=(not verbose),
-                          encoding="utf-8", check=True)
+def squishtables(catdir='.', component=False, verbose=True):
+    """Merge tables with STILTS.
+    """
+    if catdir[-1] == '/':
+        catdir = catdir[:-1]
 
+    cattype = 'isle'
+    if component is True:
+        cattype = 'comp'
+
+    catalogues = {}
+    for stoke in ['p', 'q', 'u']:
+        for moment in ['mu', 'sigma']:
+            tab, name = gettable(
+                catdir,
+                f'{stoke}*{moment}*linmos_{cattype}',
+                verbose=verbose
+            )
+            catalogues.update({
+                f"{stoke}_{moment}": name
+            })
+    return catalogues
+    catnames = [cats[key] for key in cats.keys()]
+    
+
+    # Run STILTS
+    inN = [catnames[0], catnames[1]]
+    valuesN = ['ra dec', 'ra dec']
+    tmatchtwo(inN, valuesN, join='1or2', out='temp1.xml' verbose=verbose)
+
+    for i in range(len(catnames)):
+        inN = [f'temp', ]
+        tmatchtwo()
 
 def main(args, verbose=True):
     """Main script.
