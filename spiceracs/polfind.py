@@ -168,21 +168,21 @@ def squishtables(catdir='.', component=False, verbose=True):
     # Run STILTS -- xmatch pol tables
     inN = [catnames[0], catnames[1]]
     valuesN = ['ra dec', 'ra dec']
-    tmatchtwo(inN, valuesN, join='1or2', out='temp1.xml' verbose=verbose)
+    tmatchtwo(inN, valuesN, join='1or2', out='temp1.xml', verbose=verbose)
 
-    for i in range(1,4):
+    for i in trange(1,4):
         inN = [f'temp{i}.xml', catnames[i+2]]
         tmatchtwo(inN, valuesN, out=f'temp{i+1}.xml')
 
 
     # Run STILTS -- xmatch with I cat
-    inN = ['temp6.xml', icat]
-    valuesN = ['ra dec', 'ra_deg_cont dec_deg_cont']
-    tmatchtwo(inN, out='final.xml', join='1and2')
+    #inN = ['temp6.xml', icat]
+    #valuesN = ['ra dec', 'ra_deg_cont dec_deg_cont']
+    #tmatchtwo(inN, out='final.xml', join='1and2')
 
     #clean up
-    for i in range(5):
-        os.remove(f'temp{i}.xml')
+    #for i in range(5):
+    #    os.remove(f'temp{i}.xml')
 
 
 def main(args, verbose=True):
@@ -211,7 +211,7 @@ def main(args, verbose=True):
 
     # Merge tables
     if args.do_merge:
-        squishtables()
+        squishtables(momdir, verbose=verbose)
 
     if verbose:
         print('Done!')
