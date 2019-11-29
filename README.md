@@ -35,7 +35,7 @@ Currently, the order to run each script is:
     1. `spicecutout` or `spiceracs/cutout.py` -- Produce cubelets from a RACS field using a Selavy table.
     2. `spiceunresolved` or `spiceracs/unresolved.py` -- Find unresolved sources from a Selavy catalogue.
     3. `spicemoments` or `spiceracs/moments.py` -- Make Faraday moment maps for Farnes+ (2018) method.
-2. The datacubes can be removed from disk if required.
+2. The datacubes can be removed from disk, if required.
 3. `spicepolfind` or `spiceracs/polfind.py`-- Find polarized sources in a RACS field using the Farnes+ (2018) method.
 4. `spiceracs/rmsynth_oncuts.py` -- Run RM synthesis on unresolved, polarized sources.
 5. ?????
