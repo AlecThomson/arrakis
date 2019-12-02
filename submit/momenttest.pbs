@@ -1,6 +1,6 @@
 ##### Select resources #####
 #PBS -N SPICERACS-moment
-#PBS -l select=1:ncpus=1
+#PBS -l select=1:ncpus=28
 ##### Queue #####
 #PBS -q largemem
 #PBS -l place=scatter
