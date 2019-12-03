@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-from spiceracs.utils import getdata, copyfile
+from spiceracs.utils import getdata, copyfile, getfreq
+from RMtools_3D.do_RMsynth_3D import run_rmsynth
 from spectral_cube import SpectralCube
 import warnings
 import numpy as np
@@ -107,8 +108,6 @@ def momentloop(datadict, outdir='.', verbose=True):
 def makepi(datadict, outdir='.', verbose=True):
     """Make a polarized itensity cube.
 
-    Note: PI cube will be saved to same dir as other cubes.
-
     Args:
         datadict (dict): Dictionary containing tables and cubes.
 
@@ -158,6 +157,57 @@ def makepi(datadict, outdir='.', verbose=True):
     return datadict
 
 
+def makezero(datadict, outdir='.', verbose=True):
+    """Make a Faraday moment 0 cube.
+
+    Args:
+        datadict (dict): Dictionary containing tables and cubes.
+
+    Kwargs:
+        verbose (bool): Print out messages.
+
+    Returns:
+        datadict (dict): Dictionary containing tables and cubes, now
+        updated with PI data.
+
+    """
+    if outdir[-1] == '/':
+        outdir = outdir[:-1]
+    try:
+        os.mkdir(f'{outdir}/moments/')
+        print('Made directory.')
+    except FileExistsError:
+        print('Directory exists.')
+
+    momfilename = datadict['i_file'].replace(
+        '.i.', f'.p.').replace('contcube', 'mom0')
+    momfile = f'{outdir}/moments/{momfilename}'
+    
+    blank = datadict['i_cube'][0]
+    blank.write(momfile, overwrite=True, format='fits')
+
+    if verbose:
+        print(f'Writing to {momfile}...')
+
+    freq = getfreq(datadict['q_cube'])
+    with fits.open(momfile, mode='update', memmap=True) as outfh:
+        for i in trange(
+            datadict['q_cube'].shape[1],
+            desc='Looping over y-axis to save memory',
+            disable=(not self.verbose)
+        ):
+            dataArr = run_rmsynth(
+                datadict['q_cube'][:, i, :], datadict['u_cube'][:, i, :], 
+                freq, nSamples=10.0,
+                weightType="uniform", fitRMSF=False, nBits=32, 
+                verbose=verbose, not_rmsf = True
+                )
+            FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
+            dphi = np.diff(phiArr_radm2)[0]
+            mom0 = np.nansum(FDFcube*dphi, axis=0)
+            outfh[0].data[i, :] = mom0
+            outfh.flush()
+
 def main(args, verbose=True):
     """Main script.
     """
@@ -170,15 +220,23 @@ def main(args, verbose=True):
         print('Reading data...')
     datadict = getdata(cubedir, tabledir, verbose=verbose)
 
+
     # Make PI cube
-    if verbose:
-        print('Making polarized intensity cube...')
-    datadict = makepi(datadict, outdir=outdir, verbose=verbose)
+    if args.picube:
+        if verbose:
+            print('Making polarized intensity cube...')
+        datadict = makepi(datadict, outdir=outdir, verbose=verbose)
 
     # Compute moments
-    if verbose:
-        print('Making moment maps...')
-    momentloop(datadict, outdir=outdir, verbose=verbose)
+    if args.farnes:
+        if verbose:
+            print('Making moment maps...')
+        momentloop(datadict, outdir=outdir, verbose=verbose)
+
+    if args.zero:
+        if verbose:
+            print('Making Faraday zeroth moment...')
+        makezero(datadict, outdir=outdir, verbose=verbose)
 
     if verbose:
         print('Done!')
@@ -243,6 +301,27 @@ def cli():
         dest="verbose",
         action="store_true",
         help="Verbose output [False]."
+    )
+
+    parser.add_argument(
+        "--picube",
+        dest="picube",
+        action="store_true",
+        help="Make a PI cube [False]."
+    )
+
+    parser.add_argument(
+        "--farnes",
+        dest="farnes",
+        action="store_true",
+        help="Make Farnes (2018) moments [False]."
+    )
+
+    parser.add_argument(
+        "--zero",
+        dest="zero",
+        action="store_true",
+        help="Make Zeroth moment using RM synthesis [False]."
     )
 
     args = parser.parse_args()
