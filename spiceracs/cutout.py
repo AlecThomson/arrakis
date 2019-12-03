@@ -371,11 +371,12 @@ def main(pool, args, verbose=True):
     # Sort out args
     cubedir = args.cubedir
     tabledir = args.tabledir
+    mapdir = args.mapdir
 
     # Read in data
     if verbose:
         print('Reading data...')
-    datadict = getdata(cubedir, tabledir, verbose=verbose)
+    datadict = getdata(cubedir, tabledir, mapdir, verbose=verbose)
 
     # Make cutouts
     pad = args.pad
@@ -462,6 +463,12 @@ def cli():
         metavar='tabledir',
         type=str,
         help='Directory containing Selavy results.')
+
+    parser.add_argument(
+        'mapdir',
+        metavar='mapdir',
+        type=str,
+        help='Directory containing image data in FITS format.')
 
     parser.add_argument(
         'outdir',

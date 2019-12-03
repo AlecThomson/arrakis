@@ -310,7 +310,7 @@ def gettable(tabledir, keyword, verbose=True):
     return table, filename
 
 
-def getdata(cubedir, tabledir, verbose=True):
+def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
     """Get the spectral and source-finding data.
 
     Args:
@@ -328,12 +328,15 @@ def getdata(cubedir, tabledir, verbose=True):
     if cubedir[-1] == '/':
         cubedir = cubedir[:-1]
 
+    if mapdir[-1] == '/':
+        mapdir = mapdir[:-1]
+
     if tabledir[-1] == '/':
         tabledir = tabledir[:-1]
     # Glob out the necessary files
     # Data cubes
     cubes = glob(f'{cubedir}/image.restored.*contcube*linmos.fits')
-    selavyfits = glob(f'{tabledir}/comp*.fits')  # Selavy images
+    selavyfits = glob(f'{mapdir}/comp*.fits')  # Selavy images
     # Get selvay data from VOTab
     i_tab, voisle = gettable(
         tabledir, 'islands', verbose=verbose)  # Selvay VOTab
