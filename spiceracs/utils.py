@@ -262,7 +262,7 @@ def getfreq(cube, outdir=None, filename=None, verbose=True):
         cube = SpectralCube.read(cube, mode='denywrite')
 
     # Test that cube is Spectral cube
-    assert cube is SpectralCube, "cube should be a SpectralCube!"
+    assert type(cube) is SpectralCube, "cube should be a SpectralCube!"
 
     # Get frequencies
     freq = cube.spectral_axis
