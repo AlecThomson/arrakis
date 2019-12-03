@@ -336,7 +336,7 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
     # Glob out the necessary files
     # Data cubes
     cubes = glob(f'{cubedir}/image.restored.*contcube*linmos.fits')
-    selavyfits = glob(f'{mapdir}/comp*.fits')  # Selavy images
+    selavyfits = glob(f'{mapdir}/image.i*.linmos.taylor.0.restored.fits')  # Selavy images
     # Get selvay data from VOTab
     i_tab, voisle = gettable(
         tabledir, 'islands', verbose=verbose)  # Selvay VOTab
