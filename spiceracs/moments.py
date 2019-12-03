@@ -179,8 +179,8 @@ def makezero(datadict, outdir='.', verbose=True):
     except FileExistsError:
         print('Directory exists.')
 
-    momfilename = datadict['i_file'].replace(
-        '.i.', f'.p.').replace('contcube', 'mom0')
+    momfilename = os.path.basename(datadict['i_file'].replace(
+        '.i.', f'.p.').replace('contcube', 'mom0'))
     momfile = f'{outdir}/moments/{momfilename}'
     
     blank = datadict['i_cube'][0]
