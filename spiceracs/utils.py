@@ -15,7 +15,7 @@ print = functools.partial(print, flush=True)
 
 
 def tmatchtwo(inN, valuesN, matcher='sky', params=10, omode='out',
-            out='tmatch.default.xml', join='1or2', verbose=True):
+              out='tmatch.default.xml', join='1or2', verbose=True):
     """
     inN = <tableN>       (StarTable)
         The location of input table #N. This may take one of the
@@ -76,7 +76,7 @@ def tmatchtwo(inN, valuesN, matcher='sky', params=10, omode='out',
         values of this parameter, additional parameters (<mode-args>)
         are required to determine the exact behaviour.
         [Default: out]
-    
+
     out = <out-table>       (TableConsumer)
         The location of the output table. This is usually a filename to
         write to. If it is equal to the special value "-" (the default)
@@ -84,7 +84,7 @@ def tmatchtwo(inN, valuesN, matcher='sky', params=10, omode='out',
         This parameter must only be given if omode has its default
         value of "out".
         [Default: -]
-    
+
     join = 1and2|1or2|all1|all2|1not2|2not1|1xor2       (JoinType)
         Determines which rows are included in the output table. The
         matching algorithm determines which of the rows from the first
@@ -335,8 +335,14 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
         tabledir = tabledir[:-1]
     # Glob out the necessary files
     # Data cubes
-    cubes = glob(f'{cubedir}/image.restored.*contcube*linmos.fits')
-    selavyfits = glob(f'{mapdir}/image.i*.linmos.taylor.0.restored.fits')  # Selavy images
+    icubes = glob(f'{cubedir}/image.restored.i.*contcube*linmos.fits')
+    qcubes = glob(f'{cubedir}/image.restored.q.*contcube*linmos.fits')
+    ucubes = glob(f'{cubedir}/image.restored.u.*contcube*linmos.fits')
+    vcubes = glob(f'{cubedir}/image.restored.v.*contcube*linmos.fits')
+
+    cubes = [icubes, qcubes, ucubes, vcubes]
+    # Selavy images
+    selavyfits = glob(f'{mapdir}/image.i*.linmos.taylor.0.restored.fits')
     # Get selvay data from VOTab
     i_tab, voisle = gettable(
         tabledir, 'islands', verbose=verbose)  # Selvay VOTab
@@ -348,10 +354,10 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
     # Read data using Spectral cube
     i_taylor = SpectralCube.read(selavyfits[0], mode='denywrite')
     wcs_taylor = WCS(i_taylor.header)
-    i_cube = SpectralCube.read(cubes[0], mode='denywrite')
+    i_cube = SpectralCube.read(icubes[0], mode='denywrite')
     wcs_cube = WCS(i_cube.header)
-    q_cube = SpectralCube.read(cubes[1], mode='denywrite')
-    u_cube = SpectralCube.read(cubes[2], mode='denywrite')
+    q_cube = SpectralCube.read(qcubes[0], mode='denywrite')
+    u_cube = SpectralCube.read(ucubes[0], mode='denywrite')
 
     # Mask out using Stokes I == 0 -- seems to be the current fill value
     mask = ~(i_cube == 0*u.jansky/u.beam)
@@ -367,9 +373,9 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
         "i_cube": i_cube,
         "q_cube": q_cube,
         "u_cube": u_cube,
-        "i_file": cubes[0],
-        "q_file": cubes[1],
-        "u_file": cubes[2],
+        "i_file": icubes[0],
+        "q_file": qcubes[0],
+        "u_file": ucubes[0],
     }
 
     return datadict

@@ -189,22 +189,23 @@ def makezero(datadict, outdir='.', verbose=True):
     if verbose:
         print(f'Writing to {momfile}...')
 
-    freq = getfreq(datadict['q_cube'])
+    freq = np.array(getfreq(datadict['q_cube']))
     with fits.open(momfile, mode='update', memmap=True) as outfh:
         for i in trange(
             datadict['q_cube'].shape[1],
             desc='Looping over y-axis to save memory',
-            disable=(not self.verbose)
+            disable=(not verbose)
         ):
             dataArr = run_rmsynth(
-                datadict['q_cube'][:, i, :], datadict['u_cube'][:, i, :], 
-                freq, nSamples=10.0,
+                datadict['q_cube'][:, i, :], 
+                datadict['u_cube'][:, i, :], 
+                freq, phiMax_radm2=1000, nSamples=5.0,
                 weightType="uniform", fitRMSF=False, nBits=32, 
                 verbose=verbose, not_rmsf = True
                 )
             FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
             dphi = np.diff(phiArr_radm2)[0]
-            mom0 = np.nansum(FDFcube*dphi, axis=0)
+            mom0 = np.nansum(abs(FDFcube)*dphi, axis=0)
             outfh[0].data[i, :] = mom0
             outfh.flush()
 
