@@ -14,6 +14,28 @@ import functools
 print = functools.partial(print, flush=True)
 
 
+def cpu_to_use(max_cpu, count):
+    """Find number of cpus to use.
+
+    Find the right number of cpus to use when dividing up a task, such
+    that there are no remainders.
+
+    Args:
+        max_cpu (int): Maximum number of cores to use for a process.
+        count (float): Number of tasks.
+    
+    Returns:
+        Maximum number of cores to be used that divides into the number
+        of tasks (int).
+    """
+    factors = []
+    for i in range(1, count + 1):
+        if count % i == 0:
+            factors.append(i)
+    factors = np.array(factors)
+    return max(factors[factors <= max_cpu])
+
+
 def tmatchtwo(inN, valuesN, matcher='sky', params=10, omode='out',
               out='tmatch.default.xml', join='1or2', verbose=True):
     """

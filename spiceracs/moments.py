@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from spiceracs.utils import getdata, copyfile, getfreq
+from spiceracs.utils import getdata, copyfile, getfreq, cpu_to_use
 from RMtools_3D.do_RMsynth_3D import run_rmsynth
 from spectral_cube import SpectralCube
 import warnings
@@ -9,6 +9,8 @@ from tqdm import tqdm, trange
 import os
 import pdb
 import pymongo
+import multiprocessing as mp
+import ctypes as c
 import functools
 print = functools.partial(print, flush=True)
 
@@ -157,7 +159,22 @@ def makepi(datadict, outdir='.', verbose=True):
     return datadict
 
 
-def makezero(datadict, outdir='.', verbose=True):
+def makezero_worker(arr, q, u, freq, start, stop):
+    dataArr = run_rmsynth(
+        q,
+        u,
+        freq, phiMax_radm2=1000, nSamples=5.0,
+        weightType="uniform", fitRMSF=False, nBits=32,
+        verbose=False, not_rmsf=True
+    )
+    FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
+    dphi = np.diff(phiArr_radm2)[0]
+    mom0 = np.nansum(abs(FDFcube)*dphi, axis=0)
+    mom0[mom0 == 0] = np.nan
+    arr[start:stop, :] = mom0
+
+
+def makezero(datadict, n_cores, outdir='.', verbose=True):
     """Make a Faraday moment 0 cube.
 
     Args:
@@ -182,7 +199,7 @@ def makezero(datadict, outdir='.', verbose=True):
     momfilename = os.path.basename(datadict['i_file'].replace(
         '.i.', f'.p.').replace('contcube', 'mom0'))
     momfile = f'{outdir}/moments/{momfilename}'
-    
+
     blank = datadict['i_cube'][0]
     blank.write(momfile, overwrite=True, format='fits')
 
@@ -190,24 +207,44 @@ def makezero(datadict, outdir='.', verbose=True):
         print(f'Writing to {momfile}...')
 
     freq = np.array(getfreq(datadict['q_cube']))
+
+    n, m = datadict['q_cube'].shape[1], datadict['q_cube'].shape[2]
+    # shared, can be used from multiple processes
+    mp_arr = mp.Array(c.c_double, n*m)
+    # then in each new process create a new numpy array using:
+    # mp_arr and arr share the same memory
+    buff_arr = np.frombuffer(mp_arr.get_obj())
+    # make it two-dimensional
+    arr = buff_arr.reshape((n, m))  # b and arr share the same memory
+    arr[:] = np.zeros((n, m))*np.nan
+
+    procs = []
+    n = datadict['q_cube'].shape[1]
+    ncpus = cpu_to_use(n_cores, n)
+    width = n//ncpus
+
+    for i in range(ncpus):
+        start = i*width
+        stop = start+width
+        proc = mp.Process(target=makezero_worker, args=(
+            arr, datadict['q_cube'][:, start:stop, :],
+            datadict['u_cube'][:, start:stop, :],
+            freq, start, stop
+        )
+        )
+        procs.append(proc)
+
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
+    for p in procs:
+        p.close()
+
     with fits.open(momfile, mode='update', memmap=True) as outfh:
-        for i in trange(
-            datadict['q_cube'].shape[1],
-            desc='Looping over y-axis to save memory',
-            disable=(not verbose)
-        ):
-            dataArr = run_rmsynth(
-                datadict['q_cube'][:, i, :], 
-                datadict['u_cube'][:, i, :], 
-                freq, phiMax_radm2=1000, nSamples=5.0,
-                weightType="uniform", fitRMSF=False, nBits=32, 
-                verbose=verbose, not_rmsf = True
-                )
-            FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
-            dphi = np.diff(phiArr_radm2)[0]
-            mom0 = np.nansum(abs(FDFcube)*dphi, axis=0)
-            outfh[0].data[i, :] = mom0
-            outfh.flush()
+        outfh[0].data[:] = arr
+        outfh.flush()
+
 
 def main(args, verbose=True):
     """Main script.
@@ -217,11 +254,15 @@ def main(args, verbose=True):
     tabledir = args.tabledir
     mapdir = args.mapdir
     outdir = args.outdir
+
+    n_cores = args.n_cores
+    if args.n_cores is None:
+        n_cores = mp.cpu_count()
+
     # Read in data
     if verbose:
         print('Reading data...')
     datadict = getdata(cubedir, tabledir, mapdir, verbose=verbose)
-
 
     # Make PI cube
     if args.picube:
@@ -238,7 +279,7 @@ def main(args, verbose=True):
     if args.zero:
         if verbose:
             print('Making Faraday zeroth moment...')
-        makezero(datadict, outdir=outdir, verbose=verbose)
+        makezero(datadict, n_cores, outdir=outdir, verbose=verbose)
 
     if verbose:
         print('Done!')
@@ -331,6 +372,11 @@ def cli():
         action="store_true",
         help="Make Zeroth moment using RM synthesis [False]."
     )
+
+    parser.add_argument(
+        "--ncores",
+        dest="n_cores",
+        type=int, help="Number of processes [use all available].")
 
     args = parser.parse_args()
     verbose = args.verbose
