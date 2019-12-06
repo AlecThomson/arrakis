@@ -159,19 +159,21 @@ def makepi(datadict, outdir='.', verbose=True):
     return datadict
 
 
-def makezero_worker(arr, q, u, freq, start, stop):
-    dataArr = run_rmsynth(
-        q,
-        u,
-        freq, phiMax_radm2=1000, nSamples=5.0,
-        weightType="uniform", fitRMSF=False, nBits=32,
-        verbose=False, not_rmsf=True
-    )
-    FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
-    dphi = np.diff(phiArr_radm2)[0]
-    mom0 = np.nansum(abs(FDFcube)*dphi, axis=0)
-    mom0[mom0 == 0] = np.nan
-    arr[start:stop, :] = mom0
+def makezero_worker(queue, inarr_q, inarr_u, inarr_f, outarr):
+    while not queue.empty():
+        start, idx = queue.get()
+        dataArr = run_rmsynth(
+            inarr_q[:, idx, :],
+            inarr_q[:, idx, :],
+            inarr_f, phiMax_radm2=1000, nSamples=5.0,
+            weightType="uniform", fitRMSF=False, nBits=32,
+            verbose=False, not_rmsf=True
+        )
+        FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
+        dphi = np.diff(phiArr_radm2)[0]
+        mom0 = np.nansum(abs(FDFcube)*dphi, axis=0)
+        mom0[mom0 == 0] = np.nan
+        outarr[start+idx] = mom0[:]
 
 
 def makezero(datadict, n_cores, outdir='.', verbose=True):
@@ -206,44 +208,66 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
     if verbose:
         print(f'Writing to {momfile}...')
 
-    freq = np.array(getfreq(datadict['q_cube']))
+    freq = getfreq(datadict['q_cube'])
+    freq_arr = mp.Array(c.c_double, len(freq))
+    freq_arr[:] = freq[:]
 
-    n, m = datadict['q_cube'].shape[1], datadict['q_cube'].shape[2]
+    outshape = datadict['q_cube'].shape[1:]
     # shared, can be used from multiple processes
-    mp_arr = mp.Array(c.c_double, n*m)
+    mp_arr_out = mp.Array(c.c_double, int(np.prod(outshape)))
     # then in each new process create a new numpy array using:
     # mp_arr and arr share the same memory
-    buff_arr = np.frombuffer(mp_arr.get_obj())
+    buff_arr_out = np.frombuffer(mp_arr_out.get_obj())
     # make it two-dimensional
-    arr = buff_arr.reshape((n, m))  # b and arr share the same memory
-    arr[:] = np.zeros((n, m))*np.nan
+    arr_out = buff_arr_out.reshape(outshape)  # b and arr share the same memory
+    arr_out[:] = np.zeros(outshape)*np.nan
 
     procs = []
-    n = datadict['q_cube'].shape[1]
-    ncpus = cpu_to_use(n_cores, n)
-    width = n//ncpus
+    width = datadict['q_cube'].shape[1]//n_cores
 
-    for i in range(ncpus):
+    inshape = list(datadict['q_cube'].shape)
+    inshape[1] = width
+
+    mp_arr_in_q = mp.Array(c.c_double, int(np.prod(inshape)))
+    # then in each new process create a new numpy array using:
+    # mp_arr and arr share the same memory
+    buff_arr_in_q = np.frombuffer(mp_arr_in_q.get_obj())
+    # make it two-dimensional
+    # b and arr share the same memory
+    arr_in_q = buff_arr_in_q.reshape(inshape)
+    arr_in_q[:] = np.zeros(inshape)*np.nan
+
+    mp_arr_in_u = mp.Array(c.c_double, int(np.prod(inshape)))
+    # then in each new process create a new numpy array using:
+    # mp_arr and arr share the same memory
+    buff_arr_in_u = np.frombuffer(mp_arr_in_u.get_obj())
+    # make it two-dimensional
+    # b and arr share the same memory
+    arr_in_u = buff_arr_in_u.reshape(inshape)
+    arr_in_u[:] = np.zeros(inshape)*np.nan
+
+    q = mp.Queue()
+
+    for i in range(n_cores):
+        procs = []
+        for j in range(n_cores):
+            proc = mp.Process(target=makezero_worker, args=(
+                q, arr_in_q, arr_in_u, freq_arr, arr_out))
+            procs.append(proc)
+        for p in procs:
+            p.start()
         start = i*width
         stop = start+width
-        proc = mp.Process(target=makezero_worker, args=(
-            arr, datadict['q_cube'][:, start:stop, :],
-            datadict['u_cube'][:, start:stop, :],
-            freq, start, stop
-        )
-        )
-        procs.append(proc)
 
-    for p in procs:
-        p.start()
-    for p in procs:
-        p.join()
-    for p in procs:
-        p.close()
-
-    with fits.open(momfile, mode='update', memmap=True) as outfh:
-        outfh[0].data[:] = arr
-        outfh.flush()
+        arr_in_q[:] = np.array(datadict['q_cube'][:, start:stop, :])
+        arr_in_u[:] = np.array(datadict['u_cube'][:, start:stop, :])
+        for idx in range(stop-start):
+            q.put([start, idx])
+        for p in procs:
+            p.join()
+        with fits.open(momfile, mode='update', memmap=True) as outfh:
+            outfh[0].data[start:stop] = arr_out[start:stop]
+            outfh.flush()
 
 
 def main(args, verbose=True):
@@ -293,13 +317,13 @@ def cli():
     warnings.simplefilter('ignore', category=AstropyWarning)
     # Help string to be shown using the -h option
     logostr = """
-     mmm   mmm   mmm   mmm   mmm 
-     )-(   )-(   )-(   )-(   )-( 
+     mmm   mmm   mmm   mmm   mmm
+     )-(   )-(   )-(   )-(   )-(
     ( S ) ( P ) ( I ) ( C ) ( E )
     |   | |   | |   | |   | |   |
     |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm 
-     )-(     )-(     )-(     )-( 
+     mmm     mmm     mmm     mmm
+     )-(     )-(     )-(     )-(
     ( R )   ( A )   ( C )   ( S )
     |   |   |   |   |   |   |   |
     |___|   |___|   |___|   |___|
