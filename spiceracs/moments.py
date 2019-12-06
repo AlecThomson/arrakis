@@ -159,7 +159,7 @@ def makepi(datadict, outdir='.', verbose=True):
     return datadict
 
 
-def makezero_worker(queue, inarr_q, inarr_u, inarr_f, outarr):
+def makezero_worker(queue, inarr_q, inarr_u, inarr_f, outarr, verbose):
     while not queue.empty():
         start, idx = queue.get()
         dataArr = run_rmsynth(
@@ -167,7 +167,7 @@ def makezero_worker(queue, inarr_q, inarr_u, inarr_f, outarr):
             inarr_q[:, idx, :],
             inarr_f, phiMax_radm2=1000, nSamples=5.0,
             weightType="uniform", fitRMSF=False, nBits=32,
-            verbose=False, not_rmsf=True
+            verbose=verbose, not_rmsf=True
         )
         FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
         dphi = np.diff(phiArr_radm2)[0]
@@ -252,7 +252,9 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
         procs = []
         for j in range(n_cores):
             proc = mp.Process(target=makezero_worker, args=(
-                q, arr_in_q, arr_in_u, freq_arr, arr_out))
+                q, arr_in_q, arr_in_u, freq_arr, arr_out, verbose
+            )
+            )
             procs.append(proc)
         for p in procs:
             p.start()
