@@ -114,8 +114,11 @@ def makepi_worker(queue, inarr_q, inarr_u, outarr, verbose):
                     np.expand_dims(inarr_q[:, idx, :], axis=1),
                     np.expand_dims(inarr_u[:, idx, :], axis=1)
                 )
-        outarr[:, :, start+idx, :] = ypi[:]
-def makepi(datadict, outdir='.', verbose=True):
+        ypi[ypi==0] = np.nan
+        outarr[:, :, idx, :] = ypi[:]
+
+
+def makepi(datadict, n_cores, outdir='.', verbose=True):
     """Make a polarized itensity cube.
 
     Args:
@@ -147,13 +150,92 @@ def makepi(datadict, outdir='.', verbose=True):
     except FileNotFoundError:
         copyfile(datadict['i_file'], pifile, verbose=verbose)
 
-    with fits.open(pifile, mode='update', memmap=True) as outfh:
-        for i in trange(
-            datadict['i_cube'].shape[1],
-            desc='Looping over y-axis to save memory',
-            disable=(not verbose)
-        ):
+    if verbose:
+        print('Initialising arrays...')
+        print('Note: Output data will be held in memory.')
+
+    procs = []
+    width_max = 100
+    n_cores = cpu_to_use(n_cores, datadict['i_cube'].shape[1])
+    width = datadict['i_cube'].shape[1]//n_cores
+
+    if width > width_max:
+        width = cpu_to_use(width_max, datadict['i_cube'].shape[1])
+
+    n_chunks = datadict['i_cube'].shape[1]//width
+
+    outshape = list(datadict['i_cube'].shape)
+    outshape.insert(1,1) # For Stokes axis
+    outshape[2] = width
+
+    # shared, can be used from multiple processes
+    mp_arr_out = mp.Array(c.c_double, int(np.prod(outshape)))
+    # then in each new process create a new numpy array using:
+    # mp_arr and arr share the same memory
+    buff_arr_out = np.frombuffer(mp_arr_out.get_obj())
+    # make it two-dimensional
+    arr_out = buff_arr_out.reshape(outshape)  # b and arr share the same memory
+    arr_out[:] = np.zeros(outshape)*np.nan
+
+    inshape = list(datadict['i_cube'].shape)
+    inshape[1] = width
+
+    mp_arr_in_q = mp.Array(c.c_double, int(np.prod(inshape)))
+    # then in each new process create a new numpy array using:
+    # mp_arr and arr share the same memory
+    buff_arr_in_q = np.frombuffer(mp_arr_in_q.get_obj())
+    # make it two-dimensional
+    # b and arr share the same memory
+    arr_in_q = buff_arr_in_q.reshape(inshape)
+    arr_in_q[:] = np.zeros(inshape)*np.nan
+
+    mp_arr_in_u = mp.Array(c.c_double, int(np.prod(inshape)))
+    # then in each new process create a new numpy array using:
+    # mp_arr and arr share the same memory
+    buff_arr_in_u = np.frombuffer(mp_arr_in_u.get_obj())
+    # make it two-dimensional
+    # b and arr share the same memory
+    arr_in_u = buff_arr_in_u.reshape(inshape)
+    arr_in_u[:] = np.zeros(inshape)*np.nan
+
+    q = mp.Queue()
+
+    tic = time.perf_counter()
+    for i in trange(n_chunks, disable=(not verbose), desc='Data chunk'):
+        if verbose:
+            print('Beginning multiprocessing...')
+        procs = []
+        for j in range(n_cores):
+            proc = mp.Process(target=makepi_worker, args=(
+                q, arr_in_q, arr_in_u, arr_out, verbose
+            )
+            )
+            procs.append(proc)
+        for p in procs:
+            p.start()
+        start = i*width
+        stop = start+width
+        if verbose:
+            print('Copying chunk of data to memory...')
+        arr_in_q[:] = np.array(datadict['q_cube'][:, start:stop, :])
+        arr_in_u[:] = np.array(datadict['u_cube'][:, start:stop, :])
+        for idx in range(stop-start):
+            q.put([start, idx])
+        if verbose:
+            print('Processing...')
+        for p in procs:
+            p.join()
+        if verbose:
+            print('Writing output to file...')
+        with fits.open(pifile, mode='update', memmap=True) as outfh:
+            outfh[0].data[:,:,start:stop] = arr_out[:]
             outfh.flush()
+    
+    toc = time.perf_counter()
+    
+    if verbose:
+        print('PI cube done!')
+        print(f'Time taken was {toc - tic}s')
 
     p_cube = SpectralCube.read(pifile, mode='denywrite')
     datadict['p_file'] = pifile
@@ -324,7 +406,7 @@ def main(args, verbose=True):
     if args.picube:
         if verbose:
             print('Making polarized intensity cube...')
-        datadict = makepi(datadict, outdir=outdir, verbose=verbose)
+        datadict = makepi(datadict, n_cores, outdir=outdir, verbose=verbose)
 
     # Compute moments
     if args.farnes:

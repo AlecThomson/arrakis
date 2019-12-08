@@ -338,6 +338,7 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
     Args:
         cubedir: Directory containing data cubes in FITS format.
         tabledir: Directory containing Selavy results.
+        mapdir: Directory containing MFS image.
 
     Kwargs:
         verbose (bool): Whether to print messages.
