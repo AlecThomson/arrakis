@@ -11,6 +11,7 @@ import pdb
 import pymongo
 import multiprocessing as mp
 import ctypes as c
+import time
 import functools
 print = functools.partial(print, flush=True)
 
@@ -106,7 +107,14 @@ def momentloop(datadict, outdir='.', verbose=True):
             print(f'Making std...')
         mom.sigma(outdir=outdir, stoke=stokes)
 
-
+def makepi_worker(queue, inarr_q, inarr_u, outarr, verbose):
+    while not queue.empty():
+        start, idx = queue.get()
+        ypi = np.hypot(
+                    np.expand_dims(inarr_q[:, idx, :], axis=1),
+                    np.expand_dims(inarr_u[:, idx, :], axis=1)
+                )
+        outarr[:, :, start+idx, :] = ypi[:]
 def makepi(datadict, outdir='.', verbose=True):
     """Make a polarized itensity cube.
 
@@ -145,11 +153,6 @@ def makepi(datadict, outdir='.', verbose=True):
             desc='Looping over y-axis to save memory',
             disable=(not verbose)
         ):
-            ypi = np.hypot(
-                np.expand_dims(datadict['q_cube'][:, i, :], axis=1),
-                np.expand_dims(datadict['u_cube'][:, i, :], axis=1)
-            )
-            outfh[0].data[:, :, i, :] = ypi
             outfh.flush()
 
     p_cube = SpectralCube.read(pifile, mode='denywrite')
@@ -163,11 +166,11 @@ def makezero_worker(queue, inarr_q, inarr_u, inarr_f, outarr, verbose):
     while not queue.empty():
         start, idx = queue.get()
         dataArr = run_rmsynth(
-            inarr_q[:, idx, :],
-            inarr_q[:, idx, :],
-            inarr_f, phiMax_radm2=1000, nSamples=5.0,
+            np.array(inarr_q[:, idx, :]),
+            np.array(inarr_q[:, idx, :]),
+            np.array(inarr_f), phiMax_radm2=1000, nSamples=5.0,
             weightType="uniform", fitRMSF=False, nBits=32,
-            verbose=verbose, not_rmsf=True
+            verbose=False, not_rmsf=True
         )
         FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
         dphi = np.diff(phiArr_radm2)[0]
@@ -192,6 +195,10 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
     """
     if outdir[-1] == '/':
         outdir = outdir[:-1]
+    
+    if verbose:
+        print(f'Tring to make {outdir}/moments/...')
+
     try:
         os.mkdir(f'{outdir}/moments/')
         print('Made directory.')
@@ -203,12 +210,15 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
     momfile = f'{outdir}/moments/{momfilename}'
 
     blank = datadict['i_cube'][0]
+    if verbose:
+        print(f'Writing to {momfile}...')
     blank.write(momfile, overwrite=True, format='fits')
 
     if verbose:
-        print(f'Writing to {momfile}...')
+        print('Initialising arrays...')
+        print('Note: Output data will be held in memory.')
 
-    freq = getfreq(datadict['q_cube'])
+    freq = np.array(getfreq(datadict['q_cube']))
     freq_arr = mp.Array(c.c_double, len(freq))
     freq_arr[:] = freq[:]
 
@@ -223,7 +233,15 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
     arr_out[:] = np.zeros(outshape)*np.nan
 
     procs = []
+    width_max = 100
+    n_cores = cpu_to_use(n_cores, datadict['q_cube'].shape[1])
     width = datadict['q_cube'].shape[1]//n_cores
+
+    if width > width_max:
+        width = cpu_to_use(width_max, datadict['q_cube'].shape[1])
+
+
+    n_chunks = datadict['q_cube'].shape[1]//width
 
     inshape = list(datadict['q_cube'].shape)
     inshape[1] = width
@@ -248,7 +266,10 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
 
     q = mp.Queue()
 
-    for i in range(n_cores):
+    tic = time.perf_counter()
+    for i in trange(n_chunks, disable=(not verbose), desc='Data chunk'):
+        if verbose:
+            print('Beginning multiprocessing...')
         procs = []
         for j in range(n_cores):
             proc = mp.Process(target=makezero_worker, args=(
@@ -260,16 +281,25 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
             p.start()
         start = i*width
         stop = start+width
-
+        if verbose:
+            print('Copying chunk of data to memory...')
         arr_in_q[:] = np.array(datadict['q_cube'][:, start:stop, :])
         arr_in_u[:] = np.array(datadict['u_cube'][:, start:stop, :])
         for idx in range(stop-start):
             q.put([start, idx])
+        if verbose:
+            print('Processing...')
         for p in procs:
             p.join()
+        if verbose:
+            print('Writing output to file...')
         with fits.open(momfile, mode='update', memmap=True) as outfh:
             outfh[0].data[start:stop] = arr_out[start:stop]
             outfh.flush()
+    toc = time.perf_counter()
+    if verbose:
+        print('Moment 0 done!')
+        print(f'Time taken was {toc - tic}s')
 
 
 def main(args, verbose=True):
