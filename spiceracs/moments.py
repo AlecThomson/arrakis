@@ -107,14 +107,15 @@ def momentloop(datadict, outdir='.', verbose=True):
             print(f'Making std...')
         mom.sigma(outdir=outdir, stoke=stokes)
 
+
 def makepi_worker(queue, inarr_q, inarr_u, outarr, verbose):
     while not queue.empty():
         start, idx = queue.get()
         ypi = np.hypot(
-                    np.expand_dims(inarr_q[:, idx, :], axis=1),
-                    np.expand_dims(inarr_u[:, idx, :], axis=1)
-                )
-        ypi[ypi==0] = np.nan
+            np.expand_dims(inarr_q[:, idx, :], axis=1),
+            np.expand_dims(inarr_u[:, idx, :], axis=1)
+        )
+        ypi[ypi == 0] = np.nan
         outarr[:, :, idx, :] = ypi[:]
 
 
@@ -165,7 +166,7 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
     n_chunks = datadict['i_cube'].shape[1]//width
 
     outshape = list(datadict['i_cube'].shape)
-    outshape.insert(1,1) # For Stokes axis
+    outshape.insert(1, 1)  # For Stokes axis
     outshape[2] = width
 
     # shared, can be used from multiple processes
@@ -201,9 +202,11 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
     q = mp.Queue()
 
     tic = time.perf_counter()
-    for i in trange(n_chunks, disable=(not verbose), desc='Data chunk'):
-        if verbose:
-            print('Beginning multiprocessing...')
+    for i in trange(
+            n_chunks, disable=(not verbose), desc='Making PI cube in chunks'
+    ):
+        #if verbose:
+            #print('Beginning multiprocessing...')
         procs = []
         for j in range(n_cores):
             proc = mp.Process(target=makepi_worker, args=(
@@ -211,28 +214,34 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
             )
             )
             procs.append(proc)
-        for p in procs:
-            p.start()
+
         start = i*width
         stop = start+width
-        if verbose:
-            print('Copying chunk of data to memory...')
-        arr_in_q[:] = np.array(datadict['q_cube'][:, start:stop, :])
-        arr_in_u[:] = np.array(datadict['u_cube'][:, start:stop, :])
+        #if verbose:
+            #print('Copying chunk of data to memory...')
+
+        datq = np.array(datadict['q_cube'][:, start:stop, :])
+        datu = np.array(datadict['u_cube'][:, start:stop, :])
+        datq[datq == 0] = np.nan
+        datu[datu == 0] = np.nan
+        arr_in_q[:] = datq
+        arr_in_u[:] = datu
         for idx in range(stop-start):
             q.put([start, idx])
-        if verbose:
-            print('Processing...')
+        #if verbose:
+            #print('Processing...')
+        for p in procs:
+            p.start()
         for p in procs:
             p.join()
-        if verbose:
-            print('Writing output to file...')
+        #if verbose:
+            #print('Writing output to file...')
         with fits.open(pifile, mode='update', memmap=True) as outfh:
-            outfh[0].data[:,:,start:stop] = arr_out[:]
+            outfh[0].data[:, :, start:stop] = arr_out[:]
             outfh.flush()
-    
+
     toc = time.perf_counter()
-    
+
     if verbose:
         print('PI cube done!')
         print(f'Time taken was {toc - tic}s')
@@ -277,7 +286,7 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
     """
     if outdir[-1] == '/':
         outdir = outdir[:-1]
-    
+
     if verbose:
         print(f'Tring to make {outdir}/moments/...')
 
@@ -322,7 +331,6 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
     if width > width_max:
         width = cpu_to_use(width_max, datadict['q_cube'].shape[1])
 
-
     n_chunks = datadict['q_cube'].shape[1]//width
 
     inshape = list(datadict['q_cube'].shape)
@@ -349,9 +357,11 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
     q = mp.Queue()
 
     tic = time.perf_counter()
-    for i in trange(n_chunks, disable=(not verbose), desc='Data chunk'):
-        if verbose:
-            print('Beginning multiprocessing...')
+    for i in trange(
+            n_chunks, disable=(not verbose), desc='Making M0 in chunks'
+    ):
+        # if verbose:
+            #print('Beginning multiprocessing...')
         procs = []
         for j in range(n_cores):
             proc = mp.Process(target=makezero_worker, args=(
@@ -359,22 +369,27 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
             )
             )
             procs.append(proc)
-        for p in procs:
-            p.start()
+
         start = i*width
         stop = start+width
-        if verbose:
-            print('Copying chunk of data to memory...')
-        arr_in_q[:] = np.array(datadict['q_cube'][:, start:stop, :])
-        arr_in_u[:] = np.array(datadict['u_cube'][:, start:stop, :])
+        # if verbose:
+        #print('Copying chunk of data to memory...')
+        datq = np.array(datadict['q_cube'][:, start:stop, :])
+        datu = np.array(datadict['u_cube'][:, start:stop, :])
+        datq[datq == 0] = np.nan
+        datu[datu == 0] = np.nan
+        arr_in_q[:] = datq
+        arr_in_u[:] = datu
         for idx in range(stop-start):
             q.put([start, idx])
-        if verbose:
-            print('Processing...')
+        # if verbose:
+            # print('Processing...')
+        for p in procs:
+            p.start()
         for p in procs:
             p.join()
-        if verbose:
-            print('Writing output to file...')
+        # if verbose:
+            #print('Writing output to file...')
         with fits.open(momfile, mode='update', memmap=True) as outfh:
             outfh[0].data[start:stop] = arr_out[start:stop]
             outfh.flush()
