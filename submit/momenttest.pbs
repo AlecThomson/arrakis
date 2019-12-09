@@ -1,9 +1,9 @@
 ##### Select resources #####
-#PBS -N SPICERACS-moment
+#PBS -N SPICERACS-pi
 #PBS -l select=1:ncpus=28
 ##### Queue #####
 #PBS -q largemem
-#PBS -l place=scatter
+#PBS -l place=scatter:excl
 ##### Mail Options #####
 # Send an email at job start, end and if aborted
 #PBS -m abe

@@ -51,12 +51,7 @@ class moments:
             print(f'Writing to {momfile}...')
         procs = []
         width_max = 100
-        n_cores = cpu_to_use(self.n_cores, self.cube.shape[1])
-        width = self.cube.shape[1]//n_cores
-
-        if width > width_max:
-            width = cpu_to_use(width_max, self.cube.shape[1])
-
+        width = cpu_to_use(width_max, self.cube.shape[1])
         n_chunks = self.cube.shape[1]//width
 
         outshape = list(self.cube.shape)
@@ -94,7 +89,7 @@ class moments:
             # if verbose:
                 #print('Beginning multiprocessing...')
             procs = []
-            for j in range(n_cores):
+            for j in range(self.n_cores):
                 proc = mp.Process(target=mu_worker, args=(
                     q, arr_in, arr_out
                 )
@@ -155,12 +150,7 @@ class moments:
             print(f'Writing to {momfile}...')
         procs = []
         width_max = 100
-        n_cores = cpu_to_use(self.n_cores, self.cube.shape[1])
-        width = self.cube.shape[1]//n_cores
-
-        if width > width_max:
-            width = cpu_to_use(width_max, self.cube.shape[1])
-
+        width = cpu_to_use(width_max, self.cube.shape[1])
         n_chunks = self.cube.shape[1]//width
 
         outshape = list(self.cube.shape)
@@ -198,7 +188,7 @@ class moments:
             # if verbose:
                 #print('Beginning multiprocessing...')
             procs = []
-            for j in range(n_cores):
+            for j in range(self.n_cores):
                 proc = mp.Process(target=sigma_worker, args=(
                     q, arr_in, arr_out
                 )
@@ -317,12 +307,7 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
 
         procs = []
         width_max = 100
-        n_cores = cpu_to_use(n_cores, datadict['i_cube'].shape[1])
-        width = datadict['i_cube'].shape[1]//n_cores
-
-        if width > width_max:
-            width = cpu_to_use(width_max, datadict['i_cube'].shape[1])
-
+        width = cpu_to_use(width_max, datadict['i_cube'].shape[1])
         n_chunks = datadict['i_cube'].shape[1]//width
 
         outshape = list(datadict['i_cube'].shape)
@@ -486,12 +471,7 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
 
     procs = []
     width_max = 100
-    n_cores = cpu_to_use(n_cores, datadict['q_cube'].shape[1])
-    width = datadict['q_cube'].shape[1]//n_cores
-
-    if width > width_max:
-        width = cpu_to_use(width_max, datadict['q_cube'].shape[1])
-
+    width = cpu_to_use(width_max, datadict['q_cube'].shape[1])
     n_chunks = datadict['q_cube'].shape[1]//width
 
     inshape = list(datadict['q_cube'].shape)
