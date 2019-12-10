@@ -112,6 +112,8 @@ class moments:
                 p.start()
             for p in procs:
                 p.join()
+            for p in procs:
+                p.terminate()
             # if verbose:
                 #print('Writing output to file...')
             with fits.open(momfile, mode='update', memmap=True) as outfh:
@@ -211,6 +213,8 @@ class moments:
                 p.start()
             for p in procs:
                 p.join()
+            for p in procs:
+                p.terminate()
             # if verbose:
                 #print('Writing output to file...')
             with fits.open(momfile, mode='update', memmap=True) as outfh:
@@ -378,8 +382,10 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
                 # print('Processing...')
             for p in procs:
                 p.start()
-            for p in procs:
-                p.join()
+            #for p in procs:
+            #    p.join()
+            #for p in procs:
+            #    p.terminate()
             # if verbose:
                 #print('Writing output to file...')
             with fits.open(pifile, mode='update', memmap=True) as outfh:
@@ -529,6 +535,8 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
             p.start()
         for p in procs:
             p.join()
+        for p in procs:
+            p.terminate()
         # if verbose:
             #print('Writing output to file...')
         with fits.open(momfile, mode='update', memmap=True) as outfh:
