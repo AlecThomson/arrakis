@@ -5,7 +5,10 @@ Scripts for processing polarized RACS data products.
 
 
 ## Installation
-After cloning this repo, please run:
+```
+pip install spiceracs
+```
+Or, after cloning this repo, please run:
 ```
 cd SPICERACS/
 pip install -e .
