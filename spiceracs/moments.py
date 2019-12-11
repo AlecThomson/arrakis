@@ -32,7 +32,7 @@ class moments:
         def mu_worker(queue, inarr, outarr):
             while not queue.empty():
                 start, idx = queue.get()
-                yav = np.nanmean(np.array(self.cube[:, i, :]), axis=0)
+                yav = np.nanmean(np.array(inarr[:, idx, :]), axis=0)
                 yav[yav == 0] = np.nan
                 outarr[idx, :] = yav[:]
 
