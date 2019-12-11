@@ -1,9 +1,9 @@
 ##### Select resources #####
-#PBS -N SPICERACS-pi
-#PBS -l select=1:ncpus=28
+#PBS -N SPICERACS-zero
+#PBS -l select=1:ncpus=14
 ##### Queue #####
 #PBS -q largemem
-#PBS -l place=scatter:excl
+#PBS -l place=scatter
 ##### Mail Options #####
 # Send an email at job start, end and if aborted
 #PBS -m abe
@@ -15,4 +15,4 @@
 ##### Execute Program #####
 cd ~/possalec/SPICERACS/
 
-spicemoments /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/selavy-cont-image.i.SB8583.cont.RACS_test4_1.05_1049-31A.linmos.taylor.0.restored/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ -v --ncores 28 --picube 1>prog_moment.out 2>&1
+spicemoments /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/selavy-cont-image.i.SB8583.cont.RACS_test4_1.05_1049-31A.linmos.taylor.0.restored/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ -v --ncores 14 --zero 1>prog_moment0.out 2>&1
