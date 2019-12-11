@@ -100,20 +100,13 @@ class moments:
             stop = start+width
             # if verbose:
             #print('Copying chunk of data to memory...')
-
-            dat = np.array(self.cube[:, start:stop, :])
-            dat[dat == 0] = np.nan
-            arr_in[:] = dat
+            arr_in[:] = self.cube[:, start:stop, :]
             for idx in range(stop-start):
                 q.put([start, idx])
             # if verbose:
                 # print('Processing...')
             for p in procs:
                 p.start()
-            for p in procs:
-                p.join()
-            for p in procs:
-                p.terminate()
             # if verbose:
                 #print('Writing output to file...')
             with fits.open(momfile, mode='update', memmap=True) as outfh:
@@ -201,20 +194,13 @@ class moments:
             stop = start+width
             # if verbose:
             #print('Copying chunk of data to memory...')
-
-            dat = np.array(self.cube[:, start:stop, :])
-            dat[dat == 0] = np.nan
-            arr_in[:] = dat
+            arr_in[:] = self.cube[:, start:stop, :]
             for idx in range(stop-start):
                 q.put([start, idx])
             # if verbose:
                 # print('Processing...')
             for p in procs:
                 p.start()
-            for p in procs:
-                p.join()
-            for p in procs:
-                p.terminate()
             # if verbose:
                 #print('Writing output to file...')
             with fits.open(momfile, mode='update', memmap=True) as outfh:
@@ -369,22 +355,17 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
             stop = start+width
             # if verbose:
             #print('Copying chunk of data to memory...')
-
-            datq = np.array(datadict['q_cube'][:, start:stop, :])
-            datu = np.array(datadict['u_cube'][:, start:stop, :])
-            datq[datq == 0] = np.nan
-            datu[datu == 0] = np.nan
-            arr_in_q[:] = datq
-            arr_in_u[:] = datu
+            arr_in_q[:] = datadict['q_cube'][:, start:stop, :]
+            arr_in_u[:] = datadict['u_cube'][:, start:stop, :]
             for idx in range(stop-start):
                 q.put([start, idx])
             # if verbose:
                 # print('Processing...')
             for p in procs:
                 p.start()
-            #for p in procs:
+            # for p in procs:
             #    p.join()
-            #for p in procs:
+            # for p in procs:
             #    p.terminate()
             # if verbose:
                 #print('Writing output to file...')
@@ -410,8 +391,8 @@ def makezero_worker(queue, inarr_q, inarr_u, inarr_f, outarr, verbose):
         start, idx = queue.get()
         dataArr = run_rmsynth(
             np.array(inarr_q[:, idx, :]),
-            np.array(inarr_q[:, idx, :]),
-            np.array(inarr_f), phiMax_radm2=1000, nSamples=5.0,
+            np.array(inarr_u[:, idx, :]),
+            np.array(inarr_f), phiMax_radm2=1000, nSamples=10,
             weightType="uniform", fitRMSF=False, nBits=32,
             verbose=False, not_rmsf=True
         )
@@ -533,10 +514,6 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
             # print('Processing...')
         for p in procs:
             p.start()
-        for p in procs:
-            p.join()
-        for p in procs:
-            p.terminate()
         # if verbose:
             #print('Writing output to file...')
         with fits.open(momfile, mode='update', memmap=True) as outfh:

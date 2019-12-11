@@ -385,7 +385,9 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
     # Mask out using Stokes I == 0 -- seems to be the current fill value
     mask = ~(i_cube == 0*u.jansky/u.beam)
     i_cube = i_cube.with_mask(mask)
+    mask = ~(q_cube == 0*u.jansky/u.beam)
     q_cube = q_cube.with_mask(mask)
+    mask = ~(u_cube == 0*u.jansky/u.beam)
     u_cube = u_cube.with_mask(mask)
 
     datadict = {
