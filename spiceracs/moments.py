@@ -14,6 +14,7 @@ import ctypes as c
 import time
 import functools
 print = functools.partial(print, flush=True)
+warnings.filterwarnings("ignore", message="Mean of empty slice")
 
 
 class moments:
@@ -36,6 +37,8 @@ class moments:
                 yav[yav == 0] = np.nan
                 outarr[idx, :] = yav[:]
 
+        if outdir[-1] == '/':
+            outdir = outdir[:-1]
         try:
             os.mkdir(f'{outdir}/moments/')
             print('Made directory.')
@@ -44,7 +47,7 @@ class moments:
         momfilename = self.basename.replace(
             '.i.', f'.{stoke}.').replace('contcube', 'mu')
         momfile = f'{outdir}/moments/{momfilename}'
-        blank = self.cube[0]
+        blank = self.cube[0]*np.nan
         blank.write(momfile, overwrite=True, format='fits')
 
         if self.verbose:
@@ -54,8 +57,8 @@ class moments:
         width = cpu_to_use(width_max, self.cube.shape[1])
         n_chunks = self.cube.shape[1]//width
 
-        outshape = list(self.cube.shape)
-        outshape[1] = width
+        outshape = list(self.cube.shape[1:])
+        outshape[0] = width
 
         # shared, can be used from multiple processes
         mp_arr_out = mp.Array(c.c_double, int(np.prod(outshape)))
@@ -79,7 +82,7 @@ class moments:
         arr_in = buff_arr_in.reshape(inshape)
         arr_in[:] = np.zeros(inshape)*np.nan
 
-        q = mp.Queue()
+        q = mp.SimpleQueue()
 
         tic = time.perf_counter()
         for i in trange(
@@ -107,6 +110,10 @@ class moments:
                 # print('Processing...')
             for p in procs:
                 p.start()
+            for p in procs:
+                p.join()
+            for p in procs:
+                p.close()
             # if verbose:
                 #print('Writing output to file...')
             with fits.open(momfile, mode='update', memmap=True) as outfh:
@@ -129,6 +136,8 @@ class moments:
                 ystd[ystd == 0] = np.nan
                 outarr[idx, :] = ystd[:]
 
+        if outdir[-1] == '/':
+            outdir = outdir[:-1]
         try:
             os.mkdir(f'{outdir}/moments/')
             print('Made directory.')
@@ -138,7 +147,7 @@ class moments:
         momfilename = self.basename.replace(
             '.i.', f'.{stoke}.').replace('contcube', 'sigma')
         momfile = f'{outdir}/moments/{momfilename}'
-        blank = self.cube[0]
+        blank = self.cube[0]*np.nan
         blank.write(momfile, overwrite=True, format='fits')
 
         if self.verbose:
@@ -148,7 +157,7 @@ class moments:
         width = cpu_to_use(width_max, self.cube.shape[1])
         n_chunks = self.cube.shape[1]//width
 
-        outshape = list(self.cube.shape)
+        outshape = list(self.cube.shape[1:])
         outshape[1] = width
 
         # shared, can be used from multiple processes
@@ -173,7 +182,7 @@ class moments:
         arr_in = buff_arr_in.reshape(inshape)
         arr_in[:] = np.zeros(inshape)*np.nan
 
-        q = mp.Queue()
+        q = mp.SimpleQueue()
 
         tic = time.perf_counter()
         for i in trange(
@@ -201,6 +210,10 @@ class moments:
                 # print('Processing...')
             for p in procs:
                 p.start()
+            for p in procs:
+                p.join()
+            for p in procs:
+                p.close()
             # if verbose:
                 #print('Writing output to file...')
             with fits.open(momfile, mode='update', memmap=True) as outfh:
@@ -335,7 +348,7 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
         arr_in_u = buff_arr_in_u.reshape(inshape)
         arr_in_u[:] = np.zeros(inshape)*np.nan
 
-        q = mp.Queue()
+        q = mp.SimpleQueue()
 
         tic = time.perf_counter()
         for i in trange(
@@ -363,10 +376,10 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
                 # print('Processing...')
             for p in procs:
                 p.start()
-            # for p in procs:
-            #    p.join()
-            # for p in procs:
-            #    p.terminate()
+            for p in procs:
+                p.join()
+            for p in procs:
+                p.close()
             # if verbose:
                 #print('Writing output to file...')
             with fits.open(pifile, mode='update', memmap=True) as outfh:
@@ -392,7 +405,7 @@ def makezero_worker(queue, inarr_q, inarr_u, inarr_f, outarr, verbose):
         dataArr = run_rmsynth(
             np.array(inarr_q[:, idx, :]),
             np.array(inarr_u[:, idx, :]),
-            np.array(inarr_f), phiMax_radm2=1000, nSamples=10,
+            np.array(inarr_f), phiMax_radm2=1000, nSamples=5,
             weightType="uniform", fitRMSF=False, nBits=32,
             verbose=False, not_rmsf=True
         )
@@ -433,7 +446,7 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
         '.i.', f'.p.').replace('contcube', 'mom0'))
     momfile = f'{outdir}/moments/{momfilename}'
 
-    blank = datadict['i_cube'][0]
+    blank = datadict['i_cube'][0]*np.nan
     if verbose:
         print(f'Writing to {momfile}...')
     blank.write(momfile, overwrite=True, format='fits')
@@ -482,7 +495,7 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
     arr_in_u = buff_arr_in_u.reshape(inshape)
     arr_in_u[:] = np.zeros(inshape)*np.nan
 
-    q = mp.Queue()
+    q = mp.SimpleQueue()
 
     tic = time.perf_counter()
     for i in trange(
@@ -497,23 +510,25 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
             )
             )
             procs.append(proc)
+        # if verbose:
+        #print('Copying chunk of data to memory...')
 
         start = i*width
         stop = start+width
-        # if verbose:
-        #print('Copying chunk of data to memory...')
-        datq = np.array(datadict['q_cube'][:, start:stop, :])
-        datu = np.array(datadict['u_cube'][:, start:stop, :])
-        datq[datq == 0] = np.nan
-        datu[datu == 0] = np.nan
-        arr_in_q[:] = datq
-        arr_in_u[:] = datu
+        arr_in_q[:] = datadict['q_cube'][:, start:stop, :]
+        arr_in_u[:] = datadict['u_cube'][:, start:stop, :]
+
         for idx in range(stop-start):
             q.put([start, idx])
         # if verbose:
             # print('Processing...')
         for p in procs:
             p.start()
+        for p in procs:
+            p.join()
+        for p in procs:
+            p.close()
+
         # if verbose:
             #print('Writing output to file...')
         with fits.open(momfile, mode='update', memmap=True) as outfh:
