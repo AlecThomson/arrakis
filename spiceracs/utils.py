@@ -14,6 +14,28 @@ import functools
 print = functools.partial(print, flush=True)
 
 
+def cpu_to_use(max_cpu, count):
+    """Find number of cpus to use.
+
+    Find the right number of cpus to use when dividing up a task, such
+    that there are no remainders.
+
+    Args:
+        max_cpu (int): Maximum number of cores to use for a process.
+        count (float): Number of tasks.
+    
+    Returns:
+        Maximum number of cores to be used that divides into the number
+        of tasks (int).
+    """
+    factors = []
+    for i in range(1, count + 1):
+        if count % i == 0:
+            factors.append(i)
+    factors = np.array(factors)
+    return max(factors[factors <= max_cpu])
+
+
 def tmatchtwo(inN, valuesN, matcher='sky', params=10, omode='out',
               out='tmatch.default.xml', join='1or2', verbose=True):
     """
@@ -316,6 +338,7 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
     Args:
         cubedir: Directory containing data cubes in FITS format.
         tabledir: Directory containing Selavy results.
+        mapdir: Directory containing MFS image.
 
     Kwargs:
         verbose (bool): Whether to print messages.
@@ -362,7 +385,9 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
     # Mask out using Stokes I == 0 -- seems to be the current fill value
     mask = ~(i_cube == 0*u.jansky/u.beam)
     i_cube = i_cube.with_mask(mask)
+    mask = ~(q_cube == 0*u.jansky/u.beam)
     q_cube = q_cube.with_mask(mask)
+    mask = ~(u_cube == 0*u.jansky/u.beam)
     u_cube = u_cube.with_mask(mask)
 
     datadict = {

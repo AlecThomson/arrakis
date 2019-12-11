@@ -1,6 +1,6 @@
 ##### Select resources #####
-#PBS -N SPICERACS-moment
-#PBS -l select=1:ncpus=28
+#PBS -N SPICERACS-zero
+#PBS -l select=1:ncpus=14
 ##### Queue #####
 #PBS -q largemem
 #PBS -l place=scatter
@@ -15,4 +15,4 @@
 ##### Execute Program #####
 cd ~/possalec/SPICERACS/
 
-/home/athomson/miniconda3/bin/python spiceracs/moments.py /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/selavy-cont-image.i.SB8583.cont.RACS_test4_1.05_1049-31A.linmos.taylor.0.restored/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ -v 1>prog_moment.out 2>&1
+spicemoments /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/selavy-cont-image.i.SB8583.cont.RACS_test4_1.05_1049-31A.linmos.taylor.0.restored/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ -v --ncores 14 --zero 1>prog_moment0.out 2>&1
