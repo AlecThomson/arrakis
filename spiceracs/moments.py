@@ -167,7 +167,7 @@ class moments:
         n_chunks = self.cube.shape[1]//width
 
         outshape = list(self.cube.shape[1:])
-        outshape[1] = width
+        outshape[0] = width
 
         # shared, can be used from multiple processes
         mp_arr_out = mp.Array(c.c_double, int(np.prod(outshape)))
