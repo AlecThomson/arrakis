@@ -10,6 +10,7 @@ import os
 import pdb
 import pymongo
 import multiprocessing as mp
+import queue
 import ctypes as c
 import time
 import functools
@@ -30,12 +31,16 @@ class moments:
     def mu(self, outdir='.', stoke=''):
         """Mean moment - freq axis first
         """
-        def mu_worker(queue, inarr, outarr):
-            while not queue.empty():
-                start, idx = queue.get()
-                yav = np.nanmean(np.array(inarr[:, idx, :]), axis=0)
-                yav[yav == 0] = np.nan
-                outarr[idx, :] = yav[:]
+        def mu_worker(q, inarr, outarr):
+            while True:
+                try:
+                    start, idx = q.get_nowait()
+                except queue.Empty:
+                    break
+                else:
+                    yav = np.nanmean(np.array(inarr[:, idx, :]), axis=0)
+                    yav[yav == 0] = np.nan
+                    outarr[idx, :] = yav[:]
 
         if outdir[-1] == '/':
             outdir = outdir[:-1]
@@ -82,7 +87,7 @@ class moments:
         arr_in = buff_arr_in.reshape(inshape)
         arr_in[:] = np.zeros(inshape)*np.nan
 
-        q = mp.SimpleQueue()
+        q = mp.Queue()
 
         tic = time.perf_counter()
         for i in trange(
@@ -129,12 +134,16 @@ class moments:
         """
         Standard deviation moment - freq axis first
         """
-        def sigma_worker(queue, inarr, outarr):
-            while not queue.empty():
-                start, idx = queue.get()
-                ystd = np.nanstd(np.array(inarr[:, idx, :]), axis=0, ddof=1)
-                ystd[ystd == 0] = np.nan
-                outarr[idx, :] = ystd[:]
+        def sigma_worker(q, inarr, outarr):
+            while True:
+                try:
+                    start, idx = q.get_nowait()
+                except queue.Empty:
+                    break
+                else:
+                    ystd = np.nanstd(np.array(inarr[:, idx, :]), axis=0, ddof=1)
+                    ystd[ystd == 0] = np.nan
+                    outarr[idx, :] = ystd[:]
 
         if outdir[-1] == '/':
             outdir = outdir[:-1]
@@ -182,7 +191,7 @@ class moments:
         arr_in = buff_arr_in.reshape(inshape)
         arr_in[:] = np.zeros(inshape)*np.nan
 
-        q = mp.SimpleQueue()
+        q = mp.Queue()
 
         tic = time.perf_counter()
         for i in trange(
@@ -253,15 +262,19 @@ def momentloop(datadict, n_cores, outdir='.', verbose=True):
         mom.sigma(outdir=outdir, stoke=stokes)
 
 
-def makepi_worker(queue, inarr_q, inarr_u, outarr, verbose):
-    while not queue.empty():
-        start, idx = queue.get()
-        ypi = np.hypot(
-            np.expand_dims(inarr_q[:, idx, :], axis=1),
-            np.expand_dims(inarr_u[:, idx, :], axis=1)
-        )
-        ypi[ypi == 0] = np.nan
-        outarr[:, :, idx, :] = ypi[:]
+def makepi_worker(q, inarr_q, inarr_u, outarr, verbose):
+    while True:
+        try:
+            start, idx = q.get_nowait()
+        except queue.Empty:
+            break
+        else:
+            ypi = np.hypot(
+                np.expand_dims(inarr_q[:, idx, :], axis=1),
+                np.expand_dims(inarr_u[:, idx, :], axis=1)
+            )
+            ypi[ypi == 0] = np.nan
+            outarr[:, :, idx, :] = ypi[:]
 
 
 def makepi(datadict, n_cores, outdir='.', verbose=True):
@@ -348,7 +361,7 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
         arr_in_u = buff_arr_in_u.reshape(inshape)
         arr_in_u[:] = np.zeros(inshape)*np.nan
 
-        q = mp.SimpleQueue()
+        q = mp.Queue()
 
         tic = time.perf_counter()
         for i in trange(
@@ -399,21 +412,25 @@ def makepi(datadict, n_cores, outdir='.', verbose=True):
         return datadict
 
 
-def makezero_worker(queue, inarr_q, inarr_u, inarr_f, outarr, verbose):
-    while not queue.empty():
-        start, idx = queue.get()
-        dataArr = run_rmsynth(
-            np.array(inarr_q[:, idx, :]),
-            np.array(inarr_u[:, idx, :]),
-            np.array(inarr_f), phiMax_radm2=1000, nSamples=5,
-            weightType="uniform", fitRMSF=False, nBits=32,
-            verbose=False, not_rmsf=True
-        )
-        FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
-        dphi = np.diff(phiArr_radm2)[0]
-        mom0 = np.nansum(abs(FDFcube)*dphi, axis=0)
-        mom0[mom0 == 0] = np.nan
-        outarr[start+idx] = mom0[:]
+def makezero_worker(q, inarr_q, inarr_u, inarr_f, outarr, verbose):
+    while True:
+        try:
+            start, idx = q.get_nowait()
+        except queue.Empty:
+            break
+        else:
+            dataArr = run_rmsynth(
+                np.array(inarr_q[:, idx, :]),
+                np.array(inarr_u[:, idx, :]),
+                np.array(inarr_f), phiMax_radm2=1000, nSamples=5,
+                weightType="uniform", fitRMSF=False, nBits=32,
+                verbose=False, not_rmsf=True
+            )
+            FDFcube, phiArr_radm2, lam0Sq_m2, lambdaSqArr_m2 = dataArr
+            dphi = np.diff(phiArr_radm2)[0]
+            mom0 = np.nansum(abs(FDFcube)*dphi, axis=0)
+            mom0[mom0 == 0] = np.nan
+            outarr[start+idx] = mom0[:]
 
 
 def makezero(datadict, n_cores, outdir='.', verbose=True):
@@ -495,7 +512,7 @@ def makezero(datadict, n_cores, outdir='.', verbose=True):
     arr_in_u = buff_arr_in_u.reshape(inshape)
     arr_in_u[:] = np.zeros(inshape)*np.nan
 
-    q = mp.SimpleQueue()
+    q = mp.Queue()
 
     tic = time.perf_counter()
     for i in trange(
