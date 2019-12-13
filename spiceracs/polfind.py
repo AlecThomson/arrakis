@@ -74,7 +74,7 @@ def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
                           encoding="utf-8", check=True)
 
 
-def getmoments(momdir='.', verbose=True):
+def getmoments(momdir='.', zero=False, verbose=True):
     """Get moment files.
 
     Kwargs:
@@ -95,6 +95,12 @@ def getmoments(momdir='.', verbose=True):
         moments.update({
             f"{stoke}_mu": mu[0],
             f"{stoke}_sigma": sigma[0]
+        })
+
+    if zero:
+        zero_file = glob(f'{momdir}/*.mom0.*linmos.fits')
+        moments.update({
+            "p_mom0": zero_file[0],
         })
     return moments
 
@@ -197,7 +203,12 @@ def main(args, verbose=True):
     # Read in data
     if verbose:
         print('Finding data...')
-    moments = getmoments(momdir, verbose=verbose)
+    moments = getmoments(momdir, zero=args.do_zero, verbose=verbose)
+
+    if args.do_zero:
+        dobane(moments["p_mom0"], n_cores=n_cores, verbose=verbose)
+        doaegean(moments["p_mom0"], moment='mom0', stoke='p',
+                 n_cores=n_cores, verbose=verbose)
 
     # Run BANE
     if args.do_bane:
@@ -286,6 +297,13 @@ def cli():
         dest="do_aegean",
         action="store_true",
         help="Run Aegean [False]."
+    )
+
+    parser.add_argument(
+        "--zero",
+        dest="do_zero",
+        action="store_true",
+        help="Run on zeroth moment [False]."
     )
 
     parser.add_argument(

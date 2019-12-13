@@ -1,0 +1,18 @@
+##### Select resources #####
+#PBS -N SPICERACS-find
+#PBS -l select=1:ncpus=16
+##### Queue #####
+#PBS -q largemem
+#PBS -l place=pack
+##### Mail Options #####
+# Send an email at job start, end and if aborted
+#PBS -m abe
+#### Output File #####
+#PBS -o ~/possalec/SPICERACS/find.out
+#### Error File #####
+#PBS -e ~/possalec/SPICERACS/find.err
+##### Change to your working directory #####
+##### Execute Program #####
+cd /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/moments
+
+spicepolfind ./ ../selavy-cont-image.i.SB8583.cont.RACS_test4_1.05_1049-31A.linmos.taylor.0.restored/ --ncores 16 --zero -v 1>prog_polfind.out 2>&1
