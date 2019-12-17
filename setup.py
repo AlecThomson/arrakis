@@ -111,7 +111,8 @@ setup(
         'console_scripts': ['spicecutout=spiceracs.cutout:cli',
                             'spiceunresolved=spiceracs.unresolved:cli',
                             'spicemoments=spiceracs.moments:cli',
-                            'spicepolfind=spiceracs.polfind:cli'
+                            'spicepolfind=spiceracs.polfind:cli',
+                            'spicermsynth=spiceracs.rmsynth_oncuts:cli'
                             ],
     },
     install_requires=REQUIRED,

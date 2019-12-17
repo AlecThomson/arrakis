@@ -1,20 +1,36 @@
+#!/usr/bin/env python
+from spiceracs.utils import getfreq
 import numpy as np
 import os
 import pymongo
+import sys
+import subprocess
+import time
+from tqdm import tqdm, trange
+import warnings
+from RMtools_1D import do_RMsynth_1D
+from spectral_cube import SpectralCube
+from astropy.io import fits
+
 
 def rmsythoncut(args):
-    i, verbose = args
-
+    i, clargs, freqfile, verbose = args
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
-    collection = mydb['spice']  # Create/open collection
+    mycol = mydb['spice']  # Create/open collection
 
     # Basic querey
-    myquery = { "resolved": False }
+    if clargs.pol and not clargs.unres:
+        myquery = {"polarized": True}
+    if clargs.unres and not clargs.pol:
+        myquery = {"resolved": False}
+    if clargs.pol and clargs.unres:
+        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+    else:
+        myquery = {}
 
-
-    doc = collection.find(myquery).sort("flux_int", -1)
+    doc = mycol.find(myquery).sort("flux_int", -1)
 
     iname = doc[i]['island_name']
     qfile = doc[i]['q_file']
@@ -22,45 +38,167 @@ def rmsythoncut(args):
 
 
 
-    freqfile = '/avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/cutouts_python/frequecies.txt'
+
     NSAMPLES = 10
-    command = f"rmsynth3d {qfile} {ufile} {freqfile} -s {NSAMPLES} -o {iname}."
-    if verbose: command += " -v"
-    os.system(command)
+    command = ["rmsynth3d", qfile, ufile,
+               freqfile, "-s", str(NSAMPLES), "-o", iname]
+    proc = subprocess.run(command,
+                          capture_output=(not verbose),
+                          encoding="utf-8", check=True)
 
-    myquery = { "island_name": iname }
-    newvalues = { "$set": { "rmsynth": True } }
-    collection.update_one(myquery, newvalues)
+    myquery = {"island_name": iname}
+    newvalues = {"$set": {"rmsynth": True}}
+    mycol.update_one(myquery, newvalues)
 
-def main(pool, verbose=False):
+
+def rmsythoncut_i(args):
+    i, clargs, freq, verbose = args
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
     mycol = mydb['spice']  # Create/open collection
 
     # Basic querey
-    myquery = { "resolved": False }
+    if clargs.pol and not clargs.unres:
+        myquery = {"polarized": True}
+    if clargs.unres and not clargs.pol:
+        myquery = {"resolved": False}
+    if clargs.pol and clargs.unres:
+        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+    else:
+        myquery = {}
 
+    doc = mycol.find(myquery).sort("flux_int", -1)
+
+    iname = f"{doc[i]['island_name']}.validate."
+    data = SpectralCube.read(doc[i]['i_file'])
+    data = np.array(data[:][np.unravel_index(data.moment0(axis=0).argmax(), data.shape[1:])])
+
+    with fits.open(doc[i]['v_file']) as hdulist:
+        noise = hdulist[0].data
+    
+    datalist = [freq, data, data, data, noise, noise, noise]
+    print(datalist)
+    
+    NSAMPLES = 10
+    phi_max = 1e5
+    mDict, aDict = do_RMsynth_1D.run_rmsynth(
+        datalist,
+        phiMax_radm2=phi_max,
+        nSamples=NSAMPLES,
+        verbose=verbose
+    )
+    do_RMsynth_1D.saveOutput(mDict, aDict, iname, verbose=verbose)
+
+
+
+def main(pool, args, verbose=False):
+
+    client = pymongo.MongoClient()  # default connection (ie, local)
+    mydb = client['racs']  # Create/open database
+    mycol = mydb['spice']  # Create/open collection
+
+    # Basic querey
+    if args.pol and not args.unres:
+        myquery = {"polarized": True}
+    if args.unres and not args.pol:
+        myquery = {"resolved": False}
+    if args.pol and args.unres:
+        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+    else:
+        myquery = {}
 
     mydoc = mycol.find(myquery).sort("flux_int", -1)
-    count = mydoc.count()
+    count = mycol.count_documents(myquery)
 
-    if verbose: print(f'Running RMsynth on {count} sources')
+    if args.limit is not None:
+        count = args.limit
 
-    inputs = [[i, verbose] for i in range(count)]
-    list(pool.map(rmsythoncut, inputs))
-    pool.close()
+    # Make frequency file
+    freq, freqfile = getfreq(mydoc[0]['q_file'], outdir=os.path.dirname(
+        mydoc[0]['q_file']), filename='frequencies.txt', verbose=verbose)
 
-    if verbose: print('Done!')
+    if verbose:
+        print(f'Running RMsynth on {count} sources')
 
 
-if __name__ == "__main__":
+    if args.validate:
+        inputs = [[i, args, freq, verbose] for i in range(count)]
+        if (pool.__class__.__name__ is 'MPIPool' or
+                pool.__class__.__name__ is 'SerialPool'):
+            if verbose:
+                print('Running RM synth on Stokes I...')
+            tic = time.perf_counter()
+            list(pool.map(rmsythoncut_i, inputs))
+            toc = time.perf_counter()
+            if verbose:
+                print(f'Time taken was {toc - tic}s')
+
+        elif pool.__class__.__name__ is 'MultiPool':
+            list(tqdm(
+                pool.imap_unordered(rmsythoncut_i, inputs),
+                total=count,
+                desc='Running RM synth on Stokes I',
+                disable=(not verbose)
+            )
+            )
+    else:
+        inputs = [[i, args, freqfile, verbose] for i in range(count)]
+        if (pool.__class__.__name__ is 'MPIPool' or
+                pool.__class__.__name__ is 'SerialPool'):
+            if verbose:
+                print('Running RM synth...')
+            tic = time.perf_counter()
+            list(pool.map(rmsythoncut, inputs))
+            toc = time.perf_counter()
+            if verbose:
+                print(f'Time taken was {toc - tic}s')
+
+        elif pool.__class__.__name__ is 'MultiPool':
+            list(tqdm(
+                pool.imap_unordered(rmsythoncut, inputs),
+                total=count,
+                desc='Running RM synth',
+                disable=(not verbose)
+            )
+            )
+
+    if verbose:
+        print('Done!')
+
+
+def cli():
+    """Command-line interface
+    """
     import argparse
     import schwimmbad
+    from astropy.utils.exceptions import AstropyWarning
+    warnings.simplefilter('ignore', category=AstropyWarning)
+    from astropy.io.fits.verify import VerifyWarning
+    warnings.simplefilter('ignore', category=VerifyWarning)
+    # Help string to be shown using the -h option
+    logostr = """
+     mmm   mmm   mmm   mmm   mmm
+     )-(   )-(   )-(   )-(   )-(
+    ( S ) ( P ) ( I ) ( C ) ( E )
+    |   | |   | |   | |   | |   |
+    |___| |___| |___| |___| |___|
+     mmm     mmm     mmm     mmm
+     )-(     )-(     )-(     )-(
+    ( R )   ( A )   ( C )   ( S )
+    |   |   |   |   |   |   |   |
+    |___|   |___|   |___|   |___|
+
+    """
 
     # Help string to be shown using the -h option
-    descStr = """
-    Run RMsynthesis on all cubelets with unresolved sources.
+    descStr = f"""
+    {logostr}
+    SPICE-RACS Stage 5:
+    Run RMsynthesis on cubelets.
+
+    Note: Runs on brightest sources first.
+
     """
 
     # Parse the command line options
@@ -70,6 +208,18 @@ if __name__ == "__main__":
     parser.add_argument("-v", dest="verbose", action="store_true",
                         help="verbose output [False].")
 
+    parser.add_argument("--pol", dest="pol", action="store_true",
+                        help="Run on polarized sources [False].")
+
+    parser.add_argument("--unres", dest="unres", action="store_true",
+                        help="Run on unresolved sources [False].")
+
+    parser.add_argument("--validate", dest="validate", action="store_true",
+                        help="Run on Stokes I [False].")
+    
+    parser.add_argument("--limit", dest="limit", default=None,
+                        type=int, help="Limit number of sources [All].")
+
     group = parser.add_mutually_exclusive_group()
 
     group.add_argument("--ncores", dest="n_cores", default=1,
@@ -77,18 +227,33 @@ if __name__ == "__main__":
     group.add_argument("--mpi", dest="mpi", default=False,
                        action="store_true", help="Run with MPI.")
 
-
     args = parser.parse_args()
     pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
 
-    verbose=args.verbose
+    verbose = args.verbose
 
     if args.mpi:
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
 
+    if verbose:
+        print(f"Using pool: {pool.__class__.__name__}")
 
-    main(pool,
-        verbose=verbose
-        )
+    if verbose:
+        print('Testing MongoDB connection...')
+    client = pymongo.MongoClient()  # default connection (ie, local)
+    try:
+        client.list_database_names()
+    except pymongo.errors.ServerSelectionTimeoutError:
+        raise Exception("Please ensure 'mongod' is running")
+    else:
+        if verbose:
+            print('MongoDB connection succesful!')
+    client.close()
+
+    main(pool, args, verbose=verbose)
+
+
+if __name__ == "__main__":
+    cli()
