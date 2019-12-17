@@ -563,7 +563,7 @@ def main(args, verbose=True):
     # Sort out args
     cubedir = args.cubedir
     tabledir = args.tabledir
-    mapdir = args.mapdir
+    mapdata = args.mapdata
     outdir = args.outdir
 
     n_cores = args.n_cores
@@ -573,7 +573,7 @@ def main(args, verbose=True):
     # Read in data
     if verbose:
         print('Reading data...')
-    datadict = getdata(cubedir, tabledir, mapdir, verbose=verbose)
+    datadict = getdata(cubedir, tabledir, mapdata, verbose=verbose)
 
     # Make PI cube
     if args.picube:
@@ -645,10 +645,10 @@ def cli():
         help='Directory containing Selavy results.')
 
     parser.add_argument(
-        'mapdir',
-        metavar='mapdir',
+        'mapdata',
+        metavar='mapdata',
         type=str,
-        help='Directory containing image data in FITS format.')
+        help='2D FITS image corresponding to Selavy table.')
 
     parser.add_argument(
         'outdir',

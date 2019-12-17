@@ -13,7 +13,6 @@ import astropy.units as u
 import functools
 print = functools.partial(print, flush=True)
 
-
 def cpu_to_use(max_cpu, count):
     """Find number of cpus to use.
 
@@ -299,8 +298,12 @@ def getfreq(cube, outdir=None, filename=None, verbose=True):
             outfile = f'{outdir}/{filename}'
         if verbose:
             print(f'Saving to {outfile}')
-        np.savetext(outfile, freq)
-    return freq
+        np.savetxt(outfile, freq)
+
+    if outfile is not None:
+        return freq, outfile
+    else:
+        return freq
 
 
 def gettable(tabledir, keyword, verbose=True):
@@ -332,13 +335,13 @@ def gettable(tabledir, keyword, verbose=True):
     return table, filename
 
 
-def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
+def getdata(cubedir='./', tabledir='./', mapdata=None, verbose=True):
     """Get the spectral and source-finding data.
 
     Args:
         cubedir: Directory containing data cubes in FITS format.
         tabledir: Directory containing Selavy results.
-        mapdir: Directory containing MFS image.
+        mapdata: 2D FITS image which corresponds to Selavy table.
 
     Kwargs:
         verbose (bool): Whether to print messages.
@@ -351,9 +354,6 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
     if cubedir[-1] == '/':
         cubedir = cubedir[:-1]
 
-    if mapdir[-1] == '/':
-        mapdir = mapdir[:-1]
-
     if tabledir[-1] == '/':
         tabledir = tabledir[:-1]
     # Glob out the necessary files
@@ -365,23 +365,26 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
 
     cubes = [icubes, qcubes, ucubes, vcubes]
     # Selavy images
-    selavyfits = glob(f'{mapdir}/image.i*.linmos.taylor.0.restored.fits')
+    selavyfits = mapdata
     # Get selvay data from VOTab
     i_tab, voisle = gettable(
         tabledir, 'islands', verbose=verbose)  # Selvay VOTab
 
     if verbose:
         print(f'Getting spectral data from: {cubes}', '\n')
-        print(f'Getting source location data from:', selavyfits[0], '\n')
+        print(f'Getting source location data from:', selavyfits, '\n')
 
     # Read data using Spectral cube
-    i_taylor = SpectralCube.read(selavyfits[0], mode='denywrite')
+    i_taylor = SpectralCube.read(selavyfits, mode='denywrite')
     wcs_taylor = WCS(i_taylor.header)
     i_cube = SpectralCube.read(icubes[0], mode='denywrite')
     wcs_cube = WCS(i_cube.header)
     q_cube = SpectralCube.read(qcubes[0], mode='denywrite')
     u_cube = SpectralCube.read(ucubes[0], mode='denywrite')
-
+    if len(vcubes) is not 0:
+        v_cube = SpectralCube.read(vcubes[0], mode='denywrite')
+    else:
+        v_cube = None
     # Mask out using Stokes I == 0 -- seems to be the current fill value
     mask = ~(i_cube == 0*u.jansky/u.beam)
     i_cube = i_cube.with_mask(mask)
@@ -398,9 +401,11 @@ def getdata(cubedir='./', tabledir='./', mapdir='./', verbose=True):
         "i_cube": i_cube,
         "q_cube": q_cube,
         "u_cube": u_cube,
+        "v_cube": v_cube,
         "i_file": icubes[0],
         "q_file": qcubes[0],
         "u_file": ucubes[0],
+        "v_file": vcubes[0],
     }
 
     return datadict
