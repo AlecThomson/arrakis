@@ -56,6 +56,11 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     i_cutouts = []
     q_cutouts = []
     u_cutouts = []
+    if datadict['v_cube'] is not None:
+        v_cutouts = []
+    else:
+        v_cutouts = None
+
     outdir = f'{outdir}/cutouts'
     if dryrun:
         if verbose:
@@ -68,6 +73,11 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     i_cube = datadict['i_cube']
     q_cube = datadict['q_cube']
     u_cube = datadict['u_cube']
+    if datadict['v_cube'] is not None:
+        v_cube = datadict['v_cube']
+    else:
+        v_cube = None
+
     if not dryrun:
         try:
             os.mkdir(outdir)
@@ -94,50 +104,41 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
               int(y_max[i]+pad*dy[i]) < i_cube.shape[2] and
               int(x_max[i]+pad*dx[i]) < i_cube.shape[2]):
 
-            i_cutout = i_cube[
-                :,
-                int(y_min[i]-pad*dy[i]):int(y_max[i]+pad*dy[i]),
-                int(x_min[i]-pad*dx[i]):int(x_max[i]+pad*dx[i])
-            ]
-            q_cutout = q_cube[
-                :,
-                int(y_min[i]-pad*dy[i]):int(y_max[i]+pad*dy[i]),
-                int(x_min[i]-pad*dx[i]):int(x_max[i]+pad*dx[i])
-            ]
-            u_cutout = u_cube[
-                :,
-                int(y_min[i]-pad*dy[i]):int(y_max[i]+pad*dy[i]),
-                int(x_min[i]-pad*dx[i]):int(x_max[i]+pad*dx[i])
-            ]
+            starty = int(y_min[i]-pad*dy[i])
+            stopy = int(y_max[i]+pad*dy[i])
+            startx = int(x_min[i]-pad*dx[i])
+            stopx = int(x_max[i]+pad*dx[i])
 
-            i_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-            q_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-            u_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-            i_cutouts.append(i_cutout)
-            q_cutouts.append(q_cutout)
-            u_cutouts.append(u_cutout)
-
-            source_dict['header'] = i_cutout.header
-            for name in datadict['i_tab'].colnames:
-                source_dict[name.replace('col_', '')
-                            ] = datadict['i_tab'][name][i]
-            source_dict_list.append(source_dict)
         else:
-            i_cutout = i_cube[:, y_min[i]:y_max[i], x_min[i]:x_max[i]]
-            q_cutout = q_cube[:, y_min[i]:y_max[i], x_min[i]:x_max[i]]
-            u_cutout = u_cube[:, y_min[i]:y_max[i], x_min[i]:x_max[i]]
-            i_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-            q_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-            u_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-            i_cutouts.append(i_cutout)
-            q_cutouts.append(q_cutout)
-            u_cutouts.append(u_cutout)
+            starty = y_min[i]
+            stopy = y_max[i]
+            startx = x_min[i]
+            stopx = x_max[i]
 
-            source_dict['header'] = i_cutout.header
-            for name in datadict['i_tab'].colnames:
-                source_dict[name.replace('col_', '')
-                            ] = datadict['i_tab'][name][i]
-            source_dict_list.append(source_dict)
+        i_cutout = i_cube[:, starty:stopy, startx:stopx]
+        q_cutout = q_cube[:, starty:stopy, startx:stopx]
+        u_cutout = u_cube[:, starty:stopy, startx:stopx]
+
+        i_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
+        q_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
+        u_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
+
+        i_cutouts.append(i_cutout)
+        q_cutouts.append(q_cutout)
+        u_cutouts.append(u_cutout)
+
+        if v_cube is not None:
+            v_cutout = v_cube[:, starty:stopy, startx:stopx]
+            # compute RMS
+            v_cutout = np.std(v_cutout, axis=(1,2))
+            v_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
+            v_cutouts.append(v_cutout)
+
+        source_dict['header'] = i_cutout.header
+        for name in datadict['i_tab'].colnames:
+            source_dict[name.replace('col_', '')
+                        ] = datadict['i_tab'][name][i]
+        source_dict_list.append(source_dict)
 
     # Set up locations where files will be saved
     for i in trange(
@@ -145,16 +146,32 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         disable=(not verbose),
         desc='Finding locations'
     ):
-        for stoke in ['i', 'q', 'u']:
-            name = source_dict_list[i]['island_name']
-            outname = f'{outdir}/{name}.cutout.{stoke}.fits'
-            source_dict_list[i][f'{stoke}_file'] = outname
+        for stoke in ['i', 'q', 'u', 'v']:
+            if stoke == 'v' and datadict['v_cube'] is None:
+                pass
+            else:
+                name = source_dict_list[i]['island_name']
+                outname = f'{outdir}/{name}.cutout.{stoke}.fits'
+                source_dict_list[i][f'{stoke}_file'] = outname
+
+    if v_cube is not None:
+        stoke = 'v'
+        name = source_dict_list[i]['island_name']
+        outname = f'{outdir}/{name}.cutout.{stoke}.fits'
+        source_dict_list[i][f'{stoke}_file'] = outname
 
     cutouts = {
         "i": i_cutouts,
         "q": q_cutouts,
         "u": u_cutouts
     }
+
+    if v_cube is not None:
+        cutouts.update(
+            {
+                "v": v_cutouts
+            }
+        )
 
     return cutouts, source_dict_list
 
@@ -226,7 +243,7 @@ def writefits(arg):
             source_dict (dict): Source metadata.
             cutout (SpectralCube): Cutout data to write.
             stoke (str): Which Stokes to write. Is a string of either 'i',
-                'q', or 'u'.
+                'q', 'u', or 'v'.
 
     """
     source_dict, cutout, stoke = arg
@@ -234,7 +251,7 @@ def writefits(arg):
     cutout.write(outfile, format='fits', overwrite=True)
 
 
-def writeloop(pool, cutouts, source_dict_list, verbose=True):
+def writeloop(pool, cutouts, source_dict_list, datadict, verbose=True):
     """Main loop for writing to disk
 
     Loops over all sources in I, Q, and U, and writes to disk in
@@ -246,38 +263,42 @@ def writeloop(pool, cutouts, source_dict_list, verbose=True):
         cutouts (dict): Contains lists of I, Q, and U cutouts.
         source_dict_list (list): List of dictionaries which contain the
             metadata of each source.
+        datadict (dict): Dictionary containing tables and cubes.
 
     Kwargs:
         verbose (bool): Print out messages.
 
     """
-    for stoke in ['i', 'q', 'u']:
-        if (pool.__class__.__name__ is 'MPIPool' or
-                pool.__class__.__name__ is 'SerialPool'):
-            if verbose:
-                print(f'Writing Stokes {stoke}...')
-            tic = time.perf_counter()
-            pool.map(
-                writefits,
-                [[source_dict_list[i], cutouts[stoke][i], stoke]
-                    for i in range(len(cutouts[stoke]))]
-            )
-            toc = time.perf_counter()
-            if verbose:
-                print(f'Time taken was {toc - tic}s')
-
-        elif pool.__class__.__name__ is 'MultiPool':
-            list(tqdm(
-                pool.imap_unordered(
+    for stoke in ['i', 'q', 'u', 'v']:
+        if stoke == 'v' and datadict['v_cube'] is None:
+            pass
+        else:
+            if (pool.__class__.__name__ is 'MPIPool' or
+                    pool.__class__.__name__ is 'SerialPool'):
+                if verbose:
+                    print(f'Writing Stokes {stoke}...')
+                tic = time.perf_counter()
+                pool.map(
                     writefits,
                     [[source_dict_list[i], cutouts[stoke][i], stoke]
-                     for i in range(len(cutouts[stoke]))]
-                ),
-                total=len(cutouts[stoke]),
-                desc=f'Stokes {stoke}',
-                disable=(not verbose)
-            )
-            )
+                        for i in range(len(cutouts[stoke]))]
+                )
+                toc = time.perf_counter()
+                if verbose:
+                    print(f'Time taken was {toc - tic}s')
+
+            elif pool.__class__.__name__ is 'MultiPool':
+                list(tqdm(
+                    pool.imap_unordered(
+                        writefits,
+                        [[source_dict_list[i], cutouts[stoke][i], stoke]
+                        for i in range(len(cutouts[stoke]))]
+                    ),
+                    total=len(cutouts[stoke]),
+                    desc=f'Stokes {stoke}',
+                    disable=(not verbose)
+                )
+                )
 
 
 def head2dict(h):
@@ -371,12 +392,12 @@ def main(pool, args, verbose=True):
     # Sort out args
     cubedir = args.cubedir
     tabledir = args.tabledir
-    mapdir = args.mapdir
+    mapdata = args.mapdata
 
     # Read in data
     if verbose:
         print('Reading data...')
-    datadict = getdata(cubedir, tabledir, mapdir, verbose=verbose)
+    datadict = getdata(cubedir, tabledir, mapdata, verbose=verbose)
 
     # Make cutouts
     pad = args.pad
@@ -402,7 +423,7 @@ def main(pool, args, verbose=True):
     if not dryrun:
         if verbose:
             print('Writing to disk...')
-        writeloop(pool, cutouts, source_dict_list, verbose=verbose)
+        writeloop(pool, cutouts, source_dict_list, datadict, verbose=verbose)
 
     # Update MongoDB
     if args.database:
@@ -440,6 +461,7 @@ def cli():
     {logostr}
     SPICE-RACS Stage 1:
     Produce cubelets from a RACS field using a Selavy table.
+    If Stokes V is present, it will be squished into RMS spectra.
 
     To use with MPI:
        mpirun -n $NPROCS python -u cutout.py $cubedir $tabledir
@@ -465,16 +487,16 @@ def cli():
         help='Directory containing Selavy results.')
 
     parser.add_argument(
-        'mapdir',
-        metavar='mapdir',
+        'mapdata',
+        metavar='mapdata',
         type=str,
-        help='Directory containing image data in FITS format.')
+        help='2D FITS image corresponding to Selavy table.')
 
     parser.add_argument(
         'outdir',
         metavar='outdir',
         type=str,
-        help='Directory to store cutouts.')
+        help='Directory to store cutouts (in subdir outdir/cutouts).')
 
     parser.add_argument(
         'pad',
