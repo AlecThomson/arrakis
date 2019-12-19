@@ -141,7 +141,8 @@ class moments:
                 except queue.Empty:
                     break
                 else:
-                    ystd = np.nanstd(np.array(inarr[:, idx, :]), axis=0, ddof=1)
+                    ystd = np.nanstd(
+                        np.array(inarr[:, idx, :]), axis=0, ddof=1)
                     ystd[ystd == 0] = np.nan
                     outarr[idx, :] = ystd[:]
 
@@ -654,7 +655,7 @@ def cli():
         'outdir',
         metavar='outdir',
         type=str,
-        help='Directory to store moment maps.')
+        help='Directory to store moment maps (will save in outdir/moments).')
 
     parser.add_argument(
         "-v",
