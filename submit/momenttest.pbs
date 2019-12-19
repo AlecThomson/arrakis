@@ -1,9 +1,9 @@
 ##### Select resources #####
-#PBS -N SPICERACS-farnes
-#PBS -l select=1:ncpus=16
+#PBS -N pilotmoment
+#PBS -l select=1:ncpus=28
 ##### Queue #####
-#PBS -q largemem
-#PBS -l place=pack
+#PBS -q smallmem
+#PBS -l place=pack:excl
 ##### Mail Options #####
 # Send an email at job start, end and if aborted
 #PBS -m abe
@@ -13,6 +13,6 @@
 #PBS -e ~/possalec/SPICERACS/moment.err
 ##### Change to your working directory #####
 ##### Execute Program #####
-cd ~/possalec/SPICERACS/
+cd /avatar/athomson/cubes/pilot
 
-spicemoments /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/selavy-cont-image.i.SB8583.cont.RACS_test4_1.05_1049-31A.linmos.taylor.0.restored/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ /avatar/athomson/cubes/8585/RACS_test4_1.05_1049-31A/ -v --ncores 16 --farnes --picube 1>prog_momentf.out 2>&1
+spicemoments mosaics/ selavy-cont-image.i.SB10168.cont.taylor.0.restored/ selavy-cont-image.i.SB10168.cont.taylor.0.restored/image.i.SB10168.cont.taylor.0.restored.fits ./ -v --picube --farnes --zero --ncores 28 1>prog_moment.out 2>&1
