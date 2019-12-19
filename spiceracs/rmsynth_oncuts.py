@@ -36,12 +36,10 @@ def rmsythoncut(args):
     qfile = doc[i]['q_file']
     ufile = doc[i]['u_file']
 
-
-
-
-    NSAMPLES = 10
+    NSAMPLES = clargs.NSAMPLES
+    phi_max = clargs.PHIMAX_RADM2
     command = ["rmsynth3d", qfile, ufile,
-               freqfile, "-s", str(NSAMPLES), "-o", iname]
+               freqfile, "-s", str(NSAMPLES), "-o", iname, "-l", str(phi_max)]
     proc = subprocess.run(command,
                           capture_output=(not verbose),
                           encoding="utf-8", check=True)
@@ -71,25 +69,26 @@ def rmsythoncut_i(args):
     doc = mycol.find(myquery).sort("flux_int", -1)
 
     iname = f"{doc[i]['island_name']}.validate."
-    data = SpectralCube.read(doc[i]['i_file'])
-    data = np.array(data[:][np.unravel_index(data.moment0(axis=0).argmax(), data.shape[1:])])
+    data = np.array(SpectralCube.read(doc[i]['i_file']))
+    data = data[:][np.unravel_index(
+        data.moment0(axis=0).argmax(), data.shape[1:])]
 
     with fits.open(doc[i]['v_file']) as hdulist:
         noise = hdulist[0].data
-    
+
     datalist = [freq, data, data, data, noise, noise, noise]
     print(datalist)
-    
-    NSAMPLES = 10
-    phi_max = 1e5
+
+    NSAMPLES = clargs.NSAMPLES
+    phi_max = clargs.PHIMAX_RADM2
     mDict, aDict = do_RMsynth_1D.run_rmsynth(
         datalist,
         phiMax_radm2=phi_max,
         nSamples=NSAMPLES,
-        verbose=verbose
+        verbose=verbose,
+        phi_max=phi_max
     )
     do_RMsynth_1D.saveOutput(mDict, aDict, iname, verbose=verbose)
-
 
 
 def main(pool, args, verbose=False):
@@ -120,7 +119,6 @@ def main(pool, args, verbose=False):
 
     if verbose:
         print(f'Running RMsynth on {count} sources')
-
 
     if args.validate:
         inputs = [[i, args, freq, verbose] for i in range(count)]
@@ -216,9 +214,15 @@ def cli():
 
     parser.add_argument("--validate", dest="validate", action="store_true",
                         help="Run on Stokes I [False].")
-    
+
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
+
+    parser.add_argument("-l", dest="PHIMAX_RADM2", default=None,
+                        type=int, help="Absolute max Faraday depth sampled [Auto].")
+
+    parser.add_argument("-s", dest="NSAMPLES", default=None,
+                        type=int, help="Number of samples across the FWHM RMSF.")
 
     group = parser.add_mutually_exclusive_group()
 
