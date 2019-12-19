@@ -220,7 +220,7 @@ def main(args, verbose=True):
     outfile = tablename.replace('.components.','.single-components.')
     if verbose:
         print(f'Saving to {outfile}')
-    loners.write(outfile)
+    loners.write(outfile, format='votable')
 
     # Add index
     loners.add_index('col_island_id')
