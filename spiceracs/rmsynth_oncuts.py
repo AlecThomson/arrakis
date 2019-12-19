@@ -11,6 +11,8 @@ import warnings
 from RMtools_1D import do_RMsynth_1D
 from spectral_cube import SpectralCube
 from astropy.io import fits
+import matplotlib.pyplot as plt
+from RMutils.util_misc import create_frac_spectra
 
 
 def rmsythoncut(args):
@@ -30,7 +32,7 @@ def rmsythoncut(args):
     else:
         myquery = {}
 
-    doc = mycol.find(myquery).sort("flux_int", -1)
+    doc = mycol.find(myquery).sort("flux_peak", -1)
 
     iname = doc[i]['island_name']
     qfile = doc[i]['q_file']
@@ -50,7 +52,7 @@ def rmsythoncut(args):
 
 
 def rmsythoncut_i(args):
-    i, clargs, freq, verbose = args
+    i, clargs, freq, outdir, verbose = args
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
@@ -66,18 +68,63 @@ def rmsythoncut_i(args):
     else:
         myquery = {}
 
-    doc = mycol.find(myquery).sort("flux_int", -1)
+    doc = mycol.find(myquery).sort("flux_peak", -1)
 
-    iname = f"{doc[i]['island_name']}.validate."
+    iname = f"{outdir}/{doc[i]['island_name']}.validate"
     data = np.array(SpectralCube.read(doc[i]['i_file']))
-    data = data[:][np.unravel_index(
-        data.moment0(axis=0).argmax(), data.shape[1:])]
+    mom = np.nansum(data, axis=0)
+    idx = np.unravel_index(np.argmax(mom), mom.shape)
+
+    plt.ion()
+    plt.figure()
+    plt.imshow(mom, origin='lower', cmap='cubehelix_r')
+    plt.scatter(idx[1], idx[0], c='r', marker='x')
+    plt.show()
+    _ = input("Press [enter] to continue")  # wait for input from the user
+    plt.close()    # close the figure to show the next one.
+
+    data = data[:, idx[0], idx[1]]
 
     with fits.open(doc[i]['v_file']) as hdulist:
         noise = hdulist[0].data
 
-    datalist = [freq, data, data, data, noise, noise, noise]
-    print(datalist)
+    plt.ion()
+    plt.figure()
+    plt.step(freq/1e9, data)
+
+
+    imod, qArr, uArr, dqArr, duArr, fitDict = \
+        create_frac_spectra(freqArr=freq,
+                            IArr=data,
+                            QArr=data,
+                            UArr=data,
+                            dIArr=noise,
+                            dQArr=noise,
+                            dUArr=noise,
+                            polyOrd=3,
+                            verbose=True,
+                            debug=False)
+    plt.plot(freq/1e9, imod)
+    plt.xlabel(r'$\nu$ [GHz]')
+    plt.ylabel(r'$I$ [Jy/beam]')
+    plt.tight_layout()
+    plt.show()
+    _ = input("Press [enter] to continue")  # wait for input from the user
+    plt.close()    # close the figure to show the next one.
+
+    data = data - imod
+    data = data - np.nanmean(data)
+    plt.ion()
+    plt.figure()
+    plt.step(freq/1e9, data)
+    plt.xlabel(r'$\nu$ [GHz]')
+    plt.ylabel(r'$I-\mathrm{model}(I)-\mathrm{mean}(\mathrm{model}(I))$')
+    plt.tight_layout()
+    plt.show()
+    _ = input("Press [enter] to continue")  # wait for input from the user
+    plt.close()    # close the figure to show the next one.
+
+    datalist = [freq, data, data, dqArr, duArr]
 
     NSAMPLES = clargs.NSAMPLES
     phi_max = clargs.PHIMAX_RADM2
@@ -85,14 +132,25 @@ def rmsythoncut_i(args):
         datalist,
         phiMax_radm2=phi_max,
         nSamples=NSAMPLES,
-        verbose=verbose,
-        phi_max=phi_max
+        verbose=True
     )
+    plt.ion()
+    plt.figure()
+    plt.plot(aDict['phiArr_radm2'], abs(aDict['dirtyFDF']))
+    plt.xlabel(r'$\phi$ [rad m$^{-2}$]')
+    plt.ylabel(r'Dirty FDF (Stokes I)')
+    plt.tight_layout()
+    plt.show()
+    _ = input("Press [enter] to continue")  # wait for input from the user
+    plt.close()    # close the figure to show the next one.
     do_RMsynth_1D.saveOutput(mDict, aDict, iname, verbose=verbose)
 
 
 def main(pool, args, verbose=False):
-
+    outdir = args.outdir
+    if outdir[-1] == '/':
+        outdir = outdir[:-1]
+    outdir = f'{outdir}/cutouts'
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
     mycol = mydb['spice']  # Create/open collection
@@ -107,7 +165,7 @@ def main(pool, args, verbose=False):
     else:
         myquery = {}
 
-    mydoc = mycol.find(myquery).sort("flux_int", -1)
+    mydoc = mycol.find(myquery).sort("flux_peak", -1)
     count = mycol.count_documents(myquery)
 
     if args.limit is not None:
@@ -116,12 +174,12 @@ def main(pool, args, verbose=False):
     # Make frequency file
     freq, freqfile = getfreq(mydoc[0]['q_file'], outdir=os.path.dirname(
         mydoc[0]['q_file']), filename='frequencies.txt', verbose=verbose)
-
+    freq = np.array(freq)
     if verbose:
         print(f'Running RMsynth on {count} sources')
 
     if args.validate:
-        inputs = [[i, args, freq, verbose] for i in range(count)]
+        inputs = [[i, args, freq, outdir, verbose] for i in range(count)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
             if verbose:
@@ -203,6 +261,12 @@ def cli():
     parser = argparse.ArgumentParser(description=descStr,
                                      formatter_class=argparse.RawTextHelpFormatter)
 
+    parser.add_argument(
+        'outdir',
+        metavar='outdir',
+        type=str,
+        help='Directory containing cutouts (in subdir outdir/cutouts).')
+
     parser.add_argument("-v", dest="verbose", action="store_true",
                         help="verbose output [False].")
 
@@ -232,7 +296,11 @@ def cli():
                        action="store_true", help="Run with MPI.")
 
     args = parser.parse_args()
-    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
+
+    if args.validate:
+        pool = schwimmbad.SerialPool
+    else:
+        pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
 
     verbose = args.verbose
 
