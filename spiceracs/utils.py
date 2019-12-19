@@ -254,7 +254,7 @@ def tmatchn(nin, inN, valuesN,
                           encoding="utf-8", check=True)
 
 
-def getfreq(cube, outdir=None, filename=None, verbose=True):
+def getfreq(cube, outdir=None, filename=None, verbose=False):
     """Get list of frequencies from FITS data.
 
     Gets the frequency list from a given cube. Can optionally save
@@ -299,6 +299,8 @@ def getfreq(cube, outdir=None, filename=None, verbose=True):
         if verbose:
             print(f'Saving to {outfile}')
         np.savetxt(outfile, freq)
+    else:
+        outfile = None
 
     if outfile is not None:
         return freq, outfile
