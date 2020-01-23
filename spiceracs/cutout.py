@@ -442,6 +442,8 @@ def cli():
     import schwimmbad
     from astropy.utils.exceptions import AstropyWarning
     warnings.simplefilter('ignore', category=AstropyWarning)
+    warnings.filterwarnings("ignore", message="Degrees of freedom <= 0 for slice.")
+
     # Help string to be shown using the -h option
     logostr = """
      mmm   mmm   mmm   mmm   mmm
@@ -551,6 +553,7 @@ def cli():
 
     args = parser.parse_args()
     verbose = args.verbose
+    print('MPI arg is', args.mpi)
     pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
     if args.mpi:
         if not pool.is_master():
