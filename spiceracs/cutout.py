@@ -7,6 +7,7 @@ import os
 from dataclasses import dataclass, asdict, make_dataclass
 import dataclasses
 from astropy.io.fits import Header
+from radio_beam import Beam
 import json
 import pymongo
 from astropy.io import fits
@@ -52,6 +53,9 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     x_max, y_max, _ = np.array(datadict['wcs_cube'].all_world2pix(
         ra_max, dec_max, freq, 0)).astype(int)
     dy, dx = y_max - y_min, x_max-x_min
+
+    # Get beam info
+    pixels_per_beam = int(datadict['i_cube'].pixels_per_beam)
 
     # Init cutouts
     i_cutouts = []
@@ -99,21 +103,19 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
                 x_min[i] < 0 or y_min[i] < 0):
             continue
 
+        starty  = int(y_min[i]-pad*pixels_per_beam)
+        stopy   = int(y_max[i]+pad*pixels_per_beam)
+        startx  = int(x_min[i]-pad*pixels_per_beam)
+        stopx   = int(x_max[i]+pad*pixels_per_beam)
+
         # Check if pad puts bbox outside of cube
-        elif (int(y_min[i]-pad*dy[i]) > 0 and
-              int(x_min[i]-pad*dx[i]) > 0 and
-              int(y_max[i]+pad*dy[i]) < i_cube.shape[2] and
-              int(x_max[i]+pad*dx[i]) < i_cube.shape[2]):
-
-            starty = int(y_min[i]-pad*dy[i])
-            stopy = int(y_max[i]+pad*dy[i])
-            startx = int(x_min[i]-pad*dx[i])
-            stopx = int(x_max[i]+pad*dx[i])
-
-        else:
+        if starty < 0:
             starty = y_min[i]
-            stopy = y_max[i]
+        if startx < 0:
             startx = x_min[i]
+        if stopy > i_cube.shape[2]:
+            stopy = y_max[i]
+        if stopx > i_cube.shape[2]:
             stopx = x_max[i]
 
         i_cutout = i_cube[:, starty:stopy, startx:stopx]
@@ -131,7 +133,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         if v_cube is not None:
             v_cutout = v_cube[:, starty:stopy, startx:stopx]
             # compute RMS
-            v_cutout = np.std(v_cutout, axis=(1,2))
+            v_cutout = np.std(v_cutout, axis=(1, 2))
             v_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
             v_cutouts.append(v_cutout)
 
@@ -249,7 +251,7 @@ def writefits(arg):
 
     """
     source_dict, cutout, stoke, outdir = arg
-    outfile = f'{outdir}/{source_dict[f'{stoke}_file']}'
+    outfile = f"{outdir}/{source_dict[f'{stoke}_file']}"
     cutout.write(outfile, format='fits', overwrite=True)
 
 
@@ -295,7 +297,7 @@ def writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=True):
                     pool.imap_unordered(
                         writefits,
                         [[source_dict_list[i], cutouts[stoke][i], stoke, outdir]
-                        for i in range(len(cutouts[stoke]))]
+                         for i in range(len(cutouts[stoke]))]
                     ),
                     total=len(cutouts[stoke]),
                     desc=f'Stokes {stoke}',
@@ -409,12 +411,12 @@ def main(pool, args, verbose=True):
         print('Making cutouts....')
     outdir = args.outdir
     cutouts, source_dict_list, outdir = makecutout(pool,
-                                           datadict,
-                                           outdir=outdir,
-                                           pad=pad,
-                                           dryrun=dryrun,
-                                           verbose=verbose
-                                           )
+                                                   datadict,
+                                                   outdir=outdir,
+                                                   pad=pad,
+                                                   dryrun=dryrun,
+                                                   verbose=verbose
+                                                   )
 
     # Check size of cube
     if args.getsize:
@@ -426,7 +428,8 @@ def main(pool, args, verbose=True):
     if not dryrun:
         if verbose:
             print('Writing to disk...')
-        writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=verbose)
+        writeloop(pool, cutouts, source_dict_list,
+                  datadict, outdir, verbose=verbose)
 
     # Update MongoDB
     if args.database:
@@ -506,7 +509,7 @@ def cli():
         metavar='pad',
         type=float,
         default=0,
-        help='Fractional padding around islands [0 -- no padding].')
+        help='Number of beamwidths to pad around source [0 -- no padding].')
 
     parser.add_argument(
         "-v",
