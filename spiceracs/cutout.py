@@ -7,7 +7,6 @@ import os
 from dataclasses import dataclass, asdict, make_dataclass
 import dataclasses
 from astropy.io.fits import Header
-from radio_beam import Beam
 import json
 import pymongo
 from astropy.io import fits
@@ -54,8 +53,8 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         ra_max, dec_max, freq, 0)).astype(int)
     dy, dx = y_max - y_min, x_max-x_min
 
-    # Get beam info
-    pixels_per_beam = int(datadict['i_cube'].pixels_per_beam)
+    # Get beam info - use major axis of beam
+    pixels_per_beam = int(datadict['i_cube'].header['BMAJ']/datadict['i_cube'].header['CDELT2'])
 
     # Init cutouts
     i_cutouts = []
