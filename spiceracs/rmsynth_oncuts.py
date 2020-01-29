@@ -9,6 +9,7 @@ import time
 from tqdm import tqdm, trange
 import warnings
 from RMtools_1D import do_RMsynth_1D
+from RMtools_3D import do_RMsynth_3D
 from spectral_cube import SpectralCube
 from astropy.io import fits
 import matplotlib.pyplot as plt
@@ -16,7 +17,7 @@ from RMutils.util_misc import create_frac_spectra
 
 
 def rmsythoncut(args):
-    i, clargs, freqfile, verbose = args
+    i, clargs, outdir, freqfile, verbose = args
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
@@ -35,16 +36,49 @@ def rmsythoncut(args):
     doc = mycol.find(myquery).sort("flux_peak", -1)
 
     iname = doc[i]['island_name']
-    qfile = doc[i]['q_file']
-    ufile = doc[i]['u_file']
+    qfile = f"{outdir}/{doc[i]['q_file']}"
+    ufile = f"{outdir}/{doc[i]['u_file']}"
+    vfile = f"{outdir}/{doc[i]['v_file']}"
 
-    NSAMPLES = clargs.NSAMPLES
-    phi_max = clargs.PHIMAX_RADM2
-    command = ["rmsynth3d", qfile, ufile,
-               freqfile, "-s", str(NSAMPLES), "-o", iname, "-l", str(phi_max)]
-    proc = subprocess.run(command,
-                          capture_output=(not verbose),
-                          encoding="utf-8", check=True)
+    with fits.open(vfile) as hdulist:
+        rms = hdulist[0].data
+
+
+    if clargs.prefixOut is not None:
+        prefix = clargs.prefixOut + iname
+    else:
+        prefix = iname
+
+    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verobse)
+
+    rmsArr = np.ones_like(dataQ)*rms
+
+    # Run RM-synthesis on the cubes
+    dataArr = do_RMsynth_3D.run_rmsynth(
+        dataQ=dataQ,
+        dataU=do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verobse)[1],
+        freqArr_Hz=do_RMsynth_3D.readFreqFile(freqfile, clargs.rm_verobse),
+        dataI=None,
+        rmsArr=rmsArr,
+        phiMax_radm2=clargs.phiMax_radm2,
+        dPhi_radm2=clargs.dPhi_radm2,
+        nSamples=clargs.nSamples,
+        weightType=clargs.weightType,
+        fitRMSF=clargs.fitRMSF,
+        nBits=32,
+        verbose=clargs.rm_verobse,
+        not_rmsf=clargs.not_RMSF)
+
+    # Write to files
+    do_RMsynth_3D.writefits(dataArr,
+                            headtemplate=header,
+                            fitRMSF=False,
+                            prefixOut=prefix,
+                            outDir=outdir,
+                            write_seperate_FDF=clargs.write_seperate_FDF,
+                            not_rmsf=clargs.not_RMSF,
+                            nBits=32,
+                            verbose=verbose)
 
     myquery = {"island_name": iname}
     newvalues = {"$set": {"rmsynth": True}}
@@ -92,7 +126,6 @@ def rmsythoncut_i(args):
     plt.figure()
     plt.step(freq/1e9, data)
 
-
     imod, qArr, uArr, dqArr, duArr, fitDict = \
         create_frac_spectra(freqArr=freq,
                             IArr=data,
@@ -126,12 +159,12 @@ def rmsythoncut_i(args):
 
     datalist = [freq, data, data, dqArr, duArr]
 
-    NSAMPLES = clargs.NSAMPLES
-    phi_max = clargs.PHIMAX_RADM2
+    nSamples = clargs.nSamples
+    phi_max = clargs.phiMax_radm2
     mDict, aDict = do_RMsynth_1D.run_rmsynth(
         datalist,
         phiMax_radm2=phi_max,
-        nSamples=NSAMPLES,
+        nSamples=nSamples,
         verbose=True
     )
     plt.ion()
@@ -199,7 +232,7 @@ def main(pool, args, verbose=False):
             )
             )
     else:
-        inputs = [[i, args, freqfile, verbose] for i in range(count)]
+        inputs = [[i, args, outdir, freqfile, verbose] for i in range(count)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
             if verbose:
@@ -282,9 +315,27 @@ def cli():
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
 
-    parser.add_argument("-l", dest="PHIMAX_RADM2", default=None,
-                        type=int, help="Absolute max Faraday depth sampled [Auto].")
-
+    # RM-tools args
+    parser.add_argument("-w", dest="weightType", default="uniform",
+                        help="weighting [uniform] (all 1s) or 'variance'.")
+    parser.add_argument("-t", dest="fitRMSF", action="store_true",
+                        help="Fit a Gaussian to the RMSF [False]")
+    parser.add_argument("-l", dest="phiMax_radm2", type=float, default=None,
+                        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].")
+    parser.add_argument("-d", dest="dPhi_radm2", type=float, default=None,
+                        help="Width of Faraday depth channel [Auto].")
+    parser.add_argument("-o", dest="prefixOut", default="",
+                        help="Prefix to prepend to output files [None].")
+    parser.add_argument("-s", dest="nSamples", type=float, default=5,
+                        help="Number of samples across the FWHM RMSF.")
+    parser.add_argument("-f", dest="write_seperate_FDF", action="store_false",
+                        help="Store different Stokes as FITS extensions [False, store as seperate files].")
+    parser.add_argument("-v", dest="verbose", action="store_true",
+                        help="Verbose [False].")
+    parser.add_argument("-R", dest="not_RMSF", action="store_true",
+                        help="Skip calculation of RMSF? [False]")
+    parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
+                        help="Verbose RMsynth [False].")
     parser.add_argument("-s", dest="NSAMPLES", default=None,
                         type=int, help="Number of samples across the FWHM RMSF.")
 
