@@ -51,7 +51,7 @@ def moment_worker(args):
 def makepiworker(args):
     """Make PI of cutouts
     """
-    i, clargs, verbose = args
+    i, clargs, outdir, verbose = args
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
@@ -69,7 +69,7 @@ def makepiworker(args):
 
     pdata = (qdata**2 + udata**2)**0.5
 
-    pdata.write(outfile, format='fits', overwrite=True)
+    pdata.write(f'{outdir}/{outfile}', format='fits', overwrite=True)
 
     if clargs.database:
         myquery = {"island_name": iname}
@@ -80,7 +80,7 @@ def makepiworker(args):
 def zero_worker(args):
     """Make Zeroth Faraday moment
     """
-    i, clargs, verbose = args
+    i, clargs, outdir, verbose = args
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
@@ -112,7 +112,7 @@ def zero_worker(args):
     newf.data = mom0
     newf.header = qdata.header
     newf.header.update(qdata[0].wcs.to_header())
-    newf.writeto(outfile)
+    newf.writeto(f'{outdir}/{outfile}')
 
 
     if clargs.database:
@@ -123,6 +123,10 @@ def zero_worker(args):
 def main(pool, args, verbose=False):
     """Main script
     """
+    outdir = args.outdir
+    if outdir[-1] == '/':
+        outdir = outdir[:-1]
+    outdir = f'{outdir}/cutouts'
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
     mycol = mydb['spice']  # Create/open collection
@@ -136,7 +140,7 @@ def main(pool, args, verbose=False):
     if verbose:
         print(f'Making moments of {count} sources')
 
-    inputs = [[i, args, verbose] for i in range(count)]
+    inputs = [[i, args, outdir, verbose] for i in range(count)]
     if (pool.__class__.__name__ is 'MPIPool' or
             pool.__class__.__name__ is 'SerialPool'):
         if args.picube:
@@ -234,6 +238,12 @@ def cli():
     # Parse the command line options
     parser = argparse.ArgumentParser(description=descStr,
                                      formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument(
+        'outdir',
+        metavar='outdir',
+        type=str,
+        help='Directory containing cutouts (in subdir outdir/cutouts).')
 
     parser.add_argument("-v", dest="verbose", action="store_true",
                         help="verbose output [False].")

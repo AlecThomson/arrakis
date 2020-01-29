@@ -35,6 +35,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         cutouts (dict): Contains lists of I, Q, and U cutouts.
         source_dict_list (list): List of dictionaries which contain the
             metadata of each source.
+        outdir (str): Location of output directory.
 
     """
     if outdir[-1] == '/':
@@ -151,13 +152,13 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
                 pass
             else:
                 name = source_dict_list[i]['island_name']
-                outname = f'{outdir}/{name}.cutout.{stoke}.fits'
+                outname = f'{name}.cutout.{stoke}.fits'
                 source_dict_list[i][f'{stoke}_file'] = outname
 
     if v_cube is not None:
         stoke = 'v'
         name = source_dict_list[i]['island_name']
-        outname = f'{outdir}/{name}.cutout.{stoke}.fits'
+        outname = f'{name}.cutout.{stoke}.fits'
         source_dict_list[i][f'{stoke}_file'] = outname
 
     cutouts = {
@@ -173,7 +174,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
             }
         )
 
-    return cutouts, source_dict_list
+    return cutouts, source_dict_list, outdir
 
 
 def getbytes(cutout):
@@ -244,14 +245,15 @@ def writefits(arg):
             cutout (SpectralCube): Cutout data to write.
             stoke (str): Which Stokes to write. Is a string of either 'i',
                 'q', 'u', or 'v'.
+            outdir (str): Location of output directory.
 
     """
-    source_dict, cutout, stoke = arg
-    outfile = source_dict[f'{stoke}_file']
+    source_dict, cutout, stoke, outdir = arg
+    outfile = f'{outdir}/{source_dict[f'{stoke}_file']}'
     cutout.write(outfile, format='fits', overwrite=True)
 
 
-def writeloop(pool, cutouts, source_dict_list, datadict, verbose=True):
+def writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=True):
     """Main loop for writing to disk
 
     Loops over all sources in I, Q, and U, and writes to disk in
@@ -264,6 +266,7 @@ def writeloop(pool, cutouts, source_dict_list, datadict, verbose=True):
         source_dict_list (list): List of dictionaries which contain the
             metadata of each source.
         datadict (dict): Dictionary containing tables and cubes.
+        outdir (str): Location of output directory.
 
     Kwargs:
         verbose (bool): Print out messages.
@@ -280,7 +283,7 @@ def writeloop(pool, cutouts, source_dict_list, datadict, verbose=True):
                 tic = time.perf_counter()
                 pool.map(
                     writefits,
-                    [[source_dict_list[i], cutouts[stoke][i], stoke]
+                    [[source_dict_list[i], cutouts[stoke][i], stoke, outdir]
                         for i in range(len(cutouts[stoke]))]
                 )
                 toc = time.perf_counter()
@@ -291,7 +294,7 @@ def writeloop(pool, cutouts, source_dict_list, datadict, verbose=True):
                 list(tqdm(
                     pool.imap_unordered(
                         writefits,
-                        [[source_dict_list[i], cutouts[stoke][i], stoke]
+                        [[source_dict_list[i], cutouts[stoke][i], stoke, outdir]
                         for i in range(len(cutouts[stoke]))]
                     ),
                     total=len(cutouts[stoke]),
@@ -405,7 +408,7 @@ def main(pool, args, verbose=True):
     if verbose:
         print('Making cutouts....')
     outdir = args.outdir
-    cutouts, source_dict_list = makecutout(pool,
+    cutouts, source_dict_list, outdir = makecutout(pool,
                                            datadict,
                                            outdir=outdir,
                                            pad=pad,
@@ -423,7 +426,7 @@ def main(pool, args, verbose=True):
     if not dryrun:
         if verbose:
             print('Writing to disk...')
-        writeloop(pool, cutouts, source_dict_list, datadict, verbose=verbose)
+        writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=verbose)
 
     # Update MongoDB
     if args.database:
