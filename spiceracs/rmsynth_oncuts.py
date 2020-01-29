@@ -12,12 +12,13 @@ from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
 from spectral_cube import SpectralCube
 from astropy.io import fits
+from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 from RMutils.util_misc import create_frac_spectra
 
 
-def rmsythoncut(args):
-    i, clargs, outdir, freqfile, verbose = args
+def rmsythoncut3d(args):
+    i, clargs, outdir, freq, freqfile, verbose = args
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
@@ -43,21 +44,20 @@ def rmsythoncut(args):
     with fits.open(vfile) as hdulist:
         rms = hdulist[0].data
 
-
     if clargs.prefixOut is not None:
         prefix = clargs.prefixOut + iname
     else:
         prefix = iname
 
-    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verobse)
+    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verbose)
 
     rmsArr = np.ones_like(dataQ)*rms
 
-    # Run RM-synthesis on the cubes
+    # Run 3D RM-synthesis on the cubes
     dataArr = do_RMsynth_3D.run_rmsynth(
         dataQ=dataQ,
-        dataU=do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verobse)[1],
-        freqArr_Hz=do_RMsynth_3D.readFreqFile(freqfile, clargs.rm_verobse),
+        dataU=do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)[1],
+        freqArr_Hz=do_RMsynth_3D.readFreqFile(freqfile, clargs.rm_verbose),
         dataI=None,
         rmsArr=rmsArr,
         phiMax_radm2=clargs.phiMax_radm2,
@@ -66,7 +66,7 @@ def rmsythoncut(args):
         weightType=clargs.weightType,
         fitRMSF=clargs.fitRMSF,
         nBits=32,
-        verbose=clargs.rm_verobse,
+        verbose=clargs.rm_verbose,
         not_rmsf=clargs.not_RMSF)
 
     # Write to files
@@ -81,7 +81,73 @@ def rmsythoncut(args):
                             verbose=verbose)
 
     myquery = {"island_name": iname}
-    newvalues = {"$set": {"rmsynth": True}}
+    newvalues = {"$set": {"rmsynth3d": True}}
+    mycol.update_one(myquery, newvalues)
+
+
+def rmsythoncut1d(args):
+    i, clargs, outdir, freq, freqfile, verbose = args
+
+    client = pymongo.MongoClient()  # default connection (ie, local)
+    mydb = client['racs']  # Create/open database
+    mycol = mydb['spice']  # Create/open collection
+
+    # Basic querey
+    if clargs.pol and not clargs.unres:
+        myquery = {"polarized": True}
+    if clargs.unres and not clargs.pol:
+        myquery = {"resolved": False}
+    if clargs.pol and clargs.unres:
+        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+    else:
+        myquery = {}
+
+    doc = mycol.find(myquery).sort("flux_peak", -1)
+
+    iname = doc[i]['island_name']
+    qfile = f"{outdir}/{doc[i]['q_file']}"
+    ufile = f"{outdir}/{doc[i]['u_file']}"
+    vfile = f"{outdir}/{doc[i]['v_file']}"
+
+    with fits.open(vfile) as hdulist:
+        rms = hdulist[0].data
+
+    if clargs.prefixOut is not None:
+        prefix = f'{outdir}/{clargs.prefixOut}.{iname}'
+    else:
+        prefix = f'{outdir}/{iname}'
+
+    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verbose)
+    header, dataU = do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)
+
+    ra = doc[i]['ra_deg_cont']
+    dec = doc[i]['dec_deg_cont']
+    wcs = WCS(doc[i]['header'])
+
+    x, y, z = np.array(wcs.all_world2pix(
+        ra, dec, np.nanmean(freq), 0)).round().astype(int)
+
+    q = np.nansum(dataQ[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+    u = np.nansum(dataU[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+
+    data = [freq, q, u, rms, rms]
+    # Run 1D RM-synthesis on the spectra
+    mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                             phiMax_radm2=clargs.phiMax_radm2,
+                                             dPhi_radm2=clargs.dPhi_radm2,
+                                             nSamples=clargs.nSamples,
+                                             weightType=clargs.weightType,
+                                             fitRMSF=clargs.fitRMSF,
+                                             noStokesI=True,
+                                             nBits=32,
+                                             showPlots=False,
+                                             verbose=clargs.rm_verbose,
+                                             units=clargs.units)
+
+    do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
+
+    myquery = {"island_name": iname}
+    newvalues = {"$set": {"rmsynth1d": True}}
     mycol.update_one(myquery, newvalues)
 
 
@@ -105,19 +171,27 @@ def rmsythoncut_i(args):
     doc = mycol.find(myquery).sort("flux_peak", -1)
 
     iname = f"{outdir}/{doc[i]['island_name']}.validate"
-    data = np.array(SpectralCube.read(doc[i]['i_file']))
+    data = np.array(SpectralCube.read(f"{outdir}/{doc[i]['i_file']}"))
+
+    # Get source peak from Selavy
+    ra = doc[i]['ra_deg_cont']
+    dec = doc[i]['dec_deg_cont']
+    wcs = WCS(doc[i]['header'])
+
+    x, y, z = np.array(wcs.all_world2pix(
+        ra, dec, np.nanmean(freq), 0)).round().astype(int)
+
     mom = np.nansum(data, axis=0)
-    idx = np.unravel_index(np.argmax(mom), mom.shape)
 
     plt.ion()
     plt.figure()
     plt.imshow(mom, origin='lower', cmap='cubehelix_r')
-    plt.scatter(idx[1], idx[0], c='r', marker='x')
+    plt.scatter(x, y, c='r', marker='x')
     plt.show()
     _ = input("Press [enter] to continue")  # wait for input from the user
     plt.close()    # close the figure to show the next one.
 
-    data = data[:, idx[0], idx[1]]
+    data = np.nansum(data[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
 
     with fits.open(doc[i]['v_file']) as hdulist:
         noise = hdulist[0].data
@@ -231,23 +305,46 @@ def main(pool, args, verbose=False):
                 disable=(not verbose)
             )
             )
-    else:
-        inputs = [[i, args, outdir, freqfile, verbose] for i in range(count)]
+    elif args.dimension is '1d':
+        inputs = [[i, args, outdir, freq, freqfile, verbose]
+                  for i in range(count)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
             if verbose:
-                print('Running RM synth...')
+                print('Running 1D RM synth...')
             tic = time.perf_counter()
-            list(pool.map(rmsythoncut, inputs))
+            list(pool.map(rmsythoncut1d, inputs))
             toc = time.perf_counter()
             if verbose:
                 print(f'Time taken was {toc - tic}s')
 
         elif pool.__class__.__name__ is 'MultiPool':
             list(tqdm(
-                pool.imap_unordered(rmsythoncut, inputs),
+                pool.imap_unordered(rmsythoncut1d, inputs),
                 total=count,
-                desc='Running RM synth',
+                desc='Running 1D RM synth',
+                disable=(not verbose)
+            )
+            )
+
+    elif args.dimension is '3d':
+        inputs = [[i, args, outdir, freq, freqfile, verbose]
+                  for i in range(count)]
+        if (pool.__class__.__name__ is 'MPIPool' or
+                pool.__class__.__name__ is 'SerialPool'):
+            if verbose:
+                print('Running 3D RM synth...')
+            tic = time.perf_counter()
+            list(pool.map(rmsythoncut3d, inputs))
+            toc = time.perf_counter()
+            if verbose:
+                print(f'Time taken was {toc - tic}s')
+
+        elif pool.__class__.__name__ is 'MultiPool':
+            list(tqdm(
+                pool.imap_unordered(rmsythoncut3d, inputs),
+                total=count,
+                desc='Running 3D RM synth',
                 disable=(not verbose)
             )
             )
@@ -300,6 +397,9 @@ def cli():
         type=str,
         help='Directory containing cutouts (in subdir outdir/cutouts).')
 
+    parser.add_argument("--dimension", dest="dimension", default="1d",
+                        help="How many dimensions for RMsynth [1d] or '3d'.")
+
     parser.add_argument("-v", dest="verbose", action="store_true",
                         help="verbose output [False].")
 
@@ -330,8 +430,6 @@ def cli():
                         help="Number of samples across the FWHM RMSF.")
     parser.add_argument("-f", dest="write_seperate_FDF", action="store_false",
                         help="Store different Stokes as FITS extensions [False, store as seperate files].")
-    parser.add_argument("-v", dest="verbose", action="store_true",
-                        help="Verbose [False].")
     parser.add_argument("-R", dest="not_RMSF", action="store_true",
                         help="Skip calculation of RMSF? [False]")
     parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
