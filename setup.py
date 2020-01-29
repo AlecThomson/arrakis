@@ -14,7 +14,7 @@ from setuptools import find_packages, setup, Command
 # Package meta-data.
 NAME = 'spiceracs'
 DESCRIPTION = 'Processing polarized RACS data products.'
-URL = 'https://github.com/AlecThomson/SPICERACS'
+URL = 'https://bitbucket.csiro.au/projects/SPICE/repos/spiceracs/'
 REQUIRES_PYTHON = '>=3.6.0'
 VERSION = None  # Read from __version__.py
 AUTHOR = 'Alec Thomson'
