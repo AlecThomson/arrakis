@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from .utils import getfreq, MyEncoder
+from spiceracs.utils import getfreq, MyEncoder
 import json
 import numpy as np
 import os

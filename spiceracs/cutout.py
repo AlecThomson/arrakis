@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from .utils import getdata, MyEncoder, head2dict
+from spiceracs.utils import getdata, MyEncoder, head2dict
 import numpy as np
 from tqdm import trange, tqdm
 import sys
