@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from spiceracs.utils import getdata
+from .utils import getdata, MyEncoder, head2dict
 import numpy as np
 from tqdm import trange, tqdm
 import sys
@@ -16,7 +16,7 @@ import functools
 print = functools.partial(print, flush=True)
 
 
-def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
+def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, verbose=True):
     """Main cutout task.
 
     Takes in table data from Selavy, and cuts out data cubes using
@@ -29,6 +29,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         outdir (str): Directory to save data to.
         pad (float): Fractional padding around Selavy islands to cut out.
         dryrun (bool): Whether to do a dry-run (save no files).
+        limit (int): Number of sources to cut out.
         verbose (bool): Print out messages.
 
     Returns:
@@ -89,10 +90,16 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         except FileExistsError:
             print('Directory exists.')
 
+    if limit is not None:
+        count = limit
+        if verbose:
+            print(f'Only cutting out {limit} sources...')
+    else:
+        count = len(datadict['i_tab'])
     # TO-DO: Max cut on size
     for i in trange(
-        len(datadict['i_tab']),
-        total=len(datadict['i_tab']),
+        count,
+        total=count,
         disable=(not verbose),
         desc='Extracting cubelets'
     ):
@@ -305,51 +312,6 @@ def writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=True):
                 )
 
 
-def head2dict(h):
-    """Convert FITS header to a dict.
-
-    Writes a cutout, as stored in source_dict, to disk. The file location
-    should already be specified in source_dict. This format is intended
-    for parallel use with pool.map syntax.
-
-    Args:
-        h: An astropy FITS header.
-
-    Returns:
-        data (dict): The FITS head converted to a dict.
-
-    """
-    data = {}
-    for c in h.__dict__['_cards']:
-        if c[0] == '':
-            continue
-        data[c[0]] = c[1]
-    return(data)
-
-
-class MyEncoder(json.JSONEncoder):
-    """Cutom JSON encorder.
-
-    Parses the data stored in source_dict to JSON without
-    errors.
-
-    """
-
-    def default(self, obj):  # pylint: disable=E0202
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, fits.Header):
-            return head2dict(obj)
-        elif dataclasses.is_dataclass(obj):
-            return dataclasses.asdict(obj)
-        else:
-            return super(MyEncoder, self).default(obj)
-
-
 def database(source_dict_list, verbose=True):
     """Add data to MongoDB.
 
@@ -414,6 +376,7 @@ def main(pool, args, verbose=True):
                                                    outdir=outdir,
                                                    pad=pad,
                                                    dryrun=dryrun,
+                                                   limit=args.limit,
                                                    verbose=verbose
                                                    )
 
@@ -537,6 +500,10 @@ def cli():
         action="store_true",
         help="Add data to MongoDB [False]."
     )
+
+    parser.add_argument("--limit", dest="limit", default=None,
+                    type=int, help="Limit number of sources [All].")
+
 
     group = parser.add_mutually_exclusive_group()
 

@@ -5,6 +5,10 @@ import stat
 from tqdm import tqdm
 from glob import glob
 from spectral_cube import SpectralCube
+from astropy.io import fits
+import dataclasses
+from dataclasses import dataclass, asdict, make_dataclass
+import json
 import subprocess
 from pathlib import Path
 from astropy.table import Table
@@ -12,6 +16,52 @@ from astropy.wcs import WCS
 import astropy.units as u
 import functools
 print = functools.partial(print, flush=True)
+
+
+def head2dict(h):
+    """Convert FITS header to a dict.
+
+    Writes a cutout, as stored in source_dict, to disk. The file location
+    should already be specified in source_dict. This format is intended
+    for parallel use with pool.map syntax.
+
+    Args:
+        h: An astropy FITS header.
+
+    Returns:
+        data (dict): The FITS head converted to a dict.
+
+    """
+    data = {}
+    for c in h.__dict__['_cards']:
+        if c[0] == '':
+            continue
+        data[c[0]] = c[1]
+    return(data)
+
+class MyEncoder(json.JSONEncoder):
+    """Cutom JSON encorder.
+
+    Parses the data stored in source_dict to JSON without
+    errors.
+
+    """
+
+    def default(self, obj):  # pylint: disable=E0202
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.complex):
+            return (obj.real, obj.imag)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, fits.Header):
+            return head2dict(obj)
+        elif dataclasses.is_dataclass(obj):
+            return dataclasses.asdict(obj)
+        else:
+            return super(MyEncoder, self).default(obj)
 
 def cpu_to_use(max_cpu, count):
     """Find number of cpus to use.
@@ -25,7 +75,7 @@ def cpu_to_use(max_cpu, count):
     
     Returns:
         Maximum number of cores to be used that divides into the number
-        of tasks (int).
+
     """
     factors = []
     for i in range(1, count + 1):
@@ -298,7 +348,7 @@ def getfreq(cube, outdir=None, filename=None, verbose=False):
             outfile = f'{outdir}/{filename}'
         if verbose:
             print(f'Saving to {outfile}')
-        np.savetxt(outfile, freq)
+        np.savetxt(outfile, np.array(freq))
     else:
         outfile = None
 
