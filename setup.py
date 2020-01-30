@@ -110,9 +110,11 @@ setup(
     entry_points={
         'console_scripts': ['spicecutout=spiceracs.cutout:cli',
                             'spiceunresolved=spiceracs.unresolved:cli',
-                            'spicemoments=spiceracs.moments:cli',
+                            'spicemoments=spiceracs.moments_oncuts:cli',
                             'spicepolfind=spiceracs.polfind:cli',
-                            'spicermsynth=spiceracs.rmsynth_oncuts:cli'
+                            'spicermsynth=spiceracs.rmsynth_oncuts:cli',
+                            'spicermclean=spiceracs.rmclean_oncuts:cli',
+                            'spicemakecat=spiceracs.makecat:cli'
                             ],
     },
     install_requires=REQUIRED,
