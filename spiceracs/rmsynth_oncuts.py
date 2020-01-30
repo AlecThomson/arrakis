@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-from spiceracs.utils import getfreq
+from .utils import getfreq, MyEncoder
+import json
 import numpy as np
 import os
 import pymongo
@@ -9,14 +10,16 @@ import time
 from tqdm import tqdm, trange
 import warnings
 from RMtools_1D import do_RMsynth_1D
+from RMtools_3D import do_RMsynth_3D
 from spectral_cube import SpectralCube
 from astropy.io import fits
+from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 from RMutils.util_misc import create_frac_spectra
 
 
-def rmsythoncut(args):
-    i, clargs, freqfile, verbose = args
+def rmsythoncut3d(args):
+    i, clargs, outdir, freq, freqfile, verbose = args
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
@@ -35,20 +38,116 @@ def rmsythoncut(args):
     doc = mycol.find(myquery).sort("flux_peak", -1)
 
     iname = doc[i]['island_name']
-    qfile = doc[i]['q_file']
-    ufile = doc[i]['u_file']
+    qfile = f"{outdir}/{doc[i]['q_file']}"
+    ufile = f"{outdir}/{doc[i]['u_file']}"
+    vfile = f"{outdir}/{doc[i]['v_file']}"
 
-    NSAMPLES = clargs.NSAMPLES
-    phi_max = clargs.PHIMAX_RADM2
-    command = ["rmsynth3d", qfile, ufile,
-               freqfile, "-s", str(NSAMPLES), "-o", iname, "-l", str(phi_max)]
-    proc = subprocess.run(command,
-                          capture_output=(not verbose),
-                          encoding="utf-8", check=True)
+    with fits.open(vfile) as hdulist:
+        rms = hdulist[0].data
 
-    myquery = {"island_name": iname}
-    newvalues = {"$set": {"rmsynth": True}}
-    mycol.update_one(myquery, newvalues)
+    prefix = iname
+
+    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verbose)
+
+    rmsArr = np.ones_like(dataQ)*rms[:, np.newaxis, np.newaxis]
+
+    # Run 3D RM-synthesis on the cubes
+    dataArr = do_RMsynth_3D.run_rmsynth(
+        dataQ=dataQ,
+        dataU=do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)[1],
+        freqArr_Hz=do_RMsynth_3D.readFreqFile(freqfile, clargs.rm_verbose),
+        dataI=None,
+        rmsArr=rmsArr,
+        phiMax_radm2=clargs.phiMax_radm2,
+        dPhi_radm2=clargs.dPhi_radm2,
+        nSamples=clargs.nSamples,
+        weightType=clargs.weightType,
+        fitRMSF=clargs.fitRMSF,
+        nBits=32,
+        verbose=clargs.rm_verbose,
+        not_rmsf=clargs.not_RMSF)
+
+    # Write to files
+    do_RMsynth_3D.writefits(dataArr,
+                            headtemplate=header,
+                            fitRMSF=clargs.fitRMSF,
+                            prefixOut=prefix,
+                            outDir=outdir,
+                            write_seperate_FDF=True,
+                            not_rmsf=clargs.not_RMSF,
+                            nBits=32,
+                            verbose=clargs.rm_verbose)
+
+    if clargs.database:
+        myquery = {"island_name": iname}
+
+        newvalues = {"$set": {"rmsynth3d": True}}
+        mycol.update_one(myquery, newvalues)
+
+
+def rmsythoncut1d(args):
+    i, clargs, outdir, freq, freqfile, verbose = args
+
+    client = pymongo.MongoClient()  # default connection (ie, local)
+    mydb = client['racs']  # Create/open database
+    mycol = mydb['spice']  # Create/open collection
+
+    # Basic querey
+    if clargs.pol and not clargs.unres:
+        myquery = {"polarized": True}
+    if clargs.unres and not clargs.pol:
+        myquery = {"resolved": False}
+    if clargs.pol and clargs.unres:
+        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+    else:
+        myquery = {}
+
+    doc = mycol.find(myquery).sort("flux_peak", -1)
+
+    iname = doc[i]['island_name']
+    qfile = f"{outdir}/{doc[i]['q_file']}"
+    ufile = f"{outdir}/{doc[i]['u_file']}"
+    vfile = f"{outdir}/{doc[i]['v_file']}"
+
+    with fits.open(vfile) as hdulist:
+        rms = hdulist[0].data * 3
+
+    prefix = f'{outdir}/{iname}'
+
+    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verbose)
+    header, dataU = do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)
+
+    ra = doc[i]['ra_deg_cont']
+    dec = doc[i]['dec_deg_cont']
+    wcs = WCS(doc[i]['header'])
+
+    x, y, z = np.array(wcs.all_world2pix(
+        ra, dec, np.nanmean(freq), 0)).round().astype(int)
+
+    q = np.nansum(dataQ[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+    u = np.nansum(dataU[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+
+    data = [np.array(freq), q, u, rms, rms]
+    # Run 1D RM-synthesis on the spectra
+    mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                             phiMax_radm2=clargs.phiMax_radm2,
+                                             dPhi_radm2=clargs.dPhi_radm2,
+                                             nSamples=clargs.nSamples,
+                                             weightType=clargs.weightType,
+                                             fitRMSF=clargs.fitRMSF,
+                                             noStokesI=True,
+                                             nBits=32,
+                                             showPlots=clargs.showPlots,
+                                             verbose=clargs.rm_verbose)
+
+    do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
+
+    if clargs.database:
+        # Load into Mongo
+        myquery = {"island_name": iname}
+
+        newvalues = {"$set": {"rmsynth1d": True}}
+        mycol.update_one(myquery, newvalues)
 
 
 def rmsythoncut_i(args):
@@ -71,19 +170,27 @@ def rmsythoncut_i(args):
     doc = mycol.find(myquery).sort("flux_peak", -1)
 
     iname = f"{outdir}/{doc[i]['island_name']}.validate"
-    data = np.array(SpectralCube.read(doc[i]['i_file']))
+    data = np.array(SpectralCube.read(f"{outdir}/{doc[i]['i_file']}"))
+
+    # Get source peak from Selavy
+    ra = doc[i]['ra_deg_cont']
+    dec = doc[i]['dec_deg_cont']
+    wcs = WCS(doc[i]['header'])
+
+    x, y, z = np.array(wcs.all_world2pix(
+        ra, dec, np.nanmean(freq), 0)).round().astype(int)
+
     mom = np.nansum(data, axis=0)
-    idx = np.unravel_index(np.argmax(mom), mom.shape)
 
     plt.ion()
     plt.figure()
     plt.imshow(mom, origin='lower', cmap='cubehelix_r')
-    plt.scatter(idx[1], idx[0], c='r', marker='x')
+    plt.scatter(x, y, c='r', marker='x')
     plt.show()
     _ = input("Press [enter] to continue")  # wait for input from the user
     plt.close()    # close the figure to show the next one.
 
-    data = data[:, idx[0], idx[1]]
+    data = np.nansum(data[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
 
     with fits.open(doc[i]['v_file']) as hdulist:
         noise = hdulist[0].data
@@ -91,7 +198,6 @@ def rmsythoncut_i(args):
     plt.ion()
     plt.figure()
     plt.step(freq/1e9, data)
-
 
     imod, qArr, uArr, dqArr, duArr, fitDict = \
         create_frac_spectra(freqArr=freq,
@@ -126,12 +232,12 @@ def rmsythoncut_i(args):
 
     datalist = [freq, data, data, dqArr, duArr]
 
-    NSAMPLES = clargs.NSAMPLES
-    phi_max = clargs.PHIMAX_RADM2
+    nSamples = clargs.nSamples
+    phi_max = clargs.phiMax_radm2
     mDict, aDict = do_RMsynth_1D.run_rmsynth(
         datalist,
         phiMax_radm2=phi_max,
-        nSamples=NSAMPLES,
+        nSamples=nSamples,
         verbose=True
     )
     plt.ion()
@@ -172,12 +278,11 @@ def main(pool, args, verbose=False):
         count = args.limit
 
     # Make frequency file
-    freq, freqfile = getfreq(mydoc[0]['q_file'], outdir=os.path.dirname(
-        mydoc[0]['q_file']), filename='frequencies.txt', verbose=verbose)
+    freq, freqfile = getfreq(
+        f"{outdir}/{mydoc[0]['q_file']}", outdir=outdir, filename='frequencies.txt', verbose=verbose)
     freq = np.array(freq)
     if verbose:
         print(f'Running RMsynth on {count} sources')
-
     if args.validate:
         inputs = [[i, args, freq, outdir, verbose] for i in range(count)]
         if (pool.__class__.__name__ is 'MPIPool' or
@@ -198,23 +303,46 @@ def main(pool, args, verbose=False):
                 disable=(not verbose)
             )
             )
-    else:
-        inputs = [[i, args, freqfile, verbose] for i in range(count)]
+    elif args.dimension == '1d':
+        inputs = [[i, args, outdir, freq, freqfile, verbose]
+                  for i in range(count)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
             if verbose:
-                print('Running RM synth...')
+                print('Running 1D RM synth...')
             tic = time.perf_counter()
-            list(pool.map(rmsythoncut, inputs))
+            list(pool.map(rmsythoncut1d, inputs))
             toc = time.perf_counter()
             if verbose:
                 print(f'Time taken was {toc - tic}s')
 
         elif pool.__class__.__name__ is 'MultiPool':
             list(tqdm(
-                pool.imap_unordered(rmsythoncut, inputs),
+                pool.imap_unordered(rmsythoncut1d, inputs),
                 total=count,
-                desc='Running RM synth',
+                desc='Running 1D RM synth',
+                disable=(not verbose)
+            )
+            )
+    
+    elif args.dimension == '3d':
+        inputs = [[i, args, outdir, freq, freqfile, verbose]
+                  for i in range(count)]
+        if (pool.__class__.__name__ is 'MPIPool' or
+                pool.__class__.__name__ is 'SerialPool'):
+            if verbose:
+                print('Running 3D RM synth...')
+            tic = time.perf_counter()
+            list(pool.map(rmsythoncut3d, inputs))
+            toc = time.perf_counter()
+            if verbose:
+                print(f'Time taken was {toc - tic}s')
+
+        elif pool.__class__.__name__ is 'MultiPool':
+            list(tqdm(
+                pool.imap_unordered(rmsythoncut3d, inputs),
+                total=count,
+                desc='Running 3D RM synth',
                 disable=(not verbose)
             )
             )
@@ -267,8 +395,18 @@ def cli():
         type=str,
         help='Directory containing cutouts (in subdir outdir/cutouts).')
 
+    parser.add_argument("--dimension", dest="dimension", default="1d",
+                        help="How many dimensions for RMsynth [1d] or '3d'.")
+
     parser.add_argument("-v", dest="verbose", action="store_true",
                         help="verbose output [False].")
+
+    parser.add_argument(
+        "-m",
+        dest="database",
+        action="store_true",
+        help="Add data to MongoDB [False]."
+    )
 
     parser.add_argument("--pol", dest="pol", action="store_true",
                         help="Run on polarized sources [False].")
@@ -282,11 +420,23 @@ def cli():
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
 
-    parser.add_argument("-l", dest="PHIMAX_RADM2", default=None,
-                        type=int, help="Absolute max Faraday depth sampled [Auto].")
-
-    parser.add_argument("-s", dest="NSAMPLES", default=None,
-                        type=int, help="Number of samples across the FWHM RMSF.")
+    # RM-tools args
+    parser.add_argument("-w", dest="weightType", default="uniform",
+                        help="weighting [uniform] (all 1s) or 'variance'.")
+    parser.add_argument("-t", dest="fitRMSF", action="store_true",
+                        help="Fit a Gaussian to the RMSF [False]")
+    parser.add_argument("-l", dest="phiMax_radm2", type=float, default=None,
+                        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].")
+    parser.add_argument("-d", dest="dPhi_radm2", type=float, default=None,
+                        help="Width of Faraday depth channel [Auto].")
+    parser.add_argument("-s", dest="nSamples", type=float, default=5,
+                        help="Number of samples across the FWHM RMSF.")
+    parser.add_argument("-p", dest="showPlots", action="store_true",
+                        help="show the plots [False].")
+    parser.add_argument("-R", dest="not_RMSF", action="store_true",
+                        help="Skip calculation of RMSF? [False]")
+    parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
+                        help="Verbose RMsynth [False].")
 
     group = parser.add_mutually_exclusive_group()
 
@@ -312,17 +462,18 @@ def cli():
     if verbose:
         print(f"Using pool: {pool.__class__.__name__}")
 
-    if verbose:
-        print('Testing MongoDB connection...')
-    client = pymongo.MongoClient()  # default connection (ie, local)
-    try:
-        client.list_database_names()
-    except pymongo.errors.ServerSelectionTimeoutError:
-        raise Exception("Please ensure 'mongod' is running")
-    else:
+    if args.database:
         if verbose:
-            print('MongoDB connection succesful!')
-    client.close()
+            print('Testing MongoDB connection...')
+        client = pymongo.MongoClient()  # default connection (ie, local)
+        try:
+            client.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose:
+                print('MongoDB connection succesful!')
+        client.close()
 
     main(pool, args, verbose=verbose)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from spiceracs.utils import getdata
+from .utils import getdata, MyEncoder, head2dict
 import numpy as np
 from tqdm import trange, tqdm
 import sys
@@ -16,7 +16,7 @@ import functools
 print = functools.partial(print, flush=True)
 
 
-def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
+def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, verbose=True):
     """Main cutout task.
 
     Takes in table data from Selavy, and cuts out data cubes using
@@ -29,12 +29,14 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         outdir (str): Directory to save data to.
         pad (float): Fractional padding around Selavy islands to cut out.
         dryrun (bool): Whether to do a dry-run (save no files).
+        limit (int): Number of sources to cut out.
         verbose (bool): Print out messages.
 
     Returns:
         cutouts (dict): Contains lists of I, Q, and U cutouts.
         source_dict_list (list): List of dictionaries which contain the
             metadata of each source.
+        outdir (str): Location of output directory.
 
     """
     if outdir[-1] == '/':
@@ -51,6 +53,9 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
     x_max, y_max, _ = np.array(datadict['wcs_cube'].all_world2pix(
         ra_max, dec_max, freq, 0)).astype(int)
     dy, dx = y_max - y_min, x_max-x_min
+
+    # Get beam info - use major axis of beam
+    pixels_per_beam = int(datadict['i_cube'].header['BMAJ']/datadict['i_cube'].header['CDELT2'])
 
     # Init cutouts
     i_cutouts = []
@@ -85,10 +90,16 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         except FileExistsError:
             print('Directory exists.')
 
+    if limit is not None:
+        count = limit
+        if verbose:
+            print(f'Only cutting out {limit} sources...')
+    else:
+        count = len(datadict['i_tab'])
     # TO-DO: Max cut on size
     for i in trange(
-        len(datadict['i_tab']),
-        total=len(datadict['i_tab']),
+        count,
+        total=count,
         disable=(not verbose),
         desc='Extracting cubelets'
     ):
@@ -98,21 +109,19 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
                 x_min[i] < 0 or y_min[i] < 0):
             continue
 
+        starty  = int(y_min[i]-pad*pixels_per_beam)
+        stopy   = int(y_max[i]+pad*pixels_per_beam)
+        startx  = int(x_min[i]-pad*pixels_per_beam)
+        stopx   = int(x_max[i]+pad*pixels_per_beam)
+
         # Check if pad puts bbox outside of cube
-        elif (int(y_min[i]-pad*dy[i]) > 0 and
-              int(x_min[i]-pad*dx[i]) > 0 and
-              int(y_max[i]+pad*dy[i]) < i_cube.shape[2] and
-              int(x_max[i]+pad*dx[i]) < i_cube.shape[2]):
-
-            starty = int(y_min[i]-pad*dy[i])
-            stopy = int(y_max[i]+pad*dy[i])
-            startx = int(x_min[i]-pad*dx[i])
-            stopx = int(x_max[i]+pad*dx[i])
-
-        else:
+        if starty < 0:
             starty = y_min[i]
-            stopy = y_max[i]
+        if startx < 0:
             startx = x_min[i]
+        if stopy > i_cube.shape[2]:
+            stopy = y_max[i]
+        if stopx > i_cube.shape[2]:
             stopx = x_max[i]
 
         i_cutout = i_cube[:, starty:stopy, startx:stopx]
@@ -130,7 +139,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
         if v_cube is not None:
             v_cutout = v_cube[:, starty:stopy, startx:stopx]
             # compute RMS
-            v_cutout = np.std(v_cutout, axis=(1,2))
+            v_cutout = np.std(v_cutout, axis=(1, 2))
             v_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
             v_cutouts.append(v_cutout)
 
@@ -151,13 +160,13 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
                 pass
             else:
                 name = source_dict_list[i]['island_name']
-                outname = f'{outdir}/{name}.cutout.{stoke}.fits'
+                outname = f'{name}.cutout.{stoke}.fits'
                 source_dict_list[i][f'{stoke}_file'] = outname
 
     if v_cube is not None:
         stoke = 'v'
         name = source_dict_list[i]['island_name']
-        outname = f'{outdir}/{name}.cutout.{stoke}.fits'
+        outname = f'{name}.cutout.{stoke}.fits'
         source_dict_list[i][f'{stoke}_file'] = outname
 
     cutouts = {
@@ -173,7 +182,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, verbose=True):
             }
         )
 
-    return cutouts, source_dict_list
+    return cutouts, source_dict_list, outdir
 
 
 def getbytes(cutout):
@@ -244,14 +253,15 @@ def writefits(arg):
             cutout (SpectralCube): Cutout data to write.
             stoke (str): Which Stokes to write. Is a string of either 'i',
                 'q', 'u', or 'v'.
+            outdir (str): Location of output directory.
 
     """
-    source_dict, cutout, stoke = arg
-    outfile = source_dict[f'{stoke}_file']
+    source_dict, cutout, stoke, outdir = arg
+    outfile = f"{outdir}/{source_dict[f'{stoke}_file']}"
     cutout.write(outfile, format='fits', overwrite=True)
 
 
-def writeloop(pool, cutouts, source_dict_list, datadict, verbose=True):
+def writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=True):
     """Main loop for writing to disk
 
     Loops over all sources in I, Q, and U, and writes to disk in
@@ -264,6 +274,7 @@ def writeloop(pool, cutouts, source_dict_list, datadict, verbose=True):
         source_dict_list (list): List of dictionaries which contain the
             metadata of each source.
         datadict (dict): Dictionary containing tables and cubes.
+        outdir (str): Location of output directory.
 
     Kwargs:
         verbose (bool): Print out messages.
@@ -280,7 +291,7 @@ def writeloop(pool, cutouts, source_dict_list, datadict, verbose=True):
                 tic = time.perf_counter()
                 pool.map(
                     writefits,
-                    [[source_dict_list[i], cutouts[stoke][i], stoke]
+                    [[source_dict_list[i], cutouts[stoke][i], stoke, outdir]
                         for i in range(len(cutouts[stoke]))]
                 )
                 toc = time.perf_counter()
@@ -291,59 +302,14 @@ def writeloop(pool, cutouts, source_dict_list, datadict, verbose=True):
                 list(tqdm(
                     pool.imap_unordered(
                         writefits,
-                        [[source_dict_list[i], cutouts[stoke][i], stoke]
-                        for i in range(len(cutouts[stoke]))]
+                        [[source_dict_list[i], cutouts[stoke][i], stoke, outdir]
+                         for i in range(len(cutouts[stoke]))]
                     ),
                     total=len(cutouts[stoke]),
                     desc=f'Stokes {stoke}',
                     disable=(not verbose)
                 )
                 )
-
-
-def head2dict(h):
-    """Convert FITS header to a dict.
-
-    Writes a cutout, as stored in source_dict, to disk. The file location
-    should already be specified in source_dict. This format is intended
-    for parallel use with pool.map syntax.
-
-    Args:
-        h: An astropy FITS header.
-
-    Returns:
-        data (dict): The FITS head converted to a dict.
-
-    """
-    data = {}
-    for c in h.__dict__['_cards']:
-        if c[0] == '':
-            continue
-        data[c[0]] = c[1]
-    return(data)
-
-
-class MyEncoder(json.JSONEncoder):
-    """Cutom JSON encorder.
-
-    Parses the data stored in source_dict to JSON without
-    errors.
-
-    """
-
-    def default(self, obj):  # pylint: disable=E0202
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, fits.Header):
-            return head2dict(obj)
-        elif dataclasses.is_dataclass(obj):
-            return dataclasses.asdict(obj)
-        else:
-            return super(MyEncoder, self).default(obj)
 
 
 def database(source_dict_list, verbose=True):
@@ -405,13 +371,14 @@ def main(pool, args, verbose=True):
     if verbose:
         print('Making cutouts....')
     outdir = args.outdir
-    cutouts, source_dict_list = makecutout(pool,
-                                           datadict,
-                                           outdir=outdir,
-                                           pad=pad,
-                                           dryrun=dryrun,
-                                           verbose=verbose
-                                           )
+    cutouts, source_dict_list, outdir = makecutout(pool,
+                                                   datadict,
+                                                   outdir=outdir,
+                                                   pad=pad,
+                                                   dryrun=dryrun,
+                                                   limit=args.limit,
+                                                   verbose=verbose
+                                                   )
 
     # Check size of cube
     if args.getsize:
@@ -423,7 +390,8 @@ def main(pool, args, verbose=True):
     if not dryrun:
         if verbose:
             print('Writing to disk...')
-        writeloop(pool, cutouts, source_dict_list, datadict, verbose=verbose)
+        writeloop(pool, cutouts, source_dict_list,
+                  datadict, outdir, verbose=verbose)
 
     # Update MongoDB
     if args.database:
@@ -505,7 +473,7 @@ def cli():
         metavar='pad',
         type=float,
         default=0,
-        help='Fractional padding around islands [0 -- no padding].')
+        help='Number of beamwidths to pad around source [0 -- no padding].')
 
     parser.add_argument(
         "-v",
@@ -534,6 +502,10 @@ def cli():
         action="store_true",
         help="Add data to MongoDB [False]."
     )
+
+    parser.add_argument("--limit", dest="limit", default=None,
+                    type=int, help="Limit number of sources [All].")
+
 
     group = parser.add_mutually_exclusive_group()
 
