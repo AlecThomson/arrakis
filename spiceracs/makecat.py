@@ -1,4 +1,11 @@
-def main(pool, args, verbose=False):
+import rmtable.rmtable as RMT
+import pymongo
+import sys
+import warnings
+from tqdm import tqdm, trange
+
+
+def main(args, verbose=False):
     outdir = args.outdir
     if outdir[-1] == '/':
         outdir = outdir[:-1]
@@ -10,12 +17,26 @@ def main(pool, args, verbose=False):
     # Basic querey
     if args.pol and not args.unres:
         myquery = {"polarized": True}
-    if args.unres and not args.pol:
+        myquery = {"$and": [{"rmclean1d": True}, myquery]}
+    elif args.unres and not args.pol:
         myquery = {"resolved": False}
-    if args.pol and args.unres:
-        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+        myquery = {"$and": [{"rmclean1d": True}, myquery]}
+    elif args.pol and args.unres:
+        myquery = {"$and": [{"rmclean1d": True}, {
+            "resolved": False}, {"polarized": True}]}
+
+    elif args.pol and not args.loners:
+        myquery = {"polarized": True}
+        myquery = {"$and": [{"rmclean1d": True}, myquery]}
+    elif args.loners and not args.pol:
+        myquery = {"n_components": 1}
+        myquery = {"$and": [{"rmclean1d": True}, myquery]}
+    elif args.pol and args.loners:
+        myquery = {"$and": [{"rmclean1d": True}, {
+            "n_components": 1}, {"polarized": True}]}
+
     else:
-        myquery = {"rmsynth": True}
+        myquery = {"rmclean1d": True}
 
     mydoc = mycol.find(myquery).sort("flux_peak", -1)
     count = mycol.count_documents(myquery)
@@ -25,6 +46,31 @@ def main(pool, args, verbose=False):
     if verbose:
         print('Done!')
 
+    tab = RMT.RMTable()
+
+    # Add items to main cat using RMtable standard
+    for i in trange(
+        count,
+        desc='Generating RMtable',
+        total=count,
+        disable=(not verbose)
+    ):
+        tab.table.add_row(
+            {
+                'ra': mydoc[i]['ra_deg_cont'],
+                'dec': mydoc[i]['dec_deg_cont'],
+                'rm': mydoc[i]['rm_summary']['phiPeakPIchan_rm2'],
+                'rm_err': mydoc[i]['rm_summary']['dPhiPeakPIchan_rm2']
+            }
+        )
+
+    # Get Galatic coords
+    tab['l'], tab['b'] = RMT.calculate_missing_coordinates_column(
+        tab['ra'], tab['dec'],
+        to_galactic=True
+    )
+
+    tab.write_tsv('/Users/tho822/Desktop/junk.fits')
 
 def cli():
     """Command-line interface
@@ -77,59 +123,16 @@ def cli():
     parser.add_argument("--unres", dest="unres", action="store_true",
                         help="Run on unresolved sources [False].")
 
-    parser.add_argument("--validate", dest="validate", action="store_true",
-                        help="Run on Stokes I [False].")
+    parser.add_argument("--loners", dest="loners", action="store_true",
+                        help="Run on single component sources [False].")
 
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
 
-    # RM-tools args
-    parser.add_argument("-w", dest="weightType", default="uniform",
-                        help="weighting [uniform] (all 1s) or 'variance'.")
-    parser.add_argument("-t", dest="fitRMSF", action="store_true",
-                        help="Fit a Gaussian to the RMSF [False]")
-    parser.add_argument("-l", dest="phiMax_radm2", type=float, default=None,
-                        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].")
-    parser.add_argument("-d", dest="dPhi_radm2", type=float, default=None,
-                        help="Width of Faraday depth channel [Auto].")
-    parser.add_argument("-o", dest="prefixOut", default="",
-                        help="Prefix to prepend to output files [None].")
-    parser.add_argument("-s", dest="nSamples", type=float, default=5,
-                        help="Number of samples across the FWHM RMSF.")
-    parser.add_argument("-f", dest="write_seperate_FDF", action="store_false",
-                        help="Store different Stokes as FITS extensions [False, store as seperate files].")
-    parser.add_argument("-v", dest="verbose", action="store_true",
-                        help="Verbose [False].")
-    parser.add_argument("-R", dest="not_RMSF", action="store_true",
-                        help="Skip calculation of RMSF? [False]")
-    parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
-                        help="Verbose RMsynth [False].")
-    parser.add_argument("-s", dest="NSAMPLES", default=None,
-                        type=int, help="Number of samples across the FWHM RMSF.")
-
-    group = parser.add_mutually_exclusive_group()
-
-    group.add_argument("--ncores", dest="n_cores", default=1,
-                       type=int, help="Number of processes (uses multiprocessing).")
-    group.add_argument("--mpi", dest="mpi", default=False,
-                       action="store_true", help="Run with MPI.")
 
     args = parser.parse_args()
 
-    if args.validate:
-        pool = schwimmbad.SerialPool
-    else:
-        pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
-
     verbose = args.verbose
-
-    if args.mpi:
-        if not pool.is_master():
-            pool.wait()
-            sys.exit(0)
-
-    if verbose:
-        print(f"Using pool: {pool.__class__.__name__}")
 
     if verbose:
         print('Testing MongoDB connection...')
@@ -143,7 +146,7 @@ def cli():
             print('MongoDB connection succesful!')
     client.close()
 
-    main(pool, args, verbose=verbose)
+    main(args, verbose=verbose)
 
 
 if __name__ == "__main__":
