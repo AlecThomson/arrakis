@@ -106,7 +106,7 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=['spiceracs'],
+    packages=['spiceracs', 'rmtable'],
     entry_points={
         'console_scripts': ['spicecutout=spiceracs.cutout:cli',
                             'spiceunresolved=spiceracs.unresolved:cli',
