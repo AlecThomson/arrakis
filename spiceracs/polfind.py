@@ -313,6 +313,10 @@ def cli():
         help="Merge output tables [False]."
     )
 
+    # TO-DO
+    #parser.add_argument("--loners", dest="loners", action="store_true",
+    #                    help="Run on single component sources [False].")
+
     args = parser.parse_args()
     verbose = args.verbose
 
