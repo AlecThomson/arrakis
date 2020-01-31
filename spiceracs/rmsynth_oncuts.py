@@ -84,6 +84,15 @@ def rmsythoncut3d(args):
         newvalues = {"$set": {"rmsynth3d": True}}
         mycol.update_one(myquery, newvalues)
 
+        newvalues = {"$set": {"rm3dfiles": {
+            "FDF_real_dirty"    : f"{prefix}FDF_real_dirty.fits",
+            "FDF_im_dirty"      : f"{prefix}FDF_im_dirty.fits",
+            "FDF_tot_dirty"     : f"{prefix}FDF_tot_dirty.fits",
+            "RMSF_real"         : f"{prefix}RMSF_real.fits",
+            "RMSF_tot"          : f"{prefix}RMSF_tot.fits",
+            "RMSF_FWHM"         : f"{prefix}RMSF_FWHM.fits"
+        }}}
+        mycol.update_one(myquery, newvalues)
 
 def rmsythoncut1d(args):
     i, clargs, outdir, freq, freqfile, verbose = args
@@ -95,16 +104,23 @@ def rmsythoncut1d(args):
     # Basic querey
     if clargs.pol and not clargs.unres:
         myquery = {"polarized": True}
-    if clargs.unres and not clargs.pol:
+    elif clargs.unres and not clargs.pol:
         myquery = {"resolved": False}
-    if clargs.pol and clargs.unres:
+    elif clargs.pol and clargs.unres:
         myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif clargs.pol and not clargs.loners:
+        myquery = {"polarized": True}
+    elif clargs.loners and not clargs.pol:
+        myquery = {"n_components": 1}
+    elif clargs.pol and clargs.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
     else:
         myquery = {}
 
     doc = mycol.find(myquery).sort("flux_peak", -1)
-
     iname = doc[i]['island_name']
+    data = np.array(SpectralCube.read(f"{outdir}/{doc[i]['i_file']}"))
     qfile = f"{outdir}/{doc[i]['q_file']}"
     ufile = f"{outdir}/{doc[i]['u_file']}"
     vfile = f"{outdir}/{doc[i]['v_file']}"
@@ -112,35 +128,53 @@ def rmsythoncut1d(args):
     with fits.open(vfile) as hdulist:
         rms = hdulist[0].data * 3
 
-    prefix = f'{outdir}/{iname}'
+    
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)
 
-    ra = doc[i]['ra_deg_cont']
-    dec = doc[i]['dec_deg_cont']
-    wcs = WCS(doc[i]['header'])
+    for comp in range(doc[i]['n_components']):
+        cname = doc[i][f'component_{comp+1}']['component_name']
+        prefix = f'{outdir}/{cname}'
 
-    x, y, z = np.array(wcs.all_world2pix(
-        ra, dec, np.nanmean(freq), 0)).round().astype(int)
+        ra = doc[i][f'component_{comp+1}']['ra_deg_cont']
+        dec = doc[i][f'component_{comp+1}']['dec_deg_cont']
+        wcs = WCS(doc[i]['header'])
 
-    q = np.nansum(dataQ[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
-    u = np.nansum(dataU[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+        x, y, z = np.array(wcs.all_world2pix(
+            ra, dec, np.nanmean(freq), 0)).round().astype(int)
 
-    data = [np.array(freq), q, u, rms, rms]
-    # Run 1D RM-synthesis on the spectra
-    mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                             phiMax_radm2=clargs.phiMax_radm2,
-                                             dPhi_radm2=clargs.dPhi_radm2,
-                                             nSamples=clargs.nSamples,
-                                             weightType=clargs.weightType,
-                                             fitRMSF=clargs.fitRMSF,
-                                             noStokesI=True,
-                                             nBits=32,
-                                             showPlots=clargs.showPlots,
-                                             verbose=clargs.rm_verbose)
+        print('Indices are', [x,y,z])
 
-    do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
+        q = np.nansum(dataQ[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+        u = np.nansum(dataU[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+
+        data = [np.array(freq), q, u, rms, rms]
+        # Run 1D RM-synthesis on the spectra
+        mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                                phiMax_radm2=clargs.phiMax_radm2,
+                                                dPhi_radm2=clargs.dPhi_radm2,
+                                                nSamples=clargs.nSamples,
+                                                weightType=clargs.weightType,
+                                                fitRMSF=clargs.fitRMSF,
+                                                noStokesI=True,
+                                                nBits=32,
+                                                showPlots=clargs.showPlots,
+                                                verbose=clargs.rm_verbose)
+
+        do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
+
+        if clargs.database:
+            myquery = {"island_name": iname}
+
+            newvalues = {"$set" : {f"rm1dfiles_comp_{comp+1}": {
+                "FDF_dirty"     : f"{cname}_FDFdirty.dat",
+                "RMSF"          : f"{cname}_RMSF.dat",
+                "weights"       : f"{cname}_weight.dat",
+                "summary_dat"   : f"{cname}_RMsynth.dat",
+                "summary_json"  : f"{cname}_RMsynth.json",
+            }}}
+            mycol.update_one(myquery, newvalues)
 
     if clargs.database:
         # Load into Mongo
@@ -160,96 +194,106 @@ def rmsythoncut_i(args):
     # Basic querey
     if clargs.pol and not clargs.unres:
         myquery = {"polarized": True}
-    if clargs.unres and not clargs.pol:
+    elif clargs.unres and not clargs.pol:
         myquery = {"resolved": False}
-    if clargs.pol and clargs.unres:
+    elif clargs.pol and clargs.unres:
         myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif clargs.pol and not clargs.loners:
+        myquery = {"polarized": True}
+    elif clargs.loners and not clargs.pol:
+        myquery = {"n_components": 1}
+    elif clargs.pol and clargs.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
     else:
         myquery = {}
 
     doc = mycol.find(myquery).sort("flux_peak", -1)
 
-    iname = f"{outdir}/{doc[i]['island_name']}.validate"
+    iname = doc[i]['island_name']
     data = np.array(SpectralCube.read(f"{outdir}/{doc[i]['i_file']}"))
 
-    # Get source peak from Selavy
-    ra = doc[i]['ra_deg_cont']
-    dec = doc[i]['dec_deg_cont']
-    wcs = WCS(doc[i]['header'])
+    for comp in range(doc[i]['n_components']):
+        cname = doc[i][f'component_{comp+1}']['component_name']
+        prefix = f'{outdir}/{cname}'
+        # Get source peak from Selavy
+        ra = doc[i]['ra_deg_cont']
+        dec = doc[i]['dec_deg_cont']
+        wcs = WCS(doc[i]['header'])
 
-    x, y, z = np.array(wcs.all_world2pix(
-        ra, dec, np.nanmean(freq), 0)).round().astype(int)
+        x, y, z = np.array(wcs.all_world2pix(
+            ra, dec, np.nanmean(freq), 0)).round().astype(int)
 
-    mom = np.nansum(data, axis=0)
+        mom = np.nansum(data, axis=0)
 
-    plt.ion()
-    plt.figure()
-    plt.imshow(mom, origin='lower', cmap='cubehelix_r')
-    plt.scatter(x, y, c='r', marker='x')
-    plt.show()
-    _ = input("Press [enter] to continue")  # wait for input from the user
-    plt.close()    # close the figure to show the next one.
+        plt.ion()
+        plt.figure()
+        plt.imshow(mom, origin='lower', cmap='cubehelix_r')
+        plt.scatter(x, y, c='r', marker='x')
+        plt.show()
+        _ = input("Press [enter] to continue")  # wait for input from the user
+        plt.close()    # close the figure to show the next one.
 
-    data = np.nansum(data[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+        data = np.nansum(data[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
 
-    with fits.open(doc[i]['v_file']) as hdulist:
-        noise = hdulist[0].data
+        with fits.open(doc[i]['v_file']) as hdulist:
+            noise = hdulist[0].data
 
-    plt.ion()
-    plt.figure()
-    plt.step(freq/1e9, data)
+        plt.ion()
+        plt.figure()
+        plt.step(freq/1e9, data)
 
-    imod, qArr, uArr, dqArr, duArr, fitDict = \
-        create_frac_spectra(freqArr=freq,
-                            IArr=data,
-                            QArr=data,
-                            UArr=data,
-                            dIArr=noise,
-                            dQArr=noise,
-                            dUArr=noise,
-                            polyOrd=3,
-                            verbose=True,
-                            debug=False)
-    plt.plot(freq/1e9, imod)
-    plt.xlabel(r'$\nu$ [GHz]')
-    plt.ylabel(r'$I$ [Jy/beam]')
-    plt.tight_layout()
-    plt.show()
-    _ = input("Press [enter] to continue")  # wait for input from the user
-    plt.close()    # close the figure to show the next one.
+        imod, qArr, uArr, dqArr, duArr, fitDict = \
+            create_frac_spectra(freqArr=freq,
+                                IArr=data,
+                                QArr=data,
+                                UArr=data,
+                                dIArr=noise,
+                                dQArr=noise,
+                                dUArr=noise,
+                                polyOrd=3,
+                                verbose=True,
+                                debug=False)
+        plt.plot(freq/1e9, imod)
+        plt.xlabel(r'$\nu$ [GHz]')
+        plt.ylabel(r'$I$ [Jy/beam]')
+        plt.tight_layout()
+        plt.show()
+        _ = input("Press [enter] to continue")  # wait for input from the user
+        plt.close()    # close the figure to show the next one.
 
-    data = data - imod
-    data = data - np.nanmean(data)
-    plt.ion()
-    plt.figure()
-    plt.step(freq/1e9, data)
-    plt.xlabel(r'$\nu$ [GHz]')
-    plt.ylabel(r'$I-\mathrm{model}(I)-\mathrm{mean}(\mathrm{model}(I))$')
-    plt.tight_layout()
-    plt.show()
-    _ = input("Press [enter] to continue")  # wait for input from the user
-    plt.close()    # close the figure to show the next one.
+        data = data - imod
+        data = data - np.nanmean(data)
+        plt.ion()
+        plt.figure()
+        plt.step(freq/1e9, data)
+        plt.xlabel(r'$\nu$ [GHz]')
+        plt.ylabel(r'$I-\mathrm{model}(I)-\mathrm{mean}(\mathrm{model}(I))$')
+        plt.tight_layout()
+        plt.show()
+        _ = input("Press [enter] to continue")  # wait for input from the user
+        plt.close()    # close the figure to show the next one.
 
-    datalist = [freq, data, data, dqArr, duArr]
+        datalist = [freq, data, data, dqArr, duArr]
 
-    nSamples = clargs.nSamples
-    phi_max = clargs.phiMax_radm2
-    mDict, aDict = do_RMsynth_1D.run_rmsynth(
-        datalist,
-        phiMax_radm2=phi_max,
-        nSamples=nSamples,
-        verbose=True
-    )
-    plt.ion()
-    plt.figure()
-    plt.plot(aDict['phiArr_radm2'], abs(aDict['dirtyFDF']))
-    plt.xlabel(r'$\phi$ [rad m$^{-2}$]')
-    plt.ylabel(r'Dirty FDF (Stokes I)')
-    plt.tight_layout()
-    plt.show()
-    _ = input("Press [enter] to continue")  # wait for input from the user
-    plt.close()    # close the figure to show the next one.
-    do_RMsynth_1D.saveOutput(mDict, aDict, iname, verbose=verbose)
+        nSamples = clargs.nSamples
+        phi_max = clargs.phiMax_radm2
+        mDict, aDict = do_RMsynth_1D.run_rmsynth(
+            datalist,
+            phiMax_radm2=phi_max,
+            nSamples=nSamples,
+            verbose=True
+        )
+        plt.ion()
+        plt.figure()
+        plt.plot(aDict['phiArr_radm2'], abs(aDict['dirtyFDF']))
+        plt.xlabel(r'$\phi$ [rad m$^{-2}$]')
+        plt.ylabel(r'Dirty FDF (Stokes I)')
+        plt.tight_layout()
+        plt.show()
+        _ = input("Press [enter] to continue")  # wait for input from the user
+        plt.close()    # close the figure to show the next one.
+        do_RMsynth_1D.saveOutput(mDict, aDict, prefix, verbose=verbose)
 
 
 def main(pool, args, verbose=False):
@@ -264,10 +308,18 @@ def main(pool, args, verbose=False):
     # Basic querey
     if args.pol and not args.unres:
         myquery = {"polarized": True}
-    if args.unres and not args.pol:
+    elif args.unres and not args.pol:
         myquery = {"resolved": False}
-    if args.pol and args.unres:
+    elif args.pol and args.unres:
         myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif args.pol and not args.loners:
+        myquery = {"polarized": True}
+    elif args.loners and not args.pol:
+        myquery = {"n_components": 1}
+    elif args.pol and args.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
+
     else:
         myquery = {}
 
@@ -324,7 +376,7 @@ def main(pool, args, verbose=False):
                 disable=(not verbose)
             )
             )
-    
+
     elif args.dimension == '3d':
         inputs = [[i, args, outdir, freq, freqfile, verbose]
                   for i in range(count)]
@@ -346,6 +398,8 @@ def main(pool, args, verbose=False):
                 disable=(not verbose)
             )
             )
+
+    pool.close()
 
     if verbose:
         print('Done!')
@@ -419,6 +473,9 @@ def cli():
 
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
+
+    parser.add_argument("--loners", dest="loners", action="store_true",
+                        help="Run on single component sources [False].")
 
     # RM-tools args
     parser.add_argument("-w", dest="weightType", default="uniform",

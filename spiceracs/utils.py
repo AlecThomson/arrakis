@@ -39,6 +39,7 @@ def head2dict(h):
         data[c[0]] = c[1]
     return(data)
 
+
 class MyEncoder(json.JSONEncoder):
     """Cutom JSON encorder.
 
@@ -63,6 +64,7 @@ class MyEncoder(json.JSONEncoder):
         else:
             return super(MyEncoder, self).default(obj)
 
+
 def cpu_to_use(max_cpu, count):
     """Find number of cpus to use.
 
@@ -72,7 +74,7 @@ def cpu_to_use(max_cpu, count):
     Args:
         max_cpu (int): Maximum number of cores to use for a process.
         count (float): Number of tasks.
-    
+
     Returns:
         Maximum number of cores to be used that divides into the number
 
@@ -421,6 +423,7 @@ def getdata(cubedir='./', tabledir='./', mapdata=None, verbose=True):
     # Get selvay data from VOTab
     i_tab, voisle = gettable(
         tabledir, 'islands', verbose=verbose)  # Selvay VOTab
+    components, tablename = gettable(tabledir, 'components', verbose=verbose)
 
     if verbose:
         print(f'Getting spectral data from: {cubes}', '\n')
@@ -447,6 +450,7 @@ def getdata(cubedir='./', tabledir='./', mapdata=None, verbose=True):
 
     datadict = {
         "i_tab": i_tab,
+        "i_tab_comp": components,
         "i_taylor": i_taylor,
         "wcs_taylor": wcs_taylor,
         "wcs_cube": wcs_cube,

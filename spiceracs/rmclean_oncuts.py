@@ -27,10 +27,17 @@ def rmclean1d(args):
     # Basic querey
     if clargs.pol and not clargs.unres:
         myquery = {"polarized": True}
-    if clargs.unres and not clargs.pol:
+    elif clargs.unres and not clargs.pol:
         myquery = {"resolved": False}
-    if clargs.pol and clargs.unres:
+    elif clargs.pol and clargs.unres:
         myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif clargs.pol and not clargs.loners:
+        myquery = {"polarized": True}
+    elif clargs.loners and not clargs.pol:
+        myquery = {"n_components": 1}
+    elif clargs.pol and clargs.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
     else:
         myquery = {}
 
@@ -75,6 +82,9 @@ def rmclean1d(args):
         newvalues = {"$set": {"rmclean1d": True}}
         mycol.update_one(myquery, newvalues)
 
+        newvalues = {"$set": {"rm_summary": mDictS}}
+        mycol.update_one(myquery, newvalues)
+
 
 def rmclean3d(args):
     i, clargs, outdir, verbose = args
@@ -86,10 +96,17 @@ def rmclean3d(args):
     # Basic querey
     if clargs.pol and not clargs.unres:
         myquery = {"polarized": True}
-    if clargs.unres and not clargs.pol:
+    elif clargs.unres and not clargs.pol:
         myquery = {"resolved": False}
-    if clargs.pol and clargs.unres:
+    elif clargs.pol and clargs.unres:
         myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif clargs.pol and not clargs.loners:
+        myquery = {"polarized": True}
+    elif clargs.loners and not clargs.pol:
+        myquery = {"n_components": 1}
+    elif clargs.pol and clargs.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
     else:
         myquery = {}
 
@@ -136,10 +153,18 @@ def main(pool, args, verbose=False):
     # Basic querey
     if args.pol and not args.unres:
         myquery = {"polarized": True}
-    if args.unres and not args.pol:
+    elif args.unres and not args.pol:
         myquery = {"resolved": False}
-    if args.pol and args.unres:
+    elif args.pol and args.unres:
         myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif args.pol and not args.loners:
+        myquery = {"polarized": True}
+    elif args.loners and not args.pol:
+        myquery = {"n_components": 1}
+    elif args.pol and args.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
+
     else:
         myquery = {}
 
@@ -195,6 +220,8 @@ def main(pool, args, verbose=False):
                 disable=(not verbose)
             )
             )
+
+    pool.close()
 
     if verbose:
         print('Done!')
@@ -269,6 +296,9 @@ def cli():
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
 
+    parser.add_argument("--loners", dest="loners", action="store_true",
+                        help="Run on single component sources [False].")
+
     # RM-tools args
     parser.add_argument("-c", dest="cutoff", type=float, default=-3,
                         help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].")
@@ -280,8 +310,6 @@ def cli():
                         help="show the plots [False].")
     parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
                         help="Verbose RM-CLEAN [False].")
-    parser.add_argument("-f", dest="write_separate_FDF", action="store_false",
-                        help="Store different Stokes as FITS extensions [False, store as separate files].")
 
     group = parser.add_mutually_exclusive_group()
 
