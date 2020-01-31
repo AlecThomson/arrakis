@@ -134,6 +134,8 @@ def rmsythoncut1d(args):
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)
 
     for comp in range(doc[i]['n_components']):
+        if clargs.rm_verbose:
+            print(f'Working on component {comp}')
         cname = doc[i][f'component_{comp+1}']['component_name']
         prefix = f'{outdir}/{cname}'
 
