@@ -10,13 +10,14 @@ from astropy.io.fits import Header
 import json
 import pymongo
 from astropy.io import fits
+from astropy.table import Table
 import time
 import warnings
 import functools
 print = functools.partial(print, flush=True)
 
 
-def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, verbose=True):
+def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, loners=False, verbose=True):
     """Main cutout task.
 
     Takes in table data from Selavy, and cuts out data cubes using
@@ -29,6 +30,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, verb
         outdir (str): Directory to save data to.
         pad (float): Fractional padding around Selavy islands to cut out.
         dryrun (bool): Whether to do a dry-run (save no files).
+        loners (bool): Only run on single-component islands.
         limit (int): Number of sources to cut out.
         verbose (bool): Print out messages.
 
@@ -55,7 +57,8 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, verb
     dy, dx = y_max - y_min, x_max-x_min
 
     # Get beam info - use major axis of beam
-    pixels_per_beam = int(datadict['i_cube'].header['BMAJ']/datadict['i_cube'].header['CDELT2'])
+    pixels_per_beam = int(
+        datadict['i_cube'].header['BMAJ']/datadict['i_cube'].header['CDELT2'])
 
     # Init cutouts
     i_cutouts = []
@@ -96,23 +99,34 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, verb
             print(f'Only cutting out {limit} sources...')
     else:
         count = len(datadict['i_tab'])
-    # TO-DO: Max cut on size
+
+    if loners and verbose:
+        sub_count = len(datadict['i_tab'][:count]['col_n_components']
+                        [datadict['i_tab'][:count]['col_n_components'] < 2])
+        print(
+            f'Only cutting out {sub_count} sources (skipping muti-component sources)..')
+
+    datadict['i_tab_comp'].add_index('col_island_id')
+
     for i in trange(
         count,
         total=count,
         disable=(not verbose),
         desc='Extracting cubelets'
     ):
+        if loners:
+            if datadict['i_tab']['col_n_components'][i] > 1:
+                continue
         source_dict = {}
         # Skip if source is outside of cube bounds
         if (y_max[i] > i_cube.shape[2] or x_max[i] > i_cube.shape[2] or
                 x_min[i] < 0 or y_min[i] < 0):
             continue
 
-        starty  = int(y_min[i]-pad*pixels_per_beam)
-        stopy   = int(y_max[i]+pad*pixels_per_beam)
-        startx  = int(x_min[i]-pad*pixels_per_beam)
-        stopx   = int(x_max[i]+pad*pixels_per_beam)
+        starty = int(y_min[i]-pad*pixels_per_beam)
+        stopy = int(y_max[i]+pad*pixels_per_beam)
+        startx = int(x_min[i]-pad*pixels_per_beam)
+        stopx = int(x_max[i]+pad*pixels_per_beam)
 
         # Check if pad puts bbox outside of cube
         if starty < 0:
@@ -147,6 +161,16 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, verb
         for name in datadict['i_tab'].colnames:
             source_dict[name.replace('col_', '')
                         ] = datadict['i_tab'][name][i]
+
+        datadict['i_tab_comp'].add_index('col_island_id')
+        components = Table(datadict['i_tab_comp'].loc[datadict['i_tab']
+                                                      ['col_island_id'][i]])
+        for comp, row in enumerate(components):
+            source_dict[f'component_{comp+1}'] = {}
+            for name in row.colnames:
+                source_dict[f'component_{comp+1}'][name.replace('col_', '')
+                                                   ] = row[name]
+
         source_dict_list.append(source_dict)
 
     # Set up locations where files will be saved
@@ -377,6 +401,7 @@ def main(pool, args, verbose=True):
                                                    pad=pad,
                                                    dryrun=dryrun,
                                                    limit=args.limit,
+                                                   loners=args.loners,
                                                    verbose=verbose
                                                    )
 
@@ -399,6 +424,8 @@ def main(pool, args, verbose=True):
             print('Updating MongoDB...')
         database(source_dict_list, verbose=True)
 
+    pool.close()
+
     if verbose:
         print('Done!')
 
@@ -410,7 +437,8 @@ def cli():
     import schwimmbad
     from astropy.utils.exceptions import AstropyWarning
     warnings.simplefilter('ignore', category=AstropyWarning)
-    warnings.filterwarnings("ignore", message="Degrees of freedom <= 0 for slice.")
+    warnings.filterwarnings(
+        "ignore", message="Degrees of freedom <= 0 for slice.")
 
     # Help string to be shown using the -h option
     logostr = """
@@ -504,8 +532,10 @@ def cli():
     )
 
     parser.add_argument("--limit", dest="limit", default=None,
-                    type=int, help="Limit number of sources [All].")
+                        type=int, help="Limit number of sources [All].")
 
+    parser.add_argument("--loners", dest="loners", action="store_true",
+                        help="Run on single component sources [False].")
 
     group = parser.add_mutually_exclusive_group()
 
@@ -548,7 +578,6 @@ def cli():
         client.close()
 
     main(pool, args, verbose=verbose)
-    pool.close()
 
 
 if __name__ == "__main__":
