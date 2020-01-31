@@ -24,7 +24,23 @@ def moment_worker(args):
     mydb = client['racs']  # Create/open database
     mycol = mydb['spice']  # Create/open collection
 
-    doc = mycol.find().sort("flux_peak", -1)
+    if clargs.pol and not clargs.unres:
+        myquery = {"polarized": True}
+    elif clargs.unres and not clargs.pol:
+        myquery = {"resolved": False}
+    elif clargs.pol and clargs.unres:
+        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif clargs.pol and not clargs.loners:
+        myquery = {"polarized": True}
+    elif clargs.loners and not clargs.pol:
+        myquery = {"n_components": 1}
+    elif clargs.pol and clargs.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
+    else:
+        myquery = {}
+
+    doc = mycol.find(myquery).sort("flux_peak", -1)
     iname = doc[i]['island_name']
 
     for stokes in ['p', 'q', 'u']:
@@ -57,7 +73,23 @@ def makepiworker(args):
     mydb = client['racs']  # Create/open database
     mycol = mydb['spice']  # Create/open collection
 
-    doc = mycol.find().sort("flux_peak", -1)
+    if clargs.pol and not clargs.unres:
+        myquery = {"polarized": True}
+    elif clargs.unres and not clargs.pol:
+        myquery = {"resolved": False}
+    elif clargs.pol and clargs.unres:
+        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif clargs.pol and not clargs.loners:
+        myquery = {"polarized": True}
+    elif clargs.loners and not clargs.pol:
+        myquery = {"n_components": 1}
+    elif clargs.pol and clargs.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
+    else:
+        myquery = {}
+
+    doc = mycol.find(myquery).sort("flux_peak", -1)
     iname = doc[i]['island_name']
 
     qfile = doc[i][f'q_file']
@@ -131,7 +163,25 @@ def main(pool, args, verbose=False):
     mydb = client['racs']  # Create/open database
     mycol = mydb['spice']  # Create/open collection
 
-    mydoc = mycol.find().sort("flux_peak", -1)
+        # Basic querey
+    if args.pol and not args.unres:
+        myquery = {"polarized": True}
+    elif args.unres and not args.pol:
+        myquery = {"resolved": False}
+    elif args.pol and args.unres:
+        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif args.pol and not args.loners:
+        myquery = {"polarized": True}
+    elif args.loners and not args.pol:
+        myquery = {"n_components": 1}
+    elif args.pol and args.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
+
+    else:
+        myquery = {}
+
+    mydoc = mycol.find(myquery).sort("flux_peak", -1)
     count = mycol.count_documents({})
 
     if args.limit is not None:
@@ -196,6 +246,8 @@ def main(pool, args, verbose=False):
                 disable=(not verbose)
             )
             )
+
+    pool.close()
 
     if verbose:
         print('Done!')
@@ -276,6 +328,15 @@ def cli():
         dest="picube",
         action="store_true",
         help="Make PI cubes [False].")
+
+    parser.add_argument("--pol", dest="pol", action="store_true",
+                        help="Run on polarized sources [False].")
+
+    parser.add_argument("--unres", dest="unres", action="store_true",
+                        help="Run on unresolved sources [False].")
+
+    parser.add_argument("--loners", dest="loners", action="store_true",
+                        help="Run on single component sources [False].")
 
     group = parser.add_mutually_exclusive_group()
 
