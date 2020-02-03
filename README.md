@@ -34,15 +34,15 @@ To keep track of the many files, and associated metadata, these scripts use Mong
 Currently, the order to run each script is:
 
 0. `mongod --dbpath /path/to/database/ &` -- This initialises MongoDB in a directory of your choosing.
-1. The following stages require the datacubes to be on disk.
-    1. `spicecutout` or `spiceracs/cutout.py` -- Produce cubelets from a RACS field using a Selavy table.
-    2. `spiceunresolved` or `spiceracs/unresolved.py` -- Find unresolved sources from a Selavy catalogue.
-    3. `spicemoments` or `spiceracs/moments.py` -- Make Faraday moment maps for Farnes+ (2018) method.
+1. `spicecutout` or `spiceracs/cutout.py` -- Produce cubelets from a RACS field using a Selavy table.
 2. The datacubes can be removed from disk, if required.
-3. `spicepolfind` or `spiceracs/polfind.py`-- Find polarized sources in a RACS field using the Farnes+ (2018) method.
-4. `spiceracs/rmsynth_oncuts.py` -- Run RM synthesis on unresolved, polarized sources.
-5. ?????
-6. Profit
+Optional:
+    3. `spiceunresolved` or `spiceracs/unresolved.py` -- Find unresolved sources from a Selavy catalogue.
+    4. `spicemoments` or `spiceracs/moments_oncuts.py` -- Make Faraday moment maps for Farnes+ (2018) method.
+    5. `spicepolfind` or `spiceracs/polfind.py`-- Find polarized sources in a RACS field using the Farnes+ (2018) method.
+6. `spicermsynth` or `spiceracs/rmsynth_oncuts.py` -- Run RM synthesis on cutouts.
+7. `spicermclean` or `spiceracs/rmclean_oncuts.py` -- Run RM-CLEAN on cutouts.
+8.  `spicemakecat` or `spiceracs/makecat.py` -- Make RM catalogue from results.
 
 ## Acknowledging
 ### Third-party software
