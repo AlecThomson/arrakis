@@ -117,6 +117,7 @@ racs_db/
 
 # vscode
 .vscode
+.DS_Store
 
 # submodules
 rmtable/
