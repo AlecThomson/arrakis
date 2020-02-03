@@ -44,46 +44,50 @@ def rmclean1d(args):
     doc = mycol.find(myquery).sort("flux_peak", -1)
 
     iname = doc[i]['island_name']
-    prefix = f'{outdir}/{iname}'
+    for comp in range(doc[i]['n_components']):
+        if clargs.rm_verbose:
+            print(f'Working on component {comp+1}')
+        cname = doc[i][f'component_{comp+1}']['component_name']
+        prefix = f'{outdir}/{cname}'
 
-    fdfFile = prefix + "_FDFdirty.dat"
-    rmsfFile = prefix + "_RMSF.dat"
-    weightFile = prefix + "_weight.dat"
-    rmSynthFile = prefix + "_RMsynth.json"
-    # Sanity checks
-    for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
-        if not os.path.exists(f):
-            print("File does not exist: '{:}'.".format(f), end=' ')
-            sys.exit()
-    nBits = 32
-    mDictS, aDict = do_RMclean_1D.readFiles(
-        fdfFile, rmsfFile, weightFile, rmSynthFile, nBits)
-    # Run RM-CLEAN on the spectrum
-    outdict, arrdict = do_RMclean_1D.run_rmclean(mDictS=mDictS,
-                                                 aDict=aDict,
-                                                 cutoff=clargs.cutoff,
-                                                 maxIter=clargs.maxIter,
-                                                 gain=clargs.gain,
-                                                 nBits=nBits,
-                                                 showPlots=clargs.showPlots,
-                                                 verbose=clargs.rm_verbose)
+        fdfFile = prefix + "_FDFdirty.dat"
+        rmsfFile = prefix + "_RMSF.dat"
+        weightFile = prefix + "_weight.dat"
+        rmSynthFile = prefix + "_RMsynth.json"
+        # Sanity checks
+        for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
+            if not os.path.exists(f):
+                print("File does not exist: '{:}'.".format(f), end=' ')
+                sys.exit()
+        nBits = 32
+        mDictS, aDict = do_RMclean_1D.readFiles(
+            fdfFile, rmsfFile, weightFile, rmSynthFile, nBits)
+        # Run RM-CLEAN on the spectrum
+        outdict, arrdict = do_RMclean_1D.run_rmclean(mDictS=mDictS,
+                                                     aDict=aDict,
+                                                     cutoff=clargs.cutoff,
+                                                     maxIter=clargs.maxIter,
+                                                     gain=clargs.gain,
+                                                     nBits=nBits,
+                                                     showPlots=clargs.showPlots,
+                                                     verbose=clargs.rm_verbose)
 
-    # Save output
-    do_RMclean_1D.saveOutput(outdict,
-                             arrdict,
-                             prefixOut=prefix,
-                             outDir=outdir,
-                             verbose=clargs.rm_verbose)
+        # Save output
+        do_RMclean_1D.saveOutput(outdict,
+                                 arrdict,
+                                 prefixOut=prefix,
+                                 outDir=outdir,
+                                 verbose=clargs.rm_verbose)
 
-    if clargs.database:
-        # Load into Mongo
-        myquery = {"island_name": iname}
+        if clargs.database:
+            # Load into Mongo
+            myquery = {"island_name": iname}
 
-        newvalues = {"$set": {"rmclean1d": True}}
-        mycol.update_one(myquery, newvalues)
+            newvalues = {"$set": {f"comp_{comp+1}_rmclean1d": True}}
+            mycol.update_one(myquery, newvalues)
 
-        newvalues = {"$set": {"rm_summary": mDictS}}
-        mycol.update_one(myquery, newvalues)
+            newvalues = {"$set": {f"comp_{comp+1}_rm_summary": outdict}}
+            mycol.update_one(myquery, newvalues)
 
 
 def rmclean3d(args):
@@ -117,7 +121,6 @@ def rmclean3d(args):
     ufile = f"{outdir}/{doc[i]['u_file']}"
     vfile = f"{outdir}/{doc[i]['v_file']}"
 
-    
     cleanFDF, ccArr, iterCountArr, residFDF, headtemp = do_RMclean_3D.run_rmclean(
         fitsFDF=f"{outdir}/{iname}FDF_real_dirty.fits",
         fitsRMSF=f"{outdir}/{iname}RMSF_tot.fits",

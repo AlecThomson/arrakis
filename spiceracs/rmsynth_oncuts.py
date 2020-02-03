@@ -85,14 +85,15 @@ def rmsythoncut3d(args):
         mycol.update_one(myquery, newvalues)
 
         newvalues = {"$set": {"rm3dfiles": {
-            "FDF_real_dirty"    : f"{prefix}FDF_real_dirty.fits",
-            "FDF_im_dirty"      : f"{prefix}FDF_im_dirty.fits",
-            "FDF_tot_dirty"     : f"{prefix}FDF_tot_dirty.fits",
-            "RMSF_real"         : f"{prefix}RMSF_real.fits",
-            "RMSF_tot"          : f"{prefix}RMSF_tot.fits",
-            "RMSF_FWHM"         : f"{prefix}RMSF_FWHM.fits"
+            "FDF_real_dirty": f"{prefix}FDF_real_dirty.fits",
+            "FDF_im_dirty": f"{prefix}FDF_im_dirty.fits",
+            "FDF_tot_dirty": f"{prefix}FDF_tot_dirty.fits",
+            "RMSF_real": f"{prefix}RMSF_real.fits",
+            "RMSF_tot": f"{prefix}RMSF_tot.fits",
+            "RMSF_FWHM": f"{prefix}RMSF_FWHM.fits"
         }}}
         mycol.update_one(myquery, newvalues)
+
 
 def rmsythoncut1d(args):
     i, clargs, outdir, freq, freqfile, verbose = args
@@ -120,7 +121,7 @@ def rmsythoncut1d(args):
 
     doc = mycol.find(myquery).sort("flux_peak", -1)
     iname = doc[i]['island_name']
-    data = np.array(SpectralCube.read(f"{outdir}/{doc[i]['i_file']}"))
+    ifile = f"{outdir}/{doc[i]['i_file']}"
     qfile = f"{outdir}/{doc[i]['q_file']}"
     ufile = f"{outdir}/{doc[i]['u_file']}"
     vfile = f"{outdir}/{doc[i]['v_file']}"
@@ -128,14 +129,13 @@ def rmsythoncut1d(args):
     with fits.open(vfile) as hdulist:
         rms = hdulist[0].data * 3
 
-    
-
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)
+    header, dataI = do_RMsynth_3D.readFitsCube(ifile, clargs.rm_verbose)
 
     for comp in range(doc[i]['n_components']):
         if clargs.rm_verbose:
-            print(f'Working on component {comp}')
+            print(f'Working on component {comp+1}')
         cname = doc[i][f'component_{comp+1}']['component_name']
         prefix = f'{outdir}/{cname}'
 
@@ -146,44 +146,42 @@ def rmsythoncut1d(args):
         x, y, z = np.array(wcs.all_world2pix(
             ra, dec, np.nanmean(freq), 0)).round().astype(int)
 
-        print('Indices are', [x,y,z])
-
         q = np.nansum(dataQ[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
         u = np.nansum(dataU[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
 
         data = [np.array(freq), q, u, rms, rms]
         # Run 1D RM-synthesis on the spectra
         mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                phiMax_radm2=clargs.phiMax_radm2,
-                                                dPhi_radm2=clargs.dPhi_radm2,
-                                                nSamples=clargs.nSamples,
-                                                weightType=clargs.weightType,
-                                                fitRMSF=clargs.fitRMSF,
-                                                noStokesI=True,
-                                                nBits=32,
-                                                showPlots=clargs.showPlots,
-                                                verbose=clargs.rm_verbose)
+                                                 phiMax_radm2=clargs.phiMax_radm2,
+                                                 dPhi_radm2=clargs.dPhi_radm2,
+                                                 nSamples=clargs.nSamples,
+                                                 weightType=clargs.weightType,
+                                                 fitRMSF=clargs.fitRMSF,
+                                                 noStokesI=True,
+                                                 nBits=32,
+                                                 showPlots=clargs.showPlots,
+                                                 verbose=clargs.rm_verbose)
 
         do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
 
         if clargs.database:
             myquery = {"island_name": iname}
 
-            newvalues = {"$set" : {f"rm1dfiles_comp_{comp+1}": {
-                "FDF_dirty"     : f"{cname}_FDFdirty.dat",
-                "RMSF"          : f"{cname}_RMSF.dat",
-                "weights"       : f"{cname}_weight.dat",
-                "summary_dat"   : f"{cname}_RMsynth.dat",
-                "summary_json"  : f"{cname}_RMsynth.json",
+            newvalues = {"$set": {f"rm1dfiles_comp_{comp+1}": {
+                "FDF_dirty": f"{cname}_FDFdirty.dat",
+                "RMSF": f"{cname}_RMSF.dat",
+                "weights": f"{cname}_weight.dat",
+                "summary_dat": f"{cname}_RMsynth.dat",
+                "summary_json": f"{cname}_RMsynth.json",
             }}}
             mycol.update_one(myquery, newvalues)
 
-    if clargs.database:
-        # Load into Mongo
-        myquery = {"island_name": iname}
+        if clargs.database:
+            # Load into Mongo
+            myquery = {"island_name": iname}
 
-        newvalues = {"$set": {"rmsynth1d": True}}
-        mycol.update_one(myquery, newvalues)
+            newvalues = {"$set": {f"comp_{comp+1}_rmsynth1d": True}}
+            mycol.update_one(myquery, newvalues)
 
 
 def rmsythoncut_i(args):
