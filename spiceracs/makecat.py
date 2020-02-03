@@ -1,11 +1,14 @@
-import rmtable.rmtable as RMT
-import pymongo
-import sys
 import warnings
+from astropy.table import QTable, Column
+import pymongo
 from tqdm import tqdm, trange
+from spiceracs import columns_possum
+import rmtable.rmtable as RMT
 
 
 def main(args, verbose=False):
+    """Main script.
+    """
     outdir = args.outdir
     if outdir[-1] == '/':
         outdir = outdir[:-1]
@@ -43,34 +46,56 @@ def main(args, verbose=False):
 
     if args.limit is not None:
         count = args.limit
-    if verbose:
-        print('Done!')
 
-    tab = RMT.RMTable()
+    #tab = RMT.RMTable()
+    tab = QTable()
 
     # Add items to main cat using RMtable standard
-    for i in trange(
-        count,
-        desc='Generating RMtable',
-        total=count,
-        disable=(not verbose)
+    for j, [name, typ, src, col, unit] in tqdm(
+            enumerate(
+                zip(
+                    columns_possum.output_cols,
+                    columns_possum.output_types,
+                    columns_possum.input_sources,
+                    columns_possum.input_names,
+                    columns_possum.output_units
+                )
+            ),
+            desc='Making table',
+            disable=not verbose
     ):
-        tab.table.add_row(
-            {
-                'ra': mydoc[i]['ra_deg_cont'],
-                'dec': mydoc[i]['dec_deg_cont'],
-                'rm': mydoc[i]['rm_summary']['phiPeakPIchan_rm2'],
-                'rm_err': mydoc[i]['rm_summary']['dPhiPeakPIchan_rm2']
-            }
-        )
-
+        data = []
+        for i in range(count):
+            try:
+                for comp in range(mydoc[i]['n_components']):
+                    if src == 'cat':
+                        data.append(mydoc[i][f'component_{comp+1}'][col])
+                    if src == 'synth': 
+                        data.append(mydoc[i][f'comp_{comp+1}_rm_summary'][col]) 
+                    if src == 'header': 
+                        data.append(mydoc[i][f'header'][col]) 
+                    else:
+                        continue
+            except KeyError:
+                continue
+        if data == []:
+            continue
+        new_col = Column(data=data, name=name, dtype=typ, unit=unit)
+        tab.add_column(new_col)
+    rmtab = RMT.from_table(tab)
     # Get Galatic coords
-    tab['l'], tab['b'] = RMT.calculate_missing_coordinates_column(
-        tab['ra'], tab['dec'],
+    rmtab['l'], rmtab['b'] = RMT.calculate_missing_coordinates_column(
+        rmtab['ra'], rmtab['dec'],
         to_galactic=True
     )
+    rmtab['rm_method'] = 'RM Synthesis'
+    rmtab['standard_telescope'] = 'ASKAP'
 
-    tab.write_tsv('/Users/tho822/Desktop/junk.fits')
+    if args.outfile is not None:
+        rmtab.table.write(args.outfile, format=args.format, overwrite=True)
+
+    if verbose:
+        print('Done!')
 
 def cli():
     """Command-line interface
@@ -129,8 +154,15 @@ def cli():
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
 
+    parser.add_argument("-w", "--write", dest="outfile", default=None,
+                    type=str, help="File to save table to [None].")
+
+    parser.add_argument("-f", "--format", dest="format", default=None,
+                type=str, help="Format for output file [None].")
 
     args = parser.parse_args()
+    if args.outfile and not args.format:
+        parser.error('Please provide an output file format.')
 
     verbose = args.verbose
 
