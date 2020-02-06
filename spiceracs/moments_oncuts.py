@@ -393,7 +393,7 @@ def cli():
         help="Make PI cubes [False].")
 
     parser.add_argument(
-        "--on_i",
+        "-i", "--stokesi",
         dest="on_i",
         action="store_true",
         help="Make Stokes I moments [False].")
