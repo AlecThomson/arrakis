@@ -117,6 +117,20 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
         if loners:
             if datadict['i_tab']['col_n_components'][i] > 1:
                 continue
+        datadict['i_tab_comp'].add_index('col_island_id')
+
+        # Catch out 0-component sources
+        try:
+            components = Table(datadict['i_tab_comp'].loc[datadict['i_tab']
+                                                          ['col_island_id'][i]])
+
+        except KeyError:
+            if verbose:
+                print(
+                    f"No matches found for key {datadict['i_tab']['col_island_id'][i]}")
+                print(
+                    f"Number of components is {datadict['i_tab']['col_n_components'][i]}!")
+            continue
         source_dict = {}
         # Skip if source is outside of cube bounds
         if (y_max[i] > i_cube.shape[2] or x_max[i] > i_cube.shape[2] or
@@ -162,9 +176,6 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
             source_dict[name.replace('col_', '')
                         ] = datadict['i_tab'][name][i]
 
-        datadict['i_tab_comp'].add_index('col_island_id')
-        components = Table(datadict['i_tab_comp'].loc[datadict['i_tab']
-                                                      ['col_island_id'][i]])
         for comp, row in enumerate(components):
             source_dict[f'component_{comp+1}'] = {}
             for name in row.colnames:
