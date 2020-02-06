@@ -64,6 +64,49 @@ def moment_worker(args):
             mycol.update_one(myquery, newvalues)
 
 
+def moment_worker_i(args):
+    """Make moments of cutouts
+    """
+    i, clargs, outdir, verbose = args
+
+    client = pymongo.MongoClient()  # default connection (ie, local)
+    mydb = client['racs']  # Create/open database
+    mycol = mydb['spice']  # Create/open collection
+
+    if clargs.pol and not clargs.unres:
+        myquery = {"polarized": True}
+    elif clargs.unres and not clargs.pol:
+        myquery = {"resolved": False}
+    elif clargs.pol and clargs.unres:
+        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+
+    elif clargs.pol and not clargs.loners:
+        myquery = {"polarized": True}
+    elif clargs.loners and not clargs.pol:
+        myquery = {"n_components": 1}
+    elif clargs.pol and clargs.loners:
+        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
+    else:
+        myquery = {}
+
+    doc = mycol.find(myquery).sort("flux_peak", -1)
+    iname = doc[i]['island_name']
+
+    stokes = 'i'
+    infile = doc[i][f'{stokes}_file']
+    mufile = infile.replace('.fits', '.mu.fits')
+
+    data = SpectralCube.read(f"{outdir}/{infile}")
+
+    mu = data.mean(axis=0)
+
+    mu.write(f"{outdir}/{mufile}", format='fits', overwrite=True)
+
+    if clargs.database:
+        myquery = {"island_name": iname}
+        newvalues = {"$set": {f"{stokes}_mu_file": mufile}}
+        mycol.update_one(myquery, newvalues)
+
 def makepiworker(args):
     """Make PI of cutouts
     """
@@ -221,6 +264,17 @@ def main(pool, args, verbose=False):
             if verbose:
                 print(f'Time taken was {toc - tic}s')
 
+        if args.on_i:
+            # Make moments
+            if verbose:
+                print('Making Stokes I moment...')
+            tic = time.perf_counter()
+            list(pool.map(moment_worker_i, inputs))
+            toc = time.perf_counter()
+            if verbose:
+                print(f'Time taken was {toc - tic}s')
+        
+
     elif pool.__class__.__name__ is 'MultiPool':
         if args.picube:
             list(tqdm(
@@ -243,6 +297,15 @@ def main(pool, args, verbose=False):
                 pool.imap_unordered(zero_worker, inputs),
                 total=count,
                 desc='Making 0th moment',
+                disable=(not verbose)
+            )
+            )
+
+        if args.on_i:
+            list(tqdm(
+                pool.imap_unordered(moment_worker_i, inputs),
+                total=count,
+                desc='Making Stokes I moments',
                 disable=(not verbose)
             )
             )
@@ -328,6 +391,12 @@ def cli():
         dest="picube",
         action="store_true",
         help="Make PI cubes [False].")
+
+    parser.add_argument(
+        "--on_i",
+        dest="on_i",
+        action="store_true",
+        help="Make Stokes I moments [False].")
 
     parser.add_argument("--pol", dest="pol", action="store_true",
                         help="Run on polarized sources [False].")
