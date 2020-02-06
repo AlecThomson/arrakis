@@ -51,37 +51,54 @@ def main(args, verbose=False):
     tab = QTable()
 
     # Add items to main cat using RMtable standard
-    for j, [name, typ, src, col, unit] in tqdm(
-            enumerate(
+    for j, [name, typ, src, col, unit] in enumerate(
+            tqdm(
                 zip(
                     columns_possum.output_cols,
                     columns_possum.output_types,
                     columns_possum.input_sources,
                     columns_possum.input_names,
                     columns_possum.output_units
-                )
-            ),
-            desc='Making table',
-            disable=not verbose
+                ),
+                total=len(columns_possum.output_cols),
+                desc='Making table',
+                disable=not verbose),
+
     ):
         data = []
         for i in range(count):
-            try:
-                for comp in range(mydoc[i]['n_components']):
+            for comp in range(mydoc[i]['n_components']):
+                try:
                     if src == 'cat':
                         data.append(mydoc[i][f'component_{comp+1}'][col])
-                    if src == 'synth': 
-                        data.append(mydoc[i][f'comp_{comp+1}_rm_summary'][col]) 
-                    if src == 'header': 
-                        data.append(mydoc[i][f'header'][col]) 
+                    if src == 'synth':
+                        data.append(mydoc[i][f'comp_{comp+1}_rm_summary'][col])
+                    if src == 'header':
+                        data.append(mydoc[i][f'header'][col])
                     else:
                         continue
-            except KeyError:
-                continue
+                except KeyError:
+                    continue
         if data == []:
             continue
         new_col = Column(data=data, name=name, dtype=typ, unit=unit)
         tab.add_column(new_col)
+
+
+    for selcol in tqdm(columns_possum.sourcefinder_columns):
+        data = []
+        for i in range(count):
+            for comp in range(mydoc[i]['n_components']):
+                try:
+                    data.append(mydoc[i][f'component_{comp+1}'][selcol])
+                except KeyError:
+                    try:
+                        data.append(mydoc[i][selcol])
+                    except KeyError:
+                        continue
+        new_col = Column(data=data, name=selcol)
+        tab.add_column(new_col)
+
     rmtab = RMT.from_table(tab)
     # Get Galatic coords
     rmtab['l'], rmtab['b'] = RMT.calculate_missing_coordinates_column(
@@ -91,11 +108,15 @@ def main(args, verbose=False):
     rmtab['rm_method'] = 'RM Synthesis'
     rmtab['standard_telescope'] = 'ASKAP'
 
+    if args.outfile is None:
+        print(rmtab)
+
     if args.outfile is not None:
         rmtab.table.write(args.outfile, format=args.format, overwrite=True)
 
     if verbose:
         print('Done!')
+
 
 def cli():
     """Command-line interface
@@ -155,10 +176,10 @@ def cli():
                         type=int, help="Limit number of sources [All].")
 
     parser.add_argument("-w", "--write", dest="outfile", default=None,
-                    type=str, help="File to save table to [None].")
+                        type=str, help="File to save table to [None].")
 
     parser.add_argument("-f", "--format", dest="format", default=None,
-                type=str, help="Format for output file [None].")
+                        type=str, help="Format for output file [None].")
 
     args = parser.parse_args()
     if args.outfile and not args.format:

@@ -126,7 +126,7 @@ input_names = [x[3] for x in columns]
 output_units = [x[4] for x in columns]
 
 # Columns in the expected input sourcelist (for POSSUM, Selavy)
-sourcefinder_columns = ('island_id', 'component_id', 'component_name',
+sourcefinder_columns = ('island_id', 'component_id', 'island_name', 'component_name',
                         'ra_hms_cont', 'dec_dms_cont', 'ra_deg_cont', 'dec_deg_cont',
                         'ra_err',  'dec_err',  'freq',  'flux_peak', 'flux_peak_err',
                         'flux_int', 'flux_int_err', 'maj_axis', 'min_axis', 'pos_ang',
