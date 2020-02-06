@@ -18,7 +18,7 @@ import astropy.units as u
 def moment_worker(args):
     """Make moments of cutouts
     """
-    i, clargs, verbose = args
+    i, clargs, outdir, verbose = args
 
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
@@ -48,13 +48,13 @@ def moment_worker(args):
         mufile = infile.replace('.fits', '.mu.fits')
         sigfile = infile.replace('.fits', '.sigma.fits')
 
-        data = SpectralCube.read(infile)
+        data = SpectralCube.read(f"{outdir}/{infile}")
 
         mu = data.mean(axis=0)
         sigma = data.std(axis=0, ddof=1)
 
-        mu.write(mufile, format='fits', overwrite=True)
-        sigma.write(sigfile, format='fits', overwrite=True)
+        mu.write(f"{outdir}/{mufile}", format='fits', overwrite=True)
+        sigma.write(f"{outdir}/{sigfile}", format='fits', overwrite=True)
 
         if clargs.database:
             myquery = {"island_name": iname}
@@ -96,8 +96,8 @@ def makepiworker(args):
     ufile = doc[i][f'u_file']
     outfile = qfile.replace('.q.', '.p.')
 
-    qdata = SpectralCube.read(qfile)
-    udata = SpectralCube.read(ufile)
+    qdata = SpectralCube.read(f"{outdir}/{qfile}")
+    udata = SpectralCube.read(f"{outdir}/{ufile}")
 
     pdata = (qdata**2 + udata**2)**0.5
 
@@ -125,8 +125,8 @@ def zero_worker(args):
     ufile = doc[i][f'u_file']
     outfile = qfile.replace('.q.', '.p.').replace('.fits', '.mom0.fits')
 
-    qdata = SpectralCube.read(qfile)
-    udata = SpectralCube.read(ufile)
+    qdata = SpectralCube.read(f"{outdir}/{qfile}")
+    udata = SpectralCube.read(f"{outdir}/{ufile}")
 
     freq = np.array(getfreq(qdata))
 
