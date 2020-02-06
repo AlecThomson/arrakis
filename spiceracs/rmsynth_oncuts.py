@@ -149,39 +149,42 @@ def rmsythoncut1d(args):
         q = np.nansum(dataQ[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
         u = np.nansum(dataU[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
 
-        data = [np.array(freq), q, u, rms, rms]
-        # Run 1D RM-synthesis on the spectra
-        mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                 phiMax_radm2=clargs.phiMax_radm2,
-                                                 dPhi_radm2=clargs.dPhi_radm2,
-                                                 nSamples=clargs.nSamples,
-                                                 weightType=clargs.weightType,
-                                                 fitRMSF=clargs.fitRMSF,
-                                                 noStokesI=True,
-                                                 nBits=32,
-                                                 showPlots=clargs.showPlots,
-                                                 verbose=clargs.rm_verbose)
+        if (q==0).all() or (u==0).all():
+            return
+        else:
+            data = [np.array(freq), q, u, rms, rms]
+            # Run 1D RM-synthesis on the spectra
+            mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                                    phiMax_radm2=clargs.phiMax_radm2,
+                                                    dPhi_radm2=clargs.dPhi_radm2,
+                                                    nSamples=clargs.nSamples,
+                                                    weightType=clargs.weightType,
+                                                    fitRMSF=clargs.fitRMSF,
+                                                    noStokesI=True,
+                                                    nBits=32,
+                                                    showPlots=clargs.showPlots,
+                                                    verbose=clargs.rm_verbose)
 
-        do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
+            do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
 
-        if clargs.database:
-            myquery = {"island_name": iname}
+            if clargs.database:
+                myquery = {"island_name": iname}
 
-            newvalues = {"$set": {f"rm1dfiles_comp_{comp+1}": {
-                "FDF_dirty": f"{cname}_FDFdirty.dat",
-                "RMSF": f"{cname}_RMSF.dat",
-                "weights": f"{cname}_weight.dat",
-                "summary_dat": f"{cname}_RMsynth.dat",
-                "summary_json": f"{cname}_RMsynth.json",
-            }}}
-            mycol.update_one(myquery, newvalues)
+                newvalues = {"$set": {f"rm1dfiles_comp_{comp+1}": {
+                    "FDF_dirty": f"{cname}_FDFdirty.dat",
+                    "RMSF": f"{cname}_RMSF.dat",
+                    "weights": f"{cname}_weight.dat",
+                    "summary_dat": f"{cname}_RMsynth.dat",
+                    "summary_json": f"{cname}_RMsynth.json",
+                }}}
+                mycol.update_one(myquery, newvalues)
 
-        if clargs.database:
-            # Load into Mongo
-            myquery = {"island_name": iname}
+    if clargs.database:
+        # Load into Mongo
+        myquery = {"island_name": iname}
 
-            newvalues = {"$set": {f"comp_{comp+1}_rmsynth1d": True}}
-            mycol.update_one(myquery, newvalues)
+        newvalues = {"$set": {f"rmsynth1d": True}}
+        mycol.update_one(myquery, newvalues)
 
 
 def rmsythoncut_i(args):

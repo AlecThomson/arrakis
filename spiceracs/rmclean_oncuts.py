@@ -27,67 +27,87 @@ def rmclean1d(args):
     # Basic querey
     if clargs.pol and not clargs.unres:
         myquery = {"polarized": True}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif clargs.unres and not clargs.pol:
         myquery = {"resolved": False}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif clargs.pol and clargs.unres:
-        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+        myquery = {"$and": [{"rmsynth1d": True}, {
+            "resolved": False}, {"polarized": True}]}
 
     elif clargs.pol and not clargs.loners:
         myquery = {"polarized": True}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif clargs.loners and not clargs.pol:
         myquery = {"n_components": 1}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif clargs.pol and clargs.loners:
-        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
+        myquery = {"$and": [{"rmsynth1d": True}, {
+            "n_components": 1}, {"polarized": True}]}
+
     else:
-        myquery = {}
+        myquery = {"rmsynth1d": True}
 
     doc = mycol.find(myquery).sort("flux_peak", -1)
+
 
     iname = doc[i]['island_name']
     for comp in range(doc[i]['n_components']):
         if clargs.rm_verbose:
             print(f'Working on component {comp+1}')
-        cname = doc[i][f'component_{comp+1}']['component_name']
-        prefix = f'{outdir}/{cname}'
+        try:
+            if doc[i][f"comp_{comp+1}_rmsynth1d"] is not True:
+                return
+            else:
+                cname = doc[i][f'component_{comp+1}']['component_name']
+                prefix = f'{outdir}/{cname}'
 
-        fdfFile = prefix + "_FDFdirty.dat"
-        rmsfFile = prefix + "_RMSF.dat"
-        weightFile = prefix + "_weight.dat"
-        rmSynthFile = prefix + "_RMsynth.json"
-        # Sanity checks
-        for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
-            if not os.path.exists(f):
-                print("File does not exist: '{:}'.".format(f), end=' ')
-                sys.exit()
-        nBits = 32
-        mDictS, aDict = do_RMclean_1D.readFiles(
-            fdfFile, rmsfFile, weightFile, rmSynthFile, nBits)
-        # Run RM-CLEAN on the spectrum
-        outdict, arrdict = do_RMclean_1D.run_rmclean(mDictS=mDictS,
-                                                     aDict=aDict,
-                                                     cutoff=clargs.cutoff,
-                                                     maxIter=clargs.maxIter,
-                                                     gain=clargs.gain,
-                                                     nBits=nBits,
-                                                     showPlots=clargs.showPlots,
-                                                     verbose=clargs.rm_verbose)
+                fdfFile = prefix + "_FDFdirty.dat"
+                rmsfFile = prefix + "_RMSF.dat"
+                weightFile = prefix + "_weight.dat"
+                rmSynthFile = prefix + "_RMsynth.json"
+                # Sanity checks
+                for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
+                    if not os.path.exists(f):
+                        print("File does not exist: '{:}'.".format(f), end=' ')
+                        sys.exit()
+                nBits = 32
+                mDictS, aDict = do_RMclean_1D.readFiles(
+                    fdfFile, rmsfFile, weightFile, rmSynthFile, nBits)
+                # Run RM-CLEAN on the spectrum
+                outdict, arrdict = do_RMclean_1D.run_rmclean(mDictS=mDictS,
+                                                            aDict=aDict,
+                                                            cutoff=clargs.cutoff,
+                                                            maxIter=clargs.maxIter,
+                                                            gain=clargs.gain,
+                                                            nBits=nBits,
+                                                            showPlots=clargs.showPlots,
+                                                            verbose=clargs.rm_verbose)
 
-        # Save output
-        do_RMclean_1D.saveOutput(outdict,
-                                 arrdict,
-                                 prefixOut=prefix,
-                                 outDir=outdir,
-                                 verbose=clargs.rm_verbose)
+                # Save output
+                do_RMclean_1D.saveOutput(outdict,
+                                        arrdict,
+                                        prefixOut=prefix,
+                                        outDir=outdir,
+                                        verbose=clargs.rm_verbose)
 
-        if clargs.database:
-            # Load into Mongo
-            myquery = {"island_name": iname}
+                if clargs.database:
+                    # Load into Mongo
+                    myquery = {"island_name": iname}
 
-            newvalues = {"$set": {f"comp_{comp+1}_rmclean1d": True}}
-            mycol.update_one(myquery, newvalues)
+                    newvalues = {"$set": {f"comp_{comp+1}_rmclean1d": True}}
+                    mycol.update_one(myquery, newvalues)
 
-            newvalues = {"$set": {f"comp_{comp+1}_rm_summary": outdict}}
-            mycol.update_one(myquery, newvalues)
+                    newvalues = {"$set": {f"comp_{comp+1}_rm_summary": outdict}}
+                    mycol.update_one(myquery, newvalues)
+        except KeyError:
+            return
+    if clargs.database:
+        # Load into Mongo
+        myquery = {"island_name": iname}
+
+        newvalues = {"$set": {f"rmclean1d": True}}
+        mycol.update_one(myquery, newvalues)
 
 
 def rmclean3d(args):
@@ -100,19 +120,26 @@ def rmclean3d(args):
     # Basic querey
     if clargs.pol and not clargs.unres:
         myquery = {"polarized": True}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif clargs.unres and not clargs.pol:
         myquery = {"resolved": False}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif clargs.pol and clargs.unres:
-        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+        myquery = {"$and": [{"rmsynth1d": True}, {
+            "resolved": False}, {"polarized": True}]}
 
     elif clargs.pol and not clargs.loners:
         myquery = {"polarized": True}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif clargs.loners and not clargs.pol:
         myquery = {"n_components": 1}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif clargs.pol and clargs.loners:
-        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
+        myquery = {"$and": [{"rmsynth1d": True}, {
+            "n_components": 1}, {"polarized": True}]}
+
     else:
-        myquery = {}
+        myquery = {"rmsynth1d": True}
 
     doc = mycol.find(myquery).sort("flux_peak", -1)
 
@@ -156,20 +183,26 @@ def main(pool, args, verbose=False):
     # Basic querey
     if args.pol and not args.unres:
         myquery = {"polarized": True}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif args.unres and not args.pol:
         myquery = {"resolved": False}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif args.pol and args.unres:
-        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+        myquery = {"$and": [{"rmsynth1d": True}, {
+            "resolved": False}, {"polarized": True}]}
 
     elif args.pol and not args.loners:
         myquery = {"polarized": True}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif args.loners and not args.pol:
         myquery = {"n_components": 1}
+        myquery = {"$and": [{"rmsynth1d": True}, myquery]}
     elif args.pol and args.loners:
-        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
+        myquery = {"$and": [{"rmsynth1d": True}, {
+            "n_components": 1}, {"polarized": True}]}
 
     else:
-        myquery = {}
+        myquery = {"rmsynth1d": True}
 
     mydoc = mycol.find(myquery).sort("flux_peak", -1)
     count = mycol.count_documents(myquery)
