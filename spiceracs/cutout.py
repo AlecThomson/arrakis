@@ -106,7 +106,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
         print(
             f'Only cutting out {sub_count} sources (skipping muti-component sources)..')
 
-    datadict['i_tab_comp'].add_index('col_island_id')
+    # datadict['i_tab_comp'].add_index('col_island_id')
 
     for i in trange(
         count,
@@ -117,12 +117,11 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
         if loners:
             if datadict['i_tab']['col_n_components'][i] > 1:
                 continue
-        datadict['i_tab_comp'].add_index('col_island_id')
 
         # Catch out 0-component sources
         try:
-            components = Table(datadict['i_tab_comp'].loc[datadict['i_tab']
-                                                          ['col_island_id'][i]])
+            components = datadict['i_tab_comp'][datadict['i_tab_comp']
+                                                ['col_island_id'] == datadict['i_tab']['col_island_id'][i]]
 
         except KeyError:
             if verbose:
@@ -166,21 +165,24 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
 
         if v_cube is not None:
             v_cutout = v_cube[:, starty:stopy, startx:stopx]
-            # compute RMS
-            v_cutout = np.std(v_cutout, axis=(1, 2))
             v_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
             v_cutouts.append(v_cutout)
 
         source_dict['header'] = i_cutout.header
-        for name in datadict['i_tab'].colnames:
+        del source_dict['header']['SLICE']
+        for name in datadict['i_tab'].columns:
             source_dict[name.replace('col_', '')
                         ] = datadict['i_tab'][name][i]
 
-        for comp, row in enumerate(components):
+        for comp, row in enumerate(components.iterrows()):
             source_dict[f'component_{comp+1}'] = {}
-            for name in row.colnames:
-                source_dict[f'component_{comp+1}'][name.replace('col_', '')
-                                                   ] = row[name]
+            for name in row[1].keys():
+                if type(row[1][name]) is bytes:
+                    source_dict[f'component_{comp+1}'][name.replace('col_', '')
+                                                       ] = row[1][name]
+                else:
+                    source_dict[f'component_{comp+1}'][name.replace('col_', '')
+                                                       ] = row[1][name]
 
         source_dict_list.append(source_dict)
 
@@ -291,9 +293,13 @@ def writefits(arg):
             outdir (str): Location of output directory.
 
     """
-    source_dict, cutout, stoke, outdir = arg
-    outfile = f"{outdir}/{source_dict[f'{stoke}_file']}"
-    cutout.write(outfile, format='fits', overwrite=True)
+
+    outfile, idx, plane = arg
+
+    # Reopen file and update
+    outfh = fits.open(outfile, mode='update')
+    outfh[0].data[idx] = plane
+    outfh.flush()
 
 
 def writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=True):
@@ -319,32 +325,36 @@ def writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=True):
         if stoke == 'v' and datadict['v_cube'] is None:
             pass
         else:
-            if (pool.__class__.__name__ is 'MPIPool' or
-                    pool.__class__.__name__ is 'SerialPool'):
-                if verbose:
-                    print(f'Writing Stokes {stoke}...')
-                tic = time.perf_counter()
-                pool.map(
-                    writefits,
-                    [[source_dict_list[i], cutouts[stoke][i], stoke, outdir]
-                        for i in range(len(cutouts[stoke]))]
-                )
-                toc = time.perf_counter()
-                if verbose:
-                    print(f'Time taken was {toc - tic}s')
+            for i, cutout in enumerate(tqdm(cutouts[stoke], desc=f'Stokes {stoke}', disable=(not verbose))):
+                outfile = f"{outdir}/{source_dict_list[i][f'{stoke}_file']}"
+                # Write blank file
+                blank = np.zeros(cutout.shape)
+                hdu = fits.PrimaryHDU(blank)
+                hdulist = fits.HDUList([hdu])
+                hdulist.writeto(outfile, overwrite=True)
+                inputs = [[outfile, idx, cutout.unmasked_data[idx]]
+                          for idx in range(len(cutout))]
 
-            elif pool.__class__.__name__ is 'MultiPool':
-                list(tqdm(
-                    pool.imap_unordered(
-                        writefits,
-                        [[source_dict_list[i], cutouts[stoke][i], stoke, outdir]
-                         for i in range(len(cutouts[stoke]))]
-                    ),
-                    total=len(cutouts[stoke]),
-                    desc=f'Stokes {stoke}',
-                    disable=(not verbose)
-                )
-                )
+                if (pool.__class__.__name__ is 'MPIPool' or
+                        pool.__class__.__name__ is 'SerialPool'):
+                    if verbose:
+                        print(f'Writing Stokes {stoke}...')
+                    tic = time.perf_counter()
+                    list(pool.map(writefits, inputs))
+                    toc = time.perf_counter()
+                    if verbose:
+                        print(f'Time taken was {toc - tic}s')
+
+                elif pool.__class__.__name__ is 'MultiPool':
+                    list(tqdm(pool.imap_unordered(writefits, inputs), total=len(
+                        cutout.spectral_axis),desc=f'Writing per channel',  disable=(not verbose)))
+
+                outfh = fits.open(outfile, mode='update')
+                outfh[0].header = cutout.header
+                del outfh[0].header['SLICE']
+                outfh.flush()
+
+
 
 
 def database(source_dict_list, verbose=True):
@@ -566,12 +576,12 @@ def cli():
 
     args = parser.parse_args()
     verbose = args.verbose
-    print('MPI arg is', args.mpi)
     pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
     if args.mpi:
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
+    print('MPI arg is', args.mpi)
     if verbose:
         print(f"Using pool: {pool.__class__.__name__}")
 

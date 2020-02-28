@@ -385,7 +385,11 @@ def gettable(tabledir, keyword, verbose=True):
 
     # Get selvay data from VOTab
     table = Table.read(filename, format='votable')
-
+    table = table.to_pandas()
+    str_df = table.select_dtypes([np.object])
+    str_df = str_df.stack().str.decode('utf-8').unstack()
+    for col in str_df:
+        table[col] = str_df[col]
     return table, filename
 
 

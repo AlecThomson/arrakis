@@ -43,7 +43,7 @@ def rmsythoncut3d(args):
     vfile = f"{outdir}/{doc[i]['v_file']}"
 
     with fits.open(vfile) as hdulist:
-        rms = hdulist[0].data
+        rms = np.std(hdulist[0].data, axis=(1,2)) * 3
 
     prefix = iname
 
@@ -127,7 +127,7 @@ def rmsythoncut1d(args):
     vfile = f"{outdir}/{doc[i]['v_file']}"
 
     with fits.open(vfile) as hdulist:
-        rms = hdulist[0].data * 3
+        rms = np.nanstd(hdulist[0].data, axis=(1,2)) * 3
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)
