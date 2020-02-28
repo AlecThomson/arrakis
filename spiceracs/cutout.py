@@ -337,13 +337,13 @@ def writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=True):
 
                 if (pool.__class__.__name__ is 'MPIPool' or
                         pool.__class__.__name__ is 'SerialPool'):
-                    if verbose:
-                        print(f'Writing Stokes {stoke}...')
-                    tic = time.perf_counter()
+                    #if verbose:
+                    #    print(f'Writing Stokes {stoke}...')
+                    #tic = time.perf_counter()
                     list(pool.map(writefits, inputs))
-                    toc = time.perf_counter()
-                    if verbose:
-                        print(f'Time taken was {toc - tic}s')
+                    #toc = time.perf_counter()
+                    #if verbose:
+                    #    print(f'Time taken was {toc - tic}s')
 
                 elif pool.__class__.__name__ is 'MultiPool':
                     list(tqdm(pool.imap_unordered(writefits, inputs), total=len(
