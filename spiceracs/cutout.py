@@ -78,14 +78,12 @@ def cutout_worker(args):
             outname = f'{name}.cutout.{stoke}.fits'
             source_dict[f'{stoke}_file'] = outname
         outfile = f"{outdir}/{outname}"
-        command = f"fitscopy {i_file}[{startx+1}:{stopx},{starty+1}:{stopy}] {outfile}"
+        command = f"fitscopy '{i_file}[{startx+1}:{stopx},{starty+1}:{stopy}]' !{outfile}"
         command = shlex.split(command)
         if not dryrun:
-            proc = subprocess.run(command, capture_output=(
-                not verbose), encoding="utf-8", check=True)
+            subprocess.run(command, encoding="utf-8", check=True)
             headfile = f'{outdir}/{name}.cutout.i.fits'
             source_dict['header'] = fits.getheader(headfile)
-            del source_dict['header']['SLICE']
 
     return source_dict
 
