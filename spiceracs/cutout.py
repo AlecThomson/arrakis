@@ -1,20 +1,93 @@
 #!/usr/bin/env python
-from utils import getdata, MyEncoder, head2dict
+from utils import getdata, MyEncoder
 import numpy as np
 from tqdm import trange, tqdm
 import sys
 import os
-from dataclasses import dataclass, asdict, make_dataclass
-import dataclasses
-from astropy.io.fits import Header
+import subprocess
+import shlex
 import json
 import pymongo
 from astropy.io import fits
-from astropy.table import Table
 import time
 import warnings
 import functools
 print = functools.partial(print, flush=True)
+
+
+def cutout_worker(args):
+    i, i_tab, i_tab_comp, i_file, x_min, x_max, y_min, y_max, pad, pixels_per_beam, shape, outdir, v_cube_is_None, dryrun, loners, verbose = args
+    if loners:
+        if i_tab['col_n_components'][i] > 1:
+            return
+
+    # Catch out 0-component sources
+    try:
+        components = i_tab_comp[i_tab_comp['col_island_id']
+                                == i_tab['col_island_id'][i]]
+
+    except KeyError:
+        if verbose:
+            print(
+                f"No matches found for key {i_tab['col_island_id'][i]}")
+            print(
+                f"Number of components is {i_tab['col_n_components'][i]}!")
+        return
+    source_dict = {}
+    # Skip if source is outside of cube bounds
+    if (y_max[i] > shape[2] or x_max[i] > shape[2] or
+            x_min[i] < 0 or y_min[i] < 0):
+        return
+
+    starty = int(y_min[i]-pad*pixels_per_beam)
+    stopy = int(y_max[i]+pad*pixels_per_beam)
+    startx = int(x_min[i]-pad*pixels_per_beam)
+    stopx = int(x_max[i]+pad*pixels_per_beam)
+
+    # Check if pad puts bbox outside of cube
+    if starty < 0:
+        starty = y_min[i]
+    if startx < 0:
+        startx = x_min[i]
+    if stopy > shape[2]:
+        stopy = y_max[i]
+    if stopx > shape[2]:
+        stopx = x_max[i]
+
+    for comp, row in enumerate(components.iterrows()):
+        source_dict[f'component_{comp+1}'] = {}
+        for name in row[1].keys():
+            if type(row[1][name]) is bytes:
+                source_dict[f'component_{comp+1}'][name.replace('col_', '')
+                                                   ] = row[1][name]
+            else:
+                source_dict[f'component_{comp+1}'][name.replace('col_', '')
+                                                   ] = row[1][name]
+
+    for name in i_tab.columns:
+        source_dict[name.replace('col_', '')
+                    ] = i_tab[name][i]
+
+    for stoke in ['i', 'q', 'u', 'v']:
+        if stoke == 'v' and v_cube_is_None:
+            pass
+        else:
+            name = source_dict['island_name']
+            # if stoke == 'i':
+            #    print(f"I'm working on Island {name}")
+            outname = f'test.{name}.cutout.{stoke}.fits'
+            source_dict[f'{stoke}_file'] = outname
+        outfile = f"{outdir}/{outname}"
+        command = f"fitscopy {i_file}[{startx+1}:{stopx},{starty+1}:{stopy}] {outfile}"
+        command = shlex.split(command)
+        if not dryrun:
+            proc = subprocess.run(command, capture_output=(
+                not verbose), encoding="utf-8", check=True)
+            headfile = f'{outdir}/{name}.cutout.i.fits'
+            source_dict['header'] = fits.getheader(headfile)
+            del source_dict['header']['SLICE']
+
+    return source_dict
 
 
 def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, loners=False, verbose=True):
@@ -41,8 +114,6 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
         outdir (str): Location of output directory.
 
     """
-    if outdir[-1] == '/':
-        outdir = outdir[:-1]
     # Get bounding boxes in WCS
     ra_min, dec_min, freq = datadict['wcs_taylor'].all_pix2world(
         datadict['i_tab']['col_x_min'], datadict['i_tab']['col_y_min'], 0, 0)
@@ -60,15 +131,6 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
     pixels_per_beam = int(
         datadict['i_cube'].header['BMAJ']/datadict['i_cube'].header['CDELT2'])
 
-    # Init cutouts
-    i_cutouts = []
-    q_cutouts = []
-    u_cutouts = []
-    if datadict['v_cube'] is not None:
-        v_cutouts = []
-    else:
-        v_cutouts = None
-
     outdir = f'{outdir}/cutouts'
     if dryrun:
         if verbose:
@@ -76,11 +138,6 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
     else:
         if verbose:
             print(f'Saving to {outdir}/')
-    source_dict_list = []
-
-    i_cube = datadict['i_cube']
-    q_cube = datadict['q_cube']
-    u_cube = datadict['u_cube']
     if datadict['v_cube'] is not None:
         v_cube = datadict['v_cube']
     else:
@@ -108,253 +165,45 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
 
     # datadict['i_tab_comp'].add_index('col_island_id')
 
-    for i in trange(
-        count,
-        total=count,
-        disable=(not verbose),
-        desc='Extracting cubelets'
-    ):
-        if loners:
-            if datadict['i_tab']['col_n_components'][i] > 1:
-                continue
+    # for i in trange(
+    #    count,
+    #    total=count,
+    #    disable=(not verbose),
+    #    desc='Extracting cubelets'
+    # ):
 
-        # Catch out 0-component sources
-        try:
-            components = datadict['i_tab_comp'][datadict['i_tab_comp']
-                                                ['col_island_id'] == datadict['i_tab']['col_island_id'][i]]
+    inputs = [[i, datadict['i_tab'], datadict['i_tab_comp'], datadict['i_file'],
+               x_min, x_max, y_min, y_max, pad, pixels_per_beam,
+               datadict['i_cube'].shape, outdir, (v_cube is None), dryrun, loners, verbose] for i in range(count)]
 
-        except KeyError:
-            if verbose:
-                print(
-                    f"No matches found for key {datadict['i_tab']['col_island_id'][i]}")
-                print(
-                    f"Number of components is {datadict['i_tab']['col_n_components'][i]}!")
-            continue
-        source_dict = {}
-        # Skip if source is outside of cube bounds
-        if (y_max[i] > i_cube.shape[2] or x_max[i] > i_cube.shape[2] or
-                x_min[i] < 0 or y_min[i] < 0):
-            continue
-
-        starty = int(y_min[i]-pad*pixels_per_beam)
-        stopy = int(y_max[i]+pad*pixels_per_beam)
-        startx = int(x_min[i]-pad*pixels_per_beam)
-        stopx = int(x_max[i]+pad*pixels_per_beam)
-
-        # Check if pad puts bbox outside of cube
-        if starty < 0:
-            starty = y_min[i]
-        if startx < 0:
-            startx = x_min[i]
-        if stopy > i_cube.shape[2]:
-            stopy = y_max[i]
-        if stopx > i_cube.shape[2]:
-            stopx = x_max[i]
-
-        i_cutout = i_cube[:, starty:stopy, startx:stopx]
-        q_cutout = q_cube[:, starty:stopy, startx:stopx]
-        u_cutout = u_cube[:, starty:stopy, startx:stopx]
-
-        i_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-        q_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-        u_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-
-        i_cutouts.append(i_cutout)
-        q_cutouts.append(q_cutout)
-        u_cutouts.append(u_cutout)
-
-        if v_cube is not None:
-            v_cutout = v_cube[:, starty:stopy, startx:stopx]
-            v_cutout.meta['OBJECT'] = datadict['i_tab']['col_island_name'][i]
-            v_cutouts.append(v_cutout)
-
-        source_dict['header'] = i_cutout.header
-        del source_dict['header']['SLICE']
-        for name in datadict['i_tab'].columns:
-            source_dict[name.replace('col_', '')
-                        ] = datadict['i_tab'][name][i]
-
-        for comp, row in enumerate(components.iterrows()):
-            source_dict[f'component_{comp+1}'] = {}
-            for name in row[1].keys():
-                if type(row[1][name]) is bytes:
-                    source_dict[f'component_{comp+1}'][name.replace('col_', '')
-                                                       ] = row[1][name]
-                else:
-                    source_dict[f'component_{comp+1}'][name.replace('col_', '')
-                                                       ] = row[1][name]
-
-        source_dict_list.append(source_dict)
-
-    # Set up locations where files will be saved
-    for i in trange(
-        len(source_dict_list),
-        disable=(not verbose),
-        desc='Finding locations'
-    ):
-        for stoke in ['i', 'q', 'u', 'v']:
-            if stoke == 'v' and datadict['v_cube'] is None:
-                pass
-            else:
-                name = source_dict_list[i]['island_name']
-                outname = f'{name}.cutout.{stoke}.fits'
-                source_dict_list[i][f'{stoke}_file'] = outname
-
-    if v_cube is not None:
-        stoke = 'v'
-        name = source_dict_list[i]['island_name']
-        outname = f'{name}.cutout.{stoke}.fits'
-        source_dict_list[i][f'{stoke}_file'] = outname
-
-    cutouts = {
-        "i": i_cutouts,
-        "q": q_cutouts,
-        "u": u_cutouts
-    }
-
-    if v_cube is not None:
-        cutouts.update(
-            {
-                "v": v_cutouts
-            }
-        )
-
-    return cutouts, source_dict_list, outdir
-
-
-def getbytes(cutout):
-    """Worker task for size estimate.
-
-    Args:
-        cutout (SpectralCube): The cutout around a source.
-
-    Returns:
-        mbytes (float): The size of the cutout in MB
-
-    """
-
-    mbytes = cutout[0, :, :].nbytes*cutout.shape[0]*1e-6
-    return mbytes
-
-
-def getsize(pool, cutouts, verbose=True):
-    """Find the size of all cutouts in a cube.
-
-    Args:
-        pool (Pool): The Shwimmbad or Multiprocessing pool for
-            parallelisation.
-        cutouts (dict): Contains lists of I, Q, and U cutouts.
-
-    Kwargs:
-        verbose (bool): Print out messages.
-
-    """
-    if (pool.__class__.__name__ is 'MPIPool' or
-            pool.__class__.__name__ is 'SerialPool'):
+    if pool.__class__.__name__ is 'MPIPool':
         if verbose:
-            print(f'Getting sizes...')
+            print('Extracting cubelets...')
         tic = time.perf_counter()
-        sizes_bytes = list(
-            pool.map(getbytes, [cutouts[i] for i in range(len(cutouts))]
-                     )
-        )
+        source_dict_list = list(pool.map(cutout_worker, inputs))
         toc = time.perf_counter()
         if verbose:
             print(f'Time taken was {toc - tic}s')
 
+    elif pool.__class__.__name__ is 'SerialPool':
+        source_dict_list = []
+        for i in trange(count):
+            source_dict_list.append(cutout_worker([i, datadict['i_tab'], datadict['i_tab_comp'], datadict['i_file'],
+                                                   x_min, x_max, y_min, y_max, pad, pixels_per_beam,
+                                                   datadict['i_cube'].shape, outdir, (v_cube is None), dryrun, loners, verbose]))
+
     elif pool.__class__.__name__ is 'MultiPool':
-        sizes_bytes = list(tqdm(
-            pool.imap_unordered(getbytes, [cutouts[i]
-                                           for i in range(len(cutouts))]),
-            total=len(cutouts),
-            desc='Getting sizes',
+        source_dict_list = list(tqdm(
+            pool.imap_unordered(cutout_worker, inputs),
+            total=count,
+            desc='Extracting cubelets',
             disable=(not verbose)
         )
         )
 
-    sizes_bytes = np.array(sizes_bytes)
-    print('Size in MB: ', sizes_bytes.sum())
-    print('Size in GB: ', sizes_bytes.sum()/1000)
+    #source_dict_list = list(pool.map(cutout_worker, inputs))
 
-
-def writefits(arg):
-    """Worker that cutouts to disk.
-
-    Writes a cutout, as stored in source_dict, to disk. The file
-    location should already be specified in source_dict. This format is
-    intended for parallel use with pool.map syntax.
-
-    Args:
-        arg: The tuple of (source_dict, cutout, stoke)
-            source_dict (dict): Source metadata.
-            cutout (SpectralCube): Cutout data to write.
-            stoke (str): Which Stokes to write. Is a string of either 'i',
-                'q', 'u', or 'v'.
-            outdir (str): Location of output directory.
-
-    """
-
-    outfile, idx, plane = arg
-
-    # Reopen file and update
-    outfh = fits.open(outfile, mode='update')
-    outfh[0].data[idx] = plane
-    outfh.flush()
-
-
-def writeloop(pool, cutouts, source_dict_list, datadict, outdir, verbose=True):
-    """Main loop for writing to disk
-
-    Loops over all sources in I, Q, and U, and writes to disk in
-    parallel.
-
-    Args:
-        pool (Pool): The Shwimmbad or Multiprocessing pool for
-            parallelisation.
-        cutouts (dict): Contains lists of I, Q, and U cutouts.
-        source_dict_list (list): List of dictionaries which contain the
-            metadata of each source.
-        datadict (dict): Dictionary containing tables and cubes.
-        outdir (str): Location of output directory.
-
-    Kwargs:
-        verbose (bool): Print out messages.
-
-    """
-    for stoke in ['i', 'q', 'u', 'v']:
-        if stoke == 'v' and datadict['v_cube'] is None:
-            pass
-        else:
-            for i, cutout in enumerate(tqdm(cutouts[stoke], desc=f'Stokes {stoke}', disable=(not verbose))):
-                outfile = f"{outdir}/{source_dict_list[i][f'{stoke}_file']}"
-                # Write blank file
-                blank = np.zeros(cutout.shape)
-                hdu = fits.PrimaryHDU(blank)
-                hdulist = fits.HDUList([hdu])
-                hdulist.writeto(outfile, overwrite=True)
-                inputs = [[outfile, idx, cutout.unmasked_data[idx]]
-                          for idx in range(len(cutout))]
-
-                if (pool.__class__.__name__ is 'MPIPool' or
-                        pool.__class__.__name__ is 'SerialPool'):
-                    #if verbose:
-                    #    print(f'Writing Stokes {stoke}...')
-                    #tic = time.perf_counter()
-                    list(pool.map(writefits, inputs))
-                    #toc = time.perf_counter()
-                    #if verbose:
-                    #    print(f'Time taken was {toc - tic}s')
-
-                elif pool.__class__.__name__ is 'MultiPool':
-                    list(tqdm(pool.imap_unordered(writefits, inputs), total=len(
-                        cutout.spectral_axis),desc=f'Writing per channel',  disable=(not verbose)))
-
-                outfh = fits.open(outfile, mode='update')
-                outfh[0].header = cutout.header
-                del outfh[0].header['SLICE']
-                outfh.flush()
-
-
+    return source_dict_list
 
 
 def database(source_dict_list, verbose=True):
@@ -416,28 +265,17 @@ def main(pool, args, verbose=True):
     if verbose:
         print('Making cutouts....')
     outdir = args.outdir
-    cutouts, source_dict_list, outdir = makecutout(pool,
-                                                   datadict,
-                                                   outdir=outdir,
-                                                   pad=pad,
-                                                   dryrun=dryrun,
-                                                   limit=args.limit,
-                                                   loners=args.loners,
-                                                   verbose=verbose
-                                                   )
-
-    # Check size of cube
-    if args.getsize:
-        if verbose:
-            print('Checking size of single cube...')
-        getsize(pool, cutouts['i'], verbose=verbose)
-
-    # Write to disk
-    if not dryrun:
-        if verbose:
-            print('Writing to disk...')
-        writeloop(pool, cutouts, source_dict_list,
-                  datadict, outdir, verbose=verbose)
+    if outdir[-1] == '/':
+        outdir = outdir[:-1]
+    source_dict_list = makecutout(pool,
+                                  datadict,
+                                  outdir=outdir,
+                                  pad=pad,
+                                  dryrun=dryrun,
+                                  limit=args.limit,
+                                  loners=args.loners,
+                                  verbose=verbose
+                                  )
 
     # Update MongoDB
     if args.database:
@@ -536,13 +374,6 @@ def cli():
         dest="dryrun",
         action="store_true",
         help="Do a dry-run [False]."
-    )
-
-    parser.add_argument(
-        "-s",
-        dest="getsize",
-        action="store_true",
-        help="Estimate size of cutouts [False]."
     )
 
     parser.add_argument(
