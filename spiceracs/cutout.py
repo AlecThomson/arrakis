@@ -75,7 +75,7 @@ def cutout_worker(args):
             name = source_dict['island_name']
             # if stoke == 'i':
             #    print(f"I'm working on Island {name}")
-            outname = f'test.{name}.cutout.{stoke}.fits'
+            outname = f'{name}.cutout.{stoke}.fits'
             source_dict[f'{stoke}_file'] = outname
         outfile = f"{outdir}/{outname}"
         command = f"fitscopy {i_file}[{startx+1}:{stopx},{starty+1}:{stopy}] {outfile}"
