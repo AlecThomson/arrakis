@@ -13,14 +13,14 @@ import time
 import warnings
 import functools
 import psutil
-print = functools.partial(print, flush=True)
+print = functools.partial(print,f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
 def cutout_worker(args):
-    i, count, i_tab, i_tab_comp, i_file, x_min, x_max, y_min, y_max, pad, pixels_per_beam, shape, outdir, v_cube_is_None, dryrun, loners, verbose, update = args
-    print(psutil.Process().cpu_num())
-   #if update:
-        #print(f"I'm working on cutout number {i}/{count}!")
+    i, count, i_tab, i_tab_comp, files, x_min, x_max, y_min, y_max, pad, pixels_per_beam, shape, outdir, v_cube_is_None, dryrun, loners, verbose, update = args
+    #print(psutil.Process().cpu_num())
+    if update:
+        print(f"I'm working on cutout number {i}/{count}!")
 
     if loners:
         if i_tab['col_n_components'][i] > 1:
@@ -83,18 +83,23 @@ def cutout_worker(args):
             outname = f'{name}.cutout.{stoke}.fits'
             source_dict[f'{stoke}_file'] = outname
         outfile = f"{outdir}/{outname}"
-        command = f"fitscopy '{i_file}[{startx+1}:{stopx},{starty+1}:{stopy}]' !{outfile}"
+        command = f"fitscopy '{files[stoke]}[{startx+1}:{stopx},{starty+1}:{stopy}]' \!{outfile}"
         command = shlex.split(command)
         if not dryrun:
             #try:
             proc = subprocess.run(command, stderr=subprocess.STDOUT, encoding='utf-8')
+            if proc.returncode != 0:
+                proc = subprocess.run(command, stderr=subprocess.STDOUT, encoding='utf-8')
             #except subprocess.CalledProcessError as e:
             #    print('Oh no! The error was: ',e.output, e)
 
             #print(f'File written to {outfile}')
     if not dryrun:
-        headfile = f'{outdir}/{name}.cutout.i.fits'
-        source_dict['header'] = fits.getheader(headfile)
+        try:
+            headfile = f'{outdir}/{name}.cutout.i.fits'
+            source_dict['header'] = fits.getheader(headfile)
+        except:
+            print(proc)
 
     return source_dict
 
@@ -186,7 +191,14 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
     else:
         update = False
 
-    inputs = [[i, count, datadict['i_tab'], datadict['i_tab_comp'], datadict['i_file'],
+
+    files = {
+        'i': datadict['i_file'],
+        'q': datadict['q_file'],
+        'u': datadict['u_file'],
+        'v': datadict['v_file']
+    }
+    inputs = [[i, count, datadict['i_tab'], datadict['i_tab_comp'], files,
                x_min, x_max, y_min, y_max, pad, pixels_per_beam,
                datadict['i_cube'].shape, outdir, (v_cube is None), dryrun, loners, verbose, update] for i in range(count)]
 
@@ -202,7 +214,7 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
     elif pool.__class__.__name__ is 'SerialPool':
         source_dict_list = []
         for i in trange(count):
-            source_dict_list.append(cutout_worker([i, count, datadict['i_tab'], datadict['i_tab_comp'], datadict['i_file'],
+            source_dict_list.append(cutout_worker([i, count, datadict['i_tab'], datadict['i_tab_comp'], files,
                                                    x_min, x_max, y_min, y_max, pad, pixels_per_beam,
                                                    datadict['i_cube'].shape, outdir, (v_cube is None), dryrun, loners, verbose, update]))
 
