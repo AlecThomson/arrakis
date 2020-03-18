@@ -20,6 +20,7 @@ Additionally, this package also requires `RM-Tools`, `java >= 8`, and `mongodb` 
 * [RM-Tools](https://github.com/CIRADA-Tools/RM)
 * [Java](https://www.java.com/en/download/)
 * [MongoDB](https://www.mongodb.com/what-is-mongodb)
+* [CFITSIO](https://heasarc.gsfc.nasa.gov/fitsio/)
 
 ### Parallelisation
 If you wish to use MPI for parallelisation, please also make sure some implementation (such as [OpenMPI](https://www.open-mpi.org/)) is also installed. If MPI is not available, then python multiprocessing can be used. Please note that multiprocessing is not capable of going across nodes in an HPC environment. 
@@ -59,3 +60,5 @@ List of third party libraries:
 * [Schwimmbad](https://schwimmbad.readthedocs.io/)
 * [AegeanTools](https://github.com/PaulHancock/Aegean)
 * [STILTS](http://www.star.bristol.ac.uk/~mbt/stilts/)
+* [pandas](https://pandas.pydata.org/)
+* [CFITSIO](https://heasarc.gsfc.nasa.gov/fitsio/)
