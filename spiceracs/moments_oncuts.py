@@ -176,7 +176,7 @@ def zero_worker(args):
     dataArr = do_RMsynth_3D.run_rmsynth(
                 np.array(qdata),
                 np.array(udata),
-                freq, phiMax_radm2=1000, nSamples=5,
+                freq, phiMax_radm2=clargs.phiMax_radm2, nSamples=5,
                 weightType="uniform", fitRMSF=False, nBits=32,
                 verbose=False, not_rmsf=True
             )
@@ -385,6 +385,9 @@ def cli():
         dest="zero",
         action="store_true",
         help="Make Zeroth moment using RM synthesis [False].")
+
+    parser.add_argument("-l", dest="phiMax_radm2", type=float, default=None,
+                        help="Absolute max Faraday depth sampled (for mom0) [Auto].")
 
     parser.add_argument(
         "--picube",
