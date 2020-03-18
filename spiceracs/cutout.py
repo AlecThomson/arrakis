@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from utils import getdata, MyEncoder
+from spiceracs.utils import getdata, MyEncoder
 import numpy as np
 from tqdm import trange, tqdm
 import sys
@@ -227,7 +227,8 @@ def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, lone
         )
         )
 
-    import ipdb; ipdb.set_trace()
+   #import ipdb; ipdb.set_trace()
+    source_dict_list = [ent for ent in source_dict_list if ent is not None]
     return source_dict_list
 
 
@@ -306,7 +307,13 @@ def main(pool, args, verbose=True):
     if args.database:
         if verbose:
             print('Updating MongoDB...')
-        database(source_dict_list, verbose=True)
+        try:
+            database(source_dict_list, verbose=True)
+        except TypeError:
+            for i,ent in enumerate(source_dict_list):
+                print(type(ent))
+                if ent is None:
+                    print(f'Element {i} was a None!')
 
     pool.close()
 
