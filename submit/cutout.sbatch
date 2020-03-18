@@ -1,6 +1,6 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=racs_smooth
+#SBATCH --job-name=racs_cuts
 #SBATCH --no-requeue
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
