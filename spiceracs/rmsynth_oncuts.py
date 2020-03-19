@@ -16,6 +16,9 @@ from astropy.io import fits
 from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 from RMutils.util_misc import create_frac_spectra
+import functools
+import psutil
+print = functools.partial(print,f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
 def rmsythoncut3d(args):
@@ -43,7 +46,7 @@ def rmsythoncut3d(args):
     vfile = f"{outdir}/{doc[i]['v_file']}"
 
     with fits.open(vfile) as hdulist:
-        rms = np.std(hdulist[0].data, axis=(1,2)) * 3
+        rms = np.nanstd(np.squeeze(hdulist[0].data), axis=(1, 2)) * 3
 
     prefix = iname
 
@@ -53,8 +56,9 @@ def rmsythoncut3d(args):
 
     # Run 3D RM-synthesis on the cubes
     dataArr = do_RMsynth_3D.run_rmsynth(
-        dataQ=dataQ,
-        dataU=do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)[1],
+        dataQ=np.squeeze(dataQ),
+        dataU=np.squeeze(do_RMsynth_3D.readFitsCube(
+            ufile, clargs.rm_verbose)[1]),
         freqArr_Hz=do_RMsynth_3D.readFreqFile(freqfile, clargs.rm_verbose),
         dataI=None,
         rmsArr=rmsArr,
@@ -126,14 +130,50 @@ def rmsythoncut1d(args):
     ufile = f"{outdir}/{doc[i]['u_file']}"
     vfile = f"{outdir}/{doc[i]['v_file']}"
 
-    with fits.open(vfile) as hdulist:
-        rms = np.nanstd(hdulist[0].data, axis=(1,2)) * 3
+    # with fits.open(vfile) as hdulist:
+    #    rms = np.nanstd(np.squeeze(hdulist[0].data), axis=(1, 2)) * 3
+    #rms[rms == 0] = np.nan
+    # get edge values
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)
     header, dataI = do_RMsynth_3D.readFitsCube(ifile, clargs.rm_verbose)
 
-    for comp in range(doc[i]['n_components']):
+    dataQ = np.squeeze(dataQ)
+    dataU = np.squeeze(dataU)
+    dataI = np.squeeze(dataI)
+
+    if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
+        return
+
+    vari = np.nansum([np.nanvar(dataI[:, :, 0:3], axis=(1, 2)),
+                      np.nanvar(dataI[:, :, -4:-1], axis=(1, 2)), 
+                      np.nanvar(dataI[:, 0:3, :], axis=(1, 2)),
+                      np.nanvar(dataI[:, -4:-1, :], axis=(1, 2))], 
+                      axis=0)
+    vari[vari == 0] = np.nan
+    rmsi = np.sqrt(vari)
+    rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
+
+    varq = np.nansum([np.nanvar(dataQ[:, :, 0:3], axis=(1, 2)),
+                      np.nanvar(dataQ[:, :, -4:-1], axis=(1, 2)), 
+                      np.nanvar(dataQ[:, 0:3, :], axis=(1, 2)),
+                      np.nanvar(dataQ[:, -4:-1, :], axis=(1, 2))], 
+                      axis=0)
+    varq[varq == 0] = np.nan
+    rmsq = np.sqrt(varq)
+    rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
+
+    varu = np.nansum([np.nanvar(dataU[:, :, 0:3], axis=(1, 2)),
+                      np.nanvar(dataU[:, :, -4:-1], axis=(1, 2)), 
+                      np.nanvar(dataU[:, 0:3, :], axis=(1, 2)),
+                      np.nanvar(dataU[:, -4:-1, :], axis=(1, 2))], 
+                      axis=0)
+    varu[varu == 0] = np.nan
+    rmsu = np.sqrt(varu)
+    rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
+
+    for comp in range(int(doc[i]['n_components'])):
         if clargs.rm_verbose:
             print(f'Working on component {comp+1}')
         cname = doc[i][f'component_{comp+1}']['component_name']
@@ -141,18 +181,29 @@ def rmsythoncut1d(args):
 
         ra = doc[i][f'component_{comp+1}']['ra_deg_cont']
         dec = doc[i][f'component_{comp+1}']['dec_deg_cont']
-        wcs = WCS(doc[i]['header'])
+        wcs = WCS(doc[i]['header']).dropaxis(2)
 
         x, y, z = np.array(wcs.all_world2pix(
             ra, dec, np.nanmean(freq), 0)).round().astype(int)
 
-        q = np.nansum(dataQ[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
-        u = np.nansum(dataU[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+        qarr = np.nansum(dataQ[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+        uarr = np.nansum(dataU[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+        iarr = np.nansum(dataI[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
 
-        if (q==0).all() or (u==0).all():
+        iarr[iarr == 0] = np.nan
+        qarr[qarr == 0] = np.nan
+        uarr[uarr == 0] = np.nan
+
+        if np.isnan(qarr).all() or np.isnan(uarr).all():
             return
         else:
-            data = [np.array(freq), q, u, rms, rms]
+            if clargs.noStokesI:
+                data = [np.array(freq), qarr, uarr, rmsq, rmsu]
+            else:
+                if np.isnan(iarr).all():
+                    return
+                else:
+                    data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
             # Run 1D RM-synthesis on the spectra
             mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
                                                     phiMax_radm2=clargs.phiMax_radm2,
@@ -160,7 +211,7 @@ def rmsythoncut1d(args):
                                                     nSamples=clargs.nSamples,
                                                     weightType=clargs.weightType,
                                                     fitRMSF=clargs.fitRMSF,
-                                                    noStokesI=True,
+                                                    noStokesI=clargs.noStokesI,
                                                     nBits=32,
                                                     showPlots=clargs.showPlots,
                                                     verbose=clargs.rm_verbose)
@@ -177,6 +228,10 @@ def rmsythoncut1d(args):
                     "summary_dat": f"{cname}_RMsynth.dat",
                     "summary_json": f"{cname}_RMsynth.json",
                 }}}
+                mycol.update_one(myquery, newvalues)
+
+                myquery = {"island_name": iname}
+                newvalues = {"$set": {f"comp_{comp+1}_rmsynth1d": True}}
                 mycol.update_one(myquery, newvalues)
 
     if clargs.database:
@@ -216,7 +271,7 @@ def rmsythoncut_i(args):
     iname = doc[i]['island_name']
     data = np.array(SpectralCube.read(f"{outdir}/{doc[i]['i_file']}"))
 
-    for comp in range(doc[i]['n_components']):
+    for comp in range(int(doc[i]['n_components'])):
         cname = doc[i][f'component_{comp+1}']['component_name']
         prefix = f'{outdir}/{cname}'
         # Get source peak from Selavy
@@ -417,6 +472,7 @@ def cli():
     warnings.simplefilter('ignore', category=AstropyWarning)
     from astropy.io.fits.verify import VerifyWarning
     warnings.simplefilter('ignore', category=VerifyWarning)
+    warnings.simplefilter('ignore', category=RuntimeWarning)
     # Help string to be shown using the -h option
     logostr = """
      mmm   mmm   mmm   mmm   mmm
@@ -491,6 +547,10 @@ def cli():
                         help="Width of Faraday depth channel [Auto].")
     parser.add_argument("-s", dest="nSamples", type=float, default=5,
                         help="Number of samples across the FWHM RMSF.")
+    parser.add_argument("-o", dest="polyOrd", type=int, default=2,
+                        help="polynomial order to fit to I spectrum [2].")
+    parser.add_argument("-i", dest="noStokesI", action="store_true",
+                        help="ignore the Stokes I spectrum [False].")
     parser.add_argument("-p", dest="showPlots", action="store_true",
                         help="show the plots [False].")
     parser.add_argument("-R", dest="not_RMSF", action="store_true",
