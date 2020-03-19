@@ -45,6 +45,37 @@ Optional:
 7. `spicermclean` or `spiceracs/rmclean_oncuts.py` -- Run RM-CLEAN on cutouts.
 8.  `spicemakecat` or `spiceracs/makecat.py` -- Make RM catalogue from results.
 
+### Tips for running on Pawsey/Galaxy
+#### Multiprocessing
+If you want to test on a single node using multiprocessing for parallelisation, run the pipeline using the following:
+
+`salloc -n 1` -- request a single node on galaxy
+
+`srun -n 1 -c 20 spice... OPTIONS --ncores 20` -- This will use 20 cores (the maximum available on a single galaxy node). Without the addition of `srun` the processes will run on a single physical core, and will be much slower.
+
+#### MPI
+If you want to use MPI, there can be issues with the communication between the executable `mpirun` and your installation of `mpi4py`. It is reccommended to use the module/local installation of MPI instead. To ensure all the libraries you need, it is easiest to make a conda virtual environment:
+```
+conda create -n spice python=3.6
+conda activate spice
+pip install spiceracs
+```
+Now when you want to run the task in parallel with `N` cores:
+```
+module load python/3.6.3
+module load numpy
+module load astropy
+module load scipy
+module load mpi4py
+module load pandas
+conda activate spice
+
+cd /path/to/your/dir
+
+srun -n N spice... OPTIONS --mpi
+```
+Make sure you have requested enough nodes for the number of cores you want!
+
 ## Acknowledging
 ### Third-party software
 This package utilises a number of third-party libraries. Please acknowledge these, as appropriate, if you use these tools for your research.
