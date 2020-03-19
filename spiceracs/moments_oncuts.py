@@ -13,6 +13,9 @@ from RMtools_3D import do_RMsynth_3D
 from spectral_cube import SpectralCube
 from astropy.io import fits
 import astropy.units as u
+import functools
+import psutil
+print = functools.partial(print,f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
 def moment_worker(args):
@@ -187,7 +190,7 @@ def zero_worker(args):
     newf.data = mom0
     newf.header = qdata.header
     newf.header.update(qdata[0].wcs.to_header())
-    newf.writeto(f'{outdir}/{outfile}')
+    newf.writeto(f'{outdir}/{outfile}', overwrite=True)
 
 
     if clargs.database:
@@ -325,6 +328,11 @@ def cli():
     warnings.simplefilter('ignore', category=AstropyWarning)
     from astropy.io.fits.verify import VerifyWarning
     warnings.simplefilter('ignore', category=VerifyWarning)
+    warnings.filterwarnings(
+        "ignore", message="Degrees of freedom <= 0 for slice.")
+    warnings.filterwarnings(
+        "ignore", message="Mean of empty slice")
+
     # Help string to be shown using the -h option
     logostr = """
      mmm   mmm   mmm   mmm   mmm
