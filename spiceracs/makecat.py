@@ -61,13 +61,13 @@ def main(args, verbose=False):
                     columns_possum.output_units
                 ),
                 total=len(columns_possum.output_cols),
-                desc='Making table',
+                desc='Making table by column',
                 disable=not verbose),
 
     ):
         data = []
-        for i in range(count):
-            for comp in range(mydoc[i]['n_components']):
+        for i in trange(count, desc='Load from source'):
+            for comp in range(int(mydoc[i]['n_components'])):
                 try:
                     if src == 'cat':
                         data.append(mydoc[i][f'component_{comp+1}'][col])
@@ -88,7 +88,7 @@ def main(args, verbose=False):
     for selcol in tqdm(columns_possum.sourcefinder_columns):
         data = []
         for i in range(count):
-            for comp in range(mydoc[i]['n_components']):
+            for comp in range(int(mydoc[i]['n_components'])):
                 try:
                     data.append(mydoc[i][f'component_{comp+1}'][selcol])
                 except KeyError:
