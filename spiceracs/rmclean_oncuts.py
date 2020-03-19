@@ -15,6 +15,9 @@ from astropy.io import fits
 from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 from RMutils.util_misc import create_frac_spectra
+import functools
+import psutil
+print = functools.partial(print,f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
 def rmclean1d(args):
@@ -52,7 +55,7 @@ def rmclean1d(args):
 
 
     iname = doc[i]['island_name']
-    for comp in range(doc[i]['n_components']):
+    for comp in range(int(doc[i]['n_components'])):
         if clargs.rm_verbose:
             print(f'Working on component {comp+1}')
         try:
@@ -88,7 +91,6 @@ def rmclean1d(args):
                 do_RMclean_1D.saveOutput(outdict,
                                         arrdict,
                                         prefixOut=prefix,
-                                        outDir=outdir,
                                         verbose=clargs.rm_verbose)
 
                 if clargs.database:
@@ -101,7 +103,10 @@ def rmclean1d(args):
                     newvalues = {"$set": {f"comp_{comp+1}_rm_summary": outdict}}
                     mycol.update_one(myquery, newvalues)
         except KeyError:
+            print('Failed to load data! RM-CLEAN not applied to component!')
+            print(f'Island is {iname}, component number is {comp+1}')
             return
+            
     if clargs.database:
         # Load into Mongo
         myquery = {"island_name": iname}
@@ -219,7 +224,7 @@ def main(pool, args, verbose=False):
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
             if verbose:
-                print('Running 1D RM synth...')
+                print('Running 1D RM-CLEAN...')
             tic = time.perf_counter()
             list(pool.map(rmclean1d, inputs))
             toc = time.perf_counter()
@@ -230,7 +235,7 @@ def main(pool, args, verbose=False):
             list(tqdm(
                 pool.imap_unordered(rmclean1d, inputs),
                 total=count,
-                desc='Running 1D RM synth',
+                desc='Running 1D RM-CLEAN',
                 disable=(not verbose)
             )
             )
