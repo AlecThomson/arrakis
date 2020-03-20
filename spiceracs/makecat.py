@@ -1,9 +1,11 @@
+import numpy as np
 import warnings
 from astropy.table import QTable, Column
 import pymongo
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
 import rmtable.rmtable as RMT
+import json
 
 
 def main(args, verbose=False):
@@ -44,6 +46,8 @@ def main(args, verbose=False):
     mydoc = mycol.find(myquery).sort("flux_peak", -1)
     count = mycol.count_documents(myquery)
 
+    complist = np.unique([doc['n_components'] for doc in mycol.find(
+        {}, {"_id": 0, "n_components": 1})]).astype(int)
     if args.limit is not None:
         count = args.limit
 
@@ -52,53 +56,95 @@ def main(args, verbose=False):
 
     # Add items to main cat using RMtable standard
     for j, [name, typ, src, col, unit] in enumerate(
-            tqdm(
-                zip(
-                    columns_possum.output_cols,
-                    columns_possum.output_types,
-                    columns_possum.input_sources,
-                    columns_possum.input_names,
-                    columns_possum.output_units
-                ),
-                total=len(columns_possum.output_cols),
-                desc='Making table by column',
-                disable=not verbose),
-
+        tqdm(
+            zip(
+                columns_possum.output_cols,
+                columns_possum.output_types,
+                columns_possum.input_sources,
+                columns_possum.input_names,
+                columns_possum.output_units
+            ),
+            total=len(columns_possum.output_cols),
+            desc='Making table by column',
+            disable=not verbose),
     ):
         data = []
-        for i in trange(count, desc='Load from source'):
-            for comp in range(int(mydoc[i]['n_components'])):
-                try:
-                    if src == 'cat':
-                        data.append(mydoc[i][f'component_{comp+1}'][col])
-                    if src == 'synth':
-                        data.append(mydoc[i][f'comp_{comp+1}_rm_summary'][col])
-                    if src == 'header':
-                        data.append(mydoc[i][f'header'][col])
-                    else:
-                        continue
-                except KeyError:
+        if src == 'cat':
+            for comp in complist:
+                search = {"$and": [
+                    {f'component_{comp+1}': {"$exists": True}},
+                    {f"comp_{comp+1}_rmclean1d": True}
+                ]}
+                mydoc = mycol.find(search)
+                if mycol.count_documents(search) == 0:
                     continue
-        if data == []:
-            continue
-        new_col = Column(data=data, name=name, dtype=typ, unit=unit)
-        tab.add_column(new_col)
+                else:
+                    data += [doc[f'component_{comp+1}'][col] for doc in mydoc]
+            new_col = Column(data=data, name=name, dtype=typ, unit=unit)
+            tab.add_column(new_col)
 
+        if src == 'synth':
+            for comp in complist:
+                search = {"$and": [
+                    {"n_components": {"$gt": 0}},
+                    {f'comp_{comp+1}_rm_summary': {"$exists": True}},
+                    {f"comp_{comp+1}_rmclean1d": True}
+                ]}
+                mydoc = mycol.find(search)
+                if mycol.count_documents(search) == 0:
+                    continue
 
-    for selcol in tqdm(columns_possum.sourcefinder_columns):
+                else:
+                    for doc in mydoc:
+                        try:
+                            data += [doc[f'comp_{comp+1}_rm_summary'][col]]
+                        except KeyError:
+                            mDictS = json.load(open(f"{outdir}/"+doc[f"rm1dfiles_comp_{comp+1}"]["summary_json"], "r"))
+                            data += [mDictS[col]]
+
+            new_col = Column(data=data, name=name, dtype=typ, unit=unit)
+            tab.add_column(new_col)
+
+        if src == 'header':
+            for comp in complist:
+                search = {"$and": [
+                    {'header': {"$exists": True}},
+                    {f"comp_{comp+1}_rmclean1d": True}
+                ]}
+                mydoc = mycol.find(search)
+                if mycol.count_documents(search) == 0:
+                    continue
+                else:
+                    data += [doc[f'header'][col] for doc in mydoc]
+            new_col = Column(data=data, name=name, dtype=typ, unit=unit)
+            tab.add_column(new_col)
+            #    data.append(mydoc[i][f'comp_{comp+1}_rm_summary'][col])
+        # if src == 'header':
+        #    import ipdb; ipdb.set_trace()
+
+            # if src == 'header':
+            #    data.append(mydoc[i][f'header'][col])
+            # else:
+            #    continue
+
+    for selcol in tqdm(columns_possum.sourcefinder_columns, desc='Adding Selavy data'):
         data = []
-        for i in range(count):
-            for comp in range(int(mydoc[i]['n_components'])):
+        for comp in complist:
+            search = {"$and": [
+                {f'component_{comp+1}': {"$exists": True}},
+                {f"comp_{comp+1}_rmclean1d": True}
+            ]}
+            mydoc = mycol.find(search)
+            if mycol.count_documents(search) == 0:
+                continue
+            else:
                 try:
-                    data.append(mydoc[i][f'component_{comp+1}'][selcol])
+                    data += [doc[f'component_{comp+1}'][selcol] for doc in mydoc]
                 except KeyError:
-                    try:
-                        data.append(mydoc[i][selcol])
-                    except KeyError:
-                        continue
+                    mydoc = mycol.find(search)
+                    data += [doc[selcol] for doc in mydoc]
         new_col = Column(data=data, name=selcol)
         tab.add_column(new_col)
-
     rmtab = RMT.from_table(tab)
     # Get Galatic coords
     rmtab['l'], rmtab['b'] = RMT.calculate_missing_coordinates_column(
@@ -107,6 +153,7 @@ def main(args, verbose=False):
     )
     rmtab['rm_method'] = 'RM Synthesis'
     rmtab['standard_telescope'] = 'ASKAP'
+
 
     if args.outfile is None:
         print(rmtab)
