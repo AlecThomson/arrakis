@@ -23,7 +23,7 @@ EMAIL = 'alec.thomson@anu.edu.au'
 # What packages are required for this module to be executed?
 REQUIRED = [
     'numpy', 'matplotlib', 'astropy', 'spectral_cube', 'tqdm',
-    'pymongo', 'schwimmbad', 'AegeanTools', 'pandas'
+    'pymongo', 'schwimmbad', 'AegeanTools', 'pandas', 'psutil'
 ]
 
 # What packages are optional?
