@@ -263,7 +263,6 @@ def rmsythoncut1d(args):
                                         units          = 'Jy/beam')
                     plotname = f'{outdir}/plots/{iname}_specfig.png'
                     plt.savefig(plotname, dpi=75, bbox_inches='tight')
-                    import ipdb; ipdb.set_trace()
                 do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
             except ValueError:
                 return
