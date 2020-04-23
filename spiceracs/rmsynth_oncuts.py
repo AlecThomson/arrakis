@@ -198,26 +198,54 @@ def rmsythoncut1d(args):
             return
         else:
             if clargs.noStokesI:
-                data = [np.array(freq), qarr, uarr, rmsq, rmsu]
+                idx = np.isnan(qarr) | np.isnan(uarr)
+                data = [np.array(freq)[~idx], qarr[~idx], uarr[~idx], rmsq[~idx], rmsu[~idx]]
             else:
                 if np.isnan(iarr).all():
                     return
                 else:
-                    data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
+                    idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
+                    data = [np.array(freq)[~idx], iarr[~idx], qarr[~idx], uarr[~idx], rmsi[~idx], rmsq[~idx], rmsu[~idx]]
             # Run 1D RM-synthesis on the spectra
-            mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                    phiMax_radm2=clargs.phiMax_radm2,
-                                                    dPhi_radm2=clargs.dPhi_radm2,
-                                                    nSamples=clargs.nSamples,
-                                                    weightType=clargs.weightType,
-                                                    fitRMSF=clargs.fitRMSF,
-                                                    noStokesI=clargs.noStokesI,
-                                                    nBits=32,
-                                                    showPlots=clargs.showPlots,
-                                                    verbose=clargs.rm_verbose)
 
-            do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
+            np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
 
+            try:
+                mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                                        phiMax_radm2=clargs.phiMax_radm2,
+                                                        dPhi_radm2=clargs.dPhi_radm2,
+                                                        nSamples=clargs.nSamples,
+                                                        weightType=clargs.weightType,
+                                                        fitRMSF=clargs.fitRMSF,
+                                                        noStokesI=clargs.noStokesI,
+                                                        nBits=32,
+                                                        showPlots=clargs.showPlots,
+                                                        verbose=clargs.rm_verbose,
+                                                        debug=clargs.debug)
+                import ipdb; ipdb.set_trace()
+                if clargs.savePlots:
+                    if verbose: log("Plotting the input data and spectral index fit.")
+                    from RMutils.util_plotTk import plot_Ipqu_spectra_fig
+                    from RMutils.util_misc import poly5
+                    freqHirArr_Hz =  np.linspace(freqArr_Hz[0], freqArr_Hz[-1], 10000)
+                    coef = np.array(mDict["polyCoeffs"].split(',')).astype(float)
+                    IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
+                    specFig = plt.figure(figsize=(12.0, 8))
+                    plot_Ipqu_spectra_fig(freqArr_Hz     = freqArr_Hz,
+                                        IArr           = IArr,
+                                        qArr           = qArr,
+                                        uArr           = uArr,
+                                        dIArr          = dIArr,
+                                        dqArr          = dqArr,
+                                        duArr          = duArr,
+                                        freqHirArr_Hz  = freqHirArr_Hz,
+                                        IModArr        = IModHirArr,
+                                        fig            = specFig,
+                                        units          = units)
+
+                do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
+            except ValueError:
+                return
             if clargs.database:
                 myquery = {"island_name": iname}
 
@@ -557,6 +585,8 @@ def cli():
                         help="Skip calculation of RMSF? [False]")
     parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
                         help="Verbose RMsynth [False].")
+    parser.add_argument("-D", dest="debug", action="store_true",
+                        help="turn on debugging messages & plots [False].")
 
     group = parser.add_mutually_exclusive_group()
 
