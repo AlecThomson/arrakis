@@ -212,6 +212,7 @@ def rmsythoncut1d(args):
 
             try:
                 mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                                        polyOrd=clargs.polyOrd,
                                                         phiMax_radm2=clargs.phiMax_radm2,
                                                         dPhi_radm2=clargs.dPhi_radm2,
                                                         nSamples=clargs.nSamples,
@@ -222,27 +223,47 @@ def rmsythoncut1d(args):
                                                         showPlots=clargs.showPlots,
                                                         verbose=clargs.rm_verbose,
                                                         debug=clargs.debug)
-                import ipdb; ipdb.set_trace()
                 if clargs.savePlots:
-                    if verbose: log("Plotting the input data and spectral index fit.")
+                    if verbose: print("Plotting the input data and spectral index fit.")
                     from RMutils.util_plotTk import plot_Ipqu_spectra_fig
                     from RMutils.util_misc import poly5
-                    freqHirArr_Hz =  np.linspace(freqArr_Hz[0], freqArr_Hz[-1], 10000)
+
+                    if clargs.noStokesI:
+                        IArr = np.ones_like(qarr[~idx])
+                        Ierr = np.zeros_like(qarr[~idx])
+                    else:
+                        IArr = iarr[~idx]
+                        Ierr = rmsi[~idx]
+
+                    IModArr, qArr, uArr, dqArr, duArr, fitDict = \
+                        create_frac_spectra(freqArr  = np.array(freq)[~idx]/1e9,
+                                            IArr     = IArr,
+                                            QArr     = qarr[~idx],
+                                            UArr     = uarr[~idx],
+                                            dIArr    = Ierr,
+                                            dQArr    = rmsq[~idx],
+                                            dUArr    = rmsu[~idx],
+                                            polyOrd  = clargs.polyOrd,
+                                            verbose  = False,
+                                            debug    = False)
+
+                    freqHirArr_Hz =  np.linspace(mDict['min_freq'], mDict['max_freq'], 10000)
                     coef = np.array(mDict["polyCoeffs"].split(',')).astype(float)
                     IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
-                    specFig = plt.figure(figsize=(12.0, 8))
-                    plot_Ipqu_spectra_fig(freqArr_Hz     = freqArr_Hz,
-                                        IArr           = IArr,
+                    plot_Ipqu_spectra_fig(freqArr_Hz     = np.array(freq)[~idx],
+                                        IArr           = iarr[~idx],
                                         qArr           = qArr,
                                         uArr           = uArr,
-                                        dIArr          = dIArr,
+                                        dIArr          = Ierr,
                                         dqArr          = dqArr,
                                         duArr          = duArr,
                                         freqHirArr_Hz  = freqHirArr_Hz,
                                         IModArr        = IModHirArr,
-                                        fig            = specFig,
-                                        units          = units)
-
+                                        fig            = None,
+                                        units          = 'Jy/beam')
+                    plotname = f'{outdir}/plots/{iname}_specfig.png'
+                    plt.savefig(plotname, dpi=75, bbox_inches='tight')
+                    import ipdb; ipdb.set_trace()
                 do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
             except ValueError:
                 return
@@ -387,6 +408,15 @@ def main(pool, args, verbose=False):
     if outdir[-1] == '/':
         outdir = outdir[:-1]
     outdir = f'{outdir}/cutouts'
+
+    if args.savePlots:
+        plotdir = f'{outdir}/plots'
+        try:
+            os.mkdir(plotdir)
+            print('Made plot directory.')
+        except FileExistsError:
+            print('Directory exists.')
+
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
     mycol = mydb['spice']  # Create/open collection
@@ -565,6 +595,8 @@ def cli():
                         help="Run on single component sources [False].")
 
     # RM-tools args
+    parser.add_argument("-sp", dest="savePlots", action="store_true",
+                        help="save the plots [False].")
     parser.add_argument("-w", dest="weightType", default="uniform",
                         help="weighting [uniform] (all 1s) or 'variance'.")
     parser.add_argument("-t", dest="fitRMSF", action="store_true",
@@ -575,8 +607,8 @@ def cli():
                         help="Width of Faraday depth channel [Auto].")
     parser.add_argument("-s", dest="nSamples", type=float, default=5,
                         help="Number of samples across the FWHM RMSF.")
-    parser.add_argument("-o", dest="polyOrd", type=int, default=2,
-                        help="polynomial order to fit to I spectrum [2].")
+    parser.add_argument("-o", dest="polyOrd", type=int, default=3,
+                        help="polynomial order to fit to I spectrum [3].")
     parser.add_argument("-i", dest="noStokesI", action="store_true",
                         help="ignore the Stokes I spectrum [False].")
     parser.add_argument("-p", dest="showPlots", action="store_true",
@@ -612,18 +644,17 @@ def cli():
     if verbose:
         print(f"Using pool: {pool.__class__.__name__}")
 
-    if args.database:
+    if verbose:
+        print('Testing MongoDB connection...')
+    client = pymongo.MongoClient()  # default connection (ie, local)
+    try:
+        client.list_database_names()
+    except pymongo.errors.ServerSelectionTimeoutError:
+        raise Exception("Please ensure 'mongod' is running")
+    else:
         if verbose:
-            print('Testing MongoDB connection...')
-        client = pymongo.MongoClient()  # default connection (ie, local)
-        try:
-            client.list_database_names()
-        except pymongo.errors.ServerSelectionTimeoutError:
-            raise Exception("Please ensure 'mongod' is running")
-        else:
-            if verbose:
-                print('MongoDB connection succesful!')
-        client.close()
+            print('MongoDB connection succesful!')
+    client.close()
 
     main(pool, args, verbose=verbose)
 
