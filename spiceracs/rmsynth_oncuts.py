@@ -199,25 +199,25 @@ def rmsythoncut1d(args):
         else:
             if clargs.noStokesI:
                 idx = np.isnan(qarr) | np.isnan(uarr)
-                data = [np.array(freq)[~idx], qarr[~idx],
-                        uarr[~idx], rmsq[~idx], rmsu[~idx]]
+                data = [np.array(freq), qarr,
+                        uarr, rmsq, rmsu]
             else:
                 if np.isnan(iarr).all():
                     return
                 else:
                     idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
-                    data = [np.array(freq)[~idx], iarr[~idx], qarr[~idx],
-                            uarr[~idx], rmsi[~idx], rmsq[~idx], rmsu[~idx]]
+                    data = [np.array(freq), iarr, qarr,
+                            uarr, rmsi, rmsq, rmsu]
             # Run 1D RM-synthesis on the spectra
 
-            if clargs.database:
-                myquery = {"island_name": iname}
-                data_f = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
-                json_data = json.loads(json.dumps(
-                    {f"comp_{comp+1}_spectra": data}, cls=MyEncoder))
-                newvalues = {"$set": json_data}
-                mycol.update_one(myquery, newvalues)
-                mycol.update_one(myquery, newvalues)
+            #if clargs.database:
+            #    myquery = {"island_name": iname}
+            #    data_f = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
+            #    json_data = json.loads(json.dumps(
+            #        {f"comp_{comp+1}_spectra": data}, cls=MyEncoder))
+            #    newvalues = {"$set": json_data}
+            #    mycol.update_one(myquery, newvalues)
+            #    mycol.update_one(myquery, newvalues)
 
             np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
 
