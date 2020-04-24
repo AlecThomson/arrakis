@@ -21,6 +21,7 @@ import psutil
 print = functools.partial(print,f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
+
 def rmsythoncut3d(args):
     i, clargs, outdir, freq, freqfile, verbose = args
 
@@ -207,6 +208,14 @@ def rmsythoncut1d(args):
                     idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
                     data = [np.array(freq)[~idx], iarr[~idx], qarr[~idx], uarr[~idx], rmsi[~idx], rmsq[~idx], rmsu[~idx]]
             # Run 1D RM-synthesis on the spectra
+
+            if clargs.database:
+                myquery = {"island_name": iname}
+                data_f = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
+                newvalues = {"$set": 
+                    {f"comp_{comp+1}_spectra": data_f},
+                    }
+                mycol.update_one(myquery, newvalues)
 
             np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
 
