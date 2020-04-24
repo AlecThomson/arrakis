@@ -18,8 +18,7 @@ import matplotlib.pyplot as plt
 from RMutils.util_misc import create_frac_spectra
 import functools
 import psutil
-print = functools.partial(print,f'[{psutil.Process().cpu_num()}]', flush=True)
-
+print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
 def rmsythoncut3d(args):
@@ -148,28 +147,28 @@ def rmsythoncut1d(args):
         return
 
     vari = np.nansum([np.nanvar(dataI[:, :, 0:3], axis=(1, 2)),
-                      np.nanvar(dataI[:, :, -4:-1], axis=(1, 2)), 
+                      np.nanvar(dataI[:, :, -4:-1], axis=(1, 2)),
                       np.nanvar(dataI[:, 0:3, :], axis=(1, 2)),
-                      np.nanvar(dataI[:, -4:-1, :], axis=(1, 2))], 
-                      axis=0)
+                      np.nanvar(dataI[:, -4:-1, :], axis=(1, 2))],
+                     axis=0)
     vari[vari == 0] = np.nan
     rmsi = np.sqrt(vari)
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
 
     varq = np.nansum([np.nanvar(dataQ[:, :, 0:3], axis=(1, 2)),
-                      np.nanvar(dataQ[:, :, -4:-1], axis=(1, 2)), 
+                      np.nanvar(dataQ[:, :, -4:-1], axis=(1, 2)),
                       np.nanvar(dataQ[:, 0:3, :], axis=(1, 2)),
-                      np.nanvar(dataQ[:, -4:-1, :], axis=(1, 2))], 
-                      axis=0)
+                      np.nanvar(dataQ[:, -4:-1, :], axis=(1, 2))],
+                     axis=0)
     varq[varq == 0] = np.nan
     rmsq = np.sqrt(varq)
     rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
 
     varu = np.nansum([np.nanvar(dataU[:, :, 0:3], axis=(1, 2)),
-                      np.nanvar(dataU[:, :, -4:-1], axis=(1, 2)), 
+                      np.nanvar(dataU[:, :, -4:-1], axis=(1, 2)),
                       np.nanvar(dataU[:, 0:3, :], axis=(1, 2)),
-                      np.nanvar(dataU[:, -4:-1, :], axis=(1, 2))], 
-                      axis=0)
+                      np.nanvar(dataU[:, -4:-1, :], axis=(1, 2))],
+                     axis=0)
     varu[varu == 0] = np.nan
     rmsu = np.sqrt(varu)
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
@@ -200,40 +199,44 @@ def rmsythoncut1d(args):
         else:
             if clargs.noStokesI:
                 idx = np.isnan(qarr) | np.isnan(uarr)
-                data = [np.array(freq)[~idx], qarr[~idx], uarr[~idx], rmsq[~idx], rmsu[~idx]]
+                data = [np.array(freq)[~idx], qarr[~idx],
+                        uarr[~idx], rmsq[~idx], rmsu[~idx]]
             else:
                 if np.isnan(iarr).all():
                     return
                 else:
                     idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
-                    data = [np.array(freq)[~idx], iarr[~idx], qarr[~idx], uarr[~idx], rmsi[~idx], rmsq[~idx], rmsu[~idx]]
+                    data = [np.array(freq)[~idx], iarr[~idx], qarr[~idx],
+                            uarr[~idx], rmsi[~idx], rmsq[~idx], rmsu[~idx]]
             # Run 1D RM-synthesis on the spectra
 
             if clargs.database:
                 myquery = {"island_name": iname}
                 data_f = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
-                newvalues = {"$set": 
-                    {f"comp_{comp+1}_spectra": data_f},
-                    }
+                json_data = json.loads(json.dumps(
+                    {f"comp_{comp+1}_spectra": data}, cls=MyEncoder))
+                newvalues = {"$set": json_data}
+                mycol.update_one(myquery, newvalues)
                 mycol.update_one(myquery, newvalues)
 
             np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
 
             try:
                 mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                        polyOrd=clargs.polyOrd,
-                                                        phiMax_radm2=clargs.phiMax_radm2,
-                                                        dPhi_radm2=clargs.dPhi_radm2,
-                                                        nSamples=clargs.nSamples,
-                                                        weightType=clargs.weightType,
-                                                        fitRMSF=clargs.fitRMSF,
-                                                        noStokesI=clargs.noStokesI,
-                                                        nBits=32,
-                                                        showPlots=clargs.showPlots,
-                                                        verbose=clargs.rm_verbose,
-                                                        debug=clargs.debug)
+                                                         polyOrd=clargs.polyOrd,
+                                                         phiMax_radm2=clargs.phiMax_radm2,
+                                                         dPhi_radm2=clargs.dPhi_radm2,
+                                                         nSamples=clargs.nSamples,
+                                                         weightType=clargs.weightType,
+                                                         fitRMSF=clargs.fitRMSF,
+                                                         noStokesI=clargs.noStokesI,
+                                                         nBits=32,
+                                                         showPlots=clargs.showPlots,
+                                                         verbose=clargs.rm_verbose,
+                                                         debug=clargs.debug)
                 if clargs.savePlots:
-                    if verbose: print("Plotting the input data and spectral index fit.")
+                    if verbose:
+                        print("Plotting the input data and spectral index fit.")
                     from RMutils.util_plotTk import plot_Ipqu_spectra_fig
                     from RMutils.util_misc import poly5
 
@@ -245,34 +248,37 @@ def rmsythoncut1d(args):
                         Ierr = rmsi[~idx]
 
                     IModArr, qArr, uArr, dqArr, duArr, fitDict = \
-                        create_frac_spectra(freqArr  = np.array(freq)[~idx]/1e9,
-                                            IArr     = IArr,
-                                            QArr     = qarr[~idx],
-                                            UArr     = uarr[~idx],
-                                            dIArr    = Ierr,
-                                            dQArr    = rmsq[~idx],
-                                            dUArr    = rmsu[~idx],
-                                            polyOrd  = clargs.polyOrd,
-                                            verbose  = False,
-                                            debug    = False)
+                        create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
+                                            IArr=IArr,
+                                            QArr=qarr[~idx],
+                                            UArr=uarr[~idx],
+                                            dIArr=Ierr,
+                                            dQArr=rmsq[~idx],
+                                            dUArr=rmsu[~idx],
+                                            polyOrd=clargs.polyOrd,
+                                            verbose=False,
+                                            debug=False)
 
-                    freqHirArr_Hz =  np.linspace(mDict['min_freq'], mDict['max_freq'], 10000)
-                    coef = np.array(mDict["polyCoeffs"].split(',')).astype(float)
+                    freqHirArr_Hz = np.linspace(
+                        mDict['min_freq'], mDict['max_freq'], 10000)
+                    coef = np.array(
+                        mDict["polyCoeffs"].split(',')).astype(float)
                     IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
-                    plot_Ipqu_spectra_fig(freqArr_Hz     = np.array(freq)[~idx],
-                                        IArr           = iarr[~idx],
-                                        qArr           = qArr,
-                                        uArr           = uArr,
-                                        dIArr          = Ierr,
-                                        dqArr          = dqArr,
-                                        duArr          = duArr,
-                                        freqHirArr_Hz  = freqHirArr_Hz,
-                                        IModArr        = IModHirArr,
-                                        fig            = None,
-                                        units          = 'Jy/beam')
+                    plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
+                                          IArr=iarr[~idx],
+                                          qArr=qArr,
+                                          uArr=uArr,
+                                          dIArr=Ierr,
+                                          dqArr=dqArr,
+                                          duArr=duArr,
+                                          freqHirArr_Hz=freqHirArr_Hz,
+                                          IModArr=IModHirArr,
+                                          fig=None,
+                                          units='Jy/beam')
                     plotname = f'{outdir}/plots/{iname}_specfig.png'
                     plt.savefig(plotname, dpi=75, bbox_inches='tight')
-                do_RMsynth_1D.saveOutput(mDict, aDict, prefix, clargs.rm_verbose)
+                do_RMsynth_1D.saveOutput(
+                    mDict, aDict, prefix, clargs.rm_verbose)
             except ValueError:
                 return
             if clargs.database:
