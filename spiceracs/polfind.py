@@ -3,6 +3,7 @@ from spiceracs.utils import gettable, tmatchn, tmatchtwo
 import subprocess
 import multiprocessing
 import schwimmbad
+import shlex
 from tqdm import tqdm, trange
 from glob import glob
 import warnings
@@ -22,12 +23,12 @@ def dobane(filename, n_cores=1, verbose=True):
         verbose (bool): Print out messages.
 
     """
-    if verbose:
-        print(f'Running BANE on {filename}')
-    command = ['BANE', filename, f'--cores={n_cores}']
-    proc = subprocess.run(command,
-                          capture_output=(not verbose),
-                          encoding="utf-8", check=True)
+    #if verbose:
+    #    print(f'Running BANE on {filename}')
+    command = f"BANE {filename} --cores={n_cores}"
+    command = shlex.split(command)
+    #try:
+    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
 
 
 def doaegean(filename, moment, stoke, n_cores=1, verbose=True):
@@ -85,20 +86,18 @@ def getmoments(momdir='.', zero=False, verbose=True):
         moments (dict): Filenames of momemt maps.
 
     """
-    if momdir[-1] == '/':
-        momdir = momdir[:-1]
 
     moments = {}
     for stoke in ['p', 'q', 'u']:
-        mu = glob(f'{momdir}/*.{stoke}.*.mu.*linmos.fits')
-        sigma = glob(f'{momdir}/*.{stoke}.*.sigma.*.linmos.fits')
+        mu = glob(f'{momdir}/*.{stoke}.mu.fits')
+        sigma = glob(f'{momdir}/*.{stoke}.sigma.fits')
         moments.update({
-            f"{stoke}_mu": mu[0],
-            f"{stoke}_sigma": sigma[0]
+            f"{stoke}_mu": mu,
+            f"{stoke}_sigma": sigma
         })
 
     if zero:
-        zero_file = glob(f'{momdir}/*.mom0.*linmos.fits')
+        zero_file = glob(f'{momdir}/*.mom0.fits')
         moments.update({
             "p_mom0": zero_file[0],
         })
@@ -121,7 +120,8 @@ def baneloop(moments, n_cores=1, verbose=True):
             disable=(not verbose),
             desc='Running BANE'
     ):
-        dobane(moments[key], n_cores=n_cores, verbose=verbose)
+        for filename in tqdm(moments[key]):
+            dobane(filename, n_cores=n_cores, verbose=verbose)
 
 
 def aegeanloop(moments, n_cores=1, verbose=True):
@@ -194,6 +194,8 @@ def main(args, verbose=True):
     """
     # Sort out args
     momdir = args.momdir
+    if momdir[-1] == '/':
+            momdir = momdir[:-1]
     tabledir = args.tabledir
 
     n_cores = args.n_cores
