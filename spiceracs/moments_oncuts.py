@@ -53,6 +53,9 @@ def moment_worker(args):
 
         data = SpectralCube.read(f"{outdir}/{infile}")
 
+        mask = ~(data == 0*u.jansky/u.beam)
+        data = data.with_mask(mask)
+
         mu = data.mean(axis=0)
         sigma = data.std(axis=0, ddof=1)
 
@@ -101,6 +104,9 @@ def moment_worker_i(args):
 
     data = SpectralCube.read(f"{outdir}/{infile}")
 
+    mask = ~(data == 0*u.jansky/u.beam)
+    data = data.with_mask(mask)
+    
     mu = data.mean(axis=0)
 
     mu.write(f"{outdir}/{mufile}", format='fits', overwrite=True)
