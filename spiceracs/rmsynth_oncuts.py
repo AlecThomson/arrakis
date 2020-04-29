@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from RMutils.util_misc import create_frac_spectra
 import functools
 import psutil
+import pdb
 print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
@@ -99,9 +100,98 @@ def rmsythoncut3d(args):
         mycol.update_one(myquery, newvalues)
 
 
+def rms_1d(data):
+    """Compute RMS from bounding pixels
+    """
+    Nfreq, Ndec, Nra = data.shape
+    mask = np.ones((Ndec, Nra), dtype=np.bool)
+    mask[3:-3, 3:-3] = False
+    rms = np.nanstd(data[:, mask], axis=1)
+    return rms
+
+
+
+class ForkedPdb(pdb.Pdb):
+    """A Pdb subclass that may be used
+    from a forked multiprocessing child
+
+    """
+    def interaction(self, *args, **kwargs):
+        _stdin = sys.stdin
+        try:
+            sys.stdin = open('/dev/stdin')
+            pdb.Pdb.interaction(self, *args, **kwargs)
+        finally:
+            sys.stdin = _stdin
+
+def estimate_noise_annulus(x_center, y_center, cube):
+    """
+    Noise estimation for annulus taken around point source. Annulus has fixed 
+    inner radius of 10 and outer radius of 31. Function makes an annulus shaped
+    mask, then for each source applies the mask at each frequency and takes the
+    standard deviation.
+
+    ​Inputs: Array of sets of pixel coordinates (y-position,x-position) for 
+    sources, Stokes cube (assumes 4 axes), array of flagged channels (can be an
+    empty array), number of frequency channels.
+
+    ​Output: 2D array of standard deviation values with shape (length of 
+    coordinate array, number of unflagged frequency channels).
+    """
+
+    inner_radius = 10
+    outer_radius = 31
+
+    lenfreq = cube.shape[0]
+    naxis = len(cube.shape)
+    err = np.zeros(lenfreq)
+    try:
+        y, x = np.ogrid[-1*outer_radius:outer_radius +
+                        1, -1*outer_radius:outer_radius+1]
+        grid_mask = np.logical_or(
+            x**2+y**2 < inner_radius**2, x**2+y**2 > outer_radius**2)
+        for i in range(lenfreq):
+            if naxis == 4:
+                grid = cube[i, 0, y_center-outer_radius:y_center+outer_radius+1,
+                            x_center-outer_radius:x_center+outer_radius+1]
+            else:  # naxis ==3
+                grid = cube[i, y_center-outer_radius:y_center+outer_radius+1,
+                            x_center-outer_radius:x_center+outer_radius+1]
+
+            # Calculate the MADFM, and convert to standard sigma:
+            noisepix = np.ma.masked_array(grid, grid_mask)
+            err[i] = np.ma.median(np.ma.fabs(
+                noisepix - np.ma.median(noisepix))) / 0.6745
+            return err
+    except np.ma.core.MaskError:
+        print('Too many NaNs in cutout - skipping...')
+        err *= np.nan
+        return err
+    
+
+########################################################################
+#def estimate_noise_annulus_np(x_center, y_center, cube):
+#    inner_radius = 10
+#    outer_radius = 31
+#    z = np.arange(cube.shape[0])
+#    y = np.arange(cube.shape[1])
+#    x = np.arange(cube.shape[2])
+#    Z, Y, X = np.meshgrid(z, y, x, indexing='ij')
+#    R = np.hypot(X-x_center, Y-y_center)
+#    mask = np.logical_or(R < inner_radius, R > outer_radius)
+#    noise_pix = np.ma.masked_array(cube, mask)
+#    err = np.ma.median(
+#        np.ma.fabs(
+#            noise_pix - np.ma.median(
+#                noise_pix, axis=(1, 2)
+#            )[:, np.newaxis, np.newaxis]
+#        ), axis=(1, 2)
+#    ) / 0.6745
+#    return err
+#######################################################################
+
 def rmsythoncut1d(args):
     i, clargs, outdir, freq, freqfile, verbose = args
-
     client = pymongo.MongoClient()  # default connection (ie, local)
     mydb = client['racs']  # Create/open database
     mycol = mydb['spice']  # Create/open collection
@@ -145,34 +235,37 @@ def rmsythoncut1d(args):
 
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         return
-
-    vari = np.nansum([np.nanvar(dataI[:, :, 0:3], axis=(1, 2)),
-                      np.nanvar(dataI[:, :, -4:-1], axis=(1, 2)),
-                      np.nanvar(dataI[:, 0:3, :], axis=(1, 2)),
-                      np.nanvar(dataI[:, -4:-1, :], axis=(1, 2))],
-                     axis=0)
-    vari[vari == 0] = np.nan
-    rmsi = np.sqrt(vari)
+        #rmsi = rms_1d(dataI)
+    rmsi = estimate_noise_annulus(
+        dataI.shape[2]//2,
+        dataI.shape[1]//2,
+        dataI
+    )
+    rmsi[rmsi == 0] = np.nan
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
 
-    varq = np.nansum([np.nanvar(dataQ[:, :, 0:3], axis=(1, 2)),
-                      np.nanvar(dataQ[:, :, -4:-1], axis=(1, 2)),
-                      np.nanvar(dataQ[:, 0:3, :], axis=(1, 2)),
-                      np.nanvar(dataQ[:, -4:-1, :], axis=(1, 2))],
-                     axis=0)
-    varq[varq == 0] = np.nan
-    rmsq = np.sqrt(varq)
+    #rmsq = rms_1d(dataQ)
+    rmsq = estimate_noise_annulus(
+        dataQ.shape[2]//2,
+        dataQ.shape[1]//2,
+        dataQ
+    )
+    rmsq[rmsq == 0] = np.nan
     rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
 
-    varu = np.nansum([np.nanvar(dataU[:, :, 0:3], axis=(1, 2)),
-                      np.nanvar(dataU[:, :, -4:-1], axis=(1, 2)),
-                      np.nanvar(dataU[:, 0:3, :], axis=(1, 2)),
-                      np.nanvar(dataU[:, -4:-1, :], axis=(1, 2))],
-                     axis=0)
-    varu[varu == 0] = np.nan
-    rmsu = np.sqrt(varu)
+    #rmsu = rms_1d(dataU)
+    rmsu = estimate_noise_annulus(
+        dataU.shape[2]//2,
+        dataU.shape[1]//2,
+        dataU
+    )
+    rmsu[rmsu == 0] = np.nan
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
 
+    if np.isnan(rmsi).all() or np.isnan(rmsq).all() or np.isnan(rmsu).all():
+        return
+    if verbose:
+        return
     for comp in range(int(doc[i]['n_components'])):
         if clargs.rm_verbose:
             print(f'Working on component {comp+1}')
@@ -185,10 +278,10 @@ def rmsythoncut1d(args):
 
         x, y, z = np.array(wcs.all_world2pix(
             ra, dec, np.nanmean(freq), 0)).round().astype(int)
-
-        qarr = np.nansum(dataQ[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
-        uarr = np.nansum(dataU[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
-        iarr = np.nansum(dataI[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+        import ipdb; ipdb.set_trace()
+        qarr = dataQ[:, y, x]
+        uarr = dataU[:, y, x]
+        iarr = dataI[:, y, x]
 
         iarr[iarr == 0] = np.nan
         qarr[qarr == 0] = np.nan
@@ -210,7 +303,7 @@ def rmsythoncut1d(args):
                             uarr, rmsi, rmsq, rmsu]
             # Run 1D RM-synthesis on the spectra
 
-            #if clargs.database:
+            # if clargs.database:
             #    myquery = {"island_name": iname}
             #    data_f = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
             #    json_data = json.loads(json.dumps(
@@ -281,6 +374,7 @@ def rmsythoncut1d(args):
                     mDict, aDict, prefix, clargs.rm_verbose)
             except ValueError:
                 return
+
             if clargs.database:
                 myquery = {"island_name": iname}
 
@@ -647,7 +741,7 @@ def cli():
         pool = schwimmbad.SerialPool
     else:
         pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
-
+    
     verbose = args.verbose
 
     if args.mpi:
