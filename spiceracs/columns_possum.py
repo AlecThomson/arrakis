@@ -58,6 +58,7 @@ columns = [
      'synth', 'dAmpPeakPIchan', u.Jy/u.beam),
     ('peak_Q', float, 'synth', 'peakFDFrealFit', u.Jy/u.beam),
     ('peak_U', float, 'synth', 'peakFDFimagFit', u.Jy/u.beam),
+    ('err_QU', float, 'synth', 'dQU', u.Jy/u.beam),
     ('derotated_angle', float, 'synth', 'polAngle0Fit_deg', u.deg),
     ('e_derotated_angle', float, 'synth', 'dPolAngle0Fit_deg', u.deg),
     ('fractional_polarization', float, 'synth',

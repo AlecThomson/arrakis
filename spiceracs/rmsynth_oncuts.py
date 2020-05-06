@@ -264,8 +264,7 @@ def rmsythoncut1d(args):
 
     if np.isnan(rmsi).all() or np.isnan(rmsq).all() or np.isnan(rmsu).all():
         return
-    if verbose:
-        return
+
     for comp in range(int(doc[i]['n_components'])):
         if clargs.rm_verbose:
             print(f'Working on component {comp+1}')
@@ -278,7 +277,7 @@ def rmsythoncut1d(args):
 
         x, y, z = np.array(wcs.all_world2pix(
             ra, dec, np.nanmean(freq), 0)).round().astype(int)
-        import ipdb; ipdb.set_trace()
+
         qarr = dataQ[:, y, x]
         uarr = dataU[:, y, x]
         iarr = dataI[:, y, x]
@@ -328,8 +327,10 @@ def rmsythoncut1d(args):
                                                          verbose=clargs.rm_verbose,
                                                          debug=clargs.debug)
                 if clargs.savePlots:
-                    if verbose:
-                        print("Plotting the input data and spectral index fit.")
+                    import matplotlib
+                    matplotlib.use('Agg')
+                    #if verbose:
+                    #    print("Plotting the input data and spectral index fit.")
                     from RMutils.util_plotTk import plot_Ipqu_spectra_fig
                     from RMutils.util_misc import poly5
 
@@ -705,8 +706,8 @@ def cli():
     # RM-tools args
     parser.add_argument("-sp", dest="savePlots", action="store_true",
                         help="save the plots [False].")
-    parser.add_argument("-w", dest="weightType", default="uniform",
-                        help="weighting [uniform] (all 1s) or 'variance'.")
+    parser.add_argument("-w", dest="weightType", default="variance",
+                        help="weighting [variance] (all 1s) or 'variance'.")
     parser.add_argument("-t", dest="fitRMSF", action="store_true",
                         help="Fit a Gaussian to the RMSF [False]")
     parser.add_argument("-l", dest="phiMax_radm2", type=float, default=None,
