@@ -4,3 +4,6 @@
 [submodule "RM"]
 	path = RM
 	url = https://github.com/CIRADA-Tools/RM.git
+[submodule "askap_surveys"]
+	path = askap_surveys
+	url = https://bitbucket.csiro.au/scm/~mcc381/askap_surveys.git
