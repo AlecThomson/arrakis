@@ -120,4 +120,7 @@ racs_db/
 .DS_Store
 
 # submodules
-rmtable/
+# rmtable/
+
+# Database
+database/*
