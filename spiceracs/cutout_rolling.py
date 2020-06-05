@@ -3,6 +3,7 @@ from spiceracs.utils import getdata, MyEncoder
 from astropy.table import Table, vstack
 from glob import glob
 import os
+import sys
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy import units as u
@@ -18,7 +19,9 @@ import subprocess
 import shlex
 import psutil
 import functools
-print = functools.partial(print,f'[{psutil.Process().cpu_num()}]', flush=True)
+from functools import partial
+from IPython import embed
+print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
 def yes_or_no(question):
@@ -87,7 +90,7 @@ def cat2beams(mastercat, database, max_sep=1, verbose=True):
 
 '''
 def database_worker(source_dict):
-    with pymongo.MongoClient() as client:  # default connection (ie, local)
+    with pymongo.MongoClient(host='10.128.0.201') as client:  # default connection (ie, local)
         mydb = client['racs']  # Create/open database
         mycol = mydb['spice']  # Create/open collection
 
@@ -126,7 +129,7 @@ def database(source_dict_list, pool, verbose=True):
     #        )
     #    )
 
-    with pymongo.MongoClient() as client:
+    with pymongo.MongoClient(host='10.128.0.201') as client:
         # default connection (ie, local)
         mydb = client['racs']  # Create/open database
         mycol = mydb['spice']  # Create/open collection
@@ -137,7 +140,7 @@ def database(source_dict_list, pool, verbose=True):
 '''
 
 
-def source_database(islandcat, compcat, pool, verbose=True):
+def source_database(islandcat, compcat, pool, host, verbose=True):
     # Read in main catalogues
     # Use pandas and follow
     # https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
@@ -150,7 +153,7 @@ def source_database(islandcat, compcat, pool, verbose=True):
     source_dict_list = islandcat.to_dict('records')
     if verbose:
         print('Loading islands into mongo...')
-    with pymongo.MongoClient() as client:
+    with pymongo.MongoClient(host=host) as client:
         # default connection (ie, local)
         mydb = client['spiceracs']  # Create/open database
         island_col = mydb['islands']  # Create/open collection
@@ -171,7 +174,7 @@ def source_database(islandcat, compcat, pool, verbose=True):
 
     if verbose:
         print('Loading components into mongo...')
-    with pymongo.MongoClient() as client:
+    with pymongo.MongoClient(host=host) as client:
         # default connection (ie, local)
         mydb = client['spiceracs']  # Create/open database
         comp_col = mydb['components']  # Create/open collection
@@ -183,7 +186,7 @@ def source_database(islandcat, compcat, pool, verbose=True):
             print('Total documents:', count)
 
 
-def beam_database(islandcat, verbose=True):
+def beam_database(islandcat, host, verbose=True):
     # Get pointing info from RACS database
     racs_fields = get_catalogue(verbose=verbose)
 
@@ -192,7 +195,7 @@ def beam_database(islandcat, verbose=True):
     if verbose:
         print('Loading into mongo...')
     json_data = json.loads(json.dumps(beam_list, cls=MyEncoder))
-    with pymongo.MongoClient() as client:
+    with pymongo.MongoClient(host=host) as client:
         # default connection (ie, local)
         mydb = client['spiceracs']  # Create/open database
         mycol = mydb['beams']  # Create/open collection
@@ -245,7 +248,7 @@ def get_beams(mastercat, database, verbose=True):
     fields = np.array([point[-8:] for point in points])
 
     # Fix for no 'test4' in cat
-    #in_dr1 = np.isin(database['FIELD_NAME'], points)
+    # in_dr1 = np.isin(database['FIELD_NAME'], points)
     in_dr1 = np.isin([field[-8:] for field in database['FIELD_NAME']], fields)
 
     beam_list = []
@@ -343,35 +346,41 @@ def cut(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False, dryru
     outfile = f"{outdir}/{outname}"
 
     command = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' \!{outfile}"
+    if verbose:
+        print(command)
     command = shlex.split(command)
 
-    if not dryrun:
-        # try:
-        proc = subprocess.run(
-            command, stderr=subprocess.STDOUT, encoding='utf-8')
-        if proc.returncode != 0:
-            proc = subprocess.run(
-                command, stderr=subprocess.STDOUT, encoding='utf-8')
-        if verbose:
-            print(f'{image} is cut!')
+    return command
+
+    # if not dryrun:
+    #    # try:
+    #    proc = subprocess.run(
+    #        command, stderr=subprocess.STDOUT, encoding='utf-8')
+    #    #if proc.returncode != 0:
+    #    #    proc = subprocess.run(
+    #    #        command, stderr=subprocess.STDOUT, encoding='utf-8')
+    #    if verbose:
+    #        print(f'{image} is cut!')
     # Now do weights
-    image = image.replace('image.restored', 'weights')
-    command = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' \!{outfile}"
-    command = shlex.split(command)
+    # image = image.replace('image.restored', 'weights')
+    # command = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' \!{outfile}"
+    # command = shlex.split(command)
 
-    if not dryrun:
-        # try:
-        proc = subprocess.run(
-            command, stderr=subprocess.STDOUT, encoding='utf-8')
-        if proc.returncode != 0:
-            proc = subprocess.run(
-                command, stderr=subprocess.STDOUT, encoding='utf-8')
-        if verbose:
-            print(f'{image} is cut!')
+    # if not dryrun:
+    #    # try:
+    #    proc = subprocess.run(
+    #        command, stderr=subprocess.STDOUT, encoding='utf-8')
+    #    #if proc.returncode != 0:
+    #    #    proc = subprocess.run(
+    #    #        command, stderr=subprocess.STDOUT, encoding='utf-8')
+    #    if verbose:
+    #        print(f'{image} is cut!')
+
 
 def cutout_worker(args):
-    island_id, outdir, field, datadir, pad, verbose, dryrun = args
-    with pymongo.MongoClient() as client:
+    island_id, outdir, field, datadir, pad, verbose, dryrun, host = args
+    print(island_id)
+    with pymongo.MongoClient(host=host) as client:
         # default connection (ie, local)
         mydb = client['spiceracs']  # Create/open database
         island_col = mydb['islands']  # Create/open collection
@@ -392,24 +401,50 @@ def cutout_worker(args):
         if verbose:
             print('Directory exists.')
 
+    commands = []
     for beam_num in beam_list:
         images = glob(
             f'{datadir}/image.restored*contcube*beam{beam_num:02}.fits')
         for image in images:
-            cut(image,
-                island['island_id'],
-                island['ra_deg_cont'],
-                island['dec_deg_cont'],
-                island['maj_axis']/60,
-                outdir,
-                pad=pad, verbose=verbose, dryrun=dryrun)
+            command = cut(image,
+                          island['island_id'],
+                          island['ra_deg_cont'],
+                          island['dec_deg_cont'],
+                          island['maj_axis']/60,
+                          outdir,
+                          pad=pad, verbose=verbose, dryrun=dryrun)
+            commands.append(command)
+    return commands
 
 
-def cutout_islands(field, directory, pool, verbose=True, pad=3, verbose_worker=False, dryrun=True):
+def chunks(l, n):
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+
+def calculate(searches):
+  # define client inside function
+    cl = cl = pymongo.MongoClient(host=host)
+    db = cl.spiceracs
+    collection = db['islands']
+    chunk_result_list = []
+    # loop over the id's in the chunk and do the calculation with each
+    for search in searches:
+        # do the calculation with document collection.find_one(id)
+        # print(search)
+        result = collection.find_one(search)
+        # print(result)
+    # print(result)
+    # chunk_result_list.append(result)
+    cl.close()
+    return result
+
+
+def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_worker=False, dryrun=True):
     if directory[-1] == '/':
         directory = directory[:-1]
 
-    with pymongo.MongoClient() as client:
+    with pymongo.MongoClient(host=host) as client:
         # default connection (ie, local)
         mydb = client['spiceracs']  # Create/open database
         island_col = mydb['islands']  # Create/open collection
@@ -424,6 +459,29 @@ def cutout_islands(field, directory, pool, verbose=True, pad=3, verbose_worker=F
 
     docs = beams_col.find(query)
     count = beams_col.count_documents(query)
+
+    '''
+    test = island_col.aggregate(
+        [
+            {
+                '$lookup':
+                {
+                    'from': 'beams',
+                    'localField': 'island_id',
+                    'foreignField': 'island_id',
+                    'as': 'beam_test'
+                }
+            }
+        ]
+    )
+    embed()
+    # searches = [{'island_id': doc['island_id']} for doc in docs]
+    # calculate_partial  = partial(calculate, input = input)
+    # search_chunks = list(chunks(searches,10))
+    # from IPython import embed; embed()
+    # result = list(tqdm(pool.imap(calculate, search_chunks), total=len(search_chunks)))
+    # from IPython import embed; embed()
+    '''
     island_ids = [doc['island_id'] for doc in docs]
 
     outdir = f'{directory}/cutouts'
@@ -435,31 +493,13 @@ def cutout_islands(field, directory, pool, verbose=True, pad=3, verbose_worker=F
         print('Directory exists.')
 
     inputs = [[island_id, outdir, field, directory, pad,
-               verbose_worker, dryrun] for island_id in island_ids]
+                verbose_worker, dryrun, host] for island_id in island_ids]
 
-    if pool.__class__.__name__ is 'MultiPool':
-        list(tqdm(pool.imap(cutout_worker, inputs),
-                  total=len(inputs),
-                  disable=(not verbose),
-                  desc='Extracting cubelets'
-                  ))
-
-    elif pool.__class__.__name__ is 'MPIPool':
-        if verbose:
-            print('Extracting cubelets...')
-        tic = time.perf_counter()
-        list(pool.map(cutout_worker, inputs))
-        toc = time.perf_counter()
-        if verbose:
-            print(f'Time taken was {toc - tic}s')
-
-    elif pool.__class__.__name__ is 'SerialPool':
-        for input_i in tqdm(inputs,
+    commands = list(tqdm(pool.imap(cutout_worker, inputs),
                             total=len(inputs),
                             disable=(not verbose),
                             desc='Extracting cubelets'
-                            ):
-            cutout_worker(input_i)
+                         ))
 
 
 def main(args, pool, verbose=True):
@@ -488,16 +528,17 @@ def main(args, pool, verbose=True):
         print("This will overwrite the source database!")
         check = yes_or_no("Are you sure you wish to proceed?")
         if check:
-            source_database(island_cat, comp_cat, pool, verbose=verbose)
+            source_database(island_cat, comp_cat, pool, args.host, verbose=verbose)
 
         print("This will overwrite the beams database!")
         check = yes_or_no("Are you sure you wish to proceed?")
         if check:
-            beam_database(island_cat, verbose=verbose)
+            beam_database(island_cat, args.host, verbose=verbose)
 
     cutout_islands(args.field,
                    args.datadir,
                    pool,
+                   args.host,
                    verbose=verbose,
                    pad=args.pad,
                    verbose_worker=args.verbose_worker,
@@ -550,6 +591,13 @@ def cli():
         metavar='field',
         type=str,
         help='Name of field (e.g. 2132-50A).')
+
+    parser.add_argument(
+        'host',
+        metavar='host',
+        type=str,
+        help='Host of mongodb (probably $hostname -i).')
+
     parser.add_argument(
         '-i',
         dest='islandcat',
@@ -614,10 +662,14 @@ def cli():
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
+    # make it so we can use imap in serial and mpi mode
+    if not isinstance(pool, schwimmbad.MultiPool):
+        pool.imap = pool.map
+
     verbose = args.verbose
     if verbose:
         print('Testing MongoDB connection...')
-    client = pymongo.MongoClient()  # default connection (ie, local)
+    client = pymongo.MongoClient(host=args.host)  # default connection (ie, local)
     try:
         client.list_database_names()
     except pymongo.errors.ServerSelectionTimeoutError:
