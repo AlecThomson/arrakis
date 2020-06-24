@@ -1,26 +1,28 @@
 #!/usr/bin/env python
-from spiceracs.utils import getdata, MyEncoder
-from astropy.table import Table, vstack
-from glob import glob
-import os
-import sys
-from astropy.io import fits
-from astropy.wcs import WCS
-from astropy import units as u
-from astropy.coordinates import SkyCoord, search_around_sky
-import numpy as np
-import matplotlib.pyplot as plt
-from tqdm import tqdm, trange
-import time
-import json
-import pymongo
-import schwimmbad
-import subprocess
-import shlex
-import psutil
-import functools
-from functools import partial
 from IPython import embed
+from functools import partial
+import functools
+import psutil
+import shlex
+import subprocess
+import schwimmbad
+import pymongo
+import json
+import time
+from tqdm import tqdm, trange
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.coordinates import SkyCoord, search_around_sky
+from astropy import units as u
+from astropy.wcs import WCS
+from astropy.io import fits
+import sys
+import os
+from glob import glob
+from astropy.table import Table, vstack
+from spiceracs.utils import getdata, MyEncoder
+from astropy.utils import iers
+iers.conf.auto_download = False
 print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
@@ -86,58 +88,6 @@ def cat2beams(mastercat, database, max_sep=1, verbose=True):
 
     seps = search_around_sky(c1, c2, seplimit=max_sep*u.degree)
     return seps
-
-
-'''
-def database_worker(source_dict):
-    with pymongo.MongoClient(host='10.128.0.201') as client:  # default connection (ie, local)
-        mydb = client['racs']  # Create/open database
-        mycol = mydb['spice']  # Create/open collection
-
-        json_data = json.loads(json.dumps(source_dict, cls=MyEncoder))
-        name = source_dict['island_name']
-        count = mycol.count_documents({'island_name': name})
-
-        if count > 0:
-            # Replace existing
-            cursor = mycol.find({'island_name': name})
-            for doc in cursor:
-                mycol.replace_one({'_id': doc['_id']}, json_data)
-        else:
-            # Insert new
-            mycol.insert_one(json_data)
-
-
-def database(source_dict_list, pool, verbose=True):
-    """Add data to MongoDB.
-
-    Args:
-        source_dict_list (list): List of dictionaries which contain the
-            metadata of each source.
-
-    Kwargs:
-        verbose (bool): Print out messages.
-
-    """
-    import ipdb; ipdb.set_trace()
-    for source_dict in tqdm(source_dict_list):
-        database_worker(source_dict)
-    # list(tqdm(pool.imap(database_worker, source_dict_list),
-    #        total=len(source_dict_list),
-    #        desc='Loading into DB',
-    #        disable=(not verbose)
-    #        )
-    #    )
-
-    with pymongo.MongoClient(host='10.128.0.201') as client:
-        # default connection (ie, local)
-        mydb = client['racs']  # Create/open database
-        mycol = mydb['spice']  # Create/open collection
-        # Check if all cutouts are in collection
-        count = mycol.count_documents({})
-        if verbose:
-            print('Total documents:', count)
-'''
 
 
 def source_database(islandcat, compcat, pool, host, verbose=True):
@@ -284,7 +234,7 @@ def get_beams(mastercat, database, verbose=True):
     return beam_list
 
 
-def cut(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False, dryrun=True):
+def cut_command(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False):
     """Cutout a source from a given image.
 
     Arguments:
@@ -345,52 +295,97 @@ def cut(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False, dryru
     outname = f'{src_name}.cutout.{basename}'
     outfile = f"{outdir}/{outname}"
 
-    command = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' \!{outfile}"
-    if verbose:
-        print(command)
-    command = shlex.split(command)
+    #command_dict = {}
 
-    return command
+    command_image = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' !{outfile}"
 
-    # if not dryrun:
-    #    # try:
-    #    proc = subprocess.run(
-    #        command, stderr=subprocess.STDOUT, encoding='utf-8')
-    #    #if proc.returncode != 0:
-    #    #    proc = subprocess.run(
-    #    #        command, stderr=subprocess.STDOUT, encoding='utf-8')
-    #    if verbose:
-    #        print(f'{image} is cut!')
+    # if verbose:
+    #    print(command)
+    #command = shlex.split(command)
+
+    # command_dict.update(
+    #    {
+    #        'image': command
+    #    }
+    # )
+
     # Now do weights
-    # image = image.replace('image.restored', 'weights')
-    # command = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' \!{outfile}"
-    # command = shlex.split(command)
+    image = image.replace('image.restored', 'weights')
+    outfile = outfile.replace('image.restored', 'weights')
 
-    # if not dryrun:
-    #    # try:
-    #    proc = subprocess.run(
-    #        command, stderr=subprocess.STDOUT, encoding='utf-8')
-    #    #if proc.returncode != 0:
+    command_weight = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' !{outfile}"
+
+    #command = shlex.split(command)
+    #
+    # command_dict.update(
+    #    {
+    #        'weight': command
+    #    }
+    # )
+    return [command_image, command_weight]
+
+
+def run_command(command, verbose=False):
+    # Do the image
+    # if command_dict is None:
+    #    return
+    # else:
+    # with open("commands.txt", "a") as f:
+    #    f.write(command_dict['image']+'\n')
+    #    f.write(command_dict['weight']+'\n')
+    #import random
+    # time.sleep(random.randint(0,20))
+    try:
+        proc = subprocess.run(shlex.split(command),
+                              stderr=subprocess.STDOUT,
+                              encoding='utf-8'
+                              )
+
+        retries = 0
+        while proc.returncode != 0:
+            proc = subprocess.run(shlex.split(command),
+                                  stderr=subprocess.STDOUT,
+                                  encoding='utf-8'
+                                  )
+            retries += 1
+
+            if retries > 1e6:
+                break
+
+        if verbose:
+            print(proc.returncode)
+            print(proc.stderr)
+            print(proc.stdout)
+
+        if proc.returncode != 0:
+            return command
+        else:
+            return
+
+    except:
+        print('I failed in my job!', command)
+    # Now the weights
+    #    try:
+    #        proc = subprocess.run(
+    #            command_dict['weight'], stderr=subprocess.STDOUT, encoding='utf-8')
+    #        if verbose:
+    #            print(proc.returncode)
+    #            print(proc.stderr)
+    #            print(proc.stdout)
+    #    # if proc.returncode != 0:
     #    #    proc = subprocess.run(
     #    #        command, stderr=subprocess.STDOUT, encoding='utf-8')
-    #    if verbose:
-    #        print(f'{image} is cut!')
+    #    except:
+    #        print('I failed in my job!', command_dict['image'])
 
 
-def cutout_worker(args):
-    island_id, outdir, field, datadir, pad, verbose, dryrun, host = args
-    print(island_id)
-    with pymongo.MongoClient(host=host) as client:
-        # default connection (ie, local)
-        mydb = client['spiceracs']  # Create/open database
-        island_col = mydb['islands']  # Create/open collection
-        beams_col = mydb['beams']  # Create/open collection
+def get_cut_command(args):
+    island, beam, island_id, outdir, field, datadir, pad, verbose, dryrun = args
 
-    query = {'island_id': island_id}
+    assert island['island_id'] == island_id
+    assert beam['island_id'] == island_id
 
-    island = island_col.find_one(query)
-    beams = beams_col.find_one(query)
-    beam_list = beams['beams'][field]['beam_list']
+    beam_list = beam['beams'][field]['beam_list']
 
     outdir = f"{outdir}/{island['island_id']}"
     try:
@@ -406,38 +401,15 @@ def cutout_worker(args):
         images = glob(
             f'{datadir}/image.restored*contcube*beam{beam_num:02}.fits')
         for image in images:
-            command = cut(image,
-                          island['island_id'],
-                          island['ra_deg_cont'],
-                          island['dec_deg_cont'],
-                          island['maj_axis']/60,
-                          outdir,
-                          pad=pad, verbose=verbose, dryrun=dryrun)
+            command = cut_command(image,
+                                  island['island_id'],
+                                  island['ra_deg_cont'],
+                                  island['dec_deg_cont'],
+                                  island['maj_axis']/60/60,
+                                  outdir,
+                                  pad=pad, verbose=verbose)
             commands.append(command)
     return commands
-
-
-def chunks(l, n):
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
-
-
-def calculate(searches):
-  # define client inside function
-    cl = cl = pymongo.MongoClient(host=host)
-    db = cl.spiceracs
-    collection = db['islands']
-    chunk_result_list = []
-    # loop over the id's in the chunk and do the calculation with each
-    for search in searches:
-        # do the calculation with document collection.find_one(id)
-        # print(search)
-        result = collection.find_one(search)
-        # print(result)
-    # print(result)
-    # chunk_result_list.append(result)
-    cl.close()
-    return result
 
 
 def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_worker=False, dryrun=True):
@@ -457,33 +429,10 @@ def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_wo
         ]
     }
 
-    docs = beams_col.find(query)
-    count = beams_col.count_documents(query)
+    beams = beams_col.find(query).sort('island_id')
 
-    '''
-    test = island_col.aggregate(
-        [
-            {
-                '$lookup':
-                {
-                    'from': 'beams',
-                    'localField': 'island_id',
-                    'foreignField': 'island_id',
-                    'as': 'beam_test'
-                }
-            }
-        ]
-    )
-    embed()
-    # searches = [{'island_id': doc['island_id']} for doc in docs]
-    # calculate_partial  = partial(calculate, input = input)
-    # search_chunks = list(chunks(searches,10))
-    # from IPython import embed; embed()
-    # result = list(tqdm(pool.imap(calculate, search_chunks), total=len(search_chunks)))
-    # from IPython import embed; embed()
-    '''
-    island_ids = [doc['island_id'] for doc in docs]
-
+    island_ids = beams_col.distinct('island_id', query)
+    islands = island_col.find({'island_id': {'$in': island_ids}})
     outdir = f'{directory}/cutouts'
 
     try:
@@ -492,15 +441,44 @@ def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_wo
     except FileExistsError:
         print('Directory exists.')
 
-    inputs = [[island_id, outdir, field, directory, pad,
-                verbose_worker, dryrun, host] for island_id in island_ids]
+    inputs = [[island, beam, island_id, outdir, field, directory, pad,
+               verbose_worker, dryrun] for (island_id, island, beam) in zip(island_ids, islands, beams)]
 
-    commands = list(tqdm(pool.imap(cutout_worker, inputs),
-                            total=len(inputs),
-                            disable=(not verbose),
-                            desc='Extracting cubelets'
+    commands = list(tqdm(pool.imap(get_cut_command, inputs),  # , chunksize=len(inputs)//20),
+                         total=len(inputs),
+                         disable=(not verbose),
+                         desc='Generating commands'
                          ))
-
+    # flatten list
+    commands = [
+        item for sublist in commands for subsublist in sublist for item in subsublist
+    ]
+    # if verbose:
+    print(f"I've got {len(commands)} commands to run!")
+    if not dryrun:
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        check_cmd = f"python {script_dir}/check_cutout.py {len(commands)} {outdir}"
+        print("Run this if you want to follow progress:")
+        print(check_cmd)
+        #os.spawnl(os.P_NOWAIT, *shlex.split(check_cmd))
+        run_command_partial = partial(run_command, verbose=verbose_worker)
+        failed_commands = list(
+            tqdm(
+                # , chunksize=len(commands)//20),
+                pool.imap(run_command_partial, commands),
+                total=(len(commands)),
+                disable=(not verbose),
+                desc='Extracting cubelets'
+            )
+        )
+        embed()
+        real_failed = [command for command in failed_commands if command is not None]
+        fail_file = f'{directory}/{field}_failedcmds.txt'
+        if verbose:
+            print(f"Writing failed cmds to {fail_file}")
+        with open(fail_file, 'w') as f: 
+            for failed in sorted(real_failed):
+                f.write(failed+'\n') 
 
 def main(args, pool, verbose=True):
     """Main script
@@ -528,7 +506,8 @@ def main(args, pool, verbose=True):
         print("This will overwrite the source database!")
         check = yes_or_no("Are you sure you wish to proceed?")
         if check:
-            source_database(island_cat, comp_cat, pool, args.host, verbose=verbose)
+            source_database(island_cat, comp_cat, pool,
+                            args.host, verbose=verbose)
 
         print("This will overwrite the beams database!")
         check = yes_or_no("Are you sure you wish to proceed?")
@@ -543,6 +522,8 @@ def main(args, pool, verbose=True):
                    pad=args.pad,
                    verbose_worker=args.verbose_worker,
                    dryrun=args.dryrun)
+
+    print("Done!")
 
 
 def cli():
@@ -669,7 +650,8 @@ def cli():
     verbose = args.verbose
     if verbose:
         print('Testing MongoDB connection...')
-    client = pymongo.MongoClient(host=args.host)  # default connection (ie, local)
+    # default connection (ie, local)
+    client = pymongo.MongoClient(host=args.host)
     try:
         client.list_database_names()
     except pymongo.errors.ServerSelectionTimeoutError:
