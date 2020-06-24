@@ -120,7 +120,8 @@ racs_db/
 .DS_Store
 
 # submodules
-# rmtable/
+failed.txt
+output.txt
 
 # Database
 database/*
