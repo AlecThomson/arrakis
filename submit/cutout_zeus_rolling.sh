@@ -28,23 +28,25 @@ TEMPDIR=/dev/shm
 DATADIR=/group/askap/athomson/projects/RACS/VAST_2132-50A
 POLLST="i q u"
 
-cd /group/askap/athomson/repos/spiceracs
-
-numactl --interleave=all mongod --dbpath database/ &
-
 cd $DATADIR
 
 echo Copying cubes to $TEMPDIR
 for pol in $POLLST; do
-    time cp image.restored.$pol.SB11628.contcube.VAST_2132-50A.beam*.fits $TEMPDIR/
-    time cp weights.$pol.SB11628.contcube.VAST_2132-50A.beam*.fits $TEMPDIR/
+    time rsync -v --progress image.restored.$pol.SB11628.contcube.VAST_2132-50A.beam*.fits $TEMPDIR/
+    time rsync -v --progress weights.$pol.SB11628.contcube.VAST_2132-50A.beam*.fits $TEMPDIR/
 done
 
+cd /group/askap/athomson/repos/spiceracs
+
+numactl --interleave=all mongod --dbpath=database --bind_ip $(hostname -i) &
+
+cd $DATADIR
+
 echo Starting cutout
-srun -n 14 python /group/askap/athomson/repos/spiceracs/spiceracs/cutout_rolling.py $TEMPDIR/ 2132-50A -v -vw --mpi
+srun -n 14 python /group/askap/athomson/repos/spiceracs/spiceracs/cutout_rolling.py $TEMPDIR/ 2132-50A $(hostname -i) -v -vw --mpi
 
 echo Copying cutouts to $DATADIR
-time cp -r $TEMPDIR/cutouts $DATADIR
+time cp -rv $TEMPDIR/cutouts $DATADIR
 
 cd /group/askap/athomson/repos/spiceracs
 /group/askap/athomson/miniconda3/bin/mongod --shutdown --dbpath database/
