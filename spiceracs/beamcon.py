@@ -241,12 +241,10 @@ def worker(file, beamdict, target_beam, dryrun=True, verbose=False):
     facs = getfacs(beams, conbeams, ~mask, dxas, dyas, verbose=False)
 
     newcube = np.ones_like(fitscube) * np.nan
+    if verbose:
+        print(f'Smoothing {filename}')
     for i, (plane, conbeam, sfactor) in enumerate(
-            tqdm(
-                    zip(fitscube, conbeams, facs),
-                    total=len(fitscube),
-                    desc=f'Smoothing {filename}',
-                    disable=(not verbose)
+                    zip(fitscube, conbeams, facs)
                 )
         ):
         newim = smooth(plane, dyas, conbeam, sfactor, verbose=False)
