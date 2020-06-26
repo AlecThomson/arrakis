@@ -17,6 +17,7 @@ from IPython import embed
 from glob import glob
 import au2
 import functools
+from functools import partial
 import psutil
 print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 warnings.filterwarnings(action='ignore', category=SpectralCubeWarning,
@@ -115,19 +116,6 @@ def round_up(n, decimals=0):
     return np.ceil(n * multiplier) / multiplier
 
 
-# def getbeams(beamlog, verbose=False):
-#    """
-#
-#    colnames=['Channel', 'BMAJarcsec', 'BMINarcsec', 'BPAdeg']
-#    """
-#    if verbose:
-#        print(f'Getting beams from {beamlog}')
-#    beams = np.genfromtxt(beamlog, names=True)
-#    nchan = beams.shape[0]
-#
-#    return beams, nchan
-
-
 def getbeams(beamdir, verbose=False):
     """
 
@@ -159,38 +147,38 @@ def getbeams(beamdir, verbose=False):
     return beamdict
 
 
-def getfacs(datadict, new_beam, verbose=False):
+def getfacs(oldbeams, conbeams, masks, dx, dy, verbose=False):
     """Get beam info
     """
-    conbms = []
     facs = []
-    for oldbeam in datadict['oldbeams']:
-        if verbose:
-            print(f"Current beam is", oldbeam)
-        conbm = new_beam.deconvolve(oldbeam)
-        fac, amp, outbmaj, outbmin, outbpa = au2.gauss_factor(
-            [
-                conbm.major.to(u.arcsec).value,
-                conbm.minor.to(u.arcsec).value,
-                conbm.pa.to(u.deg).value
-            ],
-            beamOrig=[
-                oldbeam.major.to(u.arcsec).value,
-                oldbeam.minor.to(u.arcsec).value,
-                oldbeam.pa.to(u.deg).value
-            ],
-            dx1=datadict['dx'].to(u.arcsec).value,
-            dy1=datadict['dy'].to(u.arcsec).value
-        )
-        conbms.append(conbm)
-        facs.append(fac)
-    return conbms, facs
+    for oldbeam, conbeam, mask in zip(oldbeams, conbeams, masks):
+        if mask:
+            facs.append(np.nan)
+        else:
+            if verbose:
+                print(f"Current beam is", oldbeam)
+            fac, amp, outbmaj, outbmin, outbpa = au2.gauss_factor(
+                [
+                    conbeam.major.to(u.arcsec).value,
+                    conbeam.minor.to(u.arcsec).value,
+                    conbeam.pa.to(u.deg).value
+                ],
+                beamOrig=[
+                    oldbeam.major.to(u.arcsec).value,
+                    oldbeam.minor.to(u.arcsec).value,
+                    oldbeam.pa.to(u.deg).value
+                ],
+                dx1=dx.to(u.arcsec).value,
+                dy1=dy.to(u.arcsec).value
+            )
+            facs.append(fac)
+    return facs
 
 
-def smooth(image, dy, conbeam, sfactor, verbose=False):
+def smooth(image, grid, conbeam, sfactor, verbose=False):
     """Do the smoothing
     """
-    if np.isnan(conbeam):
+    if np.isnan(sfactor):
         return image*np.nan
     if np.isnan(image).all():
         return image
@@ -198,8 +186,7 @@ def smooth(image, dy, conbeam, sfactor, verbose=False):
         # using Beams package
         if verbose:
             print(f'Using convolving beam', conbeam)
-        pix_scale = dy
-        gauss_kern = conbeam.as_kernel(dy)
+        gauss_kern = conbeam.as_kernel(grid)
 
         conbm1 = gauss_kern.array/gauss_kern.array.max()
         newim = scipy.signal.convolve(
@@ -228,13 +215,50 @@ def cpu_to_use(max_cpu, count):
     return max(factors[factors <= max_cpu])
 
 
-def worker(idx, start, cubedict):
-    cube = SpectralCube.read(cubedict["filename"])
-    plane = cube.unmasked_data[start+idx].value
-    newim = smooth(plane, cubedict['dy'], cubedict['conbeams']
-                   [start+idx], cubedict['sfactors'][start+idx], verbose=False)
-    return newim
+def worker(file, beamdict, target_beam, dryrun=True, verbose=False):
+    with fits.open(file, memmap=True, mode='denywrite') as hdulist:
+        header = hdulist[0].header
+        fitscube = np.squeeze(hdulist[0].data)
+    dxas = header['CDELT1']*-1*u.deg
+    dyas = header['CDELT2']*u.deg
+    # Get beam info
+    dirname = os.path.dirname(file)
+    filename = os.path.basename(file)
+    basename = filename[filename.find('image.'):]
+    if dirname == '':
+        dirname = '.'
+    stoke = basename[15+basename.find('image.restored.')
+                                        :15+basename.find('image.restored.')+1]
+    beamno = basename[basename.find(
+        'beam')+4:basename.find('beam')+4+2]
+    beamlog = beamdict[stoke][beamno]['beamlog']
 
+    beams = beamdict[stoke][beamno]['PSFs']
+    nchan = beamdict[stoke][beamno]['nchan']
+    conbeams = beamdict[stoke][beamno]['conbeams']
+    mask = beamdict[stoke][beamno]['mask']
+
+    facs = getfacs(beams, conbeams, ~mask, dxas, dyas, verbose=False)
+
+    newcube = np.ones_like(fitscube) * np.nan
+    for i, (plane, conbeam, sfactor) in enumerate(
+            tqdm(
+                    zip(fitscube, conbeams, facs),
+                    total=len(fitscube),
+                    desc=f'Smoothing {filename}',
+                    disable=(not verbose)
+                )
+        ):
+        newim = smooth(plane, dyas, conbeam, sfactor, verbose=False)
+        newcube[i] = newim
+    
+    if not dryrun:
+            outname = "sm." + filename
+            outfile = f'{dirname}/{outname}'
+            if verbose:
+                print(f"Saved to {outfile}")
+            header = target_beam.attach_to_header(header)
+            fits.writeto(outfile, newcube, header, overwrite=True)
 
 def main(pool, args, verbose=True):
     if args.dryrun:
@@ -254,6 +278,7 @@ def main(pool, args, verbose=True):
 
     beamdict = getbeams(logdir)
 
+    # Get data for all beams
     bmajs, bmins, bpas = [], [], []
     for stoke in beamdict.keys():
         for beamno in beamdict[stoke].keys():
@@ -281,6 +306,7 @@ def main(pool, args, verbose=True):
     bmins[idx] = np.nan
     bpas[idx]  = np.nan
 
+    # Check for cutout
     cutoff = args.cutoff
     if cutoff is not None:
         cut_idx = bmajs > cutoff
@@ -290,6 +316,7 @@ def main(pool, args, verbose=True):
         bmins[cut_idx] = np.nan
         bpas[cut_idx]  = np.nan
     
+    # Make mask
     mask = (np.isfinite(bmajs)) & (np.isfinite(bmins)) & (np.isfinite(bpas))
 
     allbeams = Beams(
@@ -308,6 +335,7 @@ def main(pool, args, verbose=True):
     if any([targ is None for targ in targs]) and not all([targ is None for targ in targs]):
         raise Exception('Please specify _all_ target beam params!')
 
+    # Get common beam
     if verbose:
         print('Computing common beam...this might take some time...')
     try:
@@ -327,6 +355,7 @@ def main(pool, args, verbose=True):
     if verbose:
         print('Common beam is', common_beam)
 
+    # Set target beam
     if all([targ is None for targ in targs]):
         targbool = False
         if verbose:
@@ -344,7 +373,7 @@ def main(pool, args, verbose=True):
     if verbose:
         print('Target beam is', target_beam)
 
-    embed()
+    # Check that taget beam will deconvolve. Mask all beams that don't
     if targbool:
         if verbose:
             print('Checking that target beam will deconvolve all beams')
@@ -370,6 +399,37 @@ def main(pool, args, verbose=True):
         if verbose:
             print(f"{mask_count} channels or {mask_count/len(allbeams)*100}% were maksed")
 
+    # Now comput convolving beams and masks for each beam
+    if verbose:
+        print('Computing and saving convolving beams for each beam')
+    for stoke in tqdm(beamdict.keys(), 
+                        desc='Stokes',
+                        disable=(not verbose)):
+        for beamno in tqdm(beamdict[stoke].keys(), 
+                            desc='Beam',
+                            disable=(not verbose)):
+            beams = beamdict[stoke][beamno]['PSFs']
+            if cutoff is not None:
+                mask = (beams > 0) | (beams.major > cutoff*u.arcsec)
+            else:
+                mask = (beams > 0)
+            conbeams = []
+            for i, (beam, msk) in enumerate(
+                        zip(beams, mask)
+            ):
+                try:
+                    conbeam = target_beam.deconvolve(beam)
+                    conbeams.append(conbeam)
+                except ValueError:
+                    mask[i] = False
+                    conbeams.append(np.nan)
+            beamdict[stoke][beamno].update(
+                {
+                    'conbeams': conbeams,
+                    'mask': mask
+                }
+            )
+
 
     cutdir = args.cutdir
     if cutdir is not None:
@@ -380,190 +440,22 @@ def main(pool, args, verbose=True):
     if files == []:
         raise Exception('No files found!')
 
-    
-    beams = []
-    nchans = []
-    datadict = {}
-    masks = []
-    for i, file in enumerate(tqdm(files)):
-        # Set up files
-        datadict[f"cube_{i}"] = {}
-        datadict[f"cube_{i}"]["filename"] = file
-        # Get metadata
-        with fits.open(file, memmap=True, mode='denywrite') as hdulist:
-            header = hdulist[0].header
-            dxas = header['CDELT1']*-1*u.deg
-            datadict[f"cube_{i}"]["dx"] = dxas
-            dyas = header['CDELT2']*u.deg
-            datadict[f"cube_{i}"]["dy"] = dyas
-            # Get beam info
-            dirname = os.path.dirname(file)
-            datadict[f"cube_{i}"]["outdir"] = dirname
-            filename = os.path.basename(file)
-            basename = filename[filename.find('image.'):]
-            if dirname == '':
-                dirname = '.'
-            #beamlog = f"{logdir}/beamlog.{basename}".replace('.fits', '.txt')
-            stoke = basename[15+basename.find('image.restored.')
-                                              :15+basename.find('image.restored.')+1]
-            beamno = basename[basename.find(
-                'beam')+4:basename.find('beam')+4+2]
-            datadict[f"cube_{i}"]["beamlog"] = beamdict[stoke][beamno]['beamlog']
+    worker_partial = partial(
+                            worker, 
+                            beamdict=beamdict, 
+                            target_beam=target_beam, 
+                            dryrun=args.dryrun,
+                            verbose=args.verbose_worker)
 
-            beam = beamdict[stoke][beamno]['beams']
-            nchan = beamdict[stoke][beamno]['nchan']
-
-            if args.cutoff is not None:
-                frac = len([beam['BMAJarcsec'].ravel() > args.cutoff]) / \
-                    len(beam['BMAJarcsec'].ravel())
-                # if verbose:
-                # print(
-                #    f'Cutoff will blank {round(frac*100,2)}% of channels in {basename}')
-            # Find bad chans
-            #cube = SpectralCube.read(file)
-            #mask = cube[:, cube.shape[1]//2, cube.shape[2]//2].mask.view()
-            fitscube = hdulist[0].data
-            subcube = fitscube[:, 0, fitscube.shape[2] //
-                               2, fitscube.shape[3]//2]
-            mask = (subcube == 0) | (np.isnan(subcube))
-            masks.append(mask)
-            # Record beams
-            beams.append(beam)
-            nchans.append(nchan)
-    beams = np.array(beams)
-    nchans = np.array(nchans)
-    # Do dome masking
-    beams['BMAJarcsec'][beams['BMAJarcsec'] == 0] = np.nan
-    beams['BMINarcsec'][beams['BMAJarcsec'] == 0] = np.nan
-    beams['BMINarcsec'][beams['BMINarcsec'] == 0] = np.nan
-    beams['BMAJarcsec'][beams['BMINarcsec'] == 0] = np.nan
-
-    if args.cutoff is not None:
-        frac = len([beams['BMAJarcsec'].ravel() > args.cutoff]) / \
-            len(beams['BMAJarcsec'].ravel())
-        if verbose:
-            print(
-                f'Cutoff will blank {round(frac*100,2)}% of channels, in all cubes')
-        beams['BMAJarcsec'][beams['BMAJarcsec'] > args.cutoff] = np.nan
-        beams['BMINarcsec'][beams['BMAJarcsec'] > args.cutoff] = np.nan
-
-    totalmask = sum(masks) > 0
-
-    for i, _ in enumerate(beams['BMAJarcsec']):
-        beams['BMAJarcsec'][i][totalmask] = np.nan
-        beams['BMINarcsec'][i][totalmask] = np.nan
-        beams['BPAdeg'][i][totalmask] = np.nan
-        datadict[f"cube_{i}"]["oldbeams"] = Beams(beams['BMAJarcsec'][i].ravel(
-        )*u.arcsec, beams['BMINarcsec'][i].ravel()*u.arcsec, beams['BPAdeg'][i].ravel()*u.deg)
-
-    if args.masklist is not None:
-        masklist = np.loadtxt(args.masklist) == 1
-        for i, _ in enumerate(beams['BMAJarcsec']):
-            beams['BMAJarcsec'][i][masklist] = np.nan
-            beams['BMINarcsec'][i][masklist] = np.nan
-            beams['BPAdeg'][i][masklist] = np.nan
-            datadict[f"cube_{i}"]["oldbeams"] = Beams(beams['BMAJarcsec'][i].ravel(
-            )*u.arcsec, beams['BMINarcsec'][i].ravel()*u.arcsec, beams['BPAdeg'][i].ravel()*u.deg)
-
-        # for chan in masklist:
-
-    if not all(elem == nchans[0] for elem in nchans):
-        raise Exception('Unequal channel count in beamlogs!')
-
-    beamlst = Beams(beams['BMAJarcsec'].ravel(
-    )*u.arcsec, beams['BMINarcsec'].ravel()*u.arcsec, beams['BPAdeg'].ravel()*u.deg)
-
-    try:
-        big_beam = beamlst[~np.isnan(beamlst)].common_beam(tolerance=args.tolerance,
-                                                           nsamps=args.nsamps,
-                                                           epsilon=args.epsilon)
-    except BeamError:
-        if verbose:
-            print("Couldn't find common beam with defaults")
-            print("Trying again with smaller tolerance")
-
-        big_beam = beamlst[~np.isnan(beamlst)].common_beam(tolerance=args.tolerance*0.1,
-                                                           nsamps=args.nsamps,
-                                                           epsilon=args.epsilon)
-
-    if verbose:
-        print(f'Smallest common beam is', big_beam)
-    # Parse args
-    bmaj = args.bmaj
-    bmin = args.bmin
-    bpa = args.bpa
-
-    # Set to largest
-    if bpa is None and bmin is None and bmaj is None:
-        bpa = big_beam.pa.to(u.deg)
-    else:
-        bpa = 0*u.deg
-    if bmaj is None:
-        bmaj = round_up(big_beam.major.to(u.arcsec))
-    elif bmaj*u.arcsec < round_up(big_beam.major.to(u.arcsec)):
-        raise Exception('Selected BMAJ is too small!')
-    else:
-        bmaj *= u.arcsec
-    if bmin is None:
-        bmin = round_up(big_beam.minor.to(u.arcsec))
-    elif bmin*u.arcsec < round_up(big_beam.minor.to(u.arcsec)):
-        raise Exception('Selected BMIN is too small!')
-    else:
-        bmin *= u.arcsec
-
-    new_beam = Beam(
-        bmaj,
-        bmin,
-        bpa
+    list(
+        tqdm(
+        pool.imap(worker_partial, files),
+        desc = 'Smoothing cutouts',
+        total=len(files),
+        disable=(not verbose)
+        )
     )
-    if verbose:
-        print(f'Final beam is', new_beam)
-
-    if not args.dryrun:
-        for key in tqdm(datadict.keys(), desc='Working on cubes separately'):
-            conbms, facs = getfacs(datadict[key], new_beam, verbose=False)
-            cube = SpectralCube.read(datadict[key]["filename"])
-            # Set up output file
-            outname = "sm." + os.path.basename(datadict[key]["filename"])
-            outdir = datadict[key]["outdir"]
-            outfile = f'{outdir}/{outname}'
-            if verbose:
-                print(f'Initialsing to {outfile}')
-            if not os.path.isfile(outfile):
-                copyfile(datadict[key]["filename"], outfile, verbose=True)
-
-            cubedict = datadict[key]
-            cubedict["conbeams"] = conbms
-            cubedict["sfactors"] = facs
-
-            if not args.mpi:
-                n_cores = args.n_cores
-            width_max = n_cores
-            width = cpu_to_use(width_max, cube.shape[0])
-            n_chunks = cube.shape[0]//width
-
-            for i in trange(
-                    n_chunks, disable=(not verbose),
-                    desc='Smoothing in chunks'
-            ):
-                start = i*width
-                stop = start+width
-
-                func = functools.partial(
-                    worker, start=start, cubedict=cubedict)
-                arr_out = list(pool.map(func, [idx for idx in range(width)]))
-                arr_out = np.array(arr_out)
-
-                with fits.open(outfile, mode='update', memmap=True) as outfh:
-                    outfh[0].data[start:stop, 0, :, :] = arr_out[:]
-                    outfh.flush()
-
-            if verbose:
-                print('Updating header...')
-            with fits.open(outfile, mode='update', memmap=True) as outfh:
-                outfh[0].header = new_beam.attach_to_header(outfh[0].header)
-                outfh.flush()
-            # print(arr_out)
+    
     if verbose:
         print('Done!')
 
@@ -599,8 +491,20 @@ def cli():
         default=None,
         help='Directory containing beamlog files')
 
-    parser.add_argument("-v", "--verbose", dest="verbose", action="store_true",
-                        help="verbose output [False].")
+    parser.add_argument(
+        "-v", 
+        "--verbose", 
+        dest="verbose", 
+        action="store_true",
+        help="verbose output [False]."
+        )
+
+    parser.add_argument(
+        "-vw", 
+        "--verbose_worker", 
+        dest="verbose_worker", 
+        action="store_true",
+        help="verbose output [False].")
 
     parser.add_argument("-d", "--dryrun", dest="dryrun", action="store_true",
                         help="Compute common beam and stop [False].")
