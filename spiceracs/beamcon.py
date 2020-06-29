@@ -4,6 +4,7 @@ import warnings
 import os
 import stat
 import sys
+import time
 import numpy as np
 import scipy.signal
 from astropy import units as u
@@ -15,21 +16,37 @@ import schwimmbad
 from tqdm import tqdm, trange
 from IPython import embed
 from glob import glob
-import au2
 import functools
 from functools import partial
 import psutil
 #print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 from mpi4py import MPI
-mpiComm = MPI.COMM_WORLD
-n_cores = mpiComm.Get_size()
-print = functools.partial(print, f'[{mpiComm.rank}]', flush=True)
+import au2
+#mpiComm = MPI.COMM_WORLD
+#n_cores = mpiComm.Get_size()
+#print = functools.partial(print, f'[{mpiComm.rank}]', flush=True)
+print = functools.partial(print, flush=True)
 warnings.filterwarnings(action='ignore', category=SpectralCubeWarning,
                         append=True)
+from astropy.utils.exceptions import AstropyWarning
+warnings.simplefilter('ignore', category=AstropyWarning)
 
 #############################################
 #### ADAPTED FROM SCRIPT BY T. VERNSTROM ####
 #############################################
+
+# Define MPI functions
+
+
+def print_mpi(string):
+    comm = MPI.COMM_WORLD
+    print("["+str(comm.Get_rank())+"] "+string)
+
+
+def print_master(string):
+    comm = MPI.COMM_WORLD
+    if comm.Get_rank() == 0:
+        print("["+str(comm.Get_rank())+"] "+string)
 
 
 class Error(OSError):
@@ -231,7 +248,8 @@ def worker(file, beamdict, target_beam, dryrun=True, verbose=False):
     basename = filename[filename.find('image.'):]
     if dirname == '':
         dirname = '.'
-    stoke = basename[15+basename.find('image.restored.')                     :15+basename.find('image.restored.')+1]
+    stoke = basename[15+basename.find('image.restored.')
+                                      :15+basename.find('image.restored.')+1]
     beamno = basename[basename.find(
         'beam')+4:basename.find('beam')+4+2]
     beamlog = beamdict[stoke][beamno]['beamlog']
@@ -262,179 +280,205 @@ def worker(file, beamdict, target_beam, dryrun=True, verbose=False):
 
 
 def main(pool, args, verbose=True):
-    if args.dryrun:
-        if verbose:
-            print('Doing a dry run -- no files will be saved')
-    # Fix up outdir
-    logdir = args.logdir
-    if logdir is not None:
-        if logdir[-1] == '/':
-            logdir = logdir[:-1]
+    # init MPI
+    comm = MPI.COMM_WORLD
+    nPE = comm.Get_size()
+    myPE = comm.Get_rank()
+    print_master(f"Total number of MPI ranks = {nPE}")
 
-    beamdict = getbeams(logdir)
+    if comm.Get_rank() == 0:
+        if args.dryrun:
+            if verbose:
+                print('Doing a dry run -- no files will be saved')
+        # Fix up outdir
+        logdir = args.logdir
+        if logdir is not None:
+            if logdir[-1] == '/':
+                logdir = logdir[:-1]
 
-    # Get data for all beams
-    bmajs, bmins, bpas = [], [], []
-    for stoke in beamdict.keys():
-        for beamno in beamdict[stoke].keys():
-            bmaj = beamdict[stoke][beamno]['beams']['BMAJarcsec']
-            bmin = beamdict[stoke][beamno]['beams']['BMINarcsec']
-            bpa = beamdict[stoke][beamno]['beams']['BPAdeg']
+        beamdict = getbeams(logdir)
 
-            bmajs.append(bmaj)
-            bmins.append(bmin)
-            bpas.append(bpa)
+        # Get data for all beams
+        bmajs, bmins, bpas = [], [], []
+        for stoke in beamdict.keys():
+            for beamno in beamdict[stoke].keys():
+                bmaj = beamdict[stoke][beamno]['beams']['BMAJarcsec']
+                bmin = beamdict[stoke][beamno]['beams']['BMINarcsec']
+                bpa = beamdict[stoke][beamno]['beams']['BPAdeg']
 
-            beams = Beams(major=bmaj*u.arcsec, minor=bmin *
-                          u.arcsec, pa=bpa*u.deg)
-            beamdict[stoke][beamno].update(
-                {
-                    'PSFs': beams
-                }
-            )
+                bmajs.append(bmaj)
+                bmins.append(bmin)
+                bpas.append(bpa)
 
-    bmajs = np.array(bmajs).ravel()
-    bmins = np.array(bmins).ravel()
-    bpas = np.array(bpas).ravel()
+                beams = Beams(major=bmaj*u.arcsec, minor=bmin *
+                              u.arcsec, pa=bpa*u.deg)
+                beamdict[stoke][beamno].update(
+                    {
+                        'PSFs': beams
+                    }
+                )
 
-    idx = (bmajs == 0) | (bmins == 0)
-    bmajs[idx] = np.nan
-    bmins[idx] = np.nan
-    bpas[idx] = np.nan
+        bmajs = np.array(bmajs).ravel()
+        bmins = np.array(bmins).ravel()
+        bpas = np.array(bpas).ravel()
 
-    # Check for cutout
-    cutoff = args.cutoff
-    if cutoff is not None:
-        cut_idx = bmajs > cutoff
-        if verbose:
-            print(
-                f'Cutoff will mask {sum(cut_idx)} planes or {sum(cut_idx)/sum(~idx)*100}%')
-        bmajs[cut_idx] = np.nan
-        bmins[cut_idx] = np.nan
-        bpas[cut_idx] = np.nan
+        idx = (bmajs == 0) | (bmins == 0)
+        bmajs[idx] = np.nan
+        bmins[idx] = np.nan
+        bpas[idx] = np.nan
 
-    # Make mask
-    mask = (np.isfinite(bmajs)) & (np.isfinite(bmins)) & (np.isfinite(bpas))
+        # Check for cutout
+        cutoff = args.cutoff
+        if cutoff is not None:
+            cut_idx = bmajs > cutoff
+            if verbose:
+                print(
+                    f'Cutoff will mask {sum(cut_idx)} planes or {sum(cut_idx)/sum(~idx)*100}%')
+            bmajs[cut_idx] = np.nan
+            bmins[cut_idx] = np.nan
+            bpas[cut_idx] = np.nan
 
-    allbeams = Beams(
-        major=bmajs*u.arcsec,
-        minor=bmins*u.arcsec,
-        pa=bpas*u.deg
-    )
+        # Make mask
+        mask = (np.isfinite(bmajs)) & (
+            np.isfinite(bmins)) & (np.isfinite(bpas))
 
-    # Parse args
-    target_bmaj = args.bmaj
-    target_bmin = args.bmin
-    target_bpa = args.bpa
-
-    targs = [target_bmaj, target_bmin, target_bpa]
-
-    if any([targ is None for targ in targs]) and not all([targ is None for targ in targs]):
-        raise Exception('Please specify _all_ target beam params!')
-
-    # Get common beam
-    if verbose:
-        print('Computing common beam...this might take some time...')
-    try:
-        common_beam = allbeams[mask].common_beam(tolerance=args.tolerance,
-                                                 nsamps=args.nsamps,
-                                                 epsilon=args.epsilon)
-    except BeamError:
-        if verbose:
-            print("Couldn't find common beam with defaults")
-            print("Trying again with smaller tolerance")
-
-        common_beam = allbeams[mask].common_beam(tolerance=args.tolerance*0.1,
-                                                 nsamps=args.nsamps,
-                                                 epsilon=args.epsilon)
-
-    if verbose:
-        print('Common beam is', common_beam)
-
-    # Set target beam
-    if all([targ is None for targ in targs]):
-        targbool = False
-        if verbose:
-            print('No target beam specified. Using smallest common beam.')
-        target_beam = common_beam
-
-    else:
-        targbool = True
-        target_beam = Beam(
-            major=target_bmaj*u.arcsec,
-            minor=target_bmin*u.arcsec,
-            pa=target_bpa*u.deg
+        allbeams = Beams(
+            major=bmajs*u.arcsec,
+            minor=bmins*u.arcsec,
+            pa=bpas*u.deg
         )
 
-    if verbose:
-        print('Target beam is', target_beam)
+        # Parse args
+        target_bmaj = args.bmaj
+        target_bmin = args.bmin
+        target_bpa = args.bpa
 
-    # Check that taget beam will deconvolve. Mask all beams that don't
-    if targbool:
+        targs = [target_bmaj, target_bmin, target_bpa]
+
+        if any([targ is None for targ in targs]) and not all([targ is None for targ in targs]):
+            raise Exception('Please specify _all_ target beam params!')
+
+        # Get common beam
         if verbose:
-            print('Checking that target beam will deconvolve all beams')
-            print("Beams that can't will be masked")
-        mask_count = 0
-        for i, (beam, msk) in enumerate(
-            tqdm(
-                zip(allbeams, mask),
-                total=len(allbeams),
-                desc='Deconvolving',
-                disable=(not verbose)
+            print('Computing common beam...this might take some time...')
+        try:
+            common_beam = allbeams[mask].common_beam(tolerance=args.tolerance,
+                                                     nsamps=args.nsamps,
+                                                     epsilon=args.epsilon)
+        except BeamError:
+            if verbose:
+                print("Couldn't find common beam with defaults")
+                print("Trying again with smaller tolerance")
+
+            common_beam = allbeams[mask].common_beam(tolerance=args.tolerance*0.1,
+                                                     nsamps=args.nsamps,
+                                                     epsilon=args.epsilon)
+
+        if verbose:
+            print('Common beam is', common_beam)
+
+        # Set target beam
+        if all([targ is None for targ in targs]):
+            targbool = False
+            if verbose:
+                print('No target beam specified. Using smallest common beam.')
+            target_beam = common_beam
+
+        else:
+            targbool = True
+            target_beam = Beam(
+                major=target_bmaj*u.arcsec,
+                minor=target_bmin*u.arcsec,
+                pa=target_bpa*u.deg
             )
-        ):
-            if not msk:
-                continue
-            else:
-                try:
-                    target_beam.deconvolve(beam)
-                except ValueError:
-                    mask_count += 1
-                    mask[i] = False
 
         if verbose:
-            print(
-                f"{mask_count} channels or {mask_count/len(allbeams)*100}% were maksed")
+            print('Target beam is', target_beam)
 
-    # Now comput convolving beams and masks for each beam
-    if verbose:
-        print('Computing and saving convolving beams for each beam')
-    for stoke in tqdm(beamdict.keys(),
-                      desc='Stokes',
-                      disable=(not verbose)):
-        for beamno in tqdm(beamdict[stoke].keys(),
-                           desc='Beam',
-                           disable=(not verbose)):
-            beams = beamdict[stoke][beamno]['PSFs']
-            if cutoff is not None:
-                mask = (beams > 0) | (beams.major > cutoff*u.arcsec)
-            else:
-                mask = (beams > 0)
-            conbeams = []
+        # Check that taget beam will deconvolve. Mask all beams that don't
+        if targbool:
+            if verbose:
+                print('Checking that target beam will deconvolve all beams')
+                print("Beams that can't will be masked")
+            mask_count = 0
             for i, (beam, msk) in enumerate(
-                zip(beams, mask)
+                tqdm(
+                    zip(allbeams, mask),
+                    total=len(allbeams),
+                    desc='Deconvolving',
+                    disable=(not verbose)
+                )
             ):
-                try:
-                    conbeam = target_beam.deconvolve(beam)
-                    conbeams.append(conbeam)
-                except ValueError:
-                    mask[i] = False
-                    conbeams.append(np.nan)
-            beamdict[stoke][beamno].update(
-                {
-                    'conbeams': conbeams,
-                    'mask': mask
-                }
-            )
+                if not msk:
+                    continue
+                else:
+                    try:
+                        target_beam.deconvolve(beam)
+                    except ValueError:
+                        mask_count += 1
+                        mask[i] = False
 
-    cutdir = args.cutdir
-    if cutdir is not None:
-        if cutdir[-1] == '/':
-            cutdir = cutdir[:-1]
+            if verbose:
+                print(
+                    f"{mask_count} channels or {mask_count/len(allbeams)*100}% were maksed")
 
-    files = sorted(glob(f"{cutdir}/*/[!sm.]*.image.*.fits"))
-    if files == []:
-        raise Exception('No files found!')
+        # Now comput convolving beams and masks for each beam
+        if verbose:
+            print('Computing and saving convolving beams for each beam')
+        for stoke in tqdm(beamdict.keys(),
+                          desc='Stokes',
+                          disable=(not verbose)):
+            for beamno in tqdm(beamdict[stoke].keys(),
+                               desc='Beam',
+                               disable=(not verbose)):
+                beams = beamdict[stoke][beamno]['PSFs']
+                if cutoff is not None:
+                    mask = (beams > 0) | (beams.major > cutoff*u.arcsec)
+                else:
+                    mask = (beams > 0)
+                conbeams = []
+                for i, (beam, msk) in enumerate(
+                    zip(beams, mask)
+                ):
+                    try:
+                        conbeam = target_beam.deconvolve(beam)
+                        conbeams.append(conbeam)
+                    except ValueError:
+                        mask[i] = False
+                        conbeams.append(np.nan)
+                beamdict[stoke][beamno].update(
+                    {
+                        'conbeams': conbeams,
+                        'mask': mask
+                    }
+                )
+
+        cutdir = args.cutdir
+        if cutdir is not None:
+            if cutdir[-1] == '/':
+                cutdir = cutdir[:-1]
+
+        files = sorted(glob(f"{cutdir}/*/[!sm.]*.image.*.fits"))
+        if files == []:
+            raise Exception('No files found!')
+    
+    else:
+        files = None
+        beamdict = None
+        target_beam = None
+    print_mpi('Getting data...')
+    # domain decomposition
+    files = comm.bcast(files, root=0)
+    beamdict = comm.bcast(beamdict, root=0)
+    target_beam = comm.bcast(target_beam, root=0)
+    dims = len(files)
+    my_start = myPE * (dims // nPE)
+    my_end = (myPE+1) * (dims // nPE) - 1
+    # last PE gets the rest
+    if (myPE == nPE-1):
+        my_end = dims-1
+
+    print_mpi("my_start = "+str(my_start)+", my_end = "+str(my_end))
 
     worker_partial = partial(
         worker,
@@ -443,17 +487,23 @@ def main(pool, args, verbose=True):
         dryrun=args.dryrun,
         verbose=args.verbose_worker)
 
-    list(
-        tqdm(
-            pool.imap(worker_partial, files),
-            desc='Smoothing cutouts',
-            total=len(files),
-            disable=(not verbose)
-        )
-    )
+    start = time.time()
+    for n in trange(my_start, my_end+1, desc="["+str(comm.Get_rank())+"] "):
+        worker_partial(files[n])
+    # list(
+    #    tqdm(
+    #        pool.imap(worker_partial, files),
+    #        desc='Smoothing cutouts',
+    #        total=len(files),
+    #        disable=(not verbose)
+    #    )
+    # )
+    comm.Barrier()
+    stop = time.time()
+    print_master('Time taken=%f' % (stop-start))
 
     if verbose:
-        print('Done!')
+        print_master('Done!')
 
 
 def cli():
@@ -583,7 +633,6 @@ def cli():
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
-
 
     # make it so we can use imap in serial and mpi mode
     if not isinstance(pool, schwimmbad.MultiPool):
