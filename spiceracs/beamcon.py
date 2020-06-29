@@ -19,7 +19,11 @@ import au2
 import functools
 from functools import partial
 import psutil
-print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
+#print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
+from mpi4py import MPI
+mpiComm = MPI.COMM_WORLD
+n_cores = mpiComm.Get_size()
+print = functools.partial(print, f'[{mpiComm.rank}]', flush=True)
 warnings.filterwarnings(action='ignore', category=SpectralCubeWarning,
                         append=True)
 
@@ -227,8 +231,7 @@ def worker(file, beamdict, target_beam, dryrun=True, verbose=False):
     basename = filename[filename.find('image.'):]
     if dirname == '':
         dirname = '.'
-    stoke = basename[15+basename.find('image.restored.')
-                                        :15+basename.find('image.restored.')+1]
+    stoke = basename[15+basename.find('image.restored.')                     :15+basename.find('image.restored.')+1]
     beamno = basename[basename.find(
         'beam')+4:basename.find('beam')+4+2]
     beamlog = beamdict[stoke][beamno]['beamlog']
@@ -244,31 +247,25 @@ def worker(file, beamdict, target_beam, dryrun=True, verbose=False):
     if verbose:
         print(f'Smoothing {filename}')
     for i, (plane, conbeam, sfactor) in enumerate(
-                    zip(fitscube, conbeams, facs)
-                )
-        ):
+        zip(fitscube, conbeams, facs)
+    ):
         newim = smooth(plane, dyas, conbeam, sfactor, verbose=False)
         newcube[i] = newim
-    
+
     if not dryrun:
-            outname = "sm." + filename
-            outfile = f'{dirname}/{outname}'
-            if verbose:
-                print(f"Saved to {outfile}")
-            header = target_beam.attach_to_header(header)
-            fits.writeto(outfile, newcube, header, overwrite=True)
+        outname = "sm." + filename
+        outfile = f'{dirname}/{outname}'
+        if verbose:
+            print(f"Saved to {outfile}")
+        header = target_beam.attach_to_header(header)
+        fits.writeto(outfile, newcube, header, overwrite=True)
+
 
 def main(pool, args, verbose=True):
     if args.dryrun:
         if verbose:
             print('Doing a dry run -- no files will be saved')
     # Fix up outdir
-    if args.mpi:
-        from mpi4py import MPI
-        mpiComm = MPI.COMM_WORLD
-        n_cores = mpiComm.Get_size()
-        #mpiRank = mpiComm.Get_rank()
-
     logdir = args.logdir
     if logdir is not None:
         if logdir[-1] == '/':
@@ -288,7 +285,8 @@ def main(pool, args, verbose=True):
             bmins.append(bmin)
             bpas.append(bpa)
 
-            beams = Beams(major=bmaj*u.arcsec, minor=bmin*u.arcsec, pa=bpa*u.deg)
+            beams = Beams(major=bmaj*u.arcsec, minor=bmin *
+                          u.arcsec, pa=bpa*u.deg)
             beamdict[stoke][beamno].update(
                 {
                     'PSFs': beams
@@ -302,25 +300,26 @@ def main(pool, args, verbose=True):
     idx = (bmajs == 0) | (bmins == 0)
     bmajs[idx] = np.nan
     bmins[idx] = np.nan
-    bpas[idx]  = np.nan
+    bpas[idx] = np.nan
 
     # Check for cutout
     cutoff = args.cutoff
     if cutoff is not None:
         cut_idx = bmajs > cutoff
         if verbose:
-            print(f'Cutoff will mask {sum(cut_idx)} planes or {sum(cut_idx)/sum(~idx)*100}%')
+            print(
+                f'Cutoff will mask {sum(cut_idx)} planes or {sum(cut_idx)/sum(~idx)*100}%')
         bmajs[cut_idx] = np.nan
         bmins[cut_idx] = np.nan
-        bpas[cut_idx]  = np.nan
-    
+        bpas[cut_idx] = np.nan
+
     # Make mask
     mask = (np.isfinite(bmajs)) & (np.isfinite(bmins)) & (np.isfinite(bpas))
 
     allbeams = Beams(
-        major = bmajs*u.arcsec,
-        minor = bmins*u.arcsec,
-        pa = bpas*u.deg
+        major=bmajs*u.arcsec,
+        minor=bmins*u.arcsec,
+        pa=bpas*u.deg
     )
 
     # Parse args
@@ -338,17 +337,16 @@ def main(pool, args, verbose=True):
         print('Computing common beam...this might take some time...')
     try:
         common_beam = allbeams[mask].common_beam(tolerance=args.tolerance,
-                                                nsamps=args.nsamps,
-                                                epsilon=args.epsilon)
+                                                 nsamps=args.nsamps,
+                                                 epsilon=args.epsilon)
     except BeamError:
         if verbose:
             print("Couldn't find common beam with defaults")
             print("Trying again with smaller tolerance")
 
         common_beam = allbeams[mask].common_beam(tolerance=args.tolerance*0.1,
-                                                nsamps=args.nsamps,
-                                                epsilon=args.epsilon)
-
+                                                 nsamps=args.nsamps,
+                                                 epsilon=args.epsilon)
 
     if verbose:
         print('Common beam is', common_beam)
@@ -363,9 +361,9 @@ def main(pool, args, verbose=True):
     else:
         targbool = True
         target_beam = Beam(
-            major = target_bmaj*u.arcsec,
-            minor = target_bmin*u.arcsec,
-            pa = target_bpa*u.deg
+            major=target_bmaj*u.arcsec,
+            minor=target_bmin*u.arcsec,
+            pa=target_bpa*u.deg
         )
 
     if verbose:
@@ -378,13 +376,13 @@ def main(pool, args, verbose=True):
             print("Beams that can't will be masked")
         mask_count = 0
         for i, (beam, msk) in enumerate(
-                tqdm(
-                        zip(allbeams, mask), 
-                        total=len(allbeams),
-                        desc='Deconvolving',
-                        disable=(not verbose)
-                    )
-            ):
+            tqdm(
+                zip(allbeams, mask),
+                total=len(allbeams),
+                desc='Deconvolving',
+                disable=(not verbose)
+            )
+        ):
             if not msk:
                 continue
             else:
@@ -395,17 +393,18 @@ def main(pool, args, verbose=True):
                     mask[i] = False
 
         if verbose:
-            print(f"{mask_count} channels or {mask_count/len(allbeams)*100}% were maksed")
+            print(
+                f"{mask_count} channels or {mask_count/len(allbeams)*100}% were maksed")
 
     # Now comput convolving beams and masks for each beam
     if verbose:
         print('Computing and saving convolving beams for each beam')
-    for stoke in tqdm(beamdict.keys(), 
-                        desc='Stokes',
-                        disable=(not verbose)):
-        for beamno in tqdm(beamdict[stoke].keys(), 
-                            desc='Beam',
-                            disable=(not verbose)):
+    for stoke in tqdm(beamdict.keys(),
+                      desc='Stokes',
+                      disable=(not verbose)):
+        for beamno in tqdm(beamdict[stoke].keys(),
+                           desc='Beam',
+                           disable=(not verbose)):
             beams = beamdict[stoke][beamno]['PSFs']
             if cutoff is not None:
                 mask = (beams > 0) | (beams.major > cutoff*u.arcsec)
@@ -413,7 +412,7 @@ def main(pool, args, verbose=True):
                 mask = (beams > 0)
             conbeams = []
             for i, (beam, msk) in enumerate(
-                        zip(beams, mask)
+                zip(beams, mask)
             ):
                 try:
                     conbeam = target_beam.deconvolve(beam)
@@ -428,32 +427,31 @@ def main(pool, args, verbose=True):
                 }
             )
 
-
     cutdir = args.cutdir
     if cutdir is not None:
         if cutdir[-1] == '/':
             cutdir = cutdir[:-1]
 
-    files = sorted(glob(f"{cutdir}/*/*.image.*.fits"))
+    files = sorted(glob(f"{cutdir}/*/[!sm.]*.image.*.fits"))
     if files == []:
         raise Exception('No files found!')
 
     worker_partial = partial(
-                            worker, 
-                            beamdict=beamdict, 
-                            target_beam=target_beam, 
-                            dryrun=args.dryrun,
-                            verbose=args.verbose_worker)
+        worker,
+        beamdict=beamdict,
+        target_beam=target_beam,
+        dryrun=args.dryrun,
+        verbose=args.verbose_worker)
 
     list(
         tqdm(
-        pool.imap(worker_partial, files),
-        desc = 'Smoothing cutouts',
-        total=len(files),
-        disable=(not verbose)
+            pool.imap(worker_partial, files),
+            desc='Smoothing cutouts',
+            total=len(files),
+            disable=(not verbose)
         )
     )
-    
+
     if verbose:
         print('Done!')
 
@@ -490,17 +488,17 @@ def cli():
         help='Directory containing beamlog files')
 
     parser.add_argument(
-        "-v", 
-        "--verbose", 
-        dest="verbose", 
+        "-v",
+        "--verbose",
+        dest="verbose",
         action="store_true",
         help="verbose output [False]."
-        )
+    )
 
     parser.add_argument(
-        "-vw", 
-        "--verbose_worker", 
-        dest="verbose_worker", 
+        "-vw",
+        "--verbose_worker",
+        dest="verbose_worker",
         action="store_true",
         help="verbose output [False].")
 
@@ -586,10 +584,10 @@ def cli():
             pool.wait()
             sys.exit(0)
 
+
     # make it so we can use imap in serial and mpi mode
     if not isinstance(pool, schwimmbad.MultiPool):
         pool.imap = pool.map
-
 
     main(pool, args, verbose=verbose)
     pool.close()
