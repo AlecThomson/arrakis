@@ -21,6 +21,6 @@ conda activate py36
 
 cd /group/askap/athomson/repos/spiceracs
 
-srun -n 1000 python spiceracs/beamcon.py /group/askap/athomson/projects/RACS/VAST_2132-50A/cutouts/ /group/askap/athomson/projects/RACS/VAST_2132-50A/ -v --bmaj 25 --bmin 25 --bpa 0 -c 25 -vw --mpi
+srun -n 1000 python spiceracs/beamcon.py /group/askap/athomson/projects/RACS/VAST_2132-50A/cutouts/ /group/askap/athomson/projects/RACS/VAST_2132-50A/ -v --bmaj 25 --bmin 25 --bpa 0 -c 25
 
 echo 'done'
