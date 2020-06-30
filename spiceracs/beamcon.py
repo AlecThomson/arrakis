@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
 import warnings
 import os
@@ -22,13 +23,12 @@ import psutil
 #print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 from mpi4py import MPI
 import au2
-#mpiComm = MPI.COMM_WORLD
+mpiComm = MPI.COMM_WORLD
 #n_cores = mpiComm.Get_size()
-#print = functools.partial(print, f'[{mpiComm.rank}]', flush=True)
-print = functools.partial(print, flush=True)
+print = functools.partial(print, f'[{mpiComm.rank}]', flush=True)
+#print = functools.partial(print, flush=True)
 warnings.filterwarnings(action='ignore', category=SpectralCubeWarning,
                         append=True)
-from astropy.utils.exceptions import AstropyWarning
 warnings.simplefilter('ignore', category=AstropyWarning)
 
 #############################################
@@ -248,8 +248,7 @@ def worker(file, beamdict, target_beam, dryrun=True, verbose=False):
     basename = filename[filename.find('image.'):]
     if dirname == '':
         dirname = '.'
-    stoke = basename[15+basename.find('image.restored.')
-                                      :15+basename.find('image.restored.')+1]
+    stoke = basename[15+basename.find('image.restored.')                     :15+basename.find('image.restored.')+1]
     beamno = basename[basename.find(
         'beam')+4:basename.find('beam')+4+2]
     beamlog = beamdict[stoke][beamno]['beamlog']
@@ -279,8 +278,9 @@ def worker(file, beamdict, target_beam, dryrun=True, verbose=False):
         fits.writeto(outfile, newcube, header, overwrite=True)
 
 
-def main(pool, args, verbose=True):
+def main(args, verbose=True):
     # init MPI
+    start = time.time()
     comm = MPI.COMM_WORLD
     nPE = comm.Get_size()
     myPE = comm.Get_rank()
@@ -461,22 +461,31 @@ def main(pool, args, verbose=True):
         files = sorted(glob(f"{cutdir}/*/[!sm.]*.image.*.fits"))
         if files == []:
             raise Exception('No files found!')
-    
+        
+        if verbose:
+            print(f'{len(files)} cubes to smooth...')
+
     else:
         files = None
         beamdict = None
         target_beam = None
-    print_mpi('Getting data...')
+
     # domain decomposition
     files = comm.bcast(files, root=0)
     beamdict = comm.bcast(beamdict, root=0)
     target_beam = comm.bcast(target_beam, root=0)
     dims = len(files)
-    my_start = myPE * (dims // nPE)
-    my_end = (myPE+1) * (dims // nPE) - 1
-    # last PE gets the rest
-    if (myPE == nPE-1):
-        my_end = dims-1
+    count = dims // nPE
+    rem = dims % nPE
+    if myPE < rem:
+        # The first 'remainder' ranks get 'count + 1' tasks each
+        my_start = myPE * (count + 1)
+        my_end = my_start + count
+
+    else:
+        #The remaining 'size - remainder' ranks get 'count' task each
+        my_start = myPE * count + rem
+        my_end = my_start + (count - 1)
 
     print_mpi("my_start = "+str(my_start)+", my_end = "+str(my_end))
 
@@ -487,17 +496,12 @@ def main(pool, args, verbose=True):
         dryrun=args.dryrun,
         verbose=args.verbose_worker)
 
-    start = time.time()
-    for n in trange(my_start, my_end+1, desc="["+str(comm.Get_rank())+"] "):
+
+    for n in range(my_start, my_end+1):
         worker_partial(files[n])
-    # list(
-    #    tqdm(
-    #        pool.imap(worker_partial, files),
-    #        desc='Smoothing cutouts',
-    #        total=len(files),
-    #        disable=(not verbose)
-    #    )
-    # )
+    
+    print_mpi("I'm done!")
+
     comm.Barrier()
     stop = time.time()
     print_master('Time taken=%f' % (stop-start))
@@ -616,30 +620,11 @@ def cli():
         default=200,
         help="nsamps for radio_beam.commonbeam.")
 
-    group = parser.add_mutually_exclusive_group()
-
-    group.add_argument("--ncores", dest="n_cores", default=1,
-                       type=int, help="Number of processes (uses multiprocessing).")
-    group.add_argument("--mpi", dest="mpi", default=False,
-                       action="store_true", help="Run with MPI.")
-
     args = parser.parse_args()
 
     verbose = args.verbose
 
-    pool = schwimmbad.choose_pool(
-        mpi=args.mpi, processes=args.n_cores)
-    if args.mpi:
-        if not pool.is_master():
-            pool.wait()
-            sys.exit(0)
-
-    # make it so we can use imap in serial and mpi mode
-    if not isinstance(pool, schwimmbad.MultiPool):
-        pool.imap = pool.map
-
-    main(pool, args, verbose=verbose)
-    pool.close()
+    main(args, verbose=verbose)
 
 
 if __name__ == "__main__":
