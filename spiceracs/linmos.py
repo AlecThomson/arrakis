@@ -1,40 +1,49 @@
 #!/usr/bin/env python
+
 import os
+import subprocess
+import shlex
+import ast
 import numpy as np
 from astropy.table import Table
 from glob import glob
 from astropy.coordinates import SkyCoord
 import astropy.units as u
-import subprocess
-import shlex
+from tqdm import tqdm, trange
+from IPython import embed
 
 
-def genparset(field, stoke, datadir, prefix=""):
+def genparset(field, stoke, datadir, septab, prefix=""):
 
-    ims = sorted(glob(f"{datadir}/{prefix}image.restored.{stoke.lower()}.*.contcube.VAST_{field}.beam*.fits"))
-    if len(ims)==0:
-        print(f"{datadir}/{prefix}image.restored.{stoke.lower()}.*.contcube.VAST_{field}.beam*.fits")
-        raise Exception('No files found. Have you run imaging? Check your prefix?')
+    ims = sorted(
+        glob(
+            f"{datadir}/sm.*.cutout.image.restored.{stoke.lower()}.*.beam*.fits" 
+        )
+    )
+    if len(ims) == 0:
+        print(
+            f"{datadir}/sm.*.cutout.image.restored.{stoke.lower()}.*.beam*.fits" 
+        )
+        raise Exception(
+            'No files found. Have you run imaging? Check your prefix?')
     imlist = "["
     for im in ims:
         imlist += os.path.basename(im).replace(".fits", "") + ","
     imlist = imlist[:-1] + "]"
 
-    wgts = sorted(glob(
-        f"{datadir}/weights.{stoke.lower()}.*.contcube.VAST_{field}.beam*.fits"
-    ))
+    wgts = sorted(
+        glob(
+            f"{datadir}/*.weights.{stoke.lower()}.*.beam*.fits" 
+        )
+    )
     weightlist = "["
     for wgt in wgts:
         weightlist += os.path.basename(wgt).replace(".fits", "") + ","
     weightlist = weightlist[:-1] + "]"
 
-    parset_dir = f"{scriptdir}/parsets/VAST_{field}"
-    try:
-        os.mkdir(parset_dir)
-    except FileExistsError:
-        pass
+    parset_dir = datadir
 
-    parset_file = f"{parset_dir}/science_contcube_linmos_F04_{stoke}.in"
+    parset_file = f"{parset_dir}/linmos_{stoke}.in"
     parset = f"""linmos.names            = {imlist}
 linmos.weights          = {weightlist}
 linmos.imagetype        = fits
@@ -43,16 +52,22 @@ linmos.outweight        = {wgts[0][:wgts[0].find('beam')]}linmos
 linmos.weighttype       = Combined
 linmos.weightstate      = Inherent
 # Reference image for offsets
-linmos.feeds.centre     = [10h17m49.958, -27.49.24.30]
+linmos.feeds.centre     = [{septab['FOOTPRINT_RA'][0]}, {septab['FOOTPRINT_DEC'][0]}]
 linmos.feeds.spacing    = 1deg
 # Beam offsets
-linmos.feeds.image.i.SB10269.cont.Hydra_1B.beam13.taylor.0.restored = [-1.344,-1.356]
-linmos.feeds.image.i.SB10269.cont.Hydra_1B.beam32.taylor.0.restored = [-2.244,-1.359]
-    """
+"""
+    for im in ims: 
+        basename = os.path.basename(im).replace('.fits', '') 
+        idx = basename.find('beam') 
+        beamno = int(basename[len('beam')+idx:]) 
+        idx = septab['BEAM'] == beamno 
+        offset = f"linmos.feeds.{basename} = [{septab[idx]['DELTA_RA'][0]},{septab[idx]['DELTA_DEC'][0]}]\n"
+        parset += offset
     with open(parset_file, "w") as f:
         f.write(parset)
 
     return parset_file
+
 
 def genslurm(dryrun=True):
     if dryrun:
@@ -138,94 +153,11 @@ def main(args):
     """
 
     # Use ASKAPcli to get beam separations for PB correction
-    SBID = args.SBID
     field = args.field
+    scriptdir = os.path.dirname(os.path.realpath(__file__))
+    sepfile = f"{scriptdir}/../askap_surveys/RACS/admin/epoch_0/beam_sep-RACS_test4_1.05_{field}.csv"
 
-    # Get the SBID info
-    stdout = subprocess.getoutput(f'schedblock info -p {SBID}') 
-    info = stdout.splitlines()
-    for line in info[7:]: 
-        temp = line.split() 
-        if temp[-1] == '=': 
-            info_dict.update( 
-                { 
-                    temp[0]: None 
-                } 
-            ) 
-        else: 
-            info_dict.update( 
-                { 
-                    temp[0]: temp[-1]
-                } 
-            ) 
-
-    keys, vals = [], []
-    for line in info[7:]: 
-        line_lst = line.split() 
-        val = line_lst[-1] 
-        key = line_lst[0].split('.')
-        keys.append(key) 
-        vals.append(val)
-
-    srcs = [] 
-    for key, val in zip(keys, vals):
-        if key[0] == 'craft': 
-            continue 
-        elif key[1] == 'target': 
-            srcs.append(key[2])
-
-    # Store data in dict stucture
-    srcs = sorted(np.unique(srcs))
-    info_dict = {}
-    for src in srcs: 
-        info_dict.update({src: {} })
-
-    info_dict['src%d']['footprint'] = {}
-
-    for key, val in zip(keys, vals): 
-        if key[0] == 'craft':  
-            continue  
-        elif key[1] == 'target':  
-            src = key[2]
-            if len(key[3:]) == 1:
-                    info_dict[src].update(
-                        {
-                            key[3]: val
-                        }
-                    )
-            elif key[3] == 'footprint':
-                print(key[3], key[4], val)
-                info_dict[src]['footprint'].update(
-                    {
-                        key[4]: val
-                    }
-                )
-
-    # Get the key direction and rotation info
-    for src in info_dict.keys(): 
-        if info_dict[src]['field_name'][:-len(field)] == field: 
-            pol_lst = info_dict[src]['pol_axis'].split(',') 
-            rot_str = pol_lst[1] 
-            idx = rot_str.find(']') 
-            pol_ax_rot = float(rot_str[0:idx]) 
-            foot_rot = float(info_dict['src%d']['footprint']['rotation'])
-            rotation = pol_ax_rot+foot_rot
-            direction = info_dict[src]['field_direction'][len('['):-len(']')].split(',')                         
-
-    # Get the footprint seperations for each beam
-    cmd = f"footprint calculate -d {direction[0]},{direction[0]} -r {rotation} \
-        {info_dict['src%d']['footprint']['name']} -p {info_dict['src%d']['footprint']['pitch']}"
-    stdout = subprocess.getoutput(cmd)
-    beam_sep = {}
-    for beam, line in enumerate(stdout.splitlines()):
-        start = line.find('(')
-        stop = line.find(')')
-        beam_sep.update(
-            {
-                beam: line[start+1:stop].split()
-            }
-        )
-
+    beamseps = Table.read(sepfile)
 
     stokeslist = args.stokeslist
     if stokeslist is None:
@@ -235,20 +167,23 @@ def main(args):
 
     if not dryrun:
         print('In the words of CA... check yoself before you wreck yoself!')
-        dryrun = not yes_or_no("Are you sure you want to submit jobs to the queue?")
+        dryrun = not yes_or_no(
+            "Are you sure you want to submit jobs to the queue?")
 
     cutdir = args.cutdir
     if cutdir is not None:
         if cutdir[-1] == '/':
             cutdir = cutdir[:-1]
 
-    files = sorted(glob(f"{cutdir}/*"))    
+    files = sorted(glob(f"{cutdir}/*"))
 
     parfiles = []
-    for file in files:
+    for file in tqdm(files):
         for stoke in stokeslist:
-            parfile = genparset(field, stoke.capitalize(), file, prefix=args.prefix)
+            parfile = genparset(field, stoke.capitalize(),
+                                file, beamseps, prefix=args.prefix)
             parfiles.append(parfile)
+    embed()
 
 
 def cli():
@@ -264,23 +199,17 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, 
+        description=descStr,
         formatter_class=argparse.RawTextHelpFormatter
     )
 
     parser.add_argument(
-        "field", 
-        metavar="field", 
-        type=str, 
+        "field",
+        metavar="field",
+        type=str,
         help="RACS field to mosaic - e.g. 2132-50A."
     )
 
-    parser.add_argument(
-        "SBID", 
-        metavar="SBID", 
-        type=str, 
-        help="RACS SBID corresponding to field."
-    )
 
     parser.add_argument(
         "cutdir",
@@ -309,7 +238,7 @@ def cli():
         "-s",
         "--stokes",
         dest="stokeslist",
-        nargs='+', 
+        nargs='+',
         type=str,
         help="List of Stokes parameters to image [ALL]",
     )
