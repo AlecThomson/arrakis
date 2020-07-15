@@ -456,6 +456,8 @@ def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_wo
         with open(fail_file, 'w') as f: 
             for failed in sorted(real_failed):
                 f.write(failed+'\n') 
+        # TODO: Re-run failed commands
+        # It seems to work 
 
 def main(args, pool, verbose=True):
     """Main script
