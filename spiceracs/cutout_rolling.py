@@ -23,7 +23,10 @@ from astropy.table import Table, vstack
 from spiceracs.utils import getdata, MyEncoder
 from astropy.utils import iers
 iers.conf.auto_download = False
-print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+print = functools.partial(print, f'[{psutil.Process().cpu_num()},{rank}]', flush=True)
 
 
 def yes_or_no(question):
@@ -326,15 +329,6 @@ def cut_command(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=Fals
 
 
 def run_command(command, verbose=False):
-    # Do the image
-    # if command_dict is None:
-    #    return
-    # else:
-    # with open("commands.txt", "a") as f:
-    #    f.write(command_dict['image']+'\n')
-    #    f.write(command_dict['weight']+'\n')
-    #import random
-    # time.sleep(random.randint(0,20))
     try:
         proc = subprocess.run(shlex.split(command),
                               stderr=subprocess.STDOUT,
@@ -352,31 +346,16 @@ def run_command(command, verbose=False):
             if retries > 1e6:
                 break
 
-        if verbose:
-            print(proc.returncode)
-            print(proc.stderr)
-            print(proc.stdout)
-
-        if proc.returncode != 0:
-            return command
-        else:
+        if proc.returncode == 0:
+            if verbose:
+                print(command)
             return
+
+        elif proc.returncode != 0:
+            return command
 
     except:
         print('I failed in my job!', command)
-    # Now the weights
-    #    try:
-    #        proc = subprocess.run(
-    #            command_dict['weight'], stderr=subprocess.STDOUT, encoding='utf-8')
-    #        if verbose:
-    #            print(proc.returncode)
-    #            print(proc.stderr)
-    #            print(proc.stdout)
-    #    # if proc.returncode != 0:
-    #    #    proc = subprocess.run(
-    #    #        command, stderr=subprocess.STDOUT, encoding='utf-8')
-    #    except:
-    #        print('I failed in my job!', command_dict['image'])
 
 
 def get_cut_command(args):
@@ -464,14 +443,12 @@ def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_wo
         run_command_partial = partial(run_command, verbose=verbose_worker)
         failed_commands = list(
             tqdm(
-                # , chunksize=len(commands)//20),
                 pool.imap(run_command_partial, commands),
                 total=(len(commands)),
                 disable=(not verbose),
                 desc='Extracting cubelets'
             )
         )
-        embed()
         real_failed = [command for command in failed_commands if command is not None]
         fail_file = f'{directory}/{field}_failedcmds.txt'
         if verbose:
@@ -646,6 +623,7 @@ def cli():
     # make it so we can use imap in serial and mpi mode
     if not isinstance(pool, schwimmbad.MultiPool):
         pool.imap = pool.map
+
 
     verbose = args.verbose
     if verbose:
