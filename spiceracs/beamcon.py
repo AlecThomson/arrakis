@@ -275,7 +275,7 @@ def worker(file, beamdict, target_beam, dryrun=True, verbose=False):
         if verbose:
             print(f"Saved to {outfile}")
         header = target_beam.attach_to_header(header)
-        fits.writeto(outfile, newcube, header, overwrite=True)
+        fits.writeto(outfile, newcube[:, np.newaxis], header, overwrite=True)
 
 
 def main(args, verbose=True):
@@ -517,7 +517,7 @@ def cli():
 
     # Help string to be shown using the -h option
     descStr = """
-    Smooth a field of 3D cubes to a common resolution.
+    Smooth a field of 3D cubes to a common resolution.all
 
     Names of output files are 'infile'.sm.fits
 
