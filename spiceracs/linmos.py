@@ -14,15 +14,26 @@ from IPython import embed
 
 
 def genparset(field, stoke, datadir, septab, prefix=""):
+    """Generate parset for LINMOS
 
+    Args:
+        field (str): Name of RACS field
+        stoke (str): Stokes parameter
+        datadir (str): Directory containing cutouts
+        septab (Table): Table of beam seperations
+        prefix (str, optional): Search for files with a prefix. Defaults to "".
+
+    Raises:
+        Exception: If no files are found in the datadir
+    """    
     ims = sorted(
         glob(
-            f"{datadir}/sm.*.cutout.image.restored.{stoke.lower()}.*.beam*.fits" 
+            f"{datadir}/sm.*.cutout.image.restored.{stoke.lower()}.*.beam*.fits"
         )
     )
     if len(ims) == 0:
         print(
-            f"{datadir}/sm.*.cutout.image.restored.{stoke.lower()}.*.beam*.fits" 
+            f"{datadir}/sm.*.cutout.image.restored.{stoke.lower()}.*.beam*.fits"
         )
         raise Exception(
             'No files found. Have you run imaging? Check your prefix?')
@@ -33,7 +44,7 @@ def genparset(field, stoke, datadir, septab, prefix=""):
 
     wgts = sorted(
         glob(
-            f"{datadir}/*.weights.{stoke.lower()}.*.beam*.fits" 
+            f"{datadir}/*.weights.{stoke.lower()}.*.beam*.fits"
         )
     )
     weightlist = "["
@@ -56,11 +67,11 @@ linmos.feeds.centre     = [{septab['FOOTPRINT_RA'][0]}, {septab['FOOTPRINT_DEC']
 linmos.feeds.spacing    = 1deg
 # Beam offsets
 """
-    for im in ims: 
-        basename = os.path.basename(im).replace('.fits', '') 
-        idx = basename.find('beam') 
-        beamno = int(basename[len('beam')+idx:]) 
-        idx = septab['BEAM'] == beamno 
+    for im in ims:
+        basename = os.path.basename(im).replace('.fits', '')
+        idx = basename.find('beam')
+        beamno = int(basename[len('beam')+idx:])
+        idx = septab['BEAM'] == beamno
         offset = f"linmos.feeds.{basename} = [{septab[idx]['DELTA_RA'][0]},{septab[idx]['DELTA_DEC'][0]}]\n"
         parset += offset
     with open(parset_file, "w") as f:
@@ -69,20 +80,29 @@ linmos.feeds.spacing    = 1deg
     return parset_file
 
 
-def genslurm(dryrun=True):
+def genslurm(parsets, fieldname, cutdir, files, stokeslist, dryrun=True):
+    """Generate SBATCH file
+
+    Args:
+        parsets (list): List containing path to all parsets
+        fieldname (str): Name of RACS field
+        cutdir (str): Directory containing cutouts
+        files (list): List of directories inside cutouts
+        dryrun (bool, optional): Generate SBATCH but do not submit. Defaults to True.
+    """    
     if dryrun:
         print("Doing a dryrun - no jobs will be submitted")
-    slurm_dir = f"{scriptdir}/slurmFiles/VAST_{field}"
+    slurm_dir = f"{cutdir}/slurmFiles"
     try:
         os.mkdir(slurm_dir)
     except FileExistsError:
         pass
-    logdir = f"{scriptdir}/outputs"
+    logdir = f"{slurm_dir}/outputs"
     try:
         os.mkdir(logdir)
     except FileExistsError:
         pass
-    slurmbat = f"{slurm_dir}/science_contcube_linmos_F04_{stoke}.sbatch"
+    slurmbat = f"{slurm_dir}/{fieldname}_linmos.sbatch"
     slurm = f"""#!/bin/bash -l
 #SBATCH --partition=workq
 #SBATCH --clusters=galaxy
@@ -92,14 +112,14 @@ def genslurm(dryrun=True):
 # No reservation requested
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
-#SBATCH --time=10:00:00
+#SBATCH --time=24:00:00
 #SBATCH --ntasks=288
-#SBATCH --ntasks-per-node=4
-#SBATCH --job-name=linmosCCrestored_F04_{stoke}
+#SBATCH --ntasks-per-node=20
+#SBATCH --job-name={fieldname}_linmos
 #SBATCH --export=NONE
 #SBATCH --output={logdir}/slurm-%x.%j.out
 #SBATCH --error={logdir}/slurm-%x.%j.err
-log={logdir}/RACS_{field}_science_linmosCC_F04_{stoke}_$SLURM_JOB_ID.log
+log={logdir}/{fieldname}_linmos_$SLURM_JOB_ID.log
 
 # Need to load the slurm module directly
 module load slurm
@@ -120,16 +140,39 @@ if [ "$ASKAPSOFT_RELEASE" == "" ]; then
     exit 1
 fi
 
-cd {datadir}
-
 NCORES=288
-NPPN=4
-srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c {parset_file} > "$log"
-err=$?
-    """
+NPPN=20
+
+"""
+    # Get island dirs
+    islands = []
+    for file in files:
+        base = os.path.basename(file)
+        if base == "slurmFiles":
+            continue
+        else:
+            islands.append(base)
+
+    # Put them in a bash list
+    island_list = ""
+    for isl in islands:
+        island_list += f"{isl} "
+
+    cmd = f"""
+islandList="{island_list}"
+for island in $islandList; do
+    dir={cutdir}/${{island}}
+    cd $dir
+    srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c ${{dir}}/linmos_I.in >> "$log"
+    srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c ${{dir}}/linmos_Q.in >> "$log"
+    srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c ${{dir}}/linmos_U.in >> "$log"
+    srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c ${{dir}}/linmos_V.in >> "$log"
+done | tqdm --total {len(islands)} >> /dev/null
+"""
+    slurm += cmd
     with open(slurmbat, "w") as f:
         f.write(slurm)
-
+    print(f"Written slurm file to {slurmbat}")
     if not dryrun:
         print(f"Submitting {slurmbat}")
         command = f"sbatch {slurmbat}"
@@ -140,6 +183,14 @@ err=$?
 
 
 def yes_or_no(question):
+    """Ask a yes or no question
+
+    Args:
+        question (str): The question
+
+    Returns:
+        bool: True for yes, False for no
+    """    
     while "Please answer 'y' or 'n'":
         reply = str(input(question+' (y/n): ')).lower().strip()
         if reply[:1] == 'y':
@@ -178,13 +229,17 @@ def main(args):
     files = sorted(glob(f"{cutdir}/*"))
 
     parfiles = []
-    for file in tqdm(files):
+    for file in tqdm(files, desc='Making parsets'):
+        if os.path.basename(file) == 'slurmFiles':
+            continue
         for stoke in stokeslist:
             parfile = genparset(field, stoke.capitalize(),
                                 file, beamseps, prefix=args.prefix)
             parfiles.append(parfile)
-    embed()
+    
+    genslurm(parfiles, field, cutdir, files, stokeslist, dryrun=dryrun)
 
+    print('Done!')
 
 def cli():
     """Command-line interface
@@ -209,7 +264,6 @@ def cli():
         type=str,
         help="RACS field to mosaic - e.g. 2132-50A."
     )
-
 
     parser.add_argument(
         "cutdir",
