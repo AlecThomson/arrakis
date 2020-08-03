@@ -102,8 +102,10 @@ def genslurm(parsets, fieldname, cutdir, files, stokeslist, dryrun=True):
         os.mkdir(logdir)
     except FileExistsError:
         pass
-    slurmbat = f"{slurm_dir}/{fieldname}_linmos.sbatch"
-    slurm = f"""#!/bin/bash -l
+
+    for stoke in stokeslist:
+        slurmbat = f"{slurm_dir}/{fieldname}_linmos_{stoke}.sbatch"
+        slurm = f"""#!/bin/bash -l
 #SBATCH --partition=workq
 #SBATCH --clusters=galaxy
 #SBATCH --exclude=nid00[010,200-202]
@@ -115,11 +117,11 @@ def genslurm(parsets, fieldname, cutdir, files, stokeslist, dryrun=True):
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=288
 #SBATCH --ntasks-per-node=20
-#SBATCH --job-name={fieldname}_linmos
+#SBATCH --job-name={stoke}_{fieldname}_linmos
 #SBATCH --export=NONE
 #SBATCH --output={logdir}/slurm-%x.%j.out
 #SBATCH --error={logdir}/slurm-%x.%j.err
-log={logdir}/{fieldname}_linmos_$SLURM_JOB_ID.log
+log={logdir}/{stoke}_{fieldname}_linmos_$SLURM_JOB_ID.log
 
 # Need to load the slurm module directly
 module load slurm
@@ -144,42 +146,39 @@ NCORES=288
 NPPN=20
 
 """
-    # Get island dirs
-    islands = []
-    for file in files:
-        base = os.path.basename(file)
-        if base == "slurmFiles":
-            continue
-        else:
-            islands.append(base)
+        # Get island dirs
+        islands = []
+        for file in files:
+            base = os.path.basename(file)
+            if base == "slurmFiles":
+                continue
+            else:
+                islands.append(base)
 
-    # Put them in a bash list
-    island_list = ""
-    for isl in islands:
-        island_list += f"{isl} "
+        # Put them in a bash list
+        island_list = ""
+        for isl in islands:
+            island_list += f"{isl} "
 
-    cmd = f"""
+        cmd = f"""
 islandList="{island_list}"
 for island in $islandList; do
     dir={cutdir}/${{island}}
     cd $dir
-    srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c ${{dir}}/linmos_I.in >> "$log"
-    srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c ${{dir}}/linmos_Q.in >> "$log"
-    srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c ${{dir}}/linmos_U.in >> "$log"
-    srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c ${{dir}}/linmos_V.in >> "$log"
-done | tqdm --total {len(islands)} >> /dev/null
+    srun --export=ALL --ntasks=$NCORES --ntasks-per-node=$NPPN linmos-mpi -c ${{dir}}/linmos_{stoke}.in >> "$log"
+done | tqdm --total {len(islands)} 2>&1
 """
-    slurm += cmd
-    with open(slurmbat, "w") as f:
-        f.write(slurm)
-    print(f"Written slurm file to {slurmbat}")
-    if not dryrun:
-        print(f"Submitting {slurmbat}")
-        command = f"sbatch {slurmbat}"
-        command = shlex.split(command)
-        proc = subprocess.run(
-            command, capture_output=True, encoding="utf-8", check=True
-        )
+        slurm += cmd
+        with open(slurmbat, "w") as f:
+            f.write(slurm)
+        print(f"Written slurm file to {slurmbat}")
+        if not dryrun:
+            print(f"Submitting {slurmbat}")
+            command = f"sbatch {slurmbat}"
+            command = shlex.split(command)
+            proc = subprocess.run(
+                command, encoding="utf-8", check=True
+            )
 
 
 def yes_or_no(question):
