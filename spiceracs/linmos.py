@@ -11,6 +11,7 @@ from astropy.coordinates import SkyCoord
 import astropy.units as u
 from tqdm import tqdm, trange
 from IPython import embed
+from spiceracs.utils import gen_seps
 
 
 def genparset(field, stoke, datadir, septab, prefix=""):
@@ -135,7 +136,9 @@ module unload askapsoft
 module load numpy
 module load matplotlib
 module load astropy
-module load askapsoft
+#module load askapsoft
+# Fixed linmos
+module load askapsoft/66f1e70
 # Exit if we could not load askapsoft
 if [ "$ASKAPSOFT_RELEASE" == "" ]; then
     echo "ERROR: \$ASKAPSOFT_RELEASE not available - could not load askapsoft module."
@@ -205,9 +208,8 @@ def main(args):
     # Use ASKAPcli to get beam separations for PB correction
     field = args.field
     scriptdir = os.path.dirname(os.path.realpath(__file__))
-    sepfile = f"{scriptdir}/../askap_surveys/RACS/admin/epoch_0/beam_sep-RACS_test4_1.05_{field}.csv"
 
-    beamseps = Table.read(sepfile)
+    beamseps = gen_seps(field)
 
     stokeslist = args.stokeslist
     if stokeslist is None:

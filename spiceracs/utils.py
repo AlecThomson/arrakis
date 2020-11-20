@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env /group/askap/athomson/miniconda3/envs/aces/bin/python
 import numpy as np
 import os
 import stat
@@ -15,8 +15,63 @@ from astropy.table import Table
 from astropy.wcs import WCS
 import astropy.units as u
 import functools
+from os import name
+from aces.obsplan.config import ACESConfig  # noqa
+from astropy.coordinates import SkyCoord
+import astropy
+
 print = functools.partial(print, flush=True)
 
+def gen_seps(field):
+    
+    # get offsets
+    aces_cfg = ACESConfig()
+    fp_factory = aces_cfg.footprint_factory
+    # fp = fp_factory.make_footprint('ak:closepack36', 0.9 * pi / 180., 0.0 * pi / 180.)
+    fp = fp_factory.make_footprint('ak:square_6x6', 1.05 * np.pi / 180., 0.0 * np.pi / 180.)
+
+    offsets = np.rad2deg(np.array(fp.offsetsRect))
+
+    master_cat = Table.read('askap_surveys/RACS/admin/epoch_0/field_data.csv')
+    master_cat.add_index('FIELD_NAME')
+    master_cat = master_cat.loc[f"RACS_test4_1.05_{field}"]
+    if type(master_cat) is not astropy.table.row.Row:
+        master_cat = master_cat[0]
+
+    # Look for multiple SBIDs - only need one
+    cats = glob(f'askap_surveys/RACS/admin/epoch_0/beam_inf_*-RACS_test4_1.05_{field}.csv')
+    beam_cat = Table.read(cats[0])
+    beam_cat.add_index('BEAM_NUM')
+
+    names = ["BEAM","DELTA_RA","DELTA_DEC","BEAM_RA","BEAM_DEC","FOOTPRINT_RA","FOOTPRINT_DEC"]
+
+
+    cols = []
+    for beam in range(36):
+        beam = int(beam)
+
+        beam_dat = beam_cat.loc[beam]
+        beam_coord = SkyCoord(beam_dat['RA_DEG']*u.deg, beam_dat['DEC_DEG']*u.deg)
+        field_coord = SkyCoord(master_cat['RA_DEG']*u.deg, master_cat['DEC_DEG']*u.deg)
+        ra_beam = beam_coord.ra.hms
+        dec_beam = beam_coord.dec.dms
+        ra_field = field_coord.ra.hms
+        dec_field = field_coord.dec.dms
+
+
+        row = [
+            beam,
+            offsets[beam][0],
+            offsets[beam][1],
+            f"{ra_beam.h:02.0f}:{ra_beam.m:02.0f}:{ra_beam.s:06.3f}",
+            f"{dec_beam.d:02.0f}:{abs(dec_beam.m):02.0f}:{abs(dec_beam.s):05.2f}",
+            f"{ra_field.h:02.0f}:{ra_field.m:02.0f}:{ra_field.s:06.3f}",
+            f"{dec_field.d:02.0f}:{abs(dec_field.m):02.0f}:{abs(dec_field.s):05.2f}",
+        ]
+        cols += [row]
+    tab = Table(data=np.array(cols), names=names)
+
+    return tab
 
 def head2dict(h):
     """Convert FITS header to a dict.
