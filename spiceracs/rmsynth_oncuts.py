@@ -25,9 +25,10 @@ print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 def rmsythoncut3d(args):
     i, clargs, outdir, freq, freqfile, verbose = args
 
-    client = pymongo.MongoClient()  # default connection (ie, local)
-    mydb = client['racs']  # Create/open database
-    mycol = mydb['spice']  # Create/open collection
+    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+        mydb = client['spiceracs']  # Create/open database
+        isl_col = mydb['islands']  # Create/open collection
+        beam_col = mydb['components']  # Create/open collection
 
     # Basic querey
     if clargs.pol and not clargs.unres:
@@ -192,9 +193,10 @@ def estimate_noise_annulus(x_center, y_center, cube):
 
 def rmsythoncut1d(args):
     i, clargs, outdir, freq, freqfile, verbose = args
-    client = pymongo.MongoClient()  # default connection (ie, local)
-    mydb = client['racs']  # Create/open database
-    mycol = mydb['spice']  # Create/open collection
+    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+        mydb = client['spiceracs']  # Create/open database
+        isl_col = mydb['islands']  # Create/open collection
+        beam_col = mydb['components']  # Create/open collection
 
     # Basic querey
     if clargs.pol and not clargs.unres:
@@ -215,10 +217,10 @@ def rmsythoncut1d(args):
 
     doc = mycol.find(myquery).sort("flux_peak", -1)
     iname = doc[i]['island_name']
-    ifile = f"{outdir}/{doc[i]['i_file']}"
-    qfile = f"{outdir}/{doc[i]['q_file']}"
-    ufile = f"{outdir}/{doc[i]['u_file']}"
-    vfile = f"{outdir}/{doc[i]['v_file']}"
+    ifile = f"{outdir}/{doc[i]['island_id']}/{doc[i]['i_file']}"
+    qfile = f"{outdir}/{doc[i]['island_id']}/{doc[i]['q_file']}"
+    ufile = f"{outdir}/{doc[i]['island_id']}/{doc[i]['u_file']}"
+    vfile = f"{outdir}/{doc[i]['island_id']}/{doc[i]['v_file']}"
 
     # with fits.open(vfile) as hdulist:
     #    rms = np.nanstd(np.squeeze(hdulist[0].data), axis=(1, 2)) * 3
@@ -403,9 +405,10 @@ def rmsythoncut1d(args):
 def rmsythoncut_i(args):
     i, clargs, freq, outdir, verbose = args
 
-    client = pymongo.MongoClient()  # default connection (ie, local)
-    mydb = client['racs']  # Create/open database
-    mycol = mydb['spice']  # Create/open collection
+    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+        mydb = client['spiceracs']  # Create/open database
+        isl_col = mydb['islands']  # Create/open collection
+        beam_col = mydb['components']  # Create/open collection
 
     # Basic querey
     if clargs.pol and not clargs.unres:
@@ -526,9 +529,11 @@ def main(pool, args, verbose=False):
         except FileExistsError:
             print('Directory exists.')
 
-    client = pymongo.MongoClient()  # default connection (ie, local)
-    mydb = client['racs']  # Create/open database
-    mycol = mydb['spice']  # Create/open collection
+    host = args.host
+    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+        mydb = client['spiceracs']  # Create/open database
+        isl_col = mydb['islands']  # Create/open collection
+        beam_col = mydb['components']  # Create/open collection
 
     # Basic querey
     if args.pol and not args.unres:
@@ -548,15 +553,15 @@ def main(pool, args, verbose=False):
     else:
         myquery = {}
 
-    mydoc = mycol.find(myquery).sort("flux_peak", -1)
-    count = mycol.count_documents(myquery)
+    mydoc = isl_col.find(myquery).sort("flux_peak", -1)
+    count = beam_col.count_documents(myquery)
 
     if args.limit is not None:
         count = args.limit
 
     # Make frequency file
     freq, freqfile = getfreq(
-        f"{outdir}/{mydoc[0]['q_file']}", outdir=outdir, filename='frequencies.txt', verbose=verbose)
+        f"{outdir}/{mydoc[0]['island_id']}/{mydoc[0]['q_file']}", outdir=outdir, filename='frequencies.txt', verbose=verbose)
     freq = np.array(freq)
     if verbose:
         print(f'Running RMsynth on {count} sources')
@@ -674,6 +679,12 @@ def cli():
         metavar='outdir',
         type=str,
         help='Directory containing cutouts (in subdir outdir/cutouts).')
+    
+    parser.add_argument(
+        'host',
+        metavar='host',
+        type=str,
+        help='Host of mongodb (probably $hostname -i).')
 
     parser.add_argument("--dimension", dest="dimension", default="1d",
                         help="How many dimensions for RMsynth [1d] or '3d'.")
@@ -755,15 +766,14 @@ def cli():
 
     if verbose:
         print('Testing MongoDB connection...')
-    client = pymongo.MongoClient()  # default connection (ie, local)
-    try:
-        client.list_database_names()
-    except pymongo.errors.ServerSelectionTimeoutError:
-        raise Exception("Please ensure 'mongod' is running")
-    else:
-        if verbose:
-            print('MongoDB connection succesful!')
-    client.close()
+    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+        try:
+            client.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose:
+                print('MongoDB connection succesful!')
 
     main(pool, args, verbose=verbose)
 
