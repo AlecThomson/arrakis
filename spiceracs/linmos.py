@@ -163,12 +163,12 @@ def genparset(field, stoke, datadir, septab, prefix=""):
     """
     ims = sorted(
         glob(
-            f"{datadir}/sm.*.cutout.image.restored.{stoke.lower()}.*.beam*[00-35.fits]"
+            f"{datadir}/*.cutout.sm.image.restored.{stoke.lower()}.*.beam*[00-35.fits]"
         )
     )
     if len(ims) == 0:
         print(
-            f"{datadir}/sm.*.cutout.image.restored.{stoke.lower()}.*.beam*[00-35.fits]"
+            f"{datadir}/*.cutout.sm.image.restored.{stoke.lower()}.*.beam*[00-35.fits]"
         )
         raise Exception(
             'No files found. Have you run imaging? Check your prefix?')
@@ -310,7 +310,7 @@ for island in $islandList; do
     cd $dir
     #linmos -c ${{dir}}/linmos_{stoke}.in >> "$log"
     srun --export=ALL --ntasks=${{NCORES}} --ntasks-per-node=${{NPPN}} linmos-mpi -c ${{dir}}/linmos_{stoke}.in > "$log"
-    ls sm*image.restored.{stoke.lower()}*.linmos.fits | xargs -I // mongo --host $mongo_ip --eval 'db.islands.findOneAndUpdate({{"island_id" : "'$island'"}}, {{"$set" :{{"{stoke.lower()}_file" : "'//'"}}}});' spiceracs
+    ls sm*image.restored.{stoke.lower()}*.linmos.fits | xargs -I // mongo --host $mongo_ip --eval 'db.islands.findOneAndUpdate({{"island_id" : "'$island'"}}, {{"$set" :{{"{stoke.lower()}_file" : "'//'"}}}});' spiceracs > "$log"
     echo ${{island}}
 done | tqdm --total {len(islands)} >> /dev/null
 """
