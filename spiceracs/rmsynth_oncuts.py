@@ -23,12 +23,13 @@ print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
 def rmsythoncut3d(args):
-    i, clargs, outdir, freq, freqfile, verbose = args
+    i, clargs, outdir, freq, freqfile, host, verbose = args
 
-    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=host) as client:
         mydb = client['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
-        beam_col = mydb['components']  # Create/open collection
+        comp_col = mydb['components']  # Create/open collection
 
     # Basic querey
     if clargs.pol and not clargs.unres:
@@ -40,9 +41,9 @@ def rmsythoncut3d(args):
     else:
         myquery = {}
 
-    doc = mycol.find(myquery).sort("flux_peak", -1)
+    doc = isl_col.find(myquery).sort("flux_peak", -1)
 
-    iname = doc[i]['island_name']
+    iname = doc[i]['Source_Name']
     qfile = f"{outdir}/{doc[i]['q_file']}"
     ufile = f"{outdir}/{doc[i]['u_file']}"
     vfile = f"{outdir}/{doc[i]['v_file']}"
@@ -88,7 +89,7 @@ def rmsythoncut3d(args):
         myquery = {"island_name": iname}
 
         newvalues = {"$set": {"rmsynth3d": True}}
-        mycol.update_one(myquery, newvalues)
+        isl_col.update_one(myquery, newvalues)
 
         newvalues = {"$set": {"rm3dfiles": {
             "FDF_real_dirty": f"{prefix}FDF_real_dirty.fits",
@@ -98,7 +99,7 @@ def rmsythoncut3d(args):
             "RMSF_tot": f"{prefix}RMSF_tot.fits",
             "RMSF_FWHM": f"{prefix}RMSF_FWHM.fits"
         }}}
-        mycol.update_one(myquery, newvalues)
+        isl_col.update_one(myquery, newvalues)
 
 
 def rms_1d(data):
@@ -111,12 +112,12 @@ def rms_1d(data):
     return rms
 
 
-
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used
     from a forked multiprocessing child
 
     """
+
     def interaction(self, *args, **kwargs):
         _stdin = sys.stdin
         try:
@@ -124,6 +125,7 @@ class ForkedPdb(pdb.Pdb):
             pdb.Pdb.interaction(self, *args, **kwargs)
         finally:
             sys.stdin = _stdin
+
 
 def estimate_noise_annulus(x_center, y_center, cube):
     """
@@ -168,10 +170,10 @@ def estimate_noise_annulus(x_center, y_center, cube):
         print('Too many NaNs in cutout - skipping...')
         err *= np.nan
         return err
-    
+
 
 ########################################################################
-#def estimate_noise_annulus_np(x_center, y_center, cube):
+# def estimate_noise_annulus_np(x_center, y_center, cube):
 #    inner_radius = 10
 #    outer_radius = 31
 #    z = np.arange(cube.shape[0])
@@ -192,35 +194,24 @@ def estimate_noise_annulus(x_center, y_center, cube):
 #######################################################################
 
 def rmsythoncut1d(args):
-    i, clargs, outdir, freq, freqfile, verbose = args
-    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+    comp_id, clargs, outdir, freq, freqfile, host, verbose = args
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=host) as client:
         mydb = client['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
-        beam_col = mydb['components']  # Create/open collection
+        comp_col = mydb['components']  # Create/open collection
 
     # Basic querey
-    if clargs.pol and not clargs.unres:
-        myquery = {"polarized": True}
-    elif clargs.unres and not clargs.pol:
-        myquery = {"resolved": False}
-    elif clargs.pol and clargs.unres:
-        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+    myquery = {"Source_ID": comp_id}
 
-    elif clargs.pol and not clargs.loners:
-        myquery = {"polarized": True}
-    elif clargs.loners and not clargs.pol:
-        myquery = {"n_components": 1}
-    elif clargs.pol and clargs.loners:
-        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
-    else:
-        myquery = {}
+    doc = comp_col.find_one(myquery)
+    cname = doc['Component_ID']
+    outdir = f"{outdir}/{doc['Source_ID']}"
 
-    doc = mycol.find(myquery).sort("flux_peak", -1)
-    iname = doc[i]['island_name']
-    ifile = f"{outdir}/{doc[i]['island_id']}/{doc[i]['i_file']}"
-    qfile = f"{outdir}/{doc[i]['island_id']}/{doc[i]['q_file']}"
-    ufile = f"{outdir}/{doc[i]['island_id']}/{doc[i]['u_file']}"
-    vfile = f"{outdir}/{doc[i]['island_id']}/{doc[i]['v_file']}"
+    ifile = f"{outdir}/{doc['i_file']}"
+    qfile = f"{outdir}/{doc['q_file']}"
+    ufile = f"{outdir}/{doc['u_file']}"
+    vfile = f"{outdir}/{doc['v_file']}"
 
     # with fits.open(vfile) as hdulist:
     #    rms = np.nanstd(np.squeeze(hdulist[0].data), axis=(1, 2)) * 3
@@ -267,252 +258,228 @@ def rmsythoncut1d(args):
     if np.isnan(rmsi).all() or np.isnan(rmsq).all() or np.isnan(rmsu).all():
         return
 
-    for comp in range(int(doc[i]['n_components'])):
-        if clargs.rm_verbose:
-            print(f'Working on component {comp+1}')
-        cname = doc[i][f'component_{comp+1}']['component_name']
-        prefix = f'{outdir}/{cname}'
+    prefix = f'{outdir}/{cname}'
 
-        ra = doc[i][f'component_{comp+1}']['ra_deg_cont']
-        dec = doc[i][f'component_{comp+1}']['dec_deg_cont']
-        wcs = WCS(doc[i]['header']).dropaxis(2)
+    ra = doc['RA']
+    dec = doc['Dec']
+    wcs = WCS(header).dropaxis(2)
 
-        x, y, z = np.array(wcs.all_world2pix(
-            ra, dec, np.nanmean(freq), 0)).round().astype(int)
+    x, y, z = np.array(wcs.all_world2pix(
+        ra, dec, np.nanmean(freq), 0)).round().astype(int)
 
-        qarr = dataQ[:, y, x]
-        uarr = dataU[:, y, x]
-        iarr = dataI[:, y, x]
+    qarr = dataQ[:, y, x]
+    uarr = dataU[:, y, x]
+    iarr = dataI[:, y, x]
 
-        iarr[iarr == 0] = np.nan
-        qarr[qarr == 0] = np.nan
-        uarr[uarr == 0] = np.nan
+    iarr[iarr == 0] = np.nan
+    qarr[qarr == 0] = np.nan
+    uarr[uarr == 0] = np.nan
 
-        if np.isnan(qarr).all() or np.isnan(uarr).all():
-            return
+    if np.isnan(qarr).all() or np.isnan(uarr).all():
+        return
+    else:
+        if clargs.noStokesI:
+            idx = np.isnan(qarr) | np.isnan(uarr)
+            data = [np.array(freq), qarr,
+                    uarr, rmsq, rmsu]
         else:
-            if clargs.noStokesI:
-                idx = np.isnan(qarr) | np.isnan(uarr)
-                data = [np.array(freq), qarr,
-                        uarr, rmsq, rmsu]
-            else:
-                if np.isnan(iarr).all():
-                    return
-                else:
-                    idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
-                    data = [np.array(freq), iarr, qarr,
-                            uarr, rmsi, rmsq, rmsu]
-            # Run 1D RM-synthesis on the spectra
-
-            # if clargs.database:
-            #    myquery = {"island_name": iname}
-            #    data_f = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
-            #    json_data = json.loads(json.dumps(
-            #        {f"comp_{comp+1}_spectra": data}, cls=MyEncoder))
-            #    newvalues = {"$set": json_data}
-            #    mycol.update_one(myquery, newvalues)
-            #    mycol.update_one(myquery, newvalues)
-
-            np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
-
-            try:
-                mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                         polyOrd=clargs.polyOrd,
-                                                         phiMax_radm2=clargs.phiMax_radm2,
-                                                         dPhi_radm2=clargs.dPhi_radm2,
-                                                         nSamples=clargs.nSamples,
-                                                         weightType=clargs.weightType,
-                                                         fitRMSF=clargs.fitRMSF,
-                                                         noStokesI=clargs.noStokesI,
-                                                         nBits=32,
-                                                         showPlots=clargs.showPlots,
-                                                         verbose=clargs.rm_verbose,
-                                                         debug=clargs.debug)
-                if clargs.savePlots:
-                    import matplotlib
-                    matplotlib.use('Agg')
-                    #if verbose:
-                    #    print("Plotting the input data and spectral index fit.")
-                    from RMutils.util_plotTk import plot_Ipqu_spectra_fig
-                    from RMutils.util_misc import poly5
-
-                    if clargs.noStokesI:
-                        IArr = np.ones_like(qarr[~idx])
-                        Ierr = np.zeros_like(qarr[~idx])
-                    else:
-                        IArr = iarr[~idx]
-                        Ierr = rmsi[~idx]
-
-                    IModArr, qArr, uArr, dqArr, duArr, fitDict = \
-                        create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
-                                            IArr=IArr,
-                                            QArr=qarr[~idx],
-                                            UArr=uarr[~idx],
-                                            dIArr=Ierr,
-                                            dQArr=rmsq[~idx],
-                                            dUArr=rmsu[~idx],
-                                            polyOrd=clargs.polyOrd,
-                                            verbose=False,
-                                            debug=False)
-
-                    freqHirArr_Hz = np.linspace(
-                        mDict['min_freq'], mDict['max_freq'], 10000)
-                    coef = np.array(
-                        mDict["polyCoeffs"].split(',')).astype(float)
-                    IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
-                    plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
-                                          IArr=iarr[~idx],
-                                          qArr=qArr,
-                                          uArr=uArr,
-                                          dIArr=Ierr,
-                                          dqArr=dqArr,
-                                          duArr=duArr,
-                                          freqHirArr_Hz=freqHirArr_Hz,
-                                          IModArr=IModHirArr,
-                                          fig=None,
-                                          units='Jy/beam')
-                    plotname = f'{outdir}/plots/{iname}_specfig.png'
-                    plt.savefig(plotname, dpi=75, bbox_inches='tight')
-                do_RMsynth_1D.saveOutput(
-                    mDict, aDict, prefix, clargs.rm_verbose)
-            except ValueError:
+            if np.isnan(iarr).all():
                 return
+            else:
+                idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
+                data = [np.array(freq), iarr, qarr,
+                        uarr, rmsi, rmsq, rmsu]
+        # Run 1D RM-synthesis on the spectra
 
-            if clargs.database:
-                myquery = {"island_name": iname}
+        # if clargs.database:
+        #    myquery = {"island_name": iname}
+        #    data_f = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
+        #    json_data = json.loads(json.dumps(
+        #        {f"comp_{comp+1}_spectra": data}, cls=MyEncoder))
+        #    newvalues = {"$set": json_data}
+        #    mycol.update_one(myquery, newvalues)
+        #    mycol.update_one(myquery, newvalues)
 
-                newvalues = {"$set": {f"rm1dfiles_comp_{comp+1}": {
-                    "FDF_dirty": f"{cname}_FDFdirty.dat",
-                    "RMSF": f"{cname}_RMSF.dat",
-                    "weights": f"{cname}_weight.dat",
-                    "summary_dat": f"{cname}_RMsynth.dat",
-                    "summary_json": f"{cname}_RMsynth.json",
-                }}}
-                mycol.update_one(myquery, newvalues)
+        np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
 
-                myquery = {"island_name": iname}
-                newvalues = {"$set": {f"comp_{comp+1}_rmsynth1d": True}}
-                mycol.update_one(myquery, newvalues)
+        try:
+            mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                                        polyOrd=clargs.polyOrd,
+                                                        phiMax_radm2=clargs.phiMax_radm2,
+                                                        dPhi_radm2=clargs.dPhi_radm2,
+                                                        nSamples=clargs.nSamples,
+                                                        weightType=clargs.weightType,
+                                                        fitRMSF=clargs.fitRMSF,
+                                                        noStokesI=clargs.noStokesI,
+                                                        nBits=32,
+                                                        showPlots=clargs.showPlots,
+                                                        verbose=clargs.rm_verbose,
+                                                        debug=clargs.debug)
+            if clargs.savePlots:
+                import matplotlib
+                matplotlib.use('Agg')
+                # if verbose:
+                #    print("Plotting the input data and spectral index fit.")
+                from RMutils.util_plotTk import plot_Ipqu_spectra_fig
+                from RMutils.util_misc import poly5
 
-    if clargs.database:
-        # Load into Mongo
-        myquery = {"island_name": iname}
+                if clargs.noStokesI:
+                    IArr = np.ones_like(qarr[~idx])
+                    Ierr = np.zeros_like(qarr[~idx])
+                else:
+                    IArr = iarr[~idx]
+                    Ierr = rmsi[~idx]
 
-        newvalues = {"$set": {f"rmsynth1d": True}}
-        mycol.update_one(myquery, newvalues)
+                IModArr, qArr, uArr, dqArr, duArr, fitDict = \
+                    create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
+                                        IArr=IArr,
+                                        QArr=qarr[~idx],
+                                        UArr=uarr[~idx],
+                                        dIArr=Ierr,
+                                        dQArr=rmsq[~idx],
+                                        dUArr=rmsu[~idx],
+                                        polyOrd=clargs.polyOrd,
+                                        verbose=False,
+                                        debug=False)
+
+                freqHirArr_Hz = np.linspace(
+                    mDict['min_freq'], mDict['max_freq'], 10000)
+                coef = np.array(
+                    mDict["polyCoeffs"].split(',')).astype(float)
+                IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
+                plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
+                                        IArr=iarr[~idx],
+                                        qArr=qArr,
+                                        uArr=uArr,
+                                        dIArr=Ierr,
+                                        dqArr=dqArr,
+                                        duArr=duArr,
+                                        freqHirArr_Hz=freqHirArr_Hz,
+                                        IModArr=IModHirArr,
+                                        fig=None,
+                                        units='Jy/beam')
+                plotname = f'{outdir}/plots/{iname}_specfig.png'
+                plt.savefig(plotname, dpi=75, bbox_inches='tight')
+            do_RMsynth_1D.saveOutput(
+                mDict, aDict, prefix, clargs.rm_verbose)
+        except ValueError:
+            return
+
+        if clargs.database:
+            myquery = {"Component_ID": cname}
+
+            newvalues = {"$set": {f"rm1dfiles": {
+                "FDF_dirty": f"{cname}_FDFdirty.dat",
+                "RMSF": f"{cname}_RMSF.dat",
+                "weights": f"{cname}_weight.dat",
+                "summary_dat": f"{cname}_RMsynth.dat",
+                "summary_json": f"{cname}_RMsynth.json",
+            }}}
+            comp_col.update_one(myquery, newvalues)
+
+            myquery = {"island_name": cname}
+            newvalues = {"$set": {f"rmsynth1d": True}}
+            comp_col.update_one(myquery, newvalues)
 
 
 def rmsythoncut_i(args):
-    i, clargs, freq, outdir, verbose = args
+    comp_id, clargs, freq, outdir, host, verbose = args
 
-    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=host) as client:
         mydb = client['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
-        beam_col = mydb['components']  # Create/open collection
+        comp_col = mydb['components']  # Create/open collection
 
     # Basic querey
-    if clargs.pol and not clargs.unres:
-        myquery = {"polarized": True}
-    elif clargs.unres and not clargs.pol:
-        myquery = {"resolved": False}
-    elif clargs.pol and clargs.unres:
-        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+    myquery = {"Component_ID": comp_id}
+    doc = comp_col.find_one(myquery)
 
-    elif clargs.pol and not clargs.loners:
-        myquery = {"polarized": True}
-    elif clargs.loners and not clargs.pol:
-        myquery = {"n_components": 1}
-    elif clargs.pol and clargs.loners:
-        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
-    else:
-        myquery = {}
+    outdir = f"{outdir}/{doc['Source_ID']}"
+    ifile = f"{outdir}/{doc['i_file']}"
+    cname = doc['Source_Name']
 
-    doc = mycol.find(myquery).sort("flux_peak", -1)
+    header, data = do_RMsynth_3D.readFitsCube(ifile, clargs.rm_verbose)
 
-    iname = doc[i]['island_name']
-    data = np.array(SpectralCube.read(f"{outdir}/{doc[i]['i_file']}"))
+    prefix = f'{outdir}/{cname}'
+    # Get source peak from Selavy
+    ra = doc['RA']
+    dec = doc['Dec']
+    wcs = WCS(doc['header'])ß
 
-    for comp in range(int(doc[i]['n_components'])):
-        cname = doc[i][f'component_{comp+1}']['component_name']
-        prefix = f'{outdir}/{cname}'
-        # Get source peak from Selavy
-        ra = doc[i]['ra_deg_cont']
-        dec = doc[i]['dec_deg_cont']
-        wcs = WCS(doc[i]['header'])
+    x, y, z = np.array(wcs.all_world2pix(
+        ra, dec, np.nanmean(freq), 0)).round().astype(int)
 
-        x, y, z = np.array(wcs.all_world2pix(
-            ra, dec, np.nanmean(freq), 0)).round().astype(int)
+    mom = np.nansum(data, axis=0)
 
-        mom = np.nansum(data, axis=0)
+    plt.ion()
+    plt.figure()
+    plt.imshow(mom, origin='lower', cmap='cubehelix_r')
+    plt.scatter(x, y, c='r', marker='x')
+    plt.show()
+    _ = input("Press [enter] to continue")  # wait for input from the user
+    plt.close()    # close the figure to show the next one.
 
-        plt.ion()
-        plt.figure()
-        plt.imshow(mom, origin='lower', cmap='cubehelix_r')
-        plt.scatter(x, y, c='r', marker='x')
-        plt.show()
-        _ = input("Press [enter] to continue")  # wait for input from the user
-        plt.close()    # close the figure to show the next one.
+    data = np.nansum(data[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
 
-        data = np.nansum(data[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+    with fits.open(doc['v_file']) as hdulist:
+        noise = hdulist[0].data
 
-        with fits.open(doc[i]['v_file']) as hdulist:
-            noise = hdulist[0].data
+    plt.ion()
+    plt.figure()
+    plt.step(freq/1e9, data)
 
-        plt.ion()
-        plt.figure()
-        plt.step(freq/1e9, data)
+    imod, qArr, uArr, dqArr, duArr, fitDict = \
+        create_frac_spectra(freqArr=freq,
+                            IArr=data,
+                            QArr=data,
+                            UArr=data,
+                            dIArr=noise,
+                            dQArr=noise,
+                            dUArr=noise,
+                            polyOrd=3,
+                            verbose=True,
+                            debug=False)
+    plt.plot(freq/1e9, imod)
+    plt.xlabel(r'$\nu$ [GHz]')
+    plt.ylabel(r'$I$ [Jy/beam]')
+    plt.tight_layout()
+    plt.show()
+    _ = input("Press [enter] to continue")  # wait for input from the user
+    plt.close()    # close the figure to show the next one.
 
-        imod, qArr, uArr, dqArr, duArr, fitDict = \
-            create_frac_spectra(freqArr=freq,
-                                IArr=data,
-                                QArr=data,
-                                UArr=data,
-                                dIArr=noise,
-                                dQArr=noise,
-                                dUArr=noise,
-                                polyOrd=3,
-                                verbose=True,
-                                debug=False)
-        plt.plot(freq/1e9, imod)
-        plt.xlabel(r'$\nu$ [GHz]')
-        plt.ylabel(r'$I$ [Jy/beam]')
-        plt.tight_layout()
-        plt.show()
-        _ = input("Press [enter] to continue")  # wait for input from the user
-        plt.close()    # close the figure to show the next one.
+    data = data - imod
+    data = data - np.nanmean(data)
+    plt.ion()
+    plt.figure()
+    plt.step(freq/1e9, data)
+    plt.xlabel(r'$\nu$ [GHz]')
+    plt.ylabel(r'$I-\mathrm{model}(I)-\mathrm{mean}(\mathrm{model}(I))$')
+    plt.tight_layout()
+    plt.show()
+    _ = input("Press [enter] to continue")  # wait for input from the user
+    plt.close()    # close the figure to show the next one.
 
-        data = data - imod
-        data = data - np.nanmean(data)
-        plt.ion()
-        plt.figure()
-        plt.step(freq/1e9, data)
-        plt.xlabel(r'$\nu$ [GHz]')
-        plt.ylabel(r'$I-\mathrm{model}(I)-\mathrm{mean}(\mathrm{model}(I))$')
-        plt.tight_layout()
-        plt.show()
-        _ = input("Press [enter] to continue")  # wait for input from the user
-        plt.close()    # close the figure to show the next one.
+    datalist = [freq, data, data, dqArr, duArr]
 
-        datalist = [freq, data, data, dqArr, duArr]
-
-        nSamples = clargs.nSamples
-        phi_max = clargs.phiMax_radm2
-        mDict, aDict = do_RMsynth_1D.run_rmsynth(
-            datalist,
-            phiMax_radm2=phi_max,
-            nSamples=nSamples,
-            verbose=True
-        )
-        plt.ion()
-        plt.figure()
-        plt.plot(aDict['phiArr_radm2'], abs(aDict['dirtyFDF']))
-        plt.xlabel(r'$\phi$ [rad m$^{-2}$]')
-        plt.ylabel(r'Dirty FDF (Stokes I)')
-        plt.tight_layout()
-        plt.show()
-        _ = input("Press [enter] to continue")  # wait for input from the user
-        plt.close()    # close the figure to show the next one.
-        do_RMsynth_1D.saveOutput(mDict, aDict, prefix, verbose=verbose)
+    nSamples = clargs.nSamples
+    phi_max = clargs.phiMax_radm2
+    mDict, aDict = do_RMsynth_1D.run_rmsynth(
+        datalist,
+        phiMax_radm2=phi_max,
+        nSamples=nSamples,
+        verbose=True
+    )
+    plt.ion()
+    plt.figure()
+    plt.plot(aDict['phiArr_radm2'], abs(aDict['dirtyFDF']))
+    plt.xlabel(r'$\phi$ [rad m$^{-2}$]')
+    plt.ylabel(r'Dirty FDF (Stokes I)')
+    plt.tight_layout()
+    plt.show()
+    _ = input("Press [enter] to continue")  # wait for input from the user
+    plt.close()    # close the figure to show the next one.
+    do_RMsynth_1D.saveOutput(mDict, aDict, prefix, verbose=verbose)
 
 
 def main(pool, args, verbose=False):
@@ -530,43 +497,49 @@ def main(pool, args, verbose=False):
             print('Directory exists.')
 
     host = args.host
-    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=host) as client:
         mydb = client['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
-        beam_col = mydb['components']  # Create/open collection
+        comp_col = mydb['components']  # Create/open collection
 
     # Basic querey
-    if args.pol and not args.unres:
-        myquery = {"polarized": True}
-    elif args.unres and not args.pol:
-        myquery = {"resolved": False}
-    elif args.pol and args.unres:
-        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
+    myquery = {}
 
-    elif args.pol and not args.loners:
-        myquery = {"polarized": True}
-    elif args.loners and not args.pol:
-        myquery = {"n_components": 1}
-    elif args.pol and args.loners:
-        myquery = {"$and": [{"n_components": 1}, {"polarized": True}]}
-
-    else:
-        myquery = {}
-
-    mydoc = isl_col.find(myquery).sort("flux_peak", -1)
-    count = beam_col.count_documents(myquery)
+    mydoc = isl_col.find(myquery).sort("Peak_flux", -1)
+    n_comp = comp_col.count_documents(myquery)
+    n_island = isl_col.count_documents(myquery)
+    island_ids = [
+        doc['Source_ID'] for doc in tqdm(isl_col.find(myquery),
+                                         total=n_island,
+                                         desc='Getting islands',
+                                         disable=(not verbose)
+                                         )
+    ]
+    component_ids = [
+        doc['Component_ID'] for doc in tqdm(comp_col.find(myquery),
+                                            total=n_comp,
+                                            desc='Getting components',
+                                            disable=(not verbose)
+                                            )
+    ]
 
     if args.limit is not None:
         count = args.limit
+        n_comp = count
+        n_island = count
+        island_ids = island_ids[:count]
+        component_ids = component_ids[:count]
 
     # Make frequency file
     freq, freqfile = getfreq(
-        f"{outdir}/{mydoc[0]['island_id']}/{mydoc[0]['q_file']}", outdir=outdir, filename='frequencies.txt', verbose=verbose)
+        f"{outdir}/{mydoc[0]['Source_ID']}/{mydoc[0]['q_file']}", outdir=outdir, filename='frequencies.txt', verbose=verbose)
     freq = np.array(freq)
-    if verbose:
-        print(f'Running RMsynth on {count} sources')
+
     if args.validate:
-        inputs = [[i, args, freq, outdir, verbose] for i in range(count)]
+        if verbose:
+            print(f'Running RMsynth on {n_comp} components')
+        inputs = [[comp_id, args, freq, outdir, host, verbose] for i, comp_id in enumerate(component_ids)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
             if verbose:
@@ -580,14 +553,16 @@ def main(pool, args, verbose=False):
         elif pool.__class__.__name__ is 'MultiPool':
             list(tqdm(
                 pool.imap_unordered(rmsythoncut_i, inputs),
-                total=count,
+                total=n_comp,
                 desc='Running RM synth on Stokes I',
                 disable=(not verbose)
             )
             )
     elif args.dimension == '1d':
-        inputs = [[i, args, outdir, freq, freqfile, verbose]
-                  for i in range(count)]
+        if verbose:
+            print(f'Running RMsynth on {n_comp} components')
+        inputs = [[comp_id, args, outdir, freq, freqfile, host, verbose]
+                  for i, comp_id in enumerate(component_ids)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
             if verbose:
@@ -601,15 +576,17 @@ def main(pool, args, verbose=False):
         elif pool.__class__.__name__ is 'MultiPool':
             list(tqdm(
                 pool.imap_unordered(rmsythoncut1d, inputs),
-                total=count,
+                total=n_comp,
                 desc='Running 1D RM synth',
                 disable=(not verbose)
             )
             )
 
     elif args.dimension == '3d':
-        inputs = [[i, args, outdir, freq, freqfile, verbose]
-                  for i in range(count)]
+        if verbose:
+            print(f'Running RMsynth on {n_island} islands')
+        inputs = [[island_id, args, outdir, freq, freqfile, host, verbose]
+                  for i, island_id in enumerate(island_ids)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
             if verbose:
@@ -623,7 +600,7 @@ def main(pool, args, verbose=False):
         elif pool.__class__.__name__ is 'MultiPool':
             list(tqdm(
                 pool.imap_unordered(rmsythoncut3d, inputs),
-                total=count,
+                total=n_island,
                 desc='Running 3D RM synth',
                 disable=(not verbose)
             )
@@ -679,7 +656,7 @@ def cli():
         metavar='outdir',
         type=str,
         help='Directory containing cutouts (in subdir outdir/cutouts).')
-    
+
     parser.add_argument(
         'host',
         metavar='host',
@@ -753,7 +730,7 @@ def cli():
         pool = schwimmbad.SerialPool
     else:
         pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
-    
+
     verbose = args.verbose
 
     if args.mpi:
@@ -766,7 +743,8 @@ def cli():
 
     if verbose:
         print('Testing MongoDB connection...')
-    with pymongo.MongoClient(host=host) as client:  # default connection (ie, local)
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=host) as client:
         try:
             client.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
