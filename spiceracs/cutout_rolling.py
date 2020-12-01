@@ -86,8 +86,8 @@ def cat2beams(mastercat, database, max_sep=1, verbose=True):
         print('Getting separtions from beam centres...')
     c1 = SkyCoord(database['RA_DEG']*u.deg,
                   database['DEC_DEG']*u.deg, frame='icrs')
-    c2 = SkyCoord(mastercat['ra_deg_cont']*u.deg,
-                  mastercat['dec_deg_cont']*u.deg, frame='icrs')
+    c2 = SkyCoord(mastercat['RA']*u.deg,
+                  mastercat['Dec']*u.deg, frame='icrs')
 
     seps = search_around_sky(c1, c2, seplimit=max_sep*u.degree)
     return seps
@@ -197,7 +197,7 @@ def get_beams(mastercat, database, verbose=True):
     vals, ixs = ndix_unique(seps[1])
 
     # Get DR1 fields
-    points = np.unique(list(mastercat['Pointing_ID']))
+    points = np.unique(list(mastercat['Tile_ID']))
     fields = np.array([point[-8:] for point in points])
 
     # Fix for no 'test4' in cat
@@ -210,10 +210,10 @@ def get_beams(mastercat, database, verbose=True):
                                         desc='Getting beams',
                                         disable=(not verbose))):
         beam_dict = {}
-        ra = mastercat[val]['ra_hms_cont']
-        dec = dec = mastercat[val]['dec_dms_cont']
-        name = mastercat[val]['island_name']
-        isl_id = mastercat[val]['island_id']
+        ra = mastercat[val]['RA']
+        dec = dec = mastercat[val]['Dec']
+        name = mastercat[val]['Source_Name']
+        isl_id = mastercat[val]['Source_ID']
         beams = database[seps[0][idx.astype(int)]]
         for j, field in enumerate(np.unique(beams['FIELD_NAME'])):
             ndx = beams['FIELD_NAME'] == field
@@ -227,8 +227,8 @@ def get_beams(mastercat, database, verbose=True):
             )
 
         beam_list.append({
-            'island_name': name,
-            'island_id': isl_id,
+            'Source_Name': name,
+            'Source_ID': isl_id,
             'n_fields': len(beam_dict.keys()),
             'n_fields_DR1': sum([val['DR1'] for val in beam_dict.values()]),
             'beams': beam_dict,
@@ -313,8 +313,8 @@ def cut_command(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=Fals
     # )
 
     # Now do weights
-    image = image.replace('image.restored', 'weights')
-    outfile = outfile.replace('image.restored', 'weights')
+    image = image.replace('sm.image.restored', 'weights')
+    outfile = outfile.replace('sm.image.restored', 'weights')
 
     command_weight = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' !{outfile}"
 
@@ -361,12 +361,12 @@ def run_command(command, verbose=False):
 def get_cut_command(args):
     island, beam, island_id, outdir, field, datadir, pad, verbose, dryrun = args
 
-    assert island['island_id'] == island_id
-    assert beam['island_id'] == island_id
+    assert island['Source_ID'] == island_id
+    assert beam['Source_ID'] == island_id
 
     beam_list = beam['beams'][field]['beam_list']
 
-    outdir = f"{outdir}/{island['island_id']}"
+    outdir = f"{outdir}/{island['Source_ID']}"
     try:
         os.mkdir(outdir)
         if verbose:
@@ -378,13 +378,13 @@ def get_cut_command(args):
     commands = []
     for beam_num in beam_list:
         images = glob(
-            f'{datadir}/image.restored*contcube*beam{beam_num:02}.fits')
+            f'{datadir}/sm.image.restored*contcube*beam{beam_num:02}.fits')
         for image in images:
             command = cut_command(image,
-                                  island['island_id'],
-                                  island['ra_deg_cont'],
-                                  island['dec_deg_cont'],
-                                  island['maj_axis']/60/60,
+                                  island['Source_ID'],
+                                  island['RA'],
+                                  island['Dec'],
+                                  island['Maj']/60/60,
                                   outdir,
                                   pad=pad, verbose=verbose)
             commands.append(command)
@@ -408,10 +408,10 @@ def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_wo
         ]
     }
 
-    beams = beams_col.find(query).sort('island_id')
+    beams = beams_col.find(query).sort('Source_ID')
 
-    island_ids = beams_col.distinct('island_id', query)
-    islands = island_col.find({'island_id': {'$in': island_ids}})
+    island_ids = sorted(beams_col.distinct('Source_ID', query))
+    islands = island_col.find({'Source_ID': {'$in': island_ids}}).sort('Source_ID')
     outdir = f'{directory}/cutouts'
 
     try:
@@ -455,7 +455,7 @@ def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_wo
             print(f"Writing failed cmds to {fail_file}")
         with open(fail_file, 'w') as f: 
             for failed in sorted(real_failed):
-                f.write(failed+'\n') 
+                f.write(failed+' &'+'\n') 
         # TODO: Re-run failed commands
         # It seems to work 
 
