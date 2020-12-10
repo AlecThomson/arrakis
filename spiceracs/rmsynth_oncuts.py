@@ -15,54 +15,80 @@ from spectral_cube import SpectralCube
 from astropy.io import fits
 from astropy.wcs import WCS
 import matplotlib.pyplot as plt
+from RMutils.util_plotTk import plot_rmsf_fdf_fig
 from RMutils.util_misc import create_frac_spectra
 import functools
 import psutil
 import pdb
+from IPython import embed
 print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
 def rmsythoncut3d(args):
-    i, clargs, outdir, freq, freqfile, host, verbose = args
+    island_id, clargs, outdir, freq, freqfile, host, field, verbose = args
 
     # default connection (ie, local)
     with pymongo.MongoClient(host=host) as client:
         mydb = client['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
         comp_col = mydb['components']  # Create/open collection
+        beams_col = mydb['beams']  # Create/open collection
 
     # Basic querey
-    if clargs.pol and not clargs.unres:
-        myquery = {"polarized": True}
-    if clargs.unres and not clargs.pol:
-        myquery = {"resolved": False}
-    if clargs.pol and clargs.unres:
-        myquery = {"$and": [{"resolved": False}, {"polarized": True}]}
-    else:
-        myquery = {}
+    myquery = {"Source_ID": island_id}
 
-    doc = isl_col.find(myquery).sort("flux_peak", -1)
+    doc = comp_col.find_one(myquery)
+    iname = doc['Source_ID']
+    beam = beams_col.find_one({'Source_ID': iname})
 
-    iname = doc[i]['Source_Name']
-    qfile = f"{outdir}/{doc[i]['q_file']}"
-    ufile = f"{outdir}/{doc[i]['u_file']}"
-    vfile = f"{outdir}/{doc[i]['v_file']}"
-
-    with fits.open(vfile) as hdulist:
-        rms = np.nanstd(np.squeeze(hdulist[0].data), axis=(1, 2)) * 3
-
-    prefix = iname
+    ifile = beam['beams'][field]['i_file']
+    qfile = beam['beams'][field]['q_file']
+    ufile = beam['beams'][field]['u_file']
+    vfile = beam['beams'][field]['v_file']
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, clargs.rm_verbose)
+    header, dataU = do_RMsynth_3D.readFitsCube(ufile, clargs.rm_verbose)
+    header, dataI = do_RMsynth_3D.readFitsCube(ifile, clargs.rm_verbose)
 
-    rmsArr = np.ones_like(dataQ)*rms[:, np.newaxis, np.newaxis]
+    dataQ = np.squeeze(dataQ)
+    dataU = np.squeeze(dataU)
+    dataI = np.squeeze(dataI)
+
+    if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
+        return
+        #rmsi = rms_1d(dataI)
+    rmsi = estimate_noise_annulus(
+        dataI.shape[2]//2,
+        dataI.shape[1]//2,
+        dataI
+    )
+    rmsi[rmsi == 0] = np.nan
+    rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
+
+    #rmsq = rms_1d(dataQ)
+    rmsq = estimate_noise_annulus(
+        dataQ.shape[2]//2,
+        dataQ.shape[1]//2,
+        dataQ
+    )
+    rmsq[rmsq == 0] = np.nan
+    rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
+
+    #rmsu = rms_1d(dataU)
+    rmsu = estimate_noise_annulus(
+        dataU.shape[2]//2,
+        dataU.shape[1]//2,
+        dataU
+    )
+    rmsu[rmsu == 0] = np.nan
+    rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
+    rmsArr = np.max([rmsq, rmsu], axis=0)
 
     # Run 3D RM-synthesis on the cubes
     dataArr = do_RMsynth_3D.run_rmsynth(
-        dataQ=np.squeeze(dataQ),
-        dataU=np.squeeze(do_RMsynth_3D.readFitsCube(
-            ufile, clargs.rm_verbose)[1]),
-        freqArr_Hz=do_RMsynth_3D.readFreqFile(freqfile, clargs.rm_verbose),
+        dataQ=dataQ,
+        dataU=dataU,
+        freqArr_Hz=freq,
         dataI=None,
         rmsArr=rmsArr,
         phiMax_radm2=clargs.phiMax_radm2,
@@ -74,19 +100,20 @@ def rmsythoncut3d(args):
         verbose=clargs.rm_verbose,
         not_rmsf=clargs.not_RMSF)
 
+    prefix = f"{iname}_"
     # Write to files
     do_RMsynth_3D.writefits(dataArr,
                             headtemplate=header,
                             fitRMSF=clargs.fitRMSF,
                             prefixOut=prefix,
-                            outDir=outdir,
+                            outDir=os.path.dirname(ifile),
                             write_seperate_FDF=True,
                             not_rmsf=clargs.not_RMSF,
                             nBits=32,
                             verbose=clargs.rm_verbose)
 
     if clargs.database:
-        myquery = {"island_name": iname}
+        myquery = {"Source_ID": iname}
 
         newvalues = {"$set": {"rmsynth3d": True}}
         isl_col.update_one(myquery, newvalues)
@@ -194,24 +221,26 @@ def estimate_noise_annulus(x_center, y_center, cube):
 #######################################################################
 
 def rmsythoncut1d(args):
-    comp_id, clargs, outdir, freq, freqfile, host, verbose = args
+    comp_id, clargs, outdir, freq, freqfile, host, field, verbose = args
     # default connection (ie, local)
     with pymongo.MongoClient(host=host) as client:
         mydb = client['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
         comp_col = mydb['components']  # Create/open collection
+        beams_col = mydb['beams']  # Create/open collection
 
     # Basic querey
-    myquery = {"Source_ID": comp_id}
+    myquery = {"Component_ID": comp_id}
 
     doc = comp_col.find_one(myquery)
+    iname = doc['Source_ID']
     cname = doc['Component_ID']
-    outdir = f"{outdir}/{doc['Source_ID']}"
+    beam = beams_col.find_one({'Source_ID': iname})
 
-    ifile = f"{outdir}/{doc['i_file']}"
-    qfile = f"{outdir}/{doc['q_file']}"
-    ufile = f"{outdir}/{doc['u_file']}"
-    vfile = f"{outdir}/{doc['v_file']}"
+    ifile = beam['beams'][field]['i_file']
+    qfile = beam['beams'][field]['q_file']
+    ufile = beam['beams'][field]['u_file']
+    vfile = beam['beams'][field]['v_file']
 
     # with fits.open(vfile) as hdulist:
     #    rms = np.nanstd(np.squeeze(hdulist[0].data), axis=(1, 2)) * 3
@@ -258,7 +287,7 @@ def rmsythoncut1d(args):
     if np.isnan(rmsi).all() or np.isnan(rmsq).all() or np.isnan(rmsu).all():
         return
 
-    prefix = f'{outdir}/{cname}'
+    prefix = f"{os.path.dirname(ifile)}/{cname}"
 
     ra = doc['RA']
     dec = doc['Dec']
@@ -304,17 +333,17 @@ def rmsythoncut1d(args):
 
         try:
             mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                        polyOrd=clargs.polyOrd,
-                                                        phiMax_radm2=clargs.phiMax_radm2,
-                                                        dPhi_radm2=clargs.dPhi_radm2,
-                                                        nSamples=clargs.nSamples,
-                                                        weightType=clargs.weightType,
-                                                        fitRMSF=clargs.fitRMSF,
-                                                        noStokesI=clargs.noStokesI,
-                                                        nBits=32,
-                                                        showPlots=clargs.showPlots,
-                                                        verbose=clargs.rm_verbose,
-                                                        debug=clargs.debug)
+                                                     polyOrd=clargs.polyOrd,
+                                                     phiMax_radm2=clargs.phiMax_radm2,
+                                                     dPhi_radm2=clargs.dPhi_radm2,
+                                                     nSamples=clargs.nSamples,
+                                                     weightType=clargs.weightType,
+                                                     fitRMSF=clargs.fitRMSF,
+                                                     noStokesI=clargs.noStokesI,
+                                                     nBits=32,
+                                                     showPlots=clargs.showPlots,
+                                                     verbose=clargs.rm_verbose,
+                                                     debug=clargs.debug)
             if clargs.savePlots:
                 import matplotlib
                 matplotlib.use('Agg')
@@ -347,18 +376,30 @@ def rmsythoncut1d(args):
                 coef = np.array(
                     mDict["polyCoeffs"].split(',')).astype(float)
                 IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
-                plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
-                                        IArr=iarr[~idx],
-                                        qArr=qArr,
-                                        uArr=uArr,
-                                        dIArr=Ierr,
-                                        dqArr=dqArr,
-                                        duArr=duArr,
-                                        freqHirArr_Hz=freqHirArr_Hz,
-                                        IModArr=IModHirArr,
-                                        fig=None,
-                                        units='Jy/beam')
-                plotname = f'{outdir}/plots/{iname}_specfig.png'
+                fig = plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
+                                            IArr=iarr[~idx],
+                                            qArr=qArr,
+                                            uArr=uArr,
+                                            dIArr=Ierr,
+                                            dqArr=dqArr,
+                                            duArr=duArr,
+                                            freqHirArr_Hz=freqHirArr_Hz,
+                                            IModArr=IModHirArr,
+                                            fig=None,
+                                            units='Jy/beam')
+                plotname = f'{outdir}/plots/{cname}_specfig.png'
+                plt.savefig(plotname, dpi=75, bbox_inches='tight')
+
+                fdfFig = plt.figure(figsize=(12.0, 8))
+                plot_rmsf_fdf_fig(phiArr=aDict["phiArr_radm2"],
+                                  FDF=aDict["dirtyFDF"],
+                                  phi2Arr=aDict["phi2Arr_radm2"],
+                                  RMSFArr=aDict["RMSFArr"],
+                                  fwhmRMSF=mDict["fwhmRMSF"],
+                                  vLine=mDict["phiPeakPIfit_rm2"],
+                                  fig=fdfFig,
+                                  units='Jy/beam')
+                plotname = f'{outdir}/plots/{cname}_FDFdirty.png'
                 plt.savefig(plotname, dpi=75, bbox_inches='tight')
             do_RMsynth_1D.saveOutput(
                 mDict, aDict, prefix, clargs.rm_verbose)
@@ -377,40 +418,43 @@ def rmsythoncut1d(args):
             }}}
             comp_col.update_one(myquery, newvalues)
 
-            myquery = {"island_name": cname}
             newvalues = {"$set": {f"rmsynth1d": True}}
             comp_col.update_one(myquery, newvalues)
 
 
 def rmsythoncut_i(args):
-    comp_id, clargs, freq, outdir, host, verbose = args
+    comp_id, clargs, freq, outdir, host, field, verbose = args
 
     # default connection (ie, local)
     with pymongo.MongoClient(host=host) as client:
         mydb = client['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
         comp_col = mydb['components']  # Create/open collection
+        beams_col = mydb['beams']  # Create/open collection
 
     # Basic querey
     myquery = {"Component_ID": comp_id}
     doc = comp_col.find_one(myquery)
 
-    outdir = f"{outdir}/{doc['Source_ID']}"
-    ifile = f"{outdir}/{doc['i_file']}"
-    cname = doc['Source_Name']
+    iname = doc['Source_ID']
+    cname = doc['Component_ID']
 
-    header, data = do_RMsynth_3D.readFitsCube(ifile, clargs.rm_verbose)
+    beams = beams_col.find_one({'Source_ID': iname})
+    ifile = beams['beams'][field]['i_file']
+    outdir = os.path.dirname(ifile)
 
-    prefix = f'{outdir}/{cname}'
+    header, dataI = do_RMsynth_3D.readFitsCube(ifile, clargs.rm_verbose)
+
+    prefix = f'{outdir}/validation_{cname}'
     # Get source peak from Selavy
     ra = doc['RA']
     dec = doc['Dec']
-    wcs = WCS(doc['header'])ß
+    wcs = WCS(header).dropaxis(2)
 
     x, y, z = np.array(wcs.all_world2pix(
         ra, dec, np.nanmean(freq), 0)).round().astype(int)
 
-    mom = np.nansum(data, axis=0)
+    mom = np.nansum(dataI, axis=0)
 
     plt.ion()
     plt.figure()
@@ -420,10 +464,16 @@ def rmsythoncut_i(args):
     _ = input("Press [enter] to continue")  # wait for input from the user
     plt.close()    # close the figure to show the next one.
 
-    data = np.nansum(data[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
+    data = np.nansum(dataI[:, y-1:y+1+1, x-1:x+1+1], axis=(1, 2))
 
-    with fits.open(doc['v_file']) as hdulist:
-        noise = hdulist[0].data
+    rmsi = estimate_noise_annulus(
+        dataI.shape[2]//2,
+        dataI.shape[1]//2,
+        dataI
+    )
+    rmsi[rmsi == 0] = np.nan
+    rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
+    noise = rmsi
 
     plt.ion()
     plt.figure()
@@ -488,6 +538,8 @@ def main(pool, args, verbose=False):
         outdir = outdir[:-1]
     outdir = f'{outdir}/cutouts'
 
+    field = args.field
+
     if args.savePlots:
         plotdir = f'{outdir}/plots'
         try:
@@ -502,27 +554,25 @@ def main(pool, args, verbose=False):
         mydb = client['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
         comp_col = mydb['components']  # Create/open collection
+        beams_col = mydb['beams']  # Create/open collection
 
-    # Basic querey
-    myquery = {}
+    query = {
+        '$and':  [
+            {f'beams.{field}': {'$exists': True}},
+            {f'beams.{field}.DR1': True}
+        ]
+    }
 
-    mydoc = isl_col.find(myquery).sort("Peak_flux", -1)
-    n_comp = comp_col.count_documents(myquery)
-    n_island = isl_col.count_documents(myquery)
-    island_ids = [
-        doc['Source_ID'] for doc in tqdm(isl_col.find(myquery),
-                                         total=n_island,
-                                         desc='Getting islands',
-                                         disable=(not verbose)
-                                         )
-    ]
-    component_ids = [
-        doc['Component_ID'] for doc in tqdm(comp_col.find(myquery),
-                                            total=n_comp,
-                                            desc='Getting components',
-                                            disable=(not verbose)
-                                            )
-    ]
+    beams = beams_col.find(query).sort('Source_ID')
+    island_ids = sorted(beams_col.distinct('Source_ID', query))
+
+    query = {'Source_ID': {'$in': island_ids}}
+    islands = isl_col.find(query).sort('Source_ID')
+    components = comp_col.find(query).sort('Source_ID')
+    component_ids = [doc['Component_ID'] for doc in components]
+
+    n_comp = comp_col.count_documents(query)
+    n_island = isl_col.count_documents(query)
 
     if args.limit is not None:
         count = args.limit
@@ -533,13 +583,15 @@ def main(pool, args, verbose=False):
 
     # Make frequency file
     freq, freqfile = getfreq(
-        f"{outdir}/{mydoc[0]['Source_ID']}/{mydoc[0]['q_file']}", outdir=outdir, filename='frequencies.txt', verbose=verbose)
+        f"{beams[0]['beams'][f'{field}']['q_file']}",
+        outdir=outdir, filename='frequencies.txt', verbose=verbose)
     freq = np.array(freq)
 
     if args.validate:
         if verbose:
             print(f'Running RMsynth on {n_comp} components')
-        inputs = [[comp_id, args, freq, outdir, host, verbose] for i, comp_id in enumerate(component_ids)]
+        inputs = [[comp_id, args, freq, outdir, host, field, verbose]
+                  for i, comp_id in enumerate(component_ids)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
             if verbose:
@@ -561,7 +613,7 @@ def main(pool, args, verbose=False):
     elif args.dimension == '1d':
         if verbose:
             print(f'Running RMsynth on {n_comp} components')
-        inputs = [[comp_id, args, outdir, freq, freqfile, host, verbose]
+        inputs = [[comp_id, args, outdir, freq, freqfile, host, field, verbose]
                   for i, comp_id in enumerate(component_ids)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
@@ -585,7 +637,7 @@ def main(pool, args, verbose=False):
     elif args.dimension == '3d':
         if verbose:
             print(f'Running RMsynth on {n_island} islands')
-        inputs = [[island_id, args, outdir, freq, freqfile, host, verbose]
+        inputs = [[island_id, args, outdir, freq, freqfile, host, field, verbose]
                   for i, island_id in enumerate(island_ids)]
         if (pool.__class__.__name__ is 'MPIPool' or
                 pool.__class__.__name__ is 'SerialPool'):
@@ -650,7 +702,12 @@ def cli():
     # Parse the command line options
     parser = argparse.ArgumentParser(description=descStr,
                                      formatter_class=argparse.RawTextHelpFormatter)
-
+    parser.add_argument(
+        "field",
+        metavar="field",
+        type=str,
+        help="RACS field to mosaic - e.g. 2132-50A."
+    )
     parser.add_argument(
         'outdir',
         metavar='outdir',
@@ -676,20 +733,11 @@ def cli():
         help="Add data to MongoDB [False]."
     )
 
-    parser.add_argument("--pol", dest="pol", action="store_true",
-                        help="Run on polarized sources [False].")
-
-    parser.add_argument("--unres", dest="unres", action="store_true",
-                        help="Run on unresolved sources [False].")
-
     parser.add_argument("--validate", dest="validate", action="store_true",
                         help="Run on Stokes I [False].")
 
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
-
-    parser.add_argument("--loners", dest="loners", action="store_true",
-                        help="Run on single component sources [False].")
 
     # RM-tools args
     parser.add_argument("-sp", dest="savePlots", action="store_true",
@@ -727,7 +775,7 @@ def cli():
     args = parser.parse_args()
 
     if args.validate:
-        pool = schwimmbad.SerialPool
+        pool = schwimmbad.SerialPool()
     else:
         pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
 
@@ -741,6 +789,7 @@ def cli():
     if verbose:
         print(f"Using pool: {pool.__class__.__name__}")
 
+    host = args.host
     if verbose:
         print('Testing MongoDB connection...')
     # default connection (ie, local)
