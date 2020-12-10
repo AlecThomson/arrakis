@@ -81,7 +81,7 @@ def rmclean1d(args):
             newvalues = {"$set": {f"rmclean1d": True}}
             comp_col.update_one(myquery, newvalues)
 
-            newvalues = {"$set": {f"rm_summary": outdict}}
+            newvalues = {"$set": {f"rmclean_summary": outdict}}
             comp_col.update_one(myquery, newvalues)
 
     except KeyError:

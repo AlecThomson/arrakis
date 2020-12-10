@@ -127,7 +127,9 @@ def rmsythoncut3d(args):
             "RMSF_FWHM": f"{prefix}RMSF_FWHM.fits"
         }}}
         isl_col.update_one(myquery, newvalues)
-
+        
+        newvalues = {"$set": {"header": dict(header)}}
+        isl_col.update_one(myquery, newvalues)
 
 def rms_1d(data):
     """Compute RMS from bounding pixels
@@ -419,6 +421,15 @@ def rmsythoncut1d(args):
             comp_col.update_one(myquery, newvalues)
 
             newvalues = {"$set": {f"rmsynth1d": True}}
+            comp_col.update_one(myquery, newvalues)
+
+            head_dict = dict(header)
+            head_dict.pop('', None)
+            head_dict['COMMENT'] = str(head_dict['COMMENT'])
+            newvalues = {"$set": {"header": head_dict}}
+            comp_col.update_one(myquery, newvalues)
+            
+            newvalues = {"$set": {f"rmsynth_summary": mDict}}
             comp_col.update_one(myquery, newvalues)
 
 
