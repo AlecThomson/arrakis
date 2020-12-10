@@ -1,11 +1,13 @@
 import numpy as np
 import warnings
 from astropy.table import QTable, Column
+from astropy.io import fits
 import pymongo
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
 import rmtable.rmtable as RMT
 import json
+from IPython import embed
 
 
 def main(args, verbose=False):
@@ -15,45 +17,41 @@ def main(args, verbose=False):
     if outdir[-1] == '/':
         outdir = outdir[:-1]
     outdir = f'{outdir}/cutouts'
-    client = pymongo.MongoClient()  # default connection (ie, local)
-    mydb = client['racs']  # Create/open database
-    mycol = mydb['spice']  # Create/open collection
+    field = args.field
+    host = args.host
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=host) as client:
+        mydb = client['spiceracs']  # Create/open database
+        isl_col = mydb['islands']  # Create/open collection
+        comp_col = mydb['components']  # Create/open collection
+        beams_col = mydb['beams']  # Create/open collection
 
-    # Basic querey
-    if args.pol and not args.unres:
-        myquery = {"polarized": True}
-        myquery = {"$and": [{"rmclean1d": True}, myquery]}
-    elif args.unres and not args.pol:
-        myquery = {"resolved": False}
-        myquery = {"$and": [{"rmclean1d": True}, myquery]}
-    elif args.pol and args.unres:
-        myquery = {"$and": [{"rmclean1d": True}, {
-            "resolved": False}, {"polarized": True}]}
+    query = {
+        '$and':  [
+            {f'beams.{field}': {'$exists': True}},
+            {f'beams.{field}.DR1': True}
+        ]
+    }
 
-    elif args.pol and not args.loners:
-        myquery = {"polarized": True}
-        myquery = {"$and": [{"rmclean1d": True}, myquery]}
-    elif args.loners and not args.pol:
-        myquery = {"n_components": 1}
-        myquery = {"$and": [{"rmclean1d": True}, myquery]}
-    elif args.pol and args.loners:
-        myquery = {"$and": [{"rmclean1d": True}, {
-            "n_components": 1}, {"polarized": True}]}
+    beams = beams_col.find(query).sort('Source_ID')
+    all_island_ids = sorted(beams_col.distinct('Source_ID', query))
+    query = {
+        '$and': [
+            {
+                'Source_ID': {'$in': all_island_ids}
+            },
+            {
+                'rmclean1d': True
+            }
+        ]
+    }
+    count = comp_col.count_documents(query)
 
-    else:
-        myquery = {"rmclean1d": True}
-
-    mydoc = mycol.find(myquery).sort("flux_peak", -1)
-    count = mycol.count_documents(myquery)
-
-    complist = np.unique([doc['n_components'] for doc in mycol.find(
-        {}, {"_id": 0, "n_components": 1})]).astype(int)
     if args.limit is not None:
         count = args.limit
 
     #tab = RMT.RMTable()
     tab = QTable()
-
     # Add items to main cat using RMtable standard
     for j, [name, typ, src, col, unit] in enumerate(
         tqdm(
@@ -70,79 +68,30 @@ def main(args, verbose=False):
     ):
         data = []
         if src == 'cat':
-            for comp in complist:
-                search = {"$and": [
-                    {f'component_{comp+1}': {"$exists": True}},
-                    {f"comp_{comp+1}_rmclean1d": True}
-                ]}
-                mydoc = mycol.find(search)
-                if mycol.count_documents(search) == 0:
-                    continue
-                else:
-                    data += [doc[f'component_{comp+1}'][col] for doc in mydoc]
+            for comp in comp_col.find(query):
+                data += [comp[col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             tab.add_column(new_col)
 
         if src == 'synth':
-            for comp in complist:
-                search = {"$and": [
-                    {"n_components": {"$gt": 0}},
-                    {f'comp_{comp+1}_rm_summary': {"$exists": True}},
-                    {f"comp_{comp+1}_rmclean1d": True}
-                ]}
-                mydoc = mycol.find(search)
-                if mycol.count_documents(search) == 0:
-                    continue
-
-                else:
-                    for doc in mydoc:
-                        try:
-                            data += [doc[f'comp_{comp+1}_rm_summary'][col]]
-                        except KeyError:
-                            mDictS = json.load(open(f"{outdir}/"+doc[f"rm1dfiles_comp_{comp+1}"]["summary_json"], "r"))
-                            data += [mDictS[col]]
-
+            for comp in comp_col.find(query):
+                try:
+                    data += [comp['rmsynth_summary'][col]]
+                except KeyError:
+                    data += [comp['rmclean_summary'][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             tab.add_column(new_col)
 
         if src == 'header':
-            for comp in complist:
-                search = {"$and": [
-                    {'header': {"$exists": True}},
-                    {f"comp_{comp+1}_rmclean1d": True}
-                ]}
-                mydoc = mycol.find(search)
-                if mycol.count_documents(search) == 0:
-                    continue
-                else:
-                    data += [doc[f'header'][col] for doc in mydoc]
+            for comp in comp_col.find(query):
+                data += [comp['header'][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             tab.add_column(new_col)
-            #    data.append(mydoc[i][f'comp_{comp+1}_rm_summary'][col])
-        # if src == 'header':
-        #    import ipdb; ipdb.set_trace()
 
-            # if src == 'header':
-            #    data.append(mydoc[i][f'header'][col])
-            # else:
-            #    continue
-
-    for selcol in tqdm(columns_possum.sourcefinder_columns, desc='Adding Selavy data'):
+    for selcol in tqdm(columns_possum.sourcefinder_columns, desc='Adding BDSF data'):
         data = []
-        for comp in complist:
-            search = {"$and": [
-                {f'component_{comp+1}': {"$exists": True}},
-                {f"comp_{comp+1}_rmclean1d": True}
-            ]}
-            mydoc = mycol.find(search)
-            if mycol.count_documents(search) == 0:
-                continue
-            else:
-                try:
-                    data += [doc[f'component_{comp+1}'][selcol] for doc in mydoc]
-                except KeyError:
-                    mydoc = mycol.find(search)
-                    data += [doc[selcol] for doc in mydoc]
+        for comp in comp_col.find(query):
+            data += [comp[selcol]]
         new_col = Column(data=data, name=selcol)
         tab.add_column(new_col)
     rmtab = RMT.from_table(tab)
@@ -154,7 +103,6 @@ def main(args, verbose=False):
     rmtab['rm_method'] = 'RM Synthesis'
     rmtab['standard_telescope'] = 'ASKAP'
 
-
     if args.outfile is None:
         print(rmtab)
 
@@ -163,7 +111,6 @@ def main(args, verbose=False):
 
     if verbose:
         print('Done!')
-
 
 def cli():
     """Command-line interface
@@ -200,24 +147,26 @@ def cli():
     # Parse the command line options
     parser = argparse.ArgumentParser(description=descStr,
                                      formatter_class=argparse.RawTextHelpFormatter)
-
+    parser.add_argument(
+        "field",
+        metavar="field",
+        type=str,
+        help="RACS field to mosaic - e.g. 2132-50A."
+    )
     parser.add_argument(
         'outdir',
         metavar='outdir',
         type=str,
         help='Directory containing cutouts (in subdir outdir/cutouts).')
 
+    parser.add_argument(
+        'host',
+        metavar='host',
+        type=str,
+        help='Host of mongodb (probably $hostname -i).')
+
     parser.add_argument("-v", dest="verbose", action="store_true",
                         help="verbose output [False].")
-
-    parser.add_argument("--pol", dest="pol", action="store_true",
-                        help="Run on polarized sources [False].")
-
-    parser.add_argument("--unres", dest="unres", action="store_true",
-                        help="Run on unresolved sources [False].")
-
-    parser.add_argument("--loners", dest="loners", action="store_true",
-                        help="Run on single component sources [False].")
 
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
@@ -234,17 +183,18 @@ def cli():
 
     verbose = args.verbose
 
+    host = args.host
     if verbose:
         print('Testing MongoDB connection...')
-    client = pymongo.MongoClient()  # default connection (ie, local)
-    try:
-        client.list_database_names()
-    except pymongo.errors.ServerSelectionTimeoutError:
-        raise Exception("Please ensure 'mongod' is running")
-    else:
-        if verbose:
-            print('MongoDB connection succesful!')
-    client.close()
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=host) as client:
+        try:
+            client.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose:
+                print('MongoDB connection succesful!')
 
     main(args, verbose=verbose)
 
