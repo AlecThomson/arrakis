@@ -68,7 +68,7 @@ def gen_mongo(fieldname, slurm_dir, logdir):
 #SBATCH --mail-type=ALL
 #SBATCH --time=12:00:00
 #SBATCH --ntasks=1
-#SBATCH --job-name=mongo_test_linmos
+#SBATCH --job-name=mongo_linmos
 #SBATCH --export=NONE
 
 cd /group/askap/athomson/repos/spiceracs
@@ -271,11 +271,11 @@ module unload askapsoft
 module load numpy
 module load matplotlib
 module load astropy
-#module load askapsoft
-# MW experimental LINMOS
-module unload askapsoft
-module use /group/askap/wie017/modulefiles
-module load askapsoft/dev-omp
+module load askapsoft
+## MW experimental LINMOS
+# module unload askapsoft
+# module use /group/askap/wie017/modulefiles
+# module load askapsoft/dev-omp
 # Fixed linmos
 #module load askapsoft/66f1e70
 # Exit if we could not load askapsoft
@@ -288,6 +288,14 @@ NCORES=20
 NPPN=20
 mongo_ip=$(cat {logdir}/mongo_ip.txt)
 
+task(){{
+    dir={cutdir}/$1
+    cd $dir
+    linmos -c ${{dir}}/linmos_{stoke}.in >> "$log"
+    #srun --export=ALL --ntasks=${{NCORES}} --ntasks-per-node=${{NPPN}} linmos-mpi -c ${{dir}}/linmos_{stoke}.in > "$log"
+    ls ${{dir}}/*.cutout.sm.image.restored.{stoke.lower()}*.linmos.fits | xargs -I // mongo --host $mongo_ip --eval 'db.beams.findOneAndUpdate({{"Source_ID" : "'$1'"}}, {{"$set" :{{"beams.{fieldname}.{stoke.lower()}_file" : "'//'"}}}});' spiceracs >> "$log"
+    echo $1
+}}
 """
         # Get island dirs
         islands = []
@@ -306,12 +314,8 @@ mongo_ip=$(cat {logdir}/mongo_ip.txt)
         cmd = f"""
 islandList="{island_list}"
 for island in $islandList; do
-    dir={cutdir}/${{island}}
-    cd $dir
-    #linmos -c ${{dir}}/linmos_{stoke}.in >> "$log"
-    srun --export=ALL --ntasks=${{NCORES}} --ntasks-per-node=${{NPPN}} linmos-mpi -c ${{dir}}/linmos_{stoke}.in > "$log"
-    ls sm*image.restored.{stoke.lower()}*.linmos.fits | xargs -I // mongo --host $mongo_ip --eval 'db.islands.findOneAndUpdate({{"island_id" : "'$island'"}}, {{"$set" :{{"{stoke.lower()}_file" : "'//'"}}}});' spiceracs > "$log"
-    echo ${{island}}
+    ((i=i%NPPN)); ((i++==0)) && wait
+    task $island &
 done | tqdm --total {len(islands)} >> /dev/null
 """
         slurm += cmd
