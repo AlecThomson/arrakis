@@ -17,6 +17,8 @@ conda activate py36
 
 host=$(hostname -i)
 
+echo 'Mongo running on '$host
+
 numactl --interleave=all mongod --dbpath=database --bind_ip $host >> /dev/null &
 
 srun -n 1000 python spiceracs/rmclean_oncuts.py 2132-50A ~/athomson/projects/RACS/VAST_2132-50A/ $host -v -m --mpi -rmv
