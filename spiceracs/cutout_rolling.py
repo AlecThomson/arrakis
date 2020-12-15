@@ -313,8 +313,8 @@ def cut_command(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=Fals
     # )
 
     # Now do weights
-    image = image.replace('sm.image.restored', 'weights')
-    outfile = outfile.replace('sm.image.restored', 'weights')
+    image = image.replace('image.restored', 'weights')
+    outfile = outfile.replace('image.restored', 'weights')
 
     command_weight = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' !{outfile}"
 
@@ -378,7 +378,7 @@ def get_cut_command(args):
     commands = []
     for beam_num in beam_list:
         images = glob(
-            f'{datadir}/sm.image.restored*contcube*beam{beam_num:02}.fits')
+            f'{datadir}/image.restored*contcube*beam{beam_num:02}.total.fits')
         for image in images:
             command = cut_command(image,
                                   island['Source_ID'],
