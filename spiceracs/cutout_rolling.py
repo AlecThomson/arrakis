@@ -300,7 +300,7 @@ def cut_command(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=Fals
 
     #command_dict = {}
 
-    command_image = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' !{outfile}"
+    command_image = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' '!{outfile}'"
 
     # if verbose:
     #    print(command)
@@ -316,7 +316,7 @@ def cut_command(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=Fals
     image = image.replace('image.restored', 'weights')
     outfile = outfile.replace('image.restored', 'weights')
 
-    command_weight = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' !{outfile}"
+    command_weight = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' '!{outfile}'"
 
     #command = shlex.split(command)
     #
