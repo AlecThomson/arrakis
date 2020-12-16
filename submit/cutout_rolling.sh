@@ -21,8 +21,10 @@ conda activate py36
 
 cd /group/askap/athomson/repos/spiceracs
 
-numactl --interleave=all mongod --dbpath=database --bind_ip $(hostname -i) &
+host=$(hostname -i)
 
-srun -n 2000 python spiceracs/cutout_rolling.py /group/askap/athomson/projects/RACS/VAST_2132-50A 2132-50A $(hostname -i) -v -vw --mpi
+numactl --interleave=all mongod --dbpath=database --bind_ip $host &
+
+srun -n 2000 python spiceracs/cutout_rolling.py /group/askap/athomson/projects/RACS/RACS_test4_1.05_0918+06A 0918+06A $host -v -vw --mpi
 
 echo 'done'
