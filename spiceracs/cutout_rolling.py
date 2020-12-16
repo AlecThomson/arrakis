@@ -23,11 +23,27 @@ from astropy.table import Table, vstack
 from spiceracs.utils import getdata, MyEncoder
 from astropy.utils import iers
 iers.conf.auto_download = False
-from mpi4py import MPI
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-print = functools.partial(print, f'[{psutil.Process().cpu_num()},{rank}]', flush=True)
+from IPython import embed
+try:
+    from mpi4py import MPI
+    mpiSwitch = True
+except:
+    mpiSwitch = False
+# Fail if script has been started with mpiexec & mpi4py is not installed
+if os.environ.get('OMPI_COMM_WORLD_SIZE') is not None:
+    if not mpiSwitch:
+        print("Script called with mpiexec, but mpi4py not installed")
+        sys.exit()
+# Get the processing environment
+if mpiSwitch:
+    comm = MPI.COMM_WORLD
+    nPE = comm.Get_size()
+    myPE = comm.Get_rank()
+else:
+    nPE = 1
+    myPE = 0
 
+print = functools.partial(print, f'[{myPE}]', flush=True)
 
 def yes_or_no(question):
     while "Please answer 'y' or 'n'":
@@ -329,33 +345,38 @@ def cut_command(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=Fals
 
 
 def run_command(command, verbose=False):
-    try:
-        proc = subprocess.run(shlex.split(command),
-                              stderr=subprocess.STDOUT,
-                              encoding='utf-8'
-                              )
+    # try:
+    proc = subprocess.run(shlex.split(command),
+                            stderr=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            encoding='utf-8',
+                            )
 
-        retries = 0
-        while proc.returncode != 0:
-            proc = subprocess.run(shlex.split(command),
-                                  stderr=subprocess.STDOUT,
-                                  encoding='utf-8'
-                                  )
-            retries += 1
+    # retries = 0
+    # while proc.returncode != 0:
+    #     proc = subprocess.run(shlex.split(command),
+    #                             stderr=subprocess.STDOUT,
+    #                             encoding='utf-8'
+    #                             )
+    #     retries += 1
 
-            if retries > 1e6:
-                break
+    #     if retries > 10:
+    #         break
 
-        if proc.returncode == 0:
-            if verbose:
-                print(command)
-            return
+    if proc.returncode == 0:
+        if verbose:
+            print(proc.returncode,command)
+        return
 
-        elif proc.returncode != 0:
-            return command
+    elif proc.returncode != 0:
+        #if verbose:
+        print(proc.returncode,command)
+        print(proc.stdout)
+        print(proc.stderr)
+        return command
 
-    except:
-        print('I failed in my job!', command)
+    # except:
+    #     print('I failed in my job!', command)
 
 
 def get_cut_command(args):
@@ -391,111 +412,183 @@ def get_cut_command(args):
     return commands
 
 
-def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_worker=False, dryrun=True):
+def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=False, dryrun=True):
     if directory[-1] == '/':
         directory = directory[:-1]
-
-    with pymongo.MongoClient(host=host) as client:
-        # default connection (ie, local)
-        mydb = client['spiceracs']  # Create/open database
-        island_col = mydb['islands']  # Create/open collection
-        beams_col = mydb['beams']  # Create/open collection
-
-    query = {
-        '$and':  [
-            {f'beams.{field}': {'$exists': True}},
-            {f'beams.{field}.DR1': True}
-        ]
-    }
-
-    beams = beams_col.find(query).sort('Source_ID')
-
-    island_ids = sorted(beams_col.distinct('Source_ID', query))
-    islands = island_col.find({'Source_ID': {'$in': island_ids}}).sort('Source_ID')
     outdir = f'{directory}/cutouts'
+    
+    if myPE == 0:
+        print('Hello!',myPE)
+        with pymongo.MongoClient(host=host) as client:
+            # default connection (ie, local)
+            mydb = client['spiceracs']  # Create/open database
+            island_col = mydb['islands']  # Create/open collection
+            beams_col = mydb['beams']  # Create/open collection
 
-    try:
-        os.mkdir(outdir)
-        print('Made cutout directory.')
-    except FileExistsError:
-        print('Directory exists.')
+        query = {
+            '$and':  [
+                {f'beams.{field}': {'$exists': True}},
+                {f'beams.{field}.DR1': True}
+            ]
+        }
+
+        beams = beams_col.find(query).sort('Source_ID')
+
+        island_ids = sorted(beams_col.distinct('Source_ID', query))
+        islands = island_col.find({'Source_ID': {'$in': island_ids}}).sort('Source_ID')
+        
+
+        beams = [i for i in beams]
+        islands = [i for i in islands]
+
+        try:
+            os.mkdir(outdir)
+            print('Made cutout directory.')
+        except FileExistsError:
+            print('Directory exists.')
+
+    else:
+        island_ids, islands, beams, outdir = None, None, None, None
+    if mpiSwitch:
+        comm.Barrier()
+    if mpiSwitch:
+        island_ids = comm.bcast(island_ids, root=0)
+        islands = comm.bcast(islands, root=0)
+        beams = comm.bcast(beams, root=0)
+        outdir = comm.bcast(outdir, root=0)
 
     inputs = [[island, beam, island_id, outdir, field, directory, pad,
                verbose_worker, dryrun] for (island_id, island, beam) in zip(island_ids, islands, beams)]
 
-    commands = list(tqdm(pool.imap(get_cut_command, inputs),  # , chunksize=len(inputs)//20),
-                         total=len(inputs),
-                         disable=(not verbose),
-                         desc='Generating commands'
-                         ))
-    # flatten list
+    dims = len(inputs)
+    count = dims // nPE
+    rem = dims % nPE
+    if myPE < rem:
+        # The first 'remainder' ranks get 'count + 1' tasks each
+        my_start = myPE * (count + 1)
+        my_end = my_start + count
+
+    else:
+        # The remaining 'size - remainder' ranks get 'count' task each
+        my_start = myPE * count + rem
+        my_end = my_start + (count - 1)
+    if verbose:
+        print(f"My start is {my_start}", f"My end is {my_end}")
+    
+    commands = []
+    for inp in tqdm(inputs[my_start:my_end+1], desc=f'[{myPE}] Getting commands'):
+        commands += [get_cut_command(inp)]
+    
     commands = [
         item for sublist in commands for subsublist in sublist for item in subsublist
     ]
-    # if verbose:
-    print(f"I've got {len(commands)} commands to run!")
-    if not dryrun:
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        check_cmd = f"python {script_dir}/check_cutout.py {len(commands)} {outdir}"
-        print("Run this if you want to follow progress:")
-        print(check_cmd)
-        #os.spawnl(os.P_NOWAIT, *shlex.split(check_cmd))
-        run_command_partial = partial(run_command, verbose=verbose_worker)
-        failed_commands = list(
-            tqdm(
-                pool.imap(run_command_partial, commands),
-                total=(len(commands)),
-                disable=(not verbose),
-                desc='Extracting cubelets'
-            )
-        )
-        real_failed = [command for command in failed_commands if command is not None]
-        fail_file = f'{directory}/{field}_failedcmds.txt'
-        if verbose:
-            print(f"Writing failed cmds to {fail_file}")
-        with open(fail_file, 'w') as f: 
-            for failed in sorted(real_failed):
-                f.write(failed+' &'+'\n') 
-        # TODO: Re-run failed commands
-        # It seems to work 
 
-def main(args, pool, verbose=True):
+    commands = comm.gather(commands, root=0)
+    if mpiSwitch:
+        comm.Barrier()
+    if myPE==0:
+        commands = [item for sublist in commands for item in sublist]
+        commands = commands[:100]
+    if mpiSwitch:
+        commands = comm.bcast(commands, root=0)
+
+    dims = len(commands)
+    count = dims // nPE
+    rem = dims % nPE
+    if myPE < rem:
+        # The first 'remainder' ranks get 'count + 1' tasks each
+        my_start = myPE * (count + 1)
+        my_end = my_start + count
+
+    else:
+        # The remaining 'size - remainder' ranks get 'count' task each
+        my_start = myPE * count + rem
+        my_end = my_start + (count - 1)
+    if verbose:
+        print(f"My start is {my_start}", f"My end is {my_end}")
+    # if verbose:
+        print(f"I've got {len(commands[my_start:my_end+1])} commands to run!")
+
+    if mpiSwitch:
+        comm.Barrier()
+    if myPE == 0:
+        if verbose:
+            print(f"There are {len(commands)} total commands to run!")
+
+    if mpiSwitch:
+        comm.Barrier()
+    if not dryrun:
+        if myPE == 0:
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            check_cmd = f"python {script_dir}/check_cutout.py {len(commands)} {outdir}"
+            print("Run this if you want to follow progress:")
+            print(check_cmd)
+        if mpiSwitch:
+            comm.Barrier()
+        fails = []
+        for cmd in tqdm(commands[my_start:my_end+1], desc=f"[{myPE}] Running commands"):
+            fails += [run_command(cmd, verbose=verbose_worker)]
+
+        real_failed = [command for command in fails if command is not None]
+
+        if mpiSwitch:
+            comm.Barrier()
+        real_failed = comm.gather(real_failed, root=0)
+        if mpiSwitch:
+            comm.Barrier()
+        if myPE == 0:
+            real_failed = [item for sublist in real_failed for item in sublist if sublist is not None]
+            fail_file = f'{directory}/{field}_failedcmds.txt'
+            if verbose:
+                print(f"Writing failed cmds to {fail_file}")
+            with open(fail_file, 'w') as f: 
+                for failed in sorted(real_failed):
+                    f.write(failed+' &'+'\n') 
+            # TODO: Re-run failed commands
+            # It seems to work 
+
+def main(args, verbose=True):
     """Main script
 
     Arguments:
         args {[type]} -- commandline args
     """
+    if myPE == 0:
+        print(f"Total number of MPI ranks = {nPE}")
+    if mpiSwitch:
+        comm.Barrier()
+    if myPE == 0:
+        if args.load:
+            # Get database from master cat
+            if args.islandcat is None:
+                print('Island catalogue is required!')
+                islandcat = input('Enter catalogue file:')
+            else:
+                islandcat = args.islandcat
+            if args.compcat is None:
+                print('Component catalogue is required!')
+                compcat = input('Enter catalogue file:')
+            else:
+                compcat = args.compcat
 
-    if args.load:
-        # Get database from master cat
-        if args.islandcat is None:
-            print('Island catalogue is required!')
-            islandcat = input('Enter catalogue file:')
-        else:
-            islandcat = args.islandcat
-        if args.compcat is None:
-            print('Component catalogue is required!')
-            compcat = input('Enter catalogue file:')
-        else:
-            compcat = args.compcat
+            # Get the master cat
+            island_cat = Table.read(islandcat)
+            comp_cat = Table.read(compcat)
+            print("This will overwrite the source database!")
+            check = yes_or_no("Are you sure you wish to proceed?")
+            if check:
+                source_database(island_cat, comp_cat, pool,
+                                args.host, verbose=verbose)
 
-        # Get the master cat
-        island_cat = Table.read(islandcat)
-        comp_cat = Table.read(compcat)
-        print("This will overwrite the source database!")
-        check = yes_or_no("Are you sure you wish to proceed?")
-        if check:
-            source_database(island_cat, comp_cat, pool,
-                            args.host, verbose=verbose)
-
-        print("This will overwrite the beams database!")
-        check = yes_or_no("Are you sure you wish to proceed?")
-        if check:
-            beam_database(island_cat, args.host, verbose=verbose)
-
+            print("This will overwrite the beams database!")
+            check = yes_or_no("Are you sure you wish to proceed?")
+            if check:
+                beam_database(island_cat, args.host, verbose=verbose)
+    
+    if mpiSwitch:
+        comm.Barrier()
     cutout_islands(args.field,
                    args.datadir,
-                   pool,
                    args.host,
                    verbose=verbose,
                    pad=args.pad,
@@ -617,35 +710,24 @@ def cli():
         help="Run with MPI."
     )
     args = parser.parse_args()
-    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
-    if args.mpi:
-        if not pool.is_master():
-            pool.wait()
-            sys.exit(0)
-    # make it so we can use imap in serial and mpi mode
-    if not isinstance(pool, schwimmbad.MultiPool):
-        pool.imap = pool.map
-
 
     verbose = args.verbose
-    if verbose:
-        print('Testing MongoDB connection...')
-    # default connection (ie, local)
-    client = pymongo.MongoClient(host=args.host)
-    try:
-        client.list_database_names()
-    except pymongo.errors.ServerSelectionTimeoutError:
-        raise Exception("Please ensure 'mongod' is running")
-    else:
+    if myPE == 0:
         if verbose:
-            print('MongoDB connection succesful!')
-    client.close()
+            print('Testing MongoDB connection...')
+        # default connection (ie, local)
+        client = pymongo.MongoClient(host=args.host)
+        try:
+            client.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose:
+                print('MongoDB connection succesful!')
+        client.close()
 
-    if verbose:
-        print(f"Using pool: {pool.__class__.__name__}")
-    main(args, pool, verbose=verbose)
-    pool.close()
-
+    
+    main(args, verbose=verbose)
 
 if __name__ == "__main__":
     cli()
