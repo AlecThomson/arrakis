@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import warnings
+from mpi4py import MPI
 from IPython import embed
 from functools import partial
 import functools
@@ -22,14 +24,17 @@ from glob import glob
 from astropy.table import Table, vstack
 from spiceracs.utils import getdata, MyEncoder
 from astropy.utils import iers
+from spectral_cube import SpectralCube
 iers.conf.auto_download = False
-from mpi4py import MPI
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
-print = functools.partial(print, f'[{psutil.Process().cpu_num()},{rank}]', flush=True)
+print = functools.partial(
+    print, f'[{psutil.Process().cpu_num()},{rank}]', flush=True)
+warnings.filterwarnings(
+    "ignore", message="Cube is a Stokes cube, returning spectral cube for I component")
 
 
-def cut_command(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False):
+def cutout(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False):
     """Cutout a source from a given image.
 
     Arguments:
@@ -45,118 +50,45 @@ def cut_command(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=Fals
         verbose {bool} -- Verbose output (default: {False})
         dryrun {bool} -- Do everything except the cutout (default: {True})
     """
+    if verbose:
+        print(f'Reading {image}')
     if outdir[-1] == '/':
         outdir = outdir[:-1]
-
-    with fits.open(image, memmap=True, mode='denywrite') as hdulist:
-        hdu = hdulist[0]
-        header = hdu.header
-        shape = hdu.data.shape
-    wcs = WCS(header)
-    freq = 888e6
-    x_s, y_s, _, _ = np.array(wcs.all_world2pix(
-        ra, dec, 0, freq, 0)).astype(int)
-
-    pixels_per_beam = int(header['BMAJ']/header['CDELT2'])
-
-    src_width_pix = int(src_width / header['CDELT2'])
-
-    y_max = y_s + src_width_pix
-    x_max = x_s + src_width_pix
-    y_min = y_s - src_width_pix
-    x_min = x_s - src_width_pix
-
-    # Skip if source is outside of cube bounds
-    if (y_max > header['NAXIS2'] or x_max > header['NAXIS1'] or
-            x_min < 0 or y_min < 0):
-        return
-
-    starty = int(y_min-pad*pixels_per_beam)
-    stopy = int(y_max+pad*pixels_per_beam)
-    startx = int(x_min-pad*pixels_per_beam)
-    stopx = int(x_max+pad*pixels_per_beam)
-
-    # Check if pad puts bbox outside of cube
-    if starty < 0:
-        starty = y_min
-    if startx < 0:
-        startx = x_min
-    if stopy > header['NAXIS2']:
-        stopy = y_max
-    if stopx > header['NAXIS1']:
-        stopx = x_max
-
     basename = os.path.basename(image)
     outname = f'{src_name}.cutout.{basename}'
     outfile = f"{outdir}/{outname}"
+    cube = SpectralCube.read(image)
+    position = SkyCoord(ra*u.deg, dec*u.deg)
+    size = src_width*u.deg + cube.header['BMAJ']*u.deg*pad
+    cutout = cube.subcube(xlo=position.ra - size/2, xhi=position.ra +
+                          size/2, ylo=position.dec - size/2, yhi=position.dec + size/2)
+    cutout.write(outfile, overwrite=True)
+    if verbose:
+        print(f'Written to {outfile}')
 
-    #command_dict = {}
+    image = image.replace('image.restored', 'weights').replace(
+        '.total.fits', '.fits')
+    outfile = outfile.replace('image.restored', 'weights').replace(
+        '.total.fits', '.fits')
+    if verbose:
+        print(f'Reading {image}')
+    cube = SpectralCube.read(image)
+    cutout = cube.subcube(xlo=position.ra - size/2, xhi=position.ra +
+                          size/2, ylo=position.dec - size/2, yhi=position.dec + size/2)
+    cutout.write(outfile, overwrite=True)
+    if verbose:
+        print(f'Written to {outfile}')
 
-    command_image = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' '!{outfile}'"
-
-    # if verbose:
-    #    print(command)
-    #command = shlex.split(command)
-
-    # command_dict.update(
-    #    {
-    #        'image': command
-    #    }
-    # )
-
-    # Now do weights
-    image = image.replace('image.restored', 'weights').replace('.total.fits','.fits')
-    outfile = outfile.replace('image.restored', 'weights').replace('.total.fits','.fits')
-
-    command_weight = f"fitscopy '{image}[{startx+1}:{stopx},{starty+1}:{stopy}]' '!{outfile}'"
-
-    #command = shlex.split(command)
-    #
-    # command_dict.update(
-    #    {
-    #        'weight': command
-    #    }
-    # )
-    return [command_image, command_weight]
+    return src_name
 
 
-def run_command(command, verbose=False):
-    try:
-        proc = subprocess.run(shlex.split(command),
-                              stderr=subprocess.STDOUT,
-                              encoding='utf-8'
-                              )
-
-        retries = 0
-        while proc.returncode != 0:
-            proc = subprocess.run(shlex.split(command),
-                                  stderr=subprocess.STDOUT,
-                                  encoding='utf-8'
-                                  )
-            retries += 1
-
-            if retries > 1e6:
-                break
-
-        if proc.returncode == 0:
-            if verbose:
-                print(command)
-            return
-
-        elif proc.returncode != 0:
-            return command
-
-    except:
-        print('I failed in my job!', command)
-
-
-def get_cut_command(args):
+def get_args(args):
     island, beam, island_id, outdir, field, datadir, pad, verbose, dryrun = args
 
     assert island['Source_ID'] == island_id
     assert beam['Source_ID'] == island_id
 
-    beam_list = beam['beams'][field]['beam_list']
+    beam_list = np.unique(beam['beams'][field]['beam_list'])
 
     outdir = f"{outdir}/{island['Source_ID']}"
     try:
@@ -167,20 +99,20 @@ def get_cut_command(args):
         if verbose:
             print('Directory exists.')
 
-    commands = []
+    args = []
     for beam_num in beam_list:
         images = glob(
             f'{datadir}/image.restored*contcube*beam{beam_num:02}.total.fits')
         for image in images:
-            command = cut_command(image,
-                                  island['Source_ID'],
-                                  island['RA'],
-                                  island['Dec'],
-                                  island['Maj']/60/60,
-                                  outdir,
-                                  pad=pad, verbose=verbose)
-            commands.append(command)
-    return commands
+            args += [image,
+                     island['Source_ID'],
+                     island['RA'],
+                     island['Dec'],
+                     island['Maj']/60/60,
+                     outdir,
+                     pad,
+                     verbose]
+    return args
 
 
 def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_worker=False, dryrun=True):
@@ -203,7 +135,8 @@ def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_wo
     beams = beams_col.find(query).sort('Source_ID')
 
     island_ids = sorted(beams_col.distinct('Source_ID', query))
-    islands = island_col.find({'Source_ID': {'$in': island_ids}}).sort('Source_ID')
+    islands = island_col.find(
+        {'Source_ID': {'$in': island_ids}}).sort('Source_ID')
     outdir = f'{directory}/cutouts'
 
     try:
@@ -215,41 +148,44 @@ def cutout_islands(field, directory, pool, host, verbose=True, pad=3, verbose_wo
     inputs = [[island, beam, island_id, outdir, field, directory, pad,
                verbose_worker, dryrun] for (island_id, island, beam) in zip(island_ids, islands, beams)]
 
-    commands = list(tqdm(pool.imap(get_cut_command, inputs),  # , chunksize=len(inputs)//20),
-                         total=len(inputs),
-                         disable=(not verbose),
-                         desc='Generating commands'
-                         ))
+    inputs = inputs[:200]
+    args = list(tqdm(pool.imap(get_args, inputs),  # , chunksize=len(inputs)//20),
+                     total=len(inputs),
+                     disable=(not verbose),
+                     desc='Doing cutouts'
+                     ))
+    embed()
     # flatten list
-    commands = [
-        item for sublist in commands for subsublist in sublist for item in subsublist
-    ]
-    # if verbose:
-    print(f"I've got {len(commands)} commands to run!")
-    if not dryrun:
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        check_cmd = f"python {script_dir}/check_cutout.py {len(commands)} {outdir}"
-        print("Run this if you want to follow progress:")
-        print(check_cmd)
-        #os.spawnl(os.P_NOWAIT, *shlex.split(check_cmd))
-        run_command_partial = partial(run_command, verbose=verbose_worker)
-        failed_commands = list(
-            tqdm(
-                pool.imap(run_command_partial, commands),
-                total=(len(commands)),
-                disable=(not verbose),
-                desc='Extracting cubelets'
-            )
-        )
-        real_failed = [command for command in failed_commands if command is not None]
-        fail_file = f'{directory}/{field}_failedcmds.txt'
-        if verbose:
-            print(f"Writing failed cmds to {fail_file}")
-        with open(fail_file, 'w') as f: 
-            for failed in sorted(real_failed):
-                f.write(failed+' &'+'\n') 
-        # TODO: Re-run failed commands
-        # It seems to work 
+    # commands = [
+    #     item for sublist in commands for subsublist in sublist for item in subsublist
+    # ]
+    # # if verbose:
+    # print(f"I've got {len(commands)} commands to run!")
+    # if not dryrun:
+    #     script_dir = os.path.dirname(os.path.realpath(__file__))
+    #     check_cmd = f"python {script_dir}/check_cutout.py {len(commands)} {outdir}"
+    #     print("Run this if you want to follow progress:")
+    #     print(check_cmd)
+    #     #os.spawnl(os.P_NOWAIT, *shlex.split(check_cmd))
+    #     run_command_partial = partial(run_command, verbose=verbose_worker)
+    #     failed_commands = list(
+    #         tqdm(
+    #             pool.imap(run_command_partial, commands),
+    #             total=(len(commands)),
+    #             disable=(not verbose),
+    #             desc='Extracting cubelets'
+    #         )
+    #     )
+    #     real_failed = [command for command in failed_commands if command is not None]
+    #     fail_file = f'{directory}/{field}_failedcmds.txt'
+    #     if verbose:
+    #         print(f"Writing failed cmds to {fail_file}")
+    #     with open(fail_file, 'w') as f:
+    #         for failed in sorted(real_failed):
+    #             f.write(failed+' &'+'\n')
+    # TODO: Re-run failed commands
+    # It seems to work
+
 
 def main(args, pool, verbose=True):
     """Main script
@@ -321,7 +257,7 @@ def cli():
         metavar='host',
         type=str,
         help='Host of mongodb (probably $hostname -i).')
-        
+
     parser.add_argument(
         "-v",
         dest="verbose",
@@ -374,20 +310,18 @@ def cli():
     if not isinstance(pool, schwimmbad.MultiPool):
         pool.imap = pool.map
 
-
     verbose = args.verbose
     if verbose:
         print('Testing MongoDB connection...')
     # default connection (ie, local)
-    client = pymongo.MongoClient(host=args.host)
-    try:
-        client.list_database_names()
-    except pymongo.errors.ServerSelectionTimeoutError:
-        raise Exception("Please ensure 'mongod' is running")
-    else:
-        if verbose:
-            print('MongoDB connection succesful!')
-    client.close()
+    with pymongo.MongoClient(host=args.host) as client:
+        try:
+            client.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose:
+                print('MongoDB connection succesful!')
 
     if verbose:
         print(f"Using pool: {pool.__class__.__name__}")
