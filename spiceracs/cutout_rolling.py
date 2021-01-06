@@ -244,37 +244,7 @@ def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=F
             dryrun=dryrun
         )
 
-    # flatten list
-    # commands = [
-    #     item for sublist in commands for subsublist in sublist for item in subsublist
-    # ]
-    # # if verbose:
-    # print(f"I've got {len(commands)} commands to run!")
-    # if not dryrun:
-    #     script_dir = os.path.dirname(os.path.realpath(__file__))
-    #     check_cmd = f"python {script_dir}/check_cutout.py {len(commands)} {outdir}"
-    #     print("Run this if you want to follow progress:")
-    #     print(check_cmd)
-    #     #os.spawnl(os.P_NOWAIT, *shlex.split(check_cmd))
-    #     run_command_partial = partial(run_command, verbose=verbose_worker)
-    #     failed_commands = list(
-    #         tqdm(
-    #             pool.imap(run_command_partial, commands),
-    #             total=(len(commands)),
-    #             disable=(not verbose),
-    #             desc='Extracting cubelets'
-    #         )
-    #     )
-    #     real_failed = [command for command in failed_commands if command is not None]
-    #     fail_file = f'{directory}/{field}_failedcmds.txt'
-    #     if verbose:
-    #         print(f"Writing failed cmds to {fail_file}")
-    #     with open(fail_file, 'w') as f:
-    #         for failed in sorted(real_failed):
-    #             f.write(failed+' &'+'\n')
-    # TODO: Re-run failed commands
-    # It seems to work
-
+    print('Done!')
 
 def main(args, verbose=True):
     """Main script
