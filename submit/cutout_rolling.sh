@@ -23,8 +23,9 @@ cd /group/askap/athomson/repos/spiceracs
 
 host=$(hostname -i)
 
+echo $host
+
 numactl --interleave=all mongod --dbpath=database --bind_ip $host &
 
-srun -n 2000 python spiceracs/cutout_rolling.py /group/askap/athomson/projects/RACS/RACS_test4_1.05_0918+06A 0918+06A $host -v -vw --mpi
-
+srun -n 2000 python spiceracs/cutout_rolling.py /group/askap/athomson/projects/RACS/RACS_test4_1.05_0918+06A 0918+06A $host -v
 echo 'done'
