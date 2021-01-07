@@ -104,15 +104,15 @@ def gen_seps(field):
 
     offsets = np.rad2deg(np.array(fp.offsetsRect))
 
-    master_cat = Table.read('askap_surveys/RACS/admin/epoch_0/field_data.csv')
+    master_cat = Table.read('askap_surveys/racs/db/epoch_0/field_data.csv')
     master_cat.add_index('FIELD_NAME')
-    master_cat = master_cat.loc[f"RACS_test4_1.05_{field}"]
+    master_cat = master_cat.loc[f"RACS_{field}"]
     if type(master_cat) is not astropy.table.row.Row:
         master_cat = master_cat[0]
 
     # Look for multiple SBIDs - only need one
     cats = glob(
-        f'askap_surveys/RACS/admin/epoch_0/beam_inf_*-RACS_test4_1.05_{field}.csv')
+        f'askap_surveys/racs/db/epoch_0/beam_inf_*-RACS_{field}.csv')
     beam_cat = Table.read(cats[0])
     beam_cat.add_index('BEAM_NUM')
 
@@ -293,7 +293,7 @@ task(){{
     cd $dir
     linmos -c ${{dir}}/linmos_{stoke}.in >> "$log"
     #srun --export=ALL --ntasks=${{NCORES}} --ntasks-per-node=${{NPPN}} linmos-mpi -c ${{dir}}/linmos_{stoke}.in > "$log"
-    ls ${{dir}}/*.cutout.sm.image.restored.{stoke.lower()}*.linmos.fits | xargs -I // mongo --host $mongo_ip --eval 'db.beams.findOneAndUpdate({{"Source_ID" : "'$1'"}}, {{"$set" :{{"beams.{fieldname}.{stoke.lower()}_file" : "'//'"}}}});' spiceracs >> "$log"
+    ls ${{dir}}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits | xargs -I // mongo --host $mongo_ip --eval 'db.beams.findOneAndUpdate({{"Source_ID" : "'$1'"}}, {{"$set" :{{"beams.{fieldname}.{stoke.lower()}_file" : "'//'"}}}});' spiceracs >> "$log"
     echo $1
 }}
 """
