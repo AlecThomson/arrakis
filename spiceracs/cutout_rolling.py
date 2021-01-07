@@ -230,7 +230,7 @@ def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=F
 
     for arg in tqdm(args[my_start:my_end+1],
                     desc=f'[{myPE}] Cutting out',
-                    disable=(not myPE==0)
+                    disable=(myPE != 0)
                     ):
         cutout(
             arg['image'],
@@ -244,7 +244,6 @@ def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=F
             dryrun=dryrun
         )
 
-    print('Done!')
 
 def main(args, verbose=True):
     """Main script
