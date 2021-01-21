@@ -78,7 +78,7 @@ def main(args, verbose=False):
                 try:
                     data += [comp['rmsynth_summary'][col]]
                 except KeyError:
-                    data += [comp['rmclean_summary'][col]]
+                        data += [comp['rmclean_summary'][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             tab.add_column(new_col)
 
