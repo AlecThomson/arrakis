@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from RMutils.util_misc import create_frac_spectra
 import functools
 import psutil
+from IPython import embed
 print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
 
 
