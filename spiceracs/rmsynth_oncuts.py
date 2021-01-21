@@ -114,22 +114,30 @@ def rmsythoncut3d(args):
 
     if clargs.database:
         myquery = {"Source_ID": iname}
+        # Prep header
+        head_dict = dict(header)
+        head_dict.pop('', None)
+        head_dict['COMMENT'] = str(head_dict['COMMENT'])
 
-        newvalues = {"$set": {"rmsynth3d": True}}
+        newvalues = {
+            "$set":
+            {
+                "rm3dfiles":
+                {
+                    "FDF_real_dirty": f"{prefix}FDF_real_dirty.fits",
+                    "FDF_im_dirty": f"{prefix}FDF_im_dirty.fits",
+                    "FDF_tot_dirty": f"{prefix}FDF_tot_dirty.fits",
+                    "RMSF_real": f"{prefix}RMSF_real.fits",
+                    "RMSF_tot": f"{prefix}RMSF_tot.fits",
+                    "RMSF_FWHM": f"{prefix}RMSF_FWHM.fits"
+                },
+                "rmsynth3d": True,
+                "header": dict(header)
+            }
+        }
+
         isl_col.update_one(myquery, newvalues)
 
-        newvalues = {"$set": {"rm3dfiles": {
-            "FDF_real_dirty": f"{prefix}FDF_real_dirty.fits",
-            "FDF_im_dirty": f"{prefix}FDF_im_dirty.fits",
-            "FDF_tot_dirty": f"{prefix}FDF_tot_dirty.fits",
-            "RMSF_real": f"{prefix}RMSF_real.fits",
-            "RMSF_tot": f"{prefix}RMSF_tot.fits",
-            "RMSF_FWHM": f"{prefix}RMSF_FWHM.fits"
-        }}}
-        isl_col.update_one(myquery, newvalues)
-        
-        newvalues = {"$set": {"header": dict(header)}}
-        isl_col.update_one(myquery, newvalues)
 
 def rms_1d(data):
     """Compute RMS from bounding pixels
@@ -172,7 +180,11 @@ def estimate_noise_annulus(x_center, y_center, cube):
     """
 
     inner_radius = 10
-    outer_radius = 31
+    # Set outer radius to cutout edge if default value is too big
+    if min(cube.shape[-2:]) <= 62:
+        outer_radius = min(cube.shape[-2:]) // 2 - 1
+    else:
+        outer_radius = 31
 
     lenfreq = cube.shape[0]
     naxis = len(cube.shape)
@@ -192,6 +204,8 @@ def estimate_noise_annulus(x_center, y_center, cube):
 
             # Calculate the MADFM, and convert to standard sigma:
             noisepix = np.ma.masked_array(grid, grid_mask)
+            #if (noisepix == np.nan).any():
+            #    embed
             err[i] = np.ma.median(np.ma.fabs(
                 noisepix - np.ma.median(noisepix))) / 0.6745
             return err
@@ -287,13 +301,18 @@ def rmsythoncut1d(args):
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
 
     if np.isnan(rmsi).all() or np.isnan(rmsq).all() or np.isnan(rmsu).all():
+        print(f'RMS data is all NaNs. Skipping component {cname}...')
         return
 
     prefix = f"{os.path.dirname(ifile)}/{cname}"
 
     ra = doc['RA']
     dec = doc['Dec']
-    wcs = WCS(header).dropaxis(2)
+    if len(dataI.shape) == 4:
+        # drop Stokes axis
+        wcs = WCS(header).dropaxis(2)
+    else:
+        wcs = WCS(header)
 
     x, y, z = np.array(wcs.all_world2pix(
         ra, dec, np.nanmean(freq), 0)).round().astype(int)
@@ -307,6 +326,7 @@ def rmsythoncut1d(args):
     uarr[uarr == 0] = np.nan
 
     if np.isnan(qarr).all() or np.isnan(uarr).all():
+        print(f'QU data is all NaNs. Skipping component {cname}...')
         return
     else:
         if clargs.noStokesI:
@@ -315,6 +335,7 @@ def rmsythoncut1d(args):
                     uarr, rmsq, rmsu]
         else:
             if np.isnan(iarr).all():
+                print(f'I data is all NaNs. Skipping component {cname}...')
                 return
             else:
                 idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
@@ -333,103 +354,101 @@ def rmsythoncut1d(args):
 
         np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
 
-        try:
-            mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                     polyOrd=clargs.polyOrd,
-                                                     phiMax_radm2=clargs.phiMax_radm2,
-                                                     dPhi_radm2=clargs.dPhi_radm2,
-                                                     nSamples=clargs.nSamples,
-                                                     weightType=clargs.weightType,
-                                                     fitRMSF=clargs.fitRMSF,
-                                                     noStokesI=clargs.noStokesI,
-                                                     nBits=32,
-                                                     showPlots=clargs.showPlots,
-                                                     verbose=clargs.rm_verbose,
-                                                     debug=clargs.debug)
-            if clargs.savePlots:
-                import matplotlib
-                matplotlib.use('Agg')
-                # if verbose:
-                #    print("Plotting the input data and spectral index fit.")
-                from RMutils.util_plotTk import plot_Ipqu_spectra_fig
-                from RMutils.util_misc import poly5
+        mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                                 polyOrd=clargs.polyOrd,
+                                                 phiMax_radm2=clargs.phiMax_radm2,
+                                                 dPhi_radm2=clargs.dPhi_radm2,
+                                                 nSamples=clargs.nSamples,
+                                                 weightType=clargs.weightType,
+                                                 fitRMSF=clargs.fitRMSF,
+                                                 noStokesI=clargs.noStokesI,
+                                                 nBits=32,
+                                                 showPlots=clargs.showPlots,
+                                                 verbose=clargs.rm_verbose,
+                                                 debug=clargs.debug)
+        if clargs.savePlots:
+            import matplotlib
+            matplotlib.use('Agg')
+            # if verbose:
+            #    print("Plotting the input data and spectral index fit.")
+            from RMutils.util_plotTk import plot_Ipqu_spectra_fig
+            from RMutils.util_misc import poly5
 
-                if clargs.noStokesI:
-                    IArr = np.ones_like(qarr[~idx])
-                    Ierr = np.zeros_like(qarr[~idx])
-                else:
-                    IArr = iarr[~idx]
-                    Ierr = rmsi[~idx]
+            if clargs.noStokesI:
+                IArr = np.ones_like(qarr[~idx])
+                Ierr = np.zeros_like(qarr[~idx])
+            else:
+                IArr = iarr[~idx]
+                Ierr = rmsi[~idx]
 
-                IModArr, qArr, uArr, dqArr, duArr, fitDict = \
-                    create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
-                                        IArr=IArr,
-                                        QArr=qarr[~idx],
-                                        UArr=uarr[~idx],
+            IModArr, qArr, uArr, dqArr, duArr, fitDict = \
+                create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
+                                    IArr=IArr,
+                                    QArr=qarr[~idx],
+                                    UArr=uarr[~idx],
+                                    dIArr=Ierr,
+                                    dQArr=rmsq[~idx],
+                                    dUArr=rmsu[~idx],
+                                    polyOrd=clargs.polyOrd,
+                                    verbose=False,
+                                    debug=False)
+
+            freqHirArr_Hz = np.linspace(
+                mDict['min_freq'], mDict['max_freq'], 10000)
+            coef = np.array(
+                mDict["polyCoeffs"].split(',')).astype(float)
+            IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
+            fig = plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
+                                        IArr=iarr[~idx],
+                                        qArr=qArr,
+                                        uArr=uArr,
                                         dIArr=Ierr,
-                                        dQArr=rmsq[~idx],
-                                        dUArr=rmsu[~idx],
-                                        polyOrd=clargs.polyOrd,
-                                        verbose=False,
-                                        debug=False)
+                                        dqArr=dqArr,
+                                        duArr=duArr,
+                                        freqHirArr_Hz=freqHirArr_Hz,
+                                        IModArr=IModHirArr,
+                                        fig=None,
+                                        units='Jy/beam')
+            plotname = f'{outdir}/plots/{cname}_specfig.png'
+            plt.savefig(plotname, dpi=75, bbox_inches='tight')
 
-                freqHirArr_Hz = np.linspace(
-                    mDict['min_freq'], mDict['max_freq'], 10000)
-                coef = np.array(
-                    mDict["polyCoeffs"].split(',')).astype(float)
-                IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
-                fig = plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
-                                            IArr=iarr[~idx],
-                                            qArr=qArr,
-                                            uArr=uArr,
-                                            dIArr=Ierr,
-                                            dqArr=dqArr,
-                                            duArr=duArr,
-                                            freqHirArr_Hz=freqHirArr_Hz,
-                                            IModArr=IModHirArr,
-                                            fig=None,
-                                            units='Jy/beam')
-                plotname = f'{outdir}/plots/{cname}_specfig.png'
-                plt.savefig(plotname, dpi=75, bbox_inches='tight')
+            fdfFig = plt.figure(figsize=(12.0, 8))
+            plot_rmsf_fdf_fig(phiArr=aDict["phiArr_radm2"],
+                              FDF=aDict["dirtyFDF"],
+                              phi2Arr=aDict["phi2Arr_radm2"],
+                              RMSFArr=aDict["RMSFArr"],
+                              fwhmRMSF=mDict["fwhmRMSF"],
+                              vLine=mDict["phiPeakPIfit_rm2"],
+                              fig=fdfFig,
+                              units='Jy/beam')
+            plotname = f'{outdir}/plots/{cname}_FDFdirty.png'
+            plt.savefig(plotname, dpi=75, bbox_inches='tight')
 
-                fdfFig = plt.figure(figsize=(12.0, 8))
-                plot_rmsf_fdf_fig(phiArr=aDict["phiArr_radm2"],
-                                  FDF=aDict["dirtyFDF"],
-                                  phi2Arr=aDict["phi2Arr_radm2"],
-                                  RMSFArr=aDict["RMSFArr"],
-                                  fwhmRMSF=mDict["fwhmRMSF"],
-                                  vLine=mDict["phiPeakPIfit_rm2"],
-                                  fig=fdfFig,
-                                  units='Jy/beam')
-                plotname = f'{outdir}/plots/{cname}_FDFdirty.png'
-                plt.savefig(plotname, dpi=75, bbox_inches='tight')
-            do_RMsynth_1D.saveOutput(
-                mDict, aDict, prefix, clargs.rm_verbose)
-        except ValueError:
-            return
+        do_RMsynth_1D.saveOutput(
+            mDict, aDict, prefix, clargs.rm_verbose)
 
         if clargs.database:
             myquery = {"Component_ID": cname}
 
-            newvalues = {"$set": {f"rm1dfiles": {
-                "FDF_dirty": f"{cname}_FDFdirty.dat",
-                "RMSF": f"{cname}_RMSF.dat",
-                "weights": f"{cname}_weight.dat",
-                "summary_dat": f"{cname}_RMsynth.dat",
-                "summary_json": f"{cname}_RMsynth.json",
-            }}}
-            comp_col.update_one(myquery, newvalues)
-
-            newvalues = {"$set": {f"rmsynth1d": True}}
-            comp_col.update_one(myquery, newvalues)
-
+            # Prep header
             head_dict = dict(header)
             head_dict.pop('', None)
             head_dict['COMMENT'] = str(head_dict['COMMENT'])
-            newvalues = {"$set": {"header": head_dict}}
-            comp_col.update_one(myquery, newvalues)
-            
-            newvalues = {"$set": {f"rmsynth_summary": mDict}}
+
+            newvalues = {
+                "$set": {
+                    f"rm1dfiles": {
+                        "FDF_dirty": f"{cname}_FDFdirty.dat",
+                        "RMSF": f"{cname}_RMSF.dat",
+                        "weights": f"{cname}_weight.dat",
+                        "summary_dat": f"{cname}_RMsynth.dat",
+                        "summary_json": f"{cname}_RMsynth.json",
+                    },
+                    f"rmsynth1d": True,
+                    "header": head_dict,
+                    f"rmsynth_summary": mDict
+                }
+            }
             comp_col.update_one(myquery, newvalues)
 
 
@@ -460,7 +479,11 @@ def rmsythoncut_i(args):
     # Get source peak from Selavy
     ra = doc['RA']
     dec = doc['Dec']
-    wcs = WCS(header).dropaxis(2)
+    if len(dataI.shape) == 4:
+        # drop Stokes axis
+        wcs = WCS(header).dropaxis(2)
+    else:
+        wcs = WCS(header)
 
     x, y, z = np.array(wcs.all_world2pix(
         ra, dec, np.nanmean(freq), 0)).round().astype(int)
