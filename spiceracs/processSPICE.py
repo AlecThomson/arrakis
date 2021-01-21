@@ -1,13 +1,15 @@
 #!/usr/bin/env python
-import dask
 from spiceracs import cutout_rolling
-from spiceracs import linmos
+#from spiceracs import linmos
 from spiceracs import rmsynth_oncuts
 from spiceracs import rmclean_oncuts
 from spiceracs import makecat
 import subprocess
 import shlex
 import schwimmbad
+from dask_jobqueue import SLURMCluster
+from distributed import Client, progress
+from dask import delayed
 
 
 def start_mongo(dbpath):
@@ -30,15 +32,36 @@ def start_mongo(dbpath):
 
 def main(args, pool):
     proc, host = start_mongo(args.dbpath)
-    cutout_rolling.cutout_islands(args.field,
+    cluster = SLURMCluster(cores=20,
+                           memory="60GB",
+                           project='askap',
+                           queue='workq',
+                           walltime='12:00:00',
+                           job_extra=['-M galaxy'],
+                           interface="ipogif0",
+                           )
+    cluster.scale(10)
+
+    cutout_islands = delayed(cutout_rolling.cutout_islands)
+    cutout_islands(args.field,
                    args.datadir,
                    pool,
                    host,
-                   verbose=verbose,
+                   verbose=args.verbose,
                    pad=args.pad,
                    verbose_worker=args.verbose_worker,
                    dryrun=args.dryrun
                    )
+
+    # cutout_rolling.cutout_islands(args.field,
+    #                               args.datadir,
+    #                               pool,
+    #                               host,
+    #                               verbose=verbose,
+    #                               pad=args.pad,
+    #                               verbose_worker=args.verbose_worker,
+    #                               dryrun=args.dryrun
+    #                               )
 
 
 def cli():
