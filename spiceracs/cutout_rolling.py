@@ -24,6 +24,7 @@ from glob import glob
 from astropy.table import Table, vstack
 from spiceracs.utils import getdata, MyEncoder
 from astropy.utils import iers
+import astropy.units as u
 from spectral_cube import SpectralCube
 iers.conf.auto_download = False
 warnings.filterwarnings(
@@ -50,7 +51,7 @@ else:
 print = functools.partial(print, f'[{myPE}]', flush=True)
 
 
-def cutout(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False, dryrun=False):
+def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose=False, dryrun=False):
     """Cutout a source from a given image.
 
     Arguments:
@@ -74,10 +75,12 @@ def cutout(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False, dr
     outname = f'{src_name}.cutout.{basename}'
     outfile = f"{outdir}/{outname}"
     cube = SpectralCube.read(image)
-    position = SkyCoord(ra*u.deg, dec*u.deg)
-    size = src_width*u.deg + cube.header['BMAJ']*u.deg*pad
-    cutout = cube.subcube(xlo=position.ra - size/2, xhi=position.ra +
-                          size/2, ylo=position.dec - size/2, yhi=position.dec + size/2)
+    padder = cube.header['BMAJ']*u.deg * pad
+    cutout = cube.subcube(xlo=ra_lo - padder,
+                          xhi=ra_hi + padder,
+                          ylo=dec_lo - padder,
+                          yhi=dec_hi + padder
+                          )
     if not dryrun:
         cutout.write(outfile, overwrite=True)
         if verbose:
@@ -90,8 +93,11 @@ def cutout(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False, dr
     if verbose:
         print(f'Reading {image}')
     cube = SpectralCube.read(image)
-    cutout = cube.subcube(xlo=position.ra - size/2, xhi=position.ra +
-                          size/2, ylo=position.dec - size/2, yhi=position.dec + size/2)
+    cutout = cube.subcube(xlo=ra_lo - padder,
+                          xhi=ra_hi + padder,
+                          ylo=dec_lo - padder,
+                          yhi=dec_hi + padder
+                          )
     if not dryrun:
         cutout.write(outfile, overwrite=True)
         if verbose:
@@ -100,7 +106,7 @@ def cutout(image, src_name, ra, dec, src_width, outdir, pad=3, verbose=False, dr
     return src_name
 
 
-def get_args(island, beam, island_id, outdir, field, datadir, verbose=True):
+def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=True):
     """[summary]
 
     Args:
@@ -130,6 +136,22 @@ def get_args(island, beam, island_id, outdir, field, datadir, verbose=True):
         if verbose:
             print('Directory exists.')
 
+    # Find image size
+    ras = []
+    decs = []
+    majs = []
+    for comp in comps:
+        ras += [comp['RA']]
+        decs += [comp['Dec']]
+        majs += [comp['Maj']]
+    ras *= u.deg
+    decs *= u.deg
+    majs *= u.arcsec
+    ra_hi = majs[np.argmax(ras)] + np.max(ras)
+    ra_lo = majs[np.argmin(ras)] + np.min(ras)
+    dec_hi = majs[np.argmax(decs)] + np.max(decs)
+    dec_lo = majs[np.argmin(decs)] + np.min(decs)
+
     args = []
     for beam_num in beam_list:
         images = glob(
@@ -139,9 +161,10 @@ def get_args(island, beam, island_id, outdir, field, datadir, verbose=True):
                 {
                     'image': image,
                     'id': island['Source_ID'],
-                    'ra': island['RA'],
-                    'dec': island['Dec'],
-                    'width': island['Maj']/60/60,
+                    'ra_hi': ra_hi,
+                    'ra_lo': ra_lo,
+                    'dec_hi': dec_hi,
+                    'dec_lo': dec_lo,
                     'outdir': outdir,
                 }
             ]
@@ -152,14 +175,15 @@ def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=F
     if directory[-1] == '/':
         directory = directory[:-1]
     outdir = f'{directory}/cutouts'
+    with pymongo.MongoClient(host=host) as client:
+        # default connection (ie, local)
+        mydb = client['spiceracs']  # Create/open database
+        comp_col = mydb['components']  # Create/open collection
+        island_col = mydb['islands']  # Create/open collection
+        beams_col = mydb['beams']  # Create/open collection
 
     if myPE == 0:
-        with pymongo.MongoClient(host=host) as client:
-            # default connection (ie, local)
-            mydb = client['spiceracs']  # Create/open database
-            island_col = mydb['islands']  # Create/open collection
-            beams_col = mydb['beams']  # Create/open collection
-
+        # Query the DB
         query = {
             '$and':  [
                 {f'beams.{field}': {'$exists': True}},
@@ -175,40 +199,87 @@ def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=F
 
         beams = [i for i in beams]
         islands = [i for i in islands]
+        # embed()
+        # comps_list = []
+        # for island_id in tqdm(island_ids):
+        #     c = list(comp_col.find({'Source_ID': island_id}))
+        #     comps_list += c
 
+        # Create output dir if it doesn't exist
         try:
             os.mkdir(outdir)
             print('Made cutout directory.')
         except FileExistsError:
             print('Directory exists.')
 
-        args = []
-        for (island_id, island, beam) in tqdm(
-            zip(
-                island_ids,
-                islands,
-                beams
-            ),
-            desc=f'[{myPE}] Getting args',
-            total=len(island_ids)
-        ):
-            arg = get_args(
-                island,
-                beam,
-                island_id,
-                outdir,
-                field,
-                directory,
-                verbose=verbose_worker,
-            )
-            args += arg
-
     else:
-        args = None
+        # Workers skip this
+        island_ids = None
+        islands = None
+        beams = None
+        # comps_list = None
+
     if mpiSwitch:
         comm.Barrier()
     if mpiSwitch:
-        args = comm.bcast(args, root=0)
+        # All workers now get data
+        island_ids = comm.bcast(island_ids, root=0)
+        islands = comm.bcast(islands, root=0)
+        beams = comm.bcast(beams, root=0)
+        # comps_list = comm.bcast(comps_list, root=0)
+
+    if mpiSwitch:
+        comm.Barrier()
+
+    # Do domain decomp
+    dims = len(island_ids)
+    dims = 40
+    count = dims // nPE
+    rem = dims % nPE
+    if myPE < rem:
+        # The first 'remainder' ranks get 'count + 1' tasks each
+        my_start = myPE * (count + 1)
+        my_end = my_start + count
+
+    else:
+        # The remaining 'size - remainder' ranks get 'count' task each
+        my_start = myPE * count + rem
+        my_end = my_start + (count - 1)
+    if verbose:
+        print(f"My start is {my_start}", f"My end is {my_end}")
+
+    args = []
+    for (island_id, island, beam) in tqdm(
+        zip(
+            island_ids[my_start:my_end+1],
+            islands[my_start:my_end+1],
+            beams[my_start:my_end+1],
+            #comps_list[my_start:my_end+1]
+        ),
+        desc=f'[{myPE}] Getting args',
+        total=len(island_ids[my_start:my_end+1]),
+        disable=(myPE!=0)
+    ):
+        comps = comp_col.find({'Source_ID': island_id})
+        arg = get_args(
+            island,
+            comps,
+            beam,
+            island_id,
+            outdir,
+            field,
+            directory,
+            verbose=verbose_worker,
+        )
+        args += arg
+
+    if mpiSwitch:
+        comm.Barrier()
+    if mpiSwitch:
+        args = comm.gather(args, root=0)
+
+    if myPE==0:
+        embed()
 
     if mpiSwitch:
         comm.Barrier()
@@ -235,9 +306,10 @@ def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=F
         cutout(
             arg['image'],
             arg['id'],
-            arg['ra'],
-            arg['dec'],
-            arg['width'],
+            arg['ra_hi'],
+            arg['ra_lo'],
+            arg['dec_hi'],
+            arg['dec_lo'],
             arg['outdir'],
             pad=pad,
             verbose=verbose_worker,
