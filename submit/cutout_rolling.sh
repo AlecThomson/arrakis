@@ -27,5 +27,9 @@ echo $host
 
 numactl --interleave=all mongod --dbpath=database --bind_ip $host &
 
-srun -n 2000 python spiceracs/cutout_rolling.py /group/askap/athomson/projects/RACS/RACS_test4_1.05_0918+06A 0918+06A $host -v
+srun -n 2000 python spiceracs/cutout_rolling.py /group/askap/athomson/projects/RACS/pipelinetest/RACS_test4_1.05_0918+06A 0918+06A $host -v -p 5
+
+numactl --interleave=all  mongod --dbpath=database --shutdown
+
+
 echo 'done'

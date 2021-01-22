@@ -4,8 +4,8 @@
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
-#SBATCH --ntasks-per-node=20
-#SBATCH --nodes=25
+#SBATCH --ntasks-per-node=1
+#SBATCH --nodes=1
 #SBATCH --time=24:00:00
 
 cd /group/askap/athomson/repos/spiceracs
@@ -21,6 +21,4 @@ echo 'Mongo running on '$host
 
 numactl --interleave=all mongod --dbpath=database --bind_ip $host >> /dev/null &
 
-srun -n 500 python spiceracs/rmclean_oncuts.py 0918+06A /home/athomson/athomson/projects/RACS/RACS_test4_1.05_0918+06A $host -v -m --mpi -rmv
-
-echo 'Done'
+python spiceracs/makecat.py 0918+06A . $host -w testcat.fits -f fits

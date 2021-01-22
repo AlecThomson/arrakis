@@ -5,7 +5,7 @@
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
 #SBATCH --ntasks-per-node=20
-#SBATCH --nodes=50
+#SBATCH --nodes=5
 #SBATCH --time=24:00:00
 
 cd /group/askap/athomson/repos/spiceracs
@@ -21,6 +21,6 @@ echo 'Mongo running on '$host
 
 numactl --interleave=all mongod --dbpath=database --bind_ip $host >> /dev/null &
 
-srun -n  1000 python spiceracs/rmsynth_oncuts.py 2132-50A ~/athomson/projects/RACS/VAST_2132-50A/ $host -v -m -t -l 1000 -s 100 -rmv --mpi
+srun -n 100 python spiceracs/rmsynth_oncuts.py 0918+06A /home/athomson/athomson/projects/RACS/RACS_test4_1.05_0918+06A $host -v -m -t -l 1000 -s 100 --mpi
 
 echo 'Done'
