@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 from spiceracs import cutout_rolling
 #from spiceracs import linmos
-from spiceracs import rmsynth_oncuts
-from spiceracs import rmclean_oncuts
-from spiceracs import makecat
+# from spiceracs import rmsynth_oncuts
+# from spiceracs import rmclean_oncuts
+# from spiceracs import makecat
 import subprocess
 import shlex
-import schwimmbad
 from dask_jobqueue import SLURMCluster
 from distributed import Client, progress
+from dask.diagnostics import ProgressBar
 from dask import delayed
+from IPython import embed
+from time import sleep
 
 
 def start_mongo(dbpath):
@@ -30,7 +32,7 @@ def start_mongo(dbpath):
     return proc, host
 
 
-def main(args, pool):
+def main(args):
     proc, host = start_mongo(args.dbpath)
     cluster = SLURMCluster(cores=20,
                            memory="60GB",
@@ -40,18 +42,43 @@ def main(args, pool):
                            job_extra=['-M galaxy'],
                            interface="ipogif0",
                            )
-    cluster.scale(10)
-
-    cutout_islands = delayed(cutout_rolling.cutout_islands)
-    cutout_islands(args.field,
-                   args.datadir,
-                   pool,
-                   host,
-                   verbose=args.verbose,
-                   pad=args.pad,
-                   verbose_worker=args.verbose_worker,
-                   dryrun=args.dryrun
-                   )
+    # embed()
+    nworkers = 100
+    cluster.scale(nworkers)
+    client = Client(cluster)
+    # while ((client.status == "running") and (len(client.scheduler_info()["workers"]) < nworkers)):
+    #     sleep(1.0)
+    cutout_rolling.cutout_islands(args.field,
+                          args.datadir,
+                          host,
+                          client,
+                          verbose=args.verbose,
+                          pad=args.pad,
+                          verbose_worker=args.verbose_worker,
+                          dryrun=args.dryrun
+                          )
+    # cutout_islands = delayed(cutout_rolling.cutout_islands)(args.field,
+    #                       args.datadir,
+    #                       host,
+    #                       client,
+    #                       verbose=args.verbose,
+    #                       pad=args.pad,
+    #                       verbose_worker=args.verbose_worker,
+    #                       dryrun=args.dryrun
+    #                       )
+    # embed()
+    # cutout_result = client.submit(cutout_rolling.cutout_islands, args.field,
+    #                       args.datadir,
+    #                       host,
+    #                       verbose=args.verbose,
+    #                       pad=args.pad,
+    #                       verbose_worker=args.verbose_worker,
+    #                       dryrun=args.dryrun)
+    # cutout_result = client.persist(cutout_islands)
+    # progress(cutout_result)
+    # cutout_result = cutout_islands.compute()
+    # with ProgressBar():
+    #     cutout_islands.compute()
 
     # cutout_rolling.cutout_islands(args.field,
     #                               args.datadir,
@@ -154,35 +181,9 @@ def cli():
         help="Do a dry-run [False]."
     )
 
-    group = parser.add_mutually_exclusive_group()
+    args = parser.parse_args()
 
-    group.add_argument(
-        "--ncores",
-        dest="n_cores",
-        default=1,
-        type=int, help="Number of processes (uses multiprocessing)."
-    )
-    group.add_argument(
-        "--mpi",
-        dest="mpi",
-        default=False,
-        action="store_true",
-        help="Run with MPI."
-    )
-
-    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
-    if args.mpi:
-        if not pool.is_master():
-            pool.wait()
-            sys.exit(0)
-    # make it so we can use imap in serial and mpi mode
-    if not isinstance(pool, schwimmbad.MultiPool):
-        pool.imap = pool.map
-
-    if verbose:
-        print(f"Using pool: {pool.__class__.__name__}")
-
-    main(args, pool)
+    main(args)
 
 
 if __name__ == "__main__":

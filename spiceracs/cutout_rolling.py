@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 import warnings
 import pymongo
-from mpi4py import MPI
+import dask
+from dask import delayed
+from dask.distributed import Client, progress, LocalCluster
+from dask.diagnostics import ProgressBar
 from IPython import embed
 from functools import partial
 import functools
@@ -29,28 +32,9 @@ from spectral_cube import SpectralCube
 iers.conf.auto_download = False
 warnings.filterwarnings(
     "ignore", message="Cube is a Stokes cube, returning spectral cube for I component")
-try:
-    from mpi4py import MPI
-    mpiSwitch = True
-except:
-    mpiSwitch = False
-# Fail if script has been started with mpiexec & mpi4py is not installed
-if os.environ.get('OMPI_COMM_WORLD_SIZE') is not None:
-    if not mpiSwitch:
-        print("Script called with mpiexec, but mpi4py not installed")
-        sys.exit()
-# Get the processing environment
-if mpiSwitch:
-    comm = MPI.COMM_WORLD
-    nPE = comm.Get_size()
-    myPE = comm.Get_rank()
-else:
-    nPE = 1
-    myPE = 0
-
-print = functools.partial(print, f'[{myPE}]', flush=True)
 
 
+@delayed
 def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose=False, dryrun=False):
     """Cutout a source from a given image.
 
@@ -106,6 +90,7 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
     return src_name
 
 
+@delayed
 def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=True):
     """[summary]
 
@@ -171,96 +156,90 @@ def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=Tru
     return args
 
 
-def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=False, dryrun=True):
+@delayed
+def find_comps(island_id, host):
+    with pymongo.MongoClient(host=host) as dbclient:
+        # default connection (ie, local)
+        mydb = dbclient['spiceracs']  # Create/open database
+        comp_col = mydb['components']  # Create/open collection
+    comps = comp_col.find({'Source_ID': island_id})
+    comps = [c for c in comps]
+    return comps
+
+
+@delayed
+def unpack(list_sq):
+    list_fl = []
+    for i in list_sq:
+        for j in i:
+            list_fl.append(j)
+    return list_fl
+
+
+# @delayed
+# def cutout_loop(flat_args, pad=5, dryrun=False, verbose=True):
+#     cuts = []
+#     for arg in tqdm(flat_args,
+#                     desc=f'Cutting out',
+#                     disable=(not verbose)
+#                     ):
+#         #for a in arg:
+#         cut = cutout(
+#             arg['image'],
+#             arg['id'],
+#             arg['ra_hi'],
+#             arg['ra_lo'],
+#             arg['dec_hi'],
+#             arg['dec_lo'],
+#             arg['outdir'],
+#             pad=pad,
+#             verbose=verbose,
+#             dryrun=dryrun
+#         )
+#         cuts.append(cut)
+#     return cuts
+
+def cutout_islands(field, directory, host, client, verbose=True, pad=3, verbose_worker=False, dryrun=True):
+    if verbose:
+        print(f"Client is {client}")
     if directory[-1] == '/':
         directory = directory[:-1]
     outdir = f'{directory}/cutouts'
-    with pymongo.MongoClient(host=host) as client:
+    with pymongo.MongoClient(host=host) as dbclient:
         # default connection (ie, local)
-        mydb = client['spiceracs']  # Create/open database
+        mydb = dbclient['spiceracs']  # Create/open database
         comp_col = mydb['components']  # Create/open collection
         island_col = mydb['islands']  # Create/open collection
         beams_col = mydb['beams']  # Create/open collection
 
-    if myPE == 0:
-        # Query the DB
-        query = {
-            '$and':  [
-                {f'beams.{field}': {'$exists': True}},
-                {f'beams.{field}.DR1': True}
-            ]
-        }
+    # Query the DB
+    query = {
+        '$and':  [
+            {f'beams.{field}': {'$exists': True}},
+            {f'beams.{field}.DR1': True}
+        ]
+    }
 
-        beams = beams_col.find(query).sort('Source_ID')
+    beams = beams_col.find(query).sort('Source_ID')
 
-        island_ids = sorted(beams_col.distinct('Source_ID', query))
-        islands = island_col.find(
-            {'Source_ID': {'$in': island_ids}}).sort('Source_ID')
+    island_ids = sorted(beams_col.distinct('Source_ID', query))
+    islands = island_col.find(
+        {'Source_ID': {'$in': island_ids}}).sort('Source_ID')
 
-        beams = [i for i in beams]
-        islands = [i for i in islands]
-        # embed()
-        # comps_list = []
-        # for island_id in tqdm(island_ids):
-        #     c = list(comp_col.find({'Source_ID': island_id}))
-        #     comps_list += c
+    beams = [i for i in beams]
+    islands = [i for i in islands]
 
-        # Create output dir if it doesn't exist
-        try:
-            os.mkdir(outdir)
-            print('Made cutout directory.')
-        except FileExistsError:
-            print('Directory exists.')
-
-    else:
-        # Workers skip this
-        island_ids = None
-        islands = None
-        beams = None
-        # comps_list = None
-
-    if mpiSwitch:
-        comm.Barrier()
-    if mpiSwitch:
-        # All workers now get data
-        island_ids = comm.bcast(island_ids, root=0)
-        islands = comm.bcast(islands, root=0)
-        beams = comm.bcast(beams, root=0)
-        # comps_list = comm.bcast(comps_list, root=0)
-
-    if mpiSwitch:
-        comm.Barrier()
-
-    # Do domain decomp
-    dims = len(island_ids)
-    dims = 40
-    count = dims // nPE
-    rem = dims % nPE
-    if myPE < rem:
-        # The first 'remainder' ranks get 'count + 1' tasks each
-        my_start = myPE * (count + 1)
-        my_end = my_start + count
-
-    else:
-        # The remaining 'size - remainder' ranks get 'count' task each
-        my_start = myPE * count + rem
-        my_end = my_start + (count - 1)
-    if verbose:
-        print(f"My start is {my_start}", f"My end is {my_end}")
+    # Create output dir if it doesn't exist
+    try:
+        os.mkdir(outdir)
+        print('Made cutout directory.')
+    except FileExistsError:
+        print('Directory exists.')
 
     args = []
-    for (island_id, island, beam) in tqdm(
-        zip(
-            island_ids[my_start:my_end+1],
-            islands[my_start:my_end+1],
-            beams[my_start:my_end+1],
-            #comps_list[my_start:my_end+1]
-        ),
-        desc=f'[{myPE}] Getting args',
-        total=len(island_ids[my_start:my_end+1]),
-        disable=(myPE!=0)
-    ):
-        comps = comp_col.find({'Source_ID': island_id})
+    for (island_id, island, beam) in zip(island_ids, islands, beams):
+        #comps = comp_col.find({'Source_ID': island_id})
+        comps = find_comps(island_id, host)
         arg = get_args(
             island,
             comps,
@@ -271,39 +250,22 @@ def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=F
             directory,
             verbose=verbose_worker,
         )
-        args += arg
+        args.append(arg)
 
-    if mpiSwitch:
-        comm.Barrier()
-    if mpiSwitch:
-        args = comm.gather(args, root=0)
-
-    if myPE==0:
-        embed()
-
-    if mpiSwitch:
-        comm.Barrier()
-
-    dims = len(args)
-    count = dims // nPE
-    rem = dims % nPE
-    if myPE < rem:
-        # The first 'remainder' ranks get 'count + 1' tasks each
-        my_start = myPE * (count + 1)
-        my_end = my_start + count
-
-    else:
-        # The remaining 'size - remainder' ranks get 'count' task each
-        my_start = myPE * count + rem
-        my_end = my_start + (count - 1)
+    flat_args = unpack(args)
+    # with ProgressBar():
+    #     flat_args = flat_args.compute()
+    flat_args = flat_args.persist()
     if verbose:
-        print(f"My start is {my_start}", f"My end is {my_end}")
+        print("Getting args...")
+    progress(flat_args)
+    flat_args = flat_args.compute()
 
-    for arg in tqdm(args[my_start:my_end+1],
-                    desc=f'[{myPE}] Cutting out',
-                    disable=(myPE != 0)
-                    ):
-        cutout(
+    # cuts = cutout_loop(flat_args, pad=pad, dryrun=dryrun, verbose=verbose_worker)
+    cuts = []
+    for arg in flat_args:
+        # for a in arg:
+        cut = cutout(
             arg['image'],
             arg['id'],
             arg['ra_hi'],
@@ -315,6 +277,12 @@ def cutout_islands(field, directory, host, verbose=True, pad=3, verbose_worker=F
             verbose=verbose_worker,
             dryrun=dryrun
         )
+        cuts.append(cut)
+
+    output = client.persist(cuts)
+    if verbose:
+        print("Cutting out...")
+    progress(output)
 
 
 def main(args, verbose=True):
@@ -323,9 +291,12 @@ def main(args, verbose=True):
     Arguments:
         args {[type]} -- commandline args
     """
+    cluster = LocalCluster(n_workers=20)
+    client = Client(cluster)
     cutout_islands(args.field,
                    args.datadir,
                    args.host,
+                   client,
                    verbose=verbose,
                    pad=args.pad,
                    verbose_worker=args.verbose_worker,
@@ -432,18 +403,17 @@ def cli():
     args = parser.parse_args()
 
     verbose = args.verbose
-    if myPE == 0:
-        if verbose:
-            print('Testing MongoDB connection...')
-        # default connection (ie, local)
-        with pymongo.MongoClient(host=args.host) as client:
-            try:
-                client.list_database_names()
-            except pymongo.errors.ServerSelectionTimeoutError:
-                raise Exception("Please ensure 'mongod' is running")
-            else:
-                if verbose:
-                    print('MongoDB connection succesful!')
+    if verbose:
+        print('Testing MongoDB connection...')
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=args.host) as client:
+        try:
+            client.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose:
+                print('MongoDB connection succesful!')
 
     main(args, verbose=verbose)
 
