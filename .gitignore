@@ -125,3 +125,4 @@ output.txt
 
 # Database
 database/*
+logs/
