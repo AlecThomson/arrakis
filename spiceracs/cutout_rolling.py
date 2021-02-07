@@ -158,7 +158,7 @@ def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=Tru
 
 @delayed
 def find_comps(island_id, host):
-    with pymongo.MongoClient(host=host) as dbclient:
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
         # default connection (ie, local)
         mydb = dbclient['spiceracs']  # Create/open database
         comp_col = mydb['components']  # Create/open collection
@@ -205,7 +205,7 @@ def cutout_islands(field, directory, host, client, verbose=True, pad=3, verbose_
     if directory[-1] == '/':
         directory = directory[:-1]
     outdir = f'{directory}/cutouts'
-    with pymongo.MongoClient(host=host) as dbclient:
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
         # default connection (ie, local)
         mydb = dbclient['spiceracs']  # Create/open database
         comp_col = mydb['components']  # Create/open collection
@@ -406,7 +406,7 @@ def cli():
     if verbose:
         print('Testing MongoDB connection...')
     # default connection (ie, local)
-    with pymongo.MongoClient(host=args.host) as client:
+    with pymongo.MongoClient(host=args.host, connect=False) as client:
         try:
             client.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
