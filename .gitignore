@@ -126,3 +126,4 @@ output.txt
 # Database
 database/*
 logs/
+dask-worker/
