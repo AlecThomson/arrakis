@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from prefect import task, Task, Flow
+from prefect.engine.executors import DaskExecutor
 from spiceracs import cutout_rolling
 #from spiceracs import linmos
 # from spiceracs import rmsynth_oncuts
@@ -33,30 +35,37 @@ def start_mongo(dbpath):
 
 
 def main(args):
-    proc, host = start_mongo(args.dbpath)
+    # proc, host = start_mongo(args.dbpath)
+    host = args.host
+    cut_task = task(cutout_rolling.cutout_islands)
     cluster = SLURMCluster(cores=20,
                            memory="60GB",
                            project='askap',
                            queue='workq',
                            walltime='12:00:00',
                            job_extra=['-M galaxy'],
+                           #    interface="eth2"
                            interface="ipogif0",
+                           log_directory='logs'
                            )
-    # embed()
-    nworkers = 100
-    cluster.scale(nworkers)
+    # cluster.scale(nworkers)
+    cluster.adapt(minimum=1, maximum=50)
     client = Client(cluster)
     # while ((client.status == "running") and (len(client.scheduler_info()["workers"]) < nworkers)):
     #     sleep(1.0)
-    cutout_rolling.cutout_islands(args.field,
-                          args.datadir,
-                          host,
-                          client,
-                          verbose=args.verbose,
-                          pad=args.pad,
-                          verbose_worker=args.verbose_worker,
-                          dryrun=args.dryrun
-                          )
+    print(client.scheduler_info()['services'])
+    with Flow(f'SPICE-RACS: {args.field}') as flow:
+        cuts = cut_task(args.field,
+                        args.datadir,
+                        host,
+                        client,
+                        verbose=args.verbose,
+                        pad=args.pad,
+                        verbose_worker=args.verbose_worker,
+                        dryrun=args.dryrun
+                        )
+    # executor = DaskExecutor(address=client.scheduler.address)
+    flow.run()
     # cutout_islands = delayed(cutout_rolling.cutout_islands)(args.field,
     #                       args.datadir,
     #                       host,
@@ -137,6 +146,12 @@ def cli():
         metavar='dbpath',
         type=str,
         help='Location of SPICE-RACS mongodb.')
+
+    parser.add_argument(
+        'host',
+        metavar='host',
+        type=str,
+        help='Host of mongodb (probably $hostname -i).')
 
     parser.add_argument(
         '-i',
