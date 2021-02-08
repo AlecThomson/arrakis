@@ -341,16 +341,17 @@ def cli():
         description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        'datadir',
-        metavar='datadir',
-        type=str,
-        help='Directory containing data cubes in FITS format.')
-
-    parser.add_argument(
         'field',
         metavar='field',
         type=str,
         help='Name of field (e.g. 2132-50A).')
+
+
+    parser.add_argument(
+        'datadir',
+        metavar='datadir',
+        type=str,
+        help='Directory containing data cubes in FITS format.')
 
     parser.add_argument(
         'host',
