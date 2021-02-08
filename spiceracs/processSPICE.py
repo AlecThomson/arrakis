@@ -2,42 +2,26 @@
 from prefect import task, Task, Flow
 from prefect.engine.executors import DaskExecutor
 from spiceracs import cutout_rolling
-#from spiceracs import linmos
+from spiceracs import linmos
+import pymongo
 # from spiceracs import rmsynth_oncuts
 # from spiceracs import rmclean_oncuts
 # from spiceracs import makecat
 import subprocess
 import shlex
 from dask_jobqueue import SLURMCluster
-from distributed import Client, progress
+from distributed import Client, progress, performance_report
 from dask.diagnostics import ProgressBar
 from dask import delayed
 from IPython import embed
 from time import sleep
 
 
-def start_mongo(dbpath):
-    proc = subprocess.run(shlex.split('hostname -i'),
-                          stderr=subprocess.PIPE,
-                          encoding='utf-8',
-                          stdout=subprocess.PIPE
-                          )
-    host = proc.stdout.split()[0]
-
-    command = f"numactl --interleave=all mongod --dbpath={dbpath} --bind_ip {host}"
-    print(command)
-    proc = subprocess.Popen(shlex.split(command),
-                            stderr=subprocess.PIPE,
-                            encoding='utf-8',
-                            stdout=subprocess.PIPE
-                            )
-    return proc, host
-
-
 def main(args):
     # proc, host = start_mongo(args.dbpath)
     host = args.host
-    cut_task = task(cutout_rolling.cutout_islands)
+    cut_task = task(cutout_rolling.cutout_islands, name='cutout')
+    linmos_task = task(linmos.main, name='LINMOS')
     cluster = SLURMCluster(cores=20,
                            memory="60GB",
                            project='askap',
@@ -46,7 +30,8 @@ def main(args):
                            job_extra=['-M galaxy'],
                            #    interface="eth2"
                            interface="ipogif0",
-                           log_directory='logs'
+                           log_directory='logs',
+                           env_extra=['module load askapsoft']
                            )
     # cluster.scale(nworkers)
     cluster.adapt(minimum=1, maximum=50)
@@ -64,40 +49,21 @@ def main(args):
                         verbose_worker=args.verbose_worker,
                         dryrun=args.dryrun
                         )
+        mosaic = linmos_task(args.field,
+                             args.datadir,
+                             client,
+                             host,
+                             dryrun=False,
+                             prefix="",
+                             stokeslist=None,
+                             verbose=True,
+                             upstream_tasks=[cuts]
+                             )
     # executor = DaskExecutor(address=client.scheduler.address)
-    flow.run()
-    # cutout_islands = delayed(cutout_rolling.cutout_islands)(args.field,
-    #                       args.datadir,
-    #                       host,
-    #                       client,
-    #                       verbose=args.verbose,
-    #                       pad=args.pad,
-    #                       verbose_worker=args.verbose_worker,
-    #                       dryrun=args.dryrun
-    #                       )
-    # embed()
-    # cutout_result = client.submit(cutout_rolling.cutout_islands, args.field,
-    #                       args.datadir,
-    #                       host,
-    #                       verbose=args.verbose,
-    #                       pad=args.pad,
-    #                       verbose_worker=args.verbose_worker,
-    #                       dryrun=args.dryrun)
-    # cutout_result = client.persist(cutout_islands)
-    # progress(cutout_result)
-    # cutout_result = cutout_islands.compute()
-    # with ProgressBar():
-    #     cutout_islands.compute()
+    embed()
+    with performance_report(f'{args.field}-report.html'):
+        flow.run()
 
-    # cutout_rolling.cutout_islands(args.field,
-    #                               args.datadir,
-    #                               pool,
-    #                               host,
-    #                               verbose=verbose,
-    #                               pad=args.pad,
-    #                               verbose_worker=args.verbose_worker,
-    #                               dryrun=args.dryrun
-    #                               )
 
 
 def cli():
@@ -197,6 +163,20 @@ def cli():
     )
 
     args = parser.parse_args()
+
+    verbose = args.verbose
+
+    if verbose:
+        print('Testing MongoDB connection...')
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=args.host, connect=False) as client:
+        try:
+            client.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose:
+                print('MongoDB connection succesful!')
 
     main(args)
 
