@@ -1,9 +1,10 @@
-#!/usr/bin/env /group/askap/athomson/miniconda3/envs/aces/bin/python
+#!/usr/bin/env python3
 
 import os
 import subprocess
 import shlex
 import ast
+import pymongo
 import numpy as np
 from astropy.table import Table
 from glob import glob
@@ -11,82 +12,15 @@ from astropy.coordinates import SkyCoord
 import astropy.units as u
 from tqdm import tqdm, trange
 from IPython import embed
-from aces.obsplan.config import ACESConfig  # noqa
-from astropy.coordinates import SkyCoord
 import astropy
+import dask
+from dask import delayed
+from dask.distributed import Client, progress, LocalCluster
+from dask.diagnostics import ProgressBar
 
 
-def gen_pipline(slurm_dir, fieldname, mongobat, slurmbats, dryrun=True):
-    """Generate linmos pipeline
-
-    Args:
-        slurm_dir (str): directory for slurm files
-        fieldname (str): Name of RACS field
-        mongobat (str): Name of mongo batch file
-        slurmbats (list): List of linmos batch files
-        dryrun (bool, optional): Do a dryrun. Defaults to True.
-    """
-    pipeline = f"""#! /bin/bash
-# first job - no dependencies
-RES=$(sbatch {mongobat})
-JID=$(echo $RES | cut -d " " -f 4)
-"""
-
-    for slurmbat in slurmbats:
-        pipeline += f"""
-sbatch  --dependency=after:$JID {slurmbat}
-    """
-    pipefile = f"{slurm_dir}/{fieldname}_linmos_pipeline.sh"
-    with open(pipefile, "w") as f:
-        f.write(pipeline)
-    print(f"Written pipeline file to {pipefile}")
-    if not dryrun:
-        print(f"Submitting {pipefile}")
-        command = f"sh {pipefile}"
-        command = shlex.split(command)
-        proc = subprocess.run(
-            command, encoding="utf-8", check=True
-        )
-
-
-def gen_mongo(fieldname, slurm_dir, logdir):
-    """Generate mongodb sbatch
-
-    Args:
-        fieldname (str): field name
-        slurm_dir (str): directory
-        logdir (str): directory
-    """
-    script = f"""#!/bin/bash -l
-#SBATCH --partition=workq
-#SBATCH --clusters=galaxy
-#SBATCH --exclude=nid00[010,200-202]
-#SBATCH --account=askap
-# No further constraints applied
-# No reservation requested
-#SBATCH --mail-user=alec.thomson@csiro.au
-#SBATCH --mail-type=ALL
-#SBATCH --time=12:00:00
-#SBATCH --ntasks=1
-#SBATCH --job-name=mongo_linmos
-#SBATCH --export=NONE
-
-cd /group/askap/athomson/repos/spiceracs
-log={logdir}/{fieldname}_${{SLURM_JOB_ID}}_mongo.log
-conda activate py36
-numactl --interleave=all mongod --dbpath=database --bind_ip $(hostname -i) --fork --logpath $log
-echo $(hostname -i) > {logdir}/mongo_ip.txt
-while true; do :; done
-wait
-"""
-    mongobat = f"{slurm_dir}/{fieldname}_mongo.sbatch"
-    with open(mongobat, "w") as f:
-        f.write(script)
-    print(f"Written slurm file to {mongobat}")
-    return mongobat
-
-
-def gen_seps(field):
+@delayed
+def gen_seps(field, scriptdir):
     """Get beam separations
 
     Args:
@@ -96,15 +30,11 @@ def gen_seps(field):
         Table: Separation table
     """
     # get offsets
-    aces_cfg = ACESConfig()
-    fp_factory = aces_cfg.footprint_factory
-    # fp = fp_factory.make_footprint('ak:closepack36', 0.9 * pi / 180., 0.0 * pi / 180.)
-    fp = fp_factory.make_footprint(
-        'ak:square_6x6', 1.05 * np.pi / 180., 0.0 * np.pi / 180.)
+    offsets = Table.read(f'{scriptdir}/../askap_surveys/racs/offsets.csv')
+    offsets.add_index('Beam')
 
-    offsets = np.rad2deg(np.array(fp.offsetsRect))
-
-    master_cat = Table.read('askap_surveys/racs/db/epoch_0/field_data.csv')
+    master_cat = Table.read(
+        f'{scriptdir}/../askap_surveys/racs/db/epoch_0/field_data.csv')
     master_cat.add_index('FIELD_NAME')
     master_cat = master_cat.loc[f"RACS_{field}"]
     if type(master_cat) is not astropy.table.row.Row:
@@ -112,7 +42,7 @@ def gen_seps(field):
 
     # Look for multiple SBIDs - only need one
     cats = glob(
-        f'askap_surveys/racs/db/epoch_0/beam_inf_*-RACS_{field}.csv')
+        f'{scriptdir}/../askap_surveys/racs/db/epoch_0/beam_inf_*-RACS_{field}.csv')
     beam_cat = Table.read(cats[0])
     beam_cat.add_index('BEAM_NUM')
 
@@ -135,19 +65,20 @@ def gen_seps(field):
 
         row = [
             beam,
-            f"{offsets[beam][0]:0.3f}",
-            f"{offsets[beam][1]:0.3f}",
+            f"{offsets.loc[beam]['RA']:0.3f}",
+            f"{offsets.loc[beam]['Dec']:0.3f}",
             f"{ra_beam.h:02.0f}:{ra_beam.m:02.0f}:{ra_beam.s:06.3f}",
             f"{dec_beam.d:02.0f}:{abs(dec_beam.m):02.0f}:{abs(dec_beam.s):05.2f}",
             f"{ra_field.h:02.0f}:{ra_field.m:02.0f}:{ra_field.s:06.3f}",
             f"{dec_field.d:02.0f}:{abs(dec_field.m):02.0f}:{abs(dec_field.s):05.2f}",
         ]
         cols += [row]
-    tab = Table(data=np.array(cols), names=names)
-
+    tab = Table(data=np.array(cols), names=names, dtype=[int, str,str,str,str,str,str])
+    tab.add_index("BEAM")
     return tab
 
 
+@delayed
 def genparset(field, stoke, datadir, septab, prefix=""):
     """Generate parset for LINMOS
 
@@ -206,8 +137,7 @@ linmos.feeds.spacing    = 1deg
         basename = os.path.basename(im).replace('.fits', '')
         idx = basename.find('beam')
         beamno = int(basename[len('beam')+idx:len('beam')+idx+2])
-        idx = septab['BEAM'] == beamno
-        offset = f"linmos.feeds.{basename} = [{septab[idx]['DELTA_RA']},{septab[idx]['DELTA_DEC']}]\n"
+        offset = f"linmos.feeds.{basename} = [{septab[beamno]['DELTA_RA']},{septab[beamno]['DELTA_DEC']}]\n"
         parset += offset
     with open(parset_file, "w") as f:
         f.write(parset)
@@ -215,180 +145,92 @@ linmos.feeds.spacing    = 1deg
     return parset_file
 
 
-def genslurm(parsets, fieldname, cutdir, files, stokeslist, dryrun=True):
-    """Generate SBATCH file
+@delayed
+def linmos(parset, fieldname, host, verbose=False):
+    """Run LINMOS
 
     Args:
-        parsets (list): List containing path to all parsets
-        fieldname (str): Name of RACS field
-        cutdir (str): Directory containing cutouts
-        files (list): List of directories inside cutouts
-        dryrun (bool, optional): Generate SBATCH but do not submit. Defaults to True.
+        parset (str): Parset file to run
+        fieldname (str): RACS field name
+        host (str): Mongo host
+        verbose (bool, optional): Verbose output. Defaults to False.
     """
-    if dryrun:
-        print("Doing a dryrun - no jobs will be submitted")
-    slurm_dir = f"{cutdir}/slurmFiles"
-    try:
-        os.mkdir(slurm_dir)
-    except FileExistsError:
-        pass
-    logdir = f"{slurm_dir}/outputs"
-    try:
-        os.mkdir(logdir)
-    except FileExistsError:
-        pass
+    workdir = os.path.dirname(parset)
+    parset_name = os.path.basename(parset)
+    source = os.path.basename(workdir)
+    stoke = parset_name[parset_name.find('.in')-1]
+    log = parset.replace('.in', '.log')
 
-    slurmbats = []
-    for stoke in stokeslist:
-        slurmbat = f"{slurm_dir}/{fieldname}_linmos_{stoke}.sbatch"
-        slurm = f"""#!/bin/bash -l
-#SBATCH --partition=workq
-#SBATCH --clusters=galaxy
-#SBATCH --exclude=nid00[010,200-202]
-#SBATCH --account=askap
-# No further constraints applied
-# No reservation requested
-#SBATCH --mail-user=alec.thomson@csiro.au
-#SBATCH --mail-type=ALL
-#SBATCH --time=24:00:00
-#SBATCH --ntasks=20
-#SBATCH --ntasks-per-node=20
-#SBATCH --job-name={stoke}_{fieldname}_linmos
-#SBATCH --export=NONE
-#SBATCH --output={logdir}/slurm-%x.%j.out
-#SBATCH --error={logdir}/slurm-%x.%j.err
-log={logdir}/{stoke}_{fieldname}_linmos_$SLURM_JOB_ID.log
+    os.chdir(workdir)
+    linmos_command = shlex.split(f"linmos -c {parset_name}")
+    output = subprocess.run(linmos_command, capture_output=True)
+    with open(log, 'w') as f:
+        f.write(output.stdout.decode("utf-8"))
 
-# Need to load the slurm module directly
-module load slurm
-# Ensure the default python module is loaded before askapsoft
-module unload python
-module load python
-# Using user-defined askapsoft module
-module use /group/askap/modulefiles
-module load askapdata
-module unload askapsoft
-module load numpy
-module load matplotlib
-module load astropy
-module load askapsoft
-## MW experimental LINMOS
-# module unload askapsoft
-# module use /group/askap/wie017/modulefiles
-# module load askapsoft/dev-omp
-# Fixed linmos
-#module load askapsoft/66f1e70
-# Exit if we could not load askapsoft
-#if [ "$ASKAPSOFT_RELEASE" == "" ]; then
-#    echo "ERROR: \$ASKAPSOFT_RELEASE not available - could not load askapsoft module."
-#    exit 1
-#fi
+    if verbose:
+        print(output.stdout)
 
-NCORES=20
-NPPN=20
-mongo_ip=$(cat {logdir}/mongo_ip.txt)
+    new_file = glob(
+        f'{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits')
 
-task(){{
-    dir={cutdir}/$1
-    cd $dir
-    linmos -c ${{dir}}/linmos_{stoke}.in >> "$log"
-    #srun --export=ALL --ntasks=${{NCORES}} --ntasks-per-node=${{NPPN}} linmos-mpi -c ${{dir}}/linmos_{stoke}.in > "$log"
-    ls ${{dir}}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits | xargs -I // mongo --host $mongo_ip --eval 'db.beams.findOneAndUpdate({{"Source_ID" : "'$1'"}}, {{"$set" :{{"beams.{fieldname}.{stoke.lower()}_file" : "'//'"}}}});' spiceracs >> "$log"
-    echo $1
-}}
-"""
-        # Get island dirs
-        islands = []
-        for file in files:
-            base = os.path.basename(file)
-            if base == "slurmFiles":
-                continue
-            else:
-                islands.append(base)
+    if verbose:
+        print(f'Cube now in {new_file}')
 
-        # Put them in a bash list
-        island_list = ""
-        for isl in islands:
-            island_list += f"{isl} "
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
+        # default connection (ie, local)
+        mydb = dbclient['spiceracs']  # Create/open database
+        beams_col = mydb['beams']  # Create/open collection
 
-        cmd = f"""
-islandList="{island_list}"
-for island in $islandList; do
-    ((i=i%NPPN)); ((i++==0)) && wait
-    task $island &
-done | tqdm --total {len(islands)} >> /dev/null
-"""
-        slurm += cmd
-        with open(slurmbat, "w") as f:
-            f.write(slurm)
-        print(f"Written slurm file to {slurmbat}")
-        slurmbats += [slurmbat]
-    return slurmbats, slurm_dir, logdir
+    query = {"Source_ID": source}
+    newvalues = {
+        "$set":
+        {
+            f"beams.{fieldname}.{stoke.lower()}_file": new_file
+        }
+    }
+
+    beams_col.update_one(query, newvalues)
 
 
-def yes_or_no(question):
-    """Ask a yes or no question
-
-    Args:
-        question (str): The question
-
-    Returns:
-        bool: True for yes, False for no
-    """
-    while "Please answer 'y' or 'n'":
-        reply = str(input(question+' (y/n): ')).lower().strip()
-        if reply[:1] == 'y':
-            return True
-        if reply[:1] == 'n':
-            return False
-
-
-def main(args):
+def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None, verbose=True):
     """Main script
     """
 
     # Use ASKAPcli to get beam separations for PB correction
-    field = args.field
     scriptdir = os.path.dirname(os.path.realpath(__file__))
 
-    beamseps = gen_seps(field)
+    beamseps = gen_seps(field, scriptdir)
 
-    stokeslist = args.stokeslist
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
-    dryrun = args.dryrun
+    if datadir is not None:
+        if datadir[-1] == '/':
+            datadir = datadir[:-1]
 
-    if not dryrun:
-        print('In the words of CA... check yoself before you wreck yoself!')
-        dryrun = not yes_or_no(
-            "Are you sure you want to submit jobs to the queue?")
-
-    cutdir = args.cutdir
-    if cutdir is not None:
-        if cutdir[-1] == '/':
-            cutdir = cutdir[:-1]
-
+    cutdir = f"{datadir}/cutouts"
     files = sorted(glob(f"{cutdir}/*"))
 
     parfiles = []
-    for file in tqdm(files, desc='Making parsets'):
+    for file in files:
         if os.path.basename(file) == 'slurmFiles':
             continue
         for stoke in stokeslist:
             parfile = genparset(field, stoke.capitalize(),
-                                file, beamseps, prefix=args.prefix)
+                                file, beamseps, prefix=prefix)
             parfiles.append(parfile)
 
-    slurmbats, slurm_dir, logdir = genslurm(parfiles,
-                                            field,
-                                            cutdir,
-                                            files,
-                                            stokeslist)
-    mongobat = gen_mongo(field, slurm_dir, logdir)
-    gen_pipline(slurm_dir, field, mongobat, slurmbats, dryrun=dryrun)
+    results = []
+    for parset in parfiles:
+        results.append(linmos(parset, field, host, verbose=False))
 
-    print('Done!')
+    results = dask.persist(*results)
+    if verbose:
+            print("Running LINMOS...")
+    progress(results)
+
+
+    print('LINMOS Done!')
 
 
 def cli():
@@ -416,10 +258,10 @@ def cli():
     )
 
     parser.add_argument(
-        "cutdir",
-        metavar="cutdir",
+        "datadir",
+        metavar="datadir",
         type=str,
-        help="Directory containing the cutouts.",
+        help="Directory containing cutouts (in subdir outdir/cutouts)..",
     )
 
     parser.add_argument(
@@ -447,9 +289,47 @@ def cli():
         help="List of Stokes parameters to image [ALL]",
     )
 
+    parser.add_argument(
+        'host',
+        metavar='host',
+        type=str,
+        help='Host of mongodb (probably $hostname -i).'
+    )
+
+    parser.add_argument(
+        "-v",
+        dest="verbose",
+        action="store_true",
+        help="Verbose output [False]."
+    )
+
     args = parser.parse_args()
 
-    main(args)
+    cluster = LocalCluster(n_workers=20)
+    client = Client(cluster)
+
+    verbose = args.verbose
+    if verbose:
+        print('Testing MongoDB connection...')
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=args.host, connect=False) as client:
+        try:
+            client.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose:
+                print('MongoDB connection succesful!')
+
+    main(field=args.field,
+         datadir=args.datadir,
+         client=client,
+         host=args.host,
+         dryrun=args.dryrun,
+         prefix=args.prefix,
+         stokeslist=args.stokeslist,
+         verbose=verbose
+         )
 
 
 if __name__ == "__main__":
