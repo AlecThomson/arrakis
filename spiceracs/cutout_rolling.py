@@ -253,8 +253,6 @@ def cutout_islands(field, directory, host, client, verbose=True, pad=3, verbose_
         args.append(arg)
 
     flat_args = unpack(args)
-    # with ProgressBar():
-    #     flat_args = flat_args.compute()
     flat_args = flat_args.persist()
     if verbose:
         print("Getting args...")
