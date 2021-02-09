@@ -1,14 +1,12 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import pymongo
 from prefect import task, Task, Flow
 from prefect.engine.executors import DaskExecutor
-from spiceracs import cutout_rolling
+from spiceracs import cutout
 from spiceracs import linmos
 from spiceracs import rmsynth_oncuts
 from spiceracs import rmclean_oncuts
-# from spiceracs import makecat
-import subprocess
-import shlex
+from spiceracs import makecat
 from dask_jobqueue import SLURMCluster
 from distributed import Client, progress, performance_report
 from dask.diagnostics import ProgressBar
@@ -20,10 +18,11 @@ from time import sleep
 def main(args):
     # proc, host = start_mongo(args.dbpath)
     host = args.host
-    cut_task = task(cutout_rolling.cutout_islands, name='cutout')
+    cut_task = task(cutout.cutout_islands, name='cutout')
     linmos_task = task(linmos.main, name='LINMOS')
     rmsynth_task = task(rmsynth_oncuts.main, name='RM Synthesis')
     rmclean_task = task(rmclean_oncuts.main, name='RM-CLEAN')
+    cat_task = task(makecat.main, name='Catalogue')
 
     # Set up for Galaxy
     cluster = SLURMCluster(cores=20,
@@ -32,16 +31,19 @@ def main(args):
                            queue='workq',
                            walltime='12:00:00',
                            job_extra=['-M galaxy'],
-                           #    interface="eth2"
                            interface="ipogif0",
                            log_directory='logs',
                            env_extra=['module load askapsoft']
                            )
 
+    # Request up to 50 nodes
     cluster.adapt(minimum=1, maximum=50)
     client = Client(cluster)
 
+    # Prin out Dask client info
     print(client.scheduler_info()['services'])
+
+    # Define flow
     with Flow(f'SPICE-RACS: {args.field}') as flow:
         cuts = cut_task(args.field,
                         args.datadir,
@@ -101,6 +103,7 @@ def main(args):
                                   rm_verbose=args.rm_verbose,
                                   upstream_tasks=[dirty_spec]
                                   )
+        catalogue = cat_task(upstream_tasks=[clean_spec])
 
     with performance_report(f'{args.field}-report.html'):
         flow.run()
@@ -161,27 +164,12 @@ def cli():
         help='Host of mongodb (probably $hostname -i).')
 
     parser.add_argument(
-        '--islandcat',
-        dest='islandcat',
-        type=str,
-        help='Master island RACS catalogue.')
-    parser.add_argument(
-        '-compcat',
-        dest='compcat',
-        type=str,
-        help='Master component RACS catalogue.')
-    parser.add_argument(
         "-v",
         dest="verbose",
         action="store_true",
         help="Verbose output [False]."
     )
-    parser.add_argument(
-        "--load",
-        dest="load",
-        action="store_true",
-        help="Load catalogue into database [False]."
-    )
+
     parser.add_argument(
         '-p',
         '--pad',
