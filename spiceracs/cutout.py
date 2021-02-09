@@ -1,335 +1,288 @@
 #!/usr/bin/env python
-from spiceracs.utils import getdata, MyEncoder
-import numpy as np
-from tqdm import trange, tqdm
-import sys
-import os
-import subprocess
-import shlex
-import json
-import pymongo
-from astropy.io import fits
-import time
 import warnings
+import pymongo
+import dask
+from dask import delayed
+from dask.distributed import Client, progress, LocalCluster
+from dask.diagnostics import ProgressBar
+from IPython import embed
+from functools import partial
 import functools
 import psutil
-print = functools.partial(print,f'[{psutil.Process().cpu_num()}]', flush=True)
+import shlex
+import subprocess
+import schwimmbad
+import json
+import time
+from tqdm import tqdm, trange
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.coordinates import SkyCoord, search_around_sky
+from astropy import units as u
+from astropy.wcs import WCS
+from astropy.io import fits
+import sys
+import os
+from glob import glob
+from astropy.table import Table, vstack
+from spiceracs.utils import getdata, MyEncoder
+from astropy.utils import iers
+import astropy.units as u
+from spectral_cube import SpectralCube
+iers.conf.auto_download = False
+warnings.filterwarnings(
+    "ignore", message="Cube is a Stokes cube, returning spectral cube for I component")
 
 
-def cutout_worker(args):
-    i, count, i_tab, i_tab_comp, files, x_min, x_max, y_min, y_max, pad, pixels_per_beam, shape, outdir, v_cube_is_None, dryrun, loners, verbose, update = args
-    #print(psutil.Process().cpu_num())
-    if update:
-        print(f"I'm working on cutout number {i}/{count}!")
+@delayed
+def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose=False, dryrun=False):
+    """Cutout a source from a given image.
 
-    if loners:
-        if i_tab['col_n_components'][i] > 1:
-            return
+    Arguments:
+        image {str} -- Name of the FITS image to cutout from
+        src_name {str} -- Name of the source
+        ra {float} -- RA of source in DEG
+        dec {float} -- DEC of source in DEG
+        src_width {float} -- Width of source in DEG
+        outdir {str} -- Directory to save cutout
 
-    # Catch out 0-component sources
-    try:
-        components = i_tab_comp[i_tab_comp['col_island_id']
-                                == i_tab['col_island_id'][i]]
-
-    except KeyError:
-        if verbose:
-            print(
-                f"No matches found for key {i_tab['col_island_id'][i]}")
-            print(
-                f"Number of components is {i_tab['col_n_components'][i]}!")
-        return
-    source_dict = {}
-    # Skip if source is outside of cube bounds
-    if (y_max[i] > shape[2] or x_max[i] > shape[2] or
-            x_min[i] < 0 or y_min[i] < 0):
-        return
-
-    starty = int(y_min[i]-pad*pixels_per_beam)
-    stopy = int(y_max[i]+pad*pixels_per_beam)
-    startx = int(x_min[i]-pad*pixels_per_beam)
-    stopx = int(x_max[i]+pad*pixels_per_beam)
-
-    # Check if pad puts bbox outside of cube
-    if starty < 0:
-        starty = y_min[i]
-    if startx < 0:
-        startx = x_min[i]
-    if stopy > shape[2]:
-        stopy = y_max[i]
-    if stopx > shape[2]:
-        stopx = x_max[i]
-
-    for comp, row in enumerate(components.iterrows()):
-        source_dict[f'component_{comp+1}'] = {}
-        for name in row[1].keys():
-            if type(row[1][name]) is bytes:
-                source_dict[f'component_{comp+1}'][name.replace('col_', '')
-                                                   ] = row[1][name]
-            else:
-                source_dict[f'component_{comp+1}'][name.replace('col_', '')
-                                                   ] = row[1][name]
-
-    for name in i_tab.columns:
-        source_dict[name.replace('col_', '')
-                    ] = i_tab[name][i]
-
-    for stoke in ['i', 'q', 'u', 'v']:
-        if stoke == 'v' and v_cube_is_None:
-            pass
-        else:
-            name = source_dict['island_name']
-            # if stoke == 'i':
-            #print(f"I'm working on Island {name}, Stokes {stoke}")
-            outname = f'{name}.cutout.{stoke}.fits'
-            source_dict[f'{stoke}_file'] = outname
-        outfile = f"{outdir}/{outname}"
-        command = f"fitscopy '{files[stoke]}[{startx+1}:{stopx},{starty+1}:{stopy}]' \!{outfile}"
-        command = shlex.split(command)
-        if not dryrun:
-            #try:
-            proc = subprocess.run(command, stderr=subprocess.STDOUT, encoding='utf-8')
-            if proc.returncode != 0:
-                proc = subprocess.run(command, stderr=subprocess.STDOUT, encoding='utf-8')
-            #except subprocess.CalledProcessError as e:
-            #    print('Oh no! The error was: ',e.output, e)
-
-            #print(f'File written to {outfile}')
-    if not dryrun:
-        try:
-            headfile = f'{outdir}/{name}.cutout.i.fits'
-            source_dict['header'] = fits.getheader(headfile)
-        except:
-            print(proc)
-
-    return source_dict
-
-
-def makecutout(pool, datadict, outdir='.', pad=0, dryrun=False, limit=None, loners=False, verbose=True):
-    """Main cutout task.
-
-    Takes in table data from Selavy, and cuts out data cubes using
-    SpectralCube.
-
-    Args:
-        datadict (dict): Dictionary containing tables and cubes.
-
-    Kwargs:
-        outdir (str): Directory to save data to.
-        pad (float): Fractional padding around Selavy islands to cut out.
-        dryrun (bool): Whether to do a dry-run (save no files).
-        loners (bool): Only run on single-component islands.
-        limit (int): Number of sources to cut out.
-        verbose (bool): Print out messages.
-
-    Returns:
-        cutouts (dict): Contains lists of I, Q, and U cutouts.
-        source_dict_list (list): List of dictionaries which contain the
-            metadata of each source.
-        outdir (str): Location of output directory.
-
+    Keyword Arguments:
+        pad {int} -- Number of beamwidth to pad cutout (default: {3})
+        verbose {bool} -- Verbose output (default: {False})
+        dryrun {bool} -- Do everything except the cutout (default: {True})
     """
-    # Get bounding boxes in WCS
-    ra_min, dec_min, freq = datadict['wcs_taylor'].all_pix2world(
-        datadict['i_tab']['col_x_min'], datadict['i_tab']['col_y_min'], 0, 0)
-    ra_max, dec_max, freq = datadict['wcs_taylor'].all_pix2world(
-        datadict['i_tab']['col_x_max'], datadict['i_tab']['col_y_max'], 0, 0)
-
-    # Get bounding boxes in cube pixels
-    x_min, y_min, _ = np.array(datadict['wcs_cube'].all_world2pix(
-        ra_min, dec_min, freq, 0)).astype(int)
-    x_max, y_max, _ = np.array(datadict['wcs_cube'].all_world2pix(
-        ra_max, dec_max, freq, 0)).astype(int)
-    dy, dx = y_max - y_min, x_max-x_min
-
-    # Get beam info - use major axis of beam
-    pixels_per_beam = int(
-        datadict['i_cube'].header['BMAJ']/datadict['i_cube'].header['CDELT2'])
-
-    outdir = f'{outdir}/cutouts'
-    if dryrun:
-        if verbose:
-            print('Dry run -- not saving to disk.')
-    else:
-        if verbose:
-            print(f'Saving to {outdir}/')
-    if datadict['v_cube'] is not None:
-        v_cube = datadict['v_cube']
-    else:
-        v_cube = None
-
-    if not dryrun:
-        try:
-            os.mkdir(outdir)
-            print('Made directory.')
-        except FileExistsError:
-            print('Directory exists.')
-
-    if limit is not None:
-        count = limit
-        if verbose:
-            print(f'Only cutting out {limit} sources...')
-    else:
-        count = len(datadict['i_tab'])
-
-    if loners and verbose:
-        sub_count = len(datadict['i_tab'][:count]['col_n_components']
-                        [datadict['i_tab'][:count]['col_n_components'] < 2])
-        print(
-            f'Only cutting out {sub_count} sources (skipping muti-component sources)..')
-
-    # datadict['i_tab_comp'].add_index('col_island_id')
-
-    # for i in trange(
-    #    count,
-    #    total=count,
-    #    disable=(not verbose),
-    #    desc='Extracting cubelets'
-    # ):
-
-    if pool.__class__.__name__ is 'MPIPool':
-        update = True
-    else:
-        update = False
-
-
-    files = {
-        'i': datadict['i_file'],
-        'q': datadict['q_file'],
-        'u': datadict['u_file'],
-        'v': datadict['v_file']
-    }
-    inputs = [[i, count, datadict['i_tab'], datadict['i_tab_comp'], files,
-               x_min, x_max, y_min, y_max, pad, pixels_per_beam,
-               datadict['i_cube'].shape, outdir, (v_cube is None), dryrun, loners, verbose, update] for i in range(count)]
-
-    if pool.__class__.__name__ is 'MPIPool':
-        if verbose:
-            print('Extracting cubelets...')
-        tic = time.perf_counter()
-        source_dict_list = list(pool.map(cutout_worker, inputs))
-        toc = time.perf_counter()
-        if verbose:
-            print(f'Time taken was {toc - tic}s')
-
-    elif pool.__class__.__name__ is 'SerialPool':
-        source_dict_list = []
-        for i in trange(count):
-            source_dict_list.append(cutout_worker([i, count, datadict['i_tab'], datadict['i_tab_comp'], files,
-                                                   x_min, x_max, y_min, y_max, pad, pixels_per_beam,
-                                                   datadict['i_cube'].shape, outdir, (v_cube is None), dryrun, loners, verbose, update]))
-
-    elif pool.__class__.__name__ is 'MultiPool':
-        source_dict_list = list(tqdm(
-            pool.imap(cutout_worker, inputs),
-            total=count,
-            desc='Extracting cubelets',
-            disable=(not verbose)
-        )
-        )
-
-   #import ipdb; ipdb.set_trace()
-    source_dict_list = [ent for ent in source_dict_list if ent is not None]
-    return source_dict_list
-
-
-def database(source_dict_list, verbose=True):
-    """Add data to MongoDB.
-
-    Args:
-        source_dict_list (list): List of dictionaries which contain the
-            metadata of each source.
-
-    Kwargs:
-        verbose (bool): Print out messages.
-
-    """
-    client = pymongo.MongoClient()  # default connection (ie, local)
-    mydb = client['racs']  # Create/open database
-    mycol = mydb['spice']  # Create/open collection
-
-    for source_dict in tqdm(
-        source_dict_list,
-        desc='Loading into DB',
-        disable=(not verbose)
-    ):
-        json_data = json.loads(json.dumps(source_dict, cls=MyEncoder))
-        name = source_dict['island_name']
-        count = mycol.count_documents({'island_name': name})
-
-        if count > 0:
-            # Replace existing
-            cursor = mycol.find({'island_name': name})
-            for doc in cursor:
-                mycol.replace_one({'_id': doc['_id']}, json_data)
-        else:
-            # Insert new
-            mycol.insert_one(json_data)
-    # Check if all cutouts are in collection
-    count = mycol.count_documents({})
     if verbose:
-        print('Total documents:', count)
-    client.close()
-
-
-def main(pool, args, verbose=True):
-    """Main script.
-
-    """
-    # Sort out args
-    cubedir = args.cubedir
-    tabledir = args.tabledir
-    mapdata = args.mapdata
-
-    # Read in data
-    if verbose:
-        print('Reading data...')
-    datadict = getdata(cubedir, tabledir, mapdata, verbose=verbose)
-
-    # Make cutouts
-    pad = args.pad
-    dryrun = args.dryrun
-    if verbose:
-        print('Making cutouts....')
-    outdir = args.outdir
+        print(f'Reading {image}')
     if outdir[-1] == '/':
         outdir = outdir[:-1]
-    source_dict_list = makecutout(pool,
-                                  datadict,
-                                  outdir=outdir,
-                                  pad=pad,
-                                  dryrun=dryrun,
-                                  limit=args.limit,
-                                  loners=args.loners,
-                                  verbose=verbose
-                                  )
-
-    # Update MongoDB
-    if args.database:
+    basename = os.path.basename(image)
+    outname = f'{src_name}.cutout.{basename}'
+    outfile = f"{outdir}/{outname}"
+    cube = SpectralCube.read(image)
+    padder = cube.header['BMAJ']*u.deg * pad
+    cutout = cube.subcube(xlo=ra_lo - padder,
+                          xhi=ra_hi + padder,
+                          ylo=dec_lo - padder,
+                          yhi=dec_hi + padder
+                          )
+    if not dryrun:
+        cutout.write(outfile, overwrite=True)
         if verbose:
-            print('Updating MongoDB...')
-        try:
-            database(source_dict_list, verbose=True)
-        except TypeError:
-            for i,ent in enumerate(source_dict_list):
-                print(type(ent))
-                if ent is None:
-                    print(f'Element {i} was a None!')
+            print(f'Written to {outfile}')
 
-    pool.close()
-
+    image = image.replace('image.restored', 'weights').replace(
+        '.total.fits', '.fits')
+    outfile = outfile.replace('image.restored', 'weights').replace(
+        '.total.fits', '.fits')
     if verbose:
-        print('Done!')
+        print(f'Reading {image}')
+    cube = SpectralCube.read(image)
+    cutout = cube.subcube(xlo=ra_lo - padder,
+                          xhi=ra_hi + padder,
+                          ylo=dec_lo - padder,
+                          yhi=dec_hi + padder
+                          )
+    if not dryrun:
+        cutout.write(outfile, overwrite=True)
+        if verbose:
+            print(f'Written to {outfile}')
+
+    return src_name
+
+
+@delayed
+def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=True):
+    """[summary]
+
+    Args:
+        island (bool): [description]
+        beam ([type]): [description]
+        island_id (bool): [description]
+        outdir ([type]): [description]
+        field ([type]): [description]
+        datadir ([type]): [description]
+        verbose ([type]): [description]
+        dryrun ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
+    assert island['Source_ID'] == island_id
+    assert beam['Source_ID'] == island_id
+
+    beam_list = np.unique(beam['beams'][field]['beam_list'])
+
+    outdir = f"{outdir}/{island['Source_ID']}"
+    try:
+        os.mkdir(outdir)
+        if verbose:
+            print('Made island directory.')
+    except FileExistsError:
+        if verbose:
+            print('Directory exists.')
+
+    # Find image size
+    ras = []
+    decs = []
+    majs = []
+    for comp in comps:
+        ras += [comp['RA']]
+        decs += [comp['Dec']]
+        majs += [comp['Maj']]
+    ras *= u.deg
+    decs *= u.deg
+    majs *= u.arcsec
+    ra_hi = majs[np.argmax(ras)] + np.max(ras)
+    ra_lo = majs[np.argmin(ras)] + np.min(ras)
+    dec_hi = majs[np.argmax(decs)] + np.max(decs)
+    dec_lo = majs[np.argmin(decs)] + np.min(decs)
+
+    args = []
+    for beam_num in beam_list:
+        images = glob(
+            f'{datadir}/image.restored*contcube*beam{beam_num:02}.total.fits')
+        for image in images:
+            args += [
+                {
+                    'image': image,
+                    'id': island['Source_ID'],
+                    'ra_hi': ra_hi,
+                    'ra_lo': ra_lo,
+                    'dec_hi': dec_hi,
+                    'dec_lo': dec_lo,
+                    'outdir': outdir,
+                }
+            ]
+    return args
+
+
+@delayed
+def find_comps(island_id, host):
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
+        # default connection (ie, local)
+        mydb = dbclient['spiceracs']  # Create/open database
+        comp_col = mydb['components']  # Create/open collection
+    comps = comp_col.find({'Source_ID': island_id})
+    comps = [c for c in comps]
+    return comps
+
+
+@delayed
+def unpack(list_sq):
+    list_fl = []
+    for i in list_sq:
+        for j in i:
+            list_fl.append(j)
+    return list_fl
+
+
+def cutout_islands(field, directory, host, client, verbose=True, pad=3, verbose_worker=False, dryrun=True):
+    if verbose:
+        print(f"Client is {client}")
+    if directory[-1] == '/':
+        directory = directory[:-1]
+    outdir = f'{directory}/cutouts'
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
+        # default connection (ie, local)
+        mydb = dbclient['spiceracs']  # Create/open database
+        comp_col = mydb['components']  # Create/open collection
+        island_col = mydb['islands']  # Create/open collection
+        beams_col = mydb['beams']  # Create/open collection
+
+    # Query the DB
+    query = {
+        '$and':  [
+            {f'beams.{field}': {'$exists': True}},
+            {f'beams.{field}.DR1': True}
+        ]
+    }
+
+    beams = beams_col.find(query).sort('Source_ID')
+
+    island_ids = sorted(beams_col.distinct('Source_ID', query))
+    islands = island_col.find(
+        {'Source_ID': {'$in': island_ids}}).sort('Source_ID')
+
+    beams = [i for i in beams]
+    islands = [i for i in islands]
+
+    # Create output dir if it doesn't exist
+    try:
+        os.mkdir(outdir)
+        print('Made cutout directory.')
+    except FileExistsError:
+        print('Directory exists.')
+
+    args = []
+    for (island_id, island, beam) in zip(island_ids, islands, beams):
+        #comps = comp_col.find({'Source_ID': island_id})
+        comps = find_comps(island_id, host)
+        arg = get_args(
+            island,
+            comps,
+            beam,
+            island_id,
+            outdir,
+            field,
+            directory,
+            verbose=verbose_worker,
+        )
+        args.append(arg)
+
+    flat_args = unpack(args)
+    flat_args = flat_args.persist()
+    if verbose:
+        print("Getting args...")
+    progress(flat_args)
+    flat_args = flat_args.compute()
+
+    cuts = []
+    for arg in flat_args:
+        # for a in arg:
+        cut = cutout(
+            arg['image'],
+            arg['id'],
+            arg['ra_hi'],
+            arg['ra_lo'],
+            arg['dec_hi'],
+            arg['dec_lo'],
+            arg['outdir'],
+            pad=pad,
+            verbose=verbose_worker,
+            dryrun=dryrun
+        )
+        cuts.append(cut)
+
+    output = client.persist(cuts)
+    if verbose:
+        print("Cutting out...")
+    progress(output)
+
+
+def main(args, verbose=True):
+    """Main script
+
+    Arguments:
+        args {[type]} -- commandline args
+    """
+    cluster = LocalCluster(n_workers=20)
+    client = Client(cluster)
+    cutout_islands(args.field,
+                   args.datadir,
+                   args.host,
+                   client,
+                   verbose=verbose,
+                   pad=args.pad,
+                   verbose_worker=args.verbose_worker,
+                   dryrun=args.dryrun)
+
+    print("Done!")
 
 
 def cli():
-    """Command-line interface.
+    """Command-line interface
     """
     import argparse
-    import schwimmbad
-    from astropy.utils.exceptions import AstropyWarning
-    warnings.simplefilter('ignore', category=AstropyWarning)
-    warnings.filterwarnings(
-        "ignore", message="Degrees of freedom <= 0 for slice.")
 
     # Help string to be shown using the -h option
     logostr = """
@@ -359,40 +312,26 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr,
-        formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
+    parser.add_argument(
+        'field',
+        metavar='field',
+        type=str,
+        help='Name of field (e.g. 2132-50A).')
+
 
     parser.add_argument(
-        'cubedir',
-        metavar='cubedir',
+        'datadir',
+        metavar='datadir',
         type=str,
         help='Directory containing data cubes in FITS format.')
 
     parser.add_argument(
-        'tabledir',
-        metavar='tabledir',
+        'host',
+        metavar='host',
         type=str,
-        help='Directory containing Selavy results.')
-
-    parser.add_argument(
-        'mapdata',
-        metavar='mapdata',
-        type=str,
-        help='2D FITS image corresponding to Selavy table.')
-
-    parser.add_argument(
-        'outdir',
-        metavar='outdir',
-        type=str,
-        help='Directory to store cutouts (in subdir outdir/cutouts).')
-
-    parser.add_argument(
-        'pad',
-        metavar='pad',
-        type=float,
-        default=0,
-        help='Number of beamwidths to pad around source [0 -- no padding].')
+        help='Host of mongodb (probably $hostname -i).')
 
     parser.add_argument(
         "-v",
@@ -400,7 +339,20 @@ def cli():
         action="store_true",
         help="Verbose output [False]."
     )
+    parser.add_argument(
+        '-p',
+        '--pad',
+        dest='pad',
+        type=float,
+        default=3,
+        help='Number of beamwidths to pad around source [3].')
 
+    parser.add_argument(
+        "-vw",
+        dest="verbose_worker",
+        action="store_true",
+        help="Verbose worker output [False]."
+    )
     parser.add_argument(
         "-d",
         dest="dryrun",
@@ -408,50 +360,13 @@ def cli():
         help="Do a dry-run [False]."
     )
 
-    parser.add_argument(
-        "-m",
-        dest="database",
-        action="store_true",
-        help="Add data to MongoDB [False]."
-    )
-
-    parser.add_argument("--limit", dest="limit", default=None,
-                        type=int, help="Limit number of sources [All].")
-
-    parser.add_argument("--loners", dest="loners", action="store_true",
-                        help="Run on single component sources [False].")
-
-    group = parser.add_mutually_exclusive_group()
-
-    group.add_argument(
-        "--ncores",
-        dest="n_cores",
-        default=1,
-        type=int, help="Number of processes (uses multiprocessing)."
-    )
-    group.add_argument(
-        "--mpi",
-        dest="mpi",
-        default=False,
-        action="store_true",
-        help="Run with MPI."
-    )
-
     args = parser.parse_args()
-    verbose = args.verbose
-    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
-    if args.mpi:
-        if not pool.is_master():
-            pool.wait()
-            sys.exit(0)
-    print('MPI arg is', args.mpi)
-    if verbose:
-        print(f"Using pool: {pool.__class__.__name__}")
 
-    if args.database:
-        if verbose:
-            print('Testing MongoDB connection...')
-        client = pymongo.MongoClient()  # default connection (ie, local)
+    verbose = args.verbose
+    if verbose:
+        print('Testing MongoDB connection...')
+    # default connection (ie, local)
+    with pymongo.MongoClient(host=args.host, connect=False) as client:
         try:
             client.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
@@ -459,9 +374,8 @@ def cli():
         else:
             if verbose:
                 print('MongoDB connection succesful!')
-        client.close()
 
-    main(pool, args, verbose=verbose)
+    main(args, verbose=verbose)
 
 
 if __name__ == "__main__":
