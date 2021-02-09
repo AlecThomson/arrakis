@@ -1,10 +1,10 @@
+#!/usr/bin/env python3
 from spiceracs.utils import getfreq, MyEncoder
 import json
 import numpy as np
 import os
 import pymongo
 import sys
-import subprocess
 import time
 from tqdm import tqdm, trange
 import warnings
@@ -15,17 +15,39 @@ from astropy.io import fits
 from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 from RMutils.util_misc import create_frac_spectra
-import functools
-import psutil
 from IPython import embed
-print = functools.partial(print, f'[{psutil.Process().cpu_num()}]', flush=True)
+import dask
+from dask import delayed
+from dask.distributed import Client, progress, LocalCluster
+from dask.diagnostics import ProgressBar
 
 
-def rmclean1d(args):
-    comp_id, clargs, outdir, host, field, verbose = args
+@delayed
+def rmclean1d(comp_id,
+              host,
+              field,
+              cutoff=-3,
+              maxIter=10000,
+              gain=0.1,
+              showPlots=False,
+              database=False,
+              rm_verbose=True,
+              ):
+    """1D RM-CLEAN
 
-    with pymongo.MongoClient(host=host) as client:
-        mydb = client['spiceracs']  # Create/open database
+    Args:
+        comp_id (str): RACS component ID
+        host (str): MongoDB host
+        field (str): RACS field
+        cutoff (int, optional): CLEAN cutoff. Defaults to -3.
+        maxIter (int, optional): CLEAN max iterations. Defaults to 10000.
+        gain (float, optional): CLEAN gain. Defaults to 0.1.
+        showPlots (bool, optional): Show plots. Defaults to False.
+        database (bool, optional): Update MongoDB. Defaults to False.
+        rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to True.
+    """
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
+        mydb = dbclient['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
         comp_col = mydb['components']  # Create/open collection
         beams_col = mydb['beams']  # Create/open collection
@@ -38,7 +60,7 @@ def rmclean1d(args):
     iname = doc['Source_ID']
     beam = beams_col.find_one({'Source_ID': iname})
 
-    if clargs.rm_verbose:
+    if rm_verbose:
         print(f'Working on {comp_id}')
     try:
         cname = comp_id
@@ -57,25 +79,25 @@ def rmclean1d(args):
                 print("File does not exist: '{:}'.".format(f), end=' ')
                 sys.exit()
         nBits = 32
-        mDictS, aDict = do_RMclean_1D.readFiles(
+        mDict, aDict = do_RMclean_1D.readFiles(
             fdfFile, rmsfFile, weightFile, rmSynthFile, nBits)
         # Run RM-CLEAN on the spectrum
-        outdict, arrdict = do_RMclean_1D.run_rmclean(mDictS=mDictS,
+        outdict, arrdict = do_RMclean_1D.run_rmclean(mDict=mDict,
                                                      aDict=aDict,
-                                                     cutoff=clargs.cutoff,
-                                                     maxIter=clargs.maxIter,
-                                                     gain=clargs.gain,
+                                                     cutoff=cutoff,
+                                                     maxIter=maxIter,
+                                                     gain=gain,
                                                      nBits=nBits,
-                                                     showPlots=clargs.showPlots,
-                                                     verbose=clargs.rm_verbose)
+                                                     showPlots=showPlots,
+                                                     verbose=rm_verbose)
 
         # Save output
         do_RMclean_1D.saveOutput(outdict,
                                  arrdict,
                                  prefixOut=prefix,
-                                 verbose=clargs.rm_verbose)
+                                 verbose=rm_verbose)
 
-        if clargs.database:
+        if database:
             # Load into Mongo
             myquery = {"Component_ID": cname}
 
@@ -91,11 +113,28 @@ def rmclean1d(args):
         return
 
 
-def rmclean3d(args):
-    island_id, clargs, outdir, host, field, verbose = args
+@delayed
+def rmclean3d(island_id,
+              host,
+              field,
+              cutoff=-3,
+              maxIter=10000,
+              gain=0.1,
+              rm_verbose=False,
+              ):
+    """3D RM-CLEAN
 
-    with pymongo.MongoClient(host=host) as client:
-        mydb = client['spiceracs']  # Create/open database
+    Args:
+        island_id (str): RACS Island ID
+        host (str): MongoDB host
+        field (str): RACS field
+        cutoff (int, optional): CLEAN cutoff. Defaults to -3.
+        maxIter (int, optional): CLEAN max iterations. Defaults to 10000.
+        gain (float, optional): CLEAN gain. Defaults to 0.1.
+        rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to False.
+    """
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
+        mydb = dbclient['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
         comp_col = mydb['components']  # Create/open collection
         beams_col = mydb['beams']  # Create/open collection
@@ -116,12 +155,12 @@ def rmclean3d(args):
     cleanFDF, ccArr, iterCountArr, residFDF, headtemp = do_RMclean_3D.run_rmclean(
         fitsFDF=f"{outdir}/{rm3dfiles['FDF_real_dirty']}",
         fitsRMSF=f"{outdir}/{rm3dfiles['RMSF_tot']}",
-        cutoff=clargs.cutoff,
-        maxIter=clargs.maxIter,
-        gain=clargs.gain,
+        cutoff=cutoff,
+        maxIter=maxIter,
+        gain=gain,
         chunksize=None,
         nBits=32,
-        verbose=clargs.rm_verbose)
+        verbose=rm_verbose)
 
     # Write results to disk
     do_RMclean_3D.writefits(
@@ -133,20 +172,49 @@ def rmclean3d(args):
         prefixOut=prefix,
         outDir=outdir,
         write_separate_FDF=True,
-        verbose=clargs.rm_verbose)
+        verbose=rm_verbose)
 
 
-def main(pool, args, verbose=False):
-    outdir = args.outdir
+def main(field,
+         outdir,
+         host,
+         client,
+         dimension='1d',
+         verbose=True,
+         database=False,
+         validate=False,
+         limit=None,
+         cutoff=-3,
+         maxIter=10000,
+         gain=0.1,
+         showPlots=False,
+         rm_verbose=False
+         ):
+    """Main script
+
+    Args:
+        field (str): RACS field
+        outdir (str): Work directory (contains 'cutouts' as subdir)
+        host (str): MongoDB host
+        client (Client): Dask client
+        dimension (str, optional): RM-CLEAN dimension. Defaults to '1d'.
+        verbose (bool, optional): Verbose output. Defaults to True.
+        database (bool, optional): Update MongoDB. Defaults to False.
+        validate (bool, optional): Run on Stokes I. Defaults to False.
+        limit (int, optional): Limit number of sources to CLEAN. Defaults to None.
+        cutoff (float, optional): CLEAN cutof. Defaults to -3.
+        maxIter (int, optional): CLEAN max iterations. Defaults to 10000.
+        gain (float, optional): CLEAN gain. Defaults to 0.1.
+        showPlots (bool, optional): Show CLEAN plots. Defaults to False.
+        rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to False.
+    """
     if outdir[-1] == '/':
         outdir = outdir[:-1]
     outdir = f'{outdir}/cutouts'
-    field = args.field
 
-    host = args.host
     # default connection (ie, local)
-    with pymongo.MongoClient(host=host) as client:
-        mydb = client['spiceracs']  # Create/open database
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
+        mydb = dbclient['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
         comp_col = mydb['components']  # Create/open collection
         beams_col = mydb['beams']  # Create/open collection
@@ -191,62 +259,51 @@ def main(pool, args, verbose=False):
     component_ids = [doc['Component_ID'] for doc in components]
     n_comp = comp_col.count_documents(query)
 
-    if args.limit is not None:
-        count = args.limit
+    if limit is not None:
+        count = limit
         n_comp = count
         n_island = count
         island_ids = island_ids[:count]
         component_ids = component_ids[:count]
 
-    if args.dimension == '1d':
-        if verbose:
-            print(f'Running RM-CLEAN on {n_comp} components')
-        inputs = [[comp_id, args, outdir, host, field, verbose]
-                  for i, comp_id in enumerate(component_ids)]
-        if (pool.__class__.__name__ is 'MPIPool' or
-                pool.__class__.__name__ is 'SerialPool'):
-            if verbose:
-                print('Running 1D RM-CLEAN...')
-            tic = time.perf_counter()
-            list(pool.map(rmclean1d, inputs))
-            toc = time.perf_counter()
-            if verbose:
-                print(f'Time taken was {toc - tic}s')
+    outputs = []
+    if dimension == '1d':
+        for i, comp_id in enumerate(component_ids):
+            if i > n_comp+1:
+                break
+            else:
+                output = rmclean1d(comp_id,
+                                   host,
+                                   field,
+                                   cutoff=cutoff,
+                                   maxIter=maxIter,
+                                   gain=gain,
+                                   showPlots=showPlots,
+                                   database=database,
+                                   rm_verbose=rm_verbose)
+                outputs.append(output)
 
-        elif pool.__class__.__name__ is 'MultiPool':
-            list(tqdm(
-                pool.imap_unordered(rmclean1d, inputs),
-                total=n_comp,
-                desc='Running 1D RM-CLEAN',
-                disable=(not verbose)
-            )
-            )
-
-    elif args.dimension == '3d':
+    elif dimension == '3d':
         if verbose:
             print(f'Running RM-CLEAN on {n_island} islands')
-        inputs = [[island_id, args, outdir, host, field, verbose]
-                  for i, island_id in enumerate(island_ids)]
-        if (pool.__class__.__name__ is 'MPIPool' or
-                pool.__class__.__name__ is 'SerialPool'):
-            if verbose:
-                print('Running 3D RM-CLEAN...')
-            tic = time.perf_counter()
-            list(pool.map(rmclean3d, inputs))
-            toc = time.perf_counter()
-            if verbose:
-                print(f'Time taken was {toc - tic}s')
 
-        elif pool.__class__.__name__ is 'MultiPool':
-            list(tqdm(
-                pool.imap_unordered(rmclean3d, inputs),
-                total=n_island,
-                desc='Running 3D RM-CLEAN',
-                disable=(not verbose)
-            )
-            )
+        for i, island_id in enumerate(island_ids):
+            if i > n_island+1:
+                break
+            else:
+                output = rmclean3d(island_id,
+                                   host,
+                                   field,
+                                   cutoff=cutoff,
+                                   maxIter=maxIter,
+                                   gain=gain,
+                                   rm_verbose=rm_verbose)
+                outputs.append(output)
 
-    pool.close()
+    results = client.persist(outputs)
+    if verbose:
+        print("Running RMsynth...")
+    progress(results)
 
     if verbose:
         print('Done!')
@@ -256,7 +313,6 @@ def cli():
     """Command-line interface
     """
     import argparse
-    import schwimmbad
     from astropy.utils.exceptions import AstropyWarning
     warnings.simplefilter('ignore', category=AstropyWarning)
     from astropy.io.fits.verify import VerifyWarning
@@ -329,8 +385,8 @@ def cli():
     # RM-tools args
     parser.add_argument("-c", dest="cutoff", type=float, default=-3,
                         help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].")
-    parser.add_argument("-n", dest="maxIter", type=int, default=1000,
-                        help="maximum number of CLEAN iterations [1000].")
+    parser.add_argument("-n", dest="maxIter", type=int, default=10000,
+                        help="maximum number of CLEAN iterations [10000].")
     parser.add_argument("-g", dest="gain", type=float, default=0.1,
                         help="CLEAN loop gain [0.1].")
     parser.add_argument("-p", dest="showPlots", action="store_true",
@@ -338,44 +394,40 @@ def cli():
     parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
                         help="Verbose RM-CLEAN [False].")
 
-    group = parser.add_mutually_exclusive_group()
-
-    group.add_argument("--ncores", dest="n_cores", default=1,
-                       type=int, help="Number of processes (uses multiprocessing).")
-    group.add_argument("--mpi", dest="mpi", default=False,
-                       action="store_true", help="Run with MPI.")
-
     args = parser.parse_args()
 
-    if args.validate:
-        pool = schwimmbad.SerialPool
-    else:
-        pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
+    cluster = LocalCluster(n_workers=20)
+    client = Client(cluster)
 
     verbose = args.verbose
-
-    if args.mpi:
-        if not pool.is_master():
-            pool.wait()
-            sys.exit(0)
-
-    if verbose:
-        print(f"Using pool: {pool.__class__.__name__}")
-
     host = args.host
     if verbose:
         print('Testing MongoDB connection...')
     # default connection (ie, local)
-    with pymongo.MongoClient(host=host) as client:
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
         try:
-            client.list_database_names()
+            dbclient.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
             raise Exception("Please ensure 'mongod' is running")
         else:
             if verbose:
                 print('MongoDB connection succesful!')
 
-    main(pool, args, verbose=verbose)
+    main(field=args.field,
+         outdir=args.outdir,
+         host=host,
+         client=client,
+         dimension=args.dimension,
+         verbose=verbose,
+         database=args.database,
+         validate=args.validate,
+         limit=args.limit,
+         cutoff=args.cutoff,
+         maxIter=args.maxIter,
+         gain=args.gain,
+         showPlots=args.showPlots,
+         rm_verbose=args.rm_verbose,
+         )
 
 
 if __name__ == "__main__":
