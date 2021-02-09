@@ -104,7 +104,7 @@ def genparset(field, stoke, datadir, septab, prefix=""):
             'No files found. Have you run imaging? Check your prefix?')
     imlist = "["
     for im in ims:
-        imlist += os.path.basename(im).replace(".fits", "") + ","
+        imlist += im.replace(".fits", "") + ","
     imlist = imlist[:-1] + "]"
 
     wgts = sorted(
@@ -114,7 +114,7 @@ def genparset(field, stoke, datadir, septab, prefix=""):
     )
     weightlist = "["
     for wgt in wgts:
-        weightlist += os.path.basename(wgt).replace(".fits", "") + ","
+        weightlist += wgt.replace(".fits", "") + ","
     weightlist = weightlist[:-1] + "]"
 
     parset_dir = datadir
@@ -133,7 +133,7 @@ linmos.feeds.spacing    = 1deg
 # Beam offsets
 """
     for im in ims:
-        basename = os.path.basename(im).replace('.fits', '')
+        basename = im.replace('.fits', '')
         idx = basename.find('beam')
         beamno = int(basename[len('beam')+idx:len('beam')+idx+2])
         offset = f"linmos.feeds.{basename} = [{septab[beamno]['DELTA_RA']},{septab[beamno]['DELTA_DEC']}]\n"
