@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from astropy.wcs.wcs import NonseparableSubimageCoordinateSystemError
 from spiceracs.utils import getfreq, MyEncoder
 import json
@@ -746,7 +746,6 @@ def cli():
     """Command-line interface
     """
     import argparse
-    import schwimmbad
     from astropy.utils.exceptions import AstropyWarning
     warnings.simplefilter('ignore', category=AstropyWarning)
     from astropy.io.fits.verify import VerifyWarning
