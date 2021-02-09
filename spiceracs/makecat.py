@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import numpy as np
 import warnings
 from astropy.table import QTable, Column
