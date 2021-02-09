@@ -5,7 +5,7 @@ from prefect.engine.executors import DaskExecutor
 from spiceracs import cutout_rolling
 from spiceracs import linmos
 from spiceracs import rmsynth_oncuts
-# from spiceracs import rmclean_oncuts
+from spiceracs import rmclean_oncuts
 # from spiceracs import makecat
 import subprocess
 import shlex
@@ -23,6 +23,7 @@ def main(args):
     cut_task = task(cutout_rolling.cutout_islands, name='cutout')
     linmos_task = task(linmos.main, name='LINMOS')
     rmsynth_task = task(rmsynth_oncuts.main, name='RM Synthesis')
+    rmclean_task = task(rmclean_oncuts.main, name='RM-CLEAN')
 
     # Set up for Galaxy
     cluster = SLURMCluster(cores=20,
@@ -84,8 +85,23 @@ def main(args):
                                   debug=args.debug,
                                   upstream_tasks=[mosaics]
                                   )
+        clean_spec = rmclean_task(field=args.field,
+                                  outdir=args.datadir,
+                                  host=host,
+                                  client=client,
+                                  dimension=args.dimension,
+                                  verbose=args.verbose,
+                                  database=args.database,
+                                  validate=args.validate,
+                                  limit=args.limit,
+                                  cutoff=args.cutoff,
+                                  maxIter=args.maxIter,
+                                  gain=args.gain,
+                                  showPlots=args.showPlots,
+                                  rm_verbose=args.rm_verbose,
+                                  upstream_tasks=[dirty_spec]
+                                  )
 
-    # executor = DaskExecutor(address=client.scheduler.address)
     with performance_report(f'{args.field}-report.html'):
         flow.run()
 
@@ -196,7 +212,7 @@ def cli():
 
     parser.add_argument("--limit", dest="limit", default=None,
                         type=int, help="Limit number of sources [All].")
-    
+
     # RM-tools args
     parser.add_argument("-sp", dest="savePlots", action="store_true",
                         help="save the plots [False].")
@@ -219,10 +235,16 @@ def cli():
     parser.add_argument("-R", dest="not_RMSF", action="store_true",
                         help="Skip calculation of RMSF? [False]")
     parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
-                        help="Verbose RMsynth [False].")
+                        help="Verbose RMsynth/CLEAN [False].")
     parser.add_argument("-D", dest="debug", action="store_true",
                         help="turn on debugging messages & plots [False].")
-
+    # RM-tools args
+    parser.add_argument("-c", dest="cutoff", type=float, default=-3,
+                        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].")
+    parser.add_argument("-n", dest="maxIter", type=int, default=10000,
+                        help="maximum number of CLEAN iterations [10000].")
+    parser.add_argument("-g", dest="gain", type=float, default=0.1,
+                        help="CLEAN loop gain [0.1].")
     args = parser.parse_args()
 
     verbose = args.verbose
