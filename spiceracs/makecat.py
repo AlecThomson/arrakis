@@ -11,15 +11,19 @@ import json
 from IPython import embed
 
 
-def main(args, verbose=False):
+def main(field,
+         outdir,
+         host,
+         verbose=True,
+         limit=None,
+         outfile=None,
+         cat_format=None
+         ):
     """Main script.
     """
-    outdir = args.outdir
     if outdir[-1] == '/':
         outdir = outdir[:-1]
     outdir = f'{outdir}/cutouts'
-    field = args.field
-    host = args.host
     # default connection (ie, local)
     with pymongo.MongoClient(host=host) as client:
         mydb = client['spiceracs']  # Create/open database
@@ -48,8 +52,8 @@ def main(args, verbose=False):
     }
     count = comp_col.count_documents(query)
 
-    if args.limit is not None:
-        count = args.limit
+    if limit is not None:
+        count = limit
 
     #tab = RMT.RMTable()
     tab = QTable()
@@ -79,7 +83,7 @@ def main(args, verbose=False):
                 try:
                     data += [comp['rmsynth_summary'][col]]
                 except KeyError:
-                        data += [comp['rmclean_summary'][col]]
+                    data += [comp['rmclean_summary'][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             tab.add_column(new_col)
 
@@ -104,14 +108,15 @@ def main(args, verbose=False):
     rmtab['rm_method'] = 'RM Synthesis'
     rmtab['standard_telescope'] = 'ASKAP'
 
-    if args.outfile is None:
+    if outfile is None:
         print(rmtab)
 
-    if args.outfile is not None:
-        rmtab.table.write(args.outfile, format=args.format, overwrite=True)
+    if outfile is not None:
+        rmtab.table.write(outfile, format=cat_format, overwrite=True)
 
     if verbose:
         print('Done!')
+
 
 def cli():
     """Command-line interface
@@ -197,7 +202,13 @@ def cli():
             if verbose:
                 print('MongoDB connection succesful!')
 
-    main(args, verbose=verbose)
+    main(args.field,
+         args.outdir,
+         host,
+         verbose=verbose,
+         limit=args.limit,
+         outfile=args.outfile,
+         cat_format=args.format)
 
 
 if __name__ == "__main__":
