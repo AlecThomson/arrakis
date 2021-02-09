@@ -161,20 +161,21 @@ def linmos(parset, fieldname, host, verbose=False):
     stoke = parset_name[parset_name.find('.in')-1]
     log = parset.replace('.in', '.log')
 
-    os.chdir(workdir)
-    linmos_command = shlex.split(f"linmos -c {parset_name}")
+    # os.chdir(workdir)
+    linmos_command = shlex.split(f"linmos -c {parset}")
     output = subprocess.run(linmos_command, capture_output=True)
     with open(log, 'w') as f:
         f.write(output.stdout.decode("utf-8"))
 
-    if verbose:
-        print(output.stdout)
 
     new_file = glob(
-        f'{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits')
+        f'{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits'
+        )
+
+    assert len(new_file) == 1, "LINMOS file not found!"
 
     if verbose:
-        print(f'Cube now in {new_file}')
+        print(f'Cube now in {new_file[0]}')
 
     with pymongo.MongoClient(host=host, connect=False) as dbclient:
         # default connection (ie, local)
@@ -185,7 +186,7 @@ def linmos(parset, fieldname, host, verbose=False):
     newvalues = {
         "$set":
         {
-            f"beams.{fieldname}.{stoke.lower()}_file": new_file
+            f"beams.{fieldname}.{stoke.lower()}_file": new_file[0]
         }
     }
 
@@ -209,7 +210,7 @@ def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None,
             datadir = datadir[:-1]
 
     cutdir = f"{datadir}/cutouts"
-    files = sorted(glob(f"{cutdir}/*"))
+    files = sorted([name for name in glob(f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
 
     parfiles = []
     for file in files:
@@ -222,9 +223,11 @@ def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None,
 
     results = []
     for parset in parfiles:
-        results.append(linmos(parset, field, host, verbose=False))
+        results.append(linmos(parset, field, host, verbose=True))
 
-    results = dask.persist(*results)
+    embed()
+
+    results = client.persist(results)
     if verbose:
             print("Running LINMOS...")
     progress(results)
@@ -312,9 +315,9 @@ def cli():
     if verbose:
         print('Testing MongoDB connection...')
     # default connection (ie, local)
-    with pymongo.MongoClient(host=args.host, connect=False) as client:
+    with pymongo.MongoClient(host=args.host, connect=False) as dbclient:
         try:
-            client.list_database_names()
+            dbclient.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
             raise Exception("Please ensure 'mongod' is running")
         else:
