@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import os
 import subprocess
 import shlex
@@ -225,7 +224,6 @@ def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None,
     for parset in parfiles:
         results.append(linmos(parset, field, host, verbose=True))
 
-    embed()
 
     results = client.persist(results)
     if verbose:
