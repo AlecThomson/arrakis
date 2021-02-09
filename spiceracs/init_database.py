@@ -3,9 +3,6 @@ from IPython import embed
 from functools import partial
 import functools
 import psutil
-import shlex
-import subprocess
-import schwimmbad
 import pymongo
 import json
 import time
@@ -21,12 +18,6 @@ import os
 from glob import glob
 from astropy.table import Table, vstack
 from spiceracs.utils import getdata, MyEncoder
-from astropy.utils import iers
-iers.conf.auto_download = False
-from mpi4py import MPI
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-print = functools.partial(print, f'[{psutil.Process().cpu_num()},{rank}]', flush=True)
 
 def yes_or_no(question):
     while "Please answer 'y' or 'n'":
@@ -92,7 +83,7 @@ def cat2beams(mastercat, database, max_sep=1, verbose=True):
     return seps
 
 
-def source_database(islandcat, compcat, pool, host, verbose=True):
+def source_database(islandcat, compcat, host, verbose=True):
     # Read in main catalogues
     # Use pandas and follow
     # https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
@@ -239,7 +230,7 @@ def get_beams(mastercat, database, verbose=True):
         )
     return beam_list
 
-def main(args, pool, verbose=True):
+def main(args, verbose=True):
     """Main script
 
     Arguments:
@@ -265,7 +256,7 @@ def main(args, pool, verbose=True):
         print("This will overwrite the source database!")
         check = yes_or_no("Are you sure you wish to proceed?")
         if check:
-            source_database(island_cat, comp_cat, pool,
+            source_database(island_cat, comp_cat,
                             args.host, verbose=verbose)
 
         print("This will overwrite the beams database!")
@@ -343,28 +334,7 @@ def cli():
 
     group = parser.add_mutually_exclusive_group()
 
-    group.add_argument(
-        "--ncores",
-        dest="n_cores",
-        default=1,
-        type=int, help="Number of processes (uses multiprocessing)."
-    )
-    group.add_argument(
-        "--mpi",
-        dest="mpi",
-        default=False,
-        action="store_true",
-        help="Run with MPI."
-    )
     args = parser.parse_args()
-    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
-    if args.mpi:
-        if not pool.is_master():
-            pool.wait()
-            sys.exit(0)
-    # make it so we can use imap in serial and mpi mode
-    if not isinstance(pool, schwimmbad.MultiPool):
-        pool.imap = pool.map
 
 
     verbose = args.verbose
@@ -381,10 +351,7 @@ def cli():
             print('MongoDB connection succesful!')
     client.close()
 
-    if verbose:
-        print(f"Using pool: {pool.__class__.__name__}")
-    main(args, pool, verbose=verbose)
-    pool.close()
+    main(args, verbose=verbose)
 
 
 if __name__ == "__main__":
