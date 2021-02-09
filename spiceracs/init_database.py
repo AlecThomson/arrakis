@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from IPython import embed
 from functools import partial
 import functools
