@@ -308,7 +308,6 @@ def tmatchn(nin, inN, valuesN,
                           capture_output=(not verbose),
                           encoding="utf-8", check=True)
 
-
 def getfreq(cube, outdir=None, filename=None, verbose=False):
     """Get list of frequencies from FITS data.
 
