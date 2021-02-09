@@ -191,6 +191,11 @@ def linmos(parset, fieldname, host, verbose=False):
 
     beams_col.update_one(query, newvalues)
 
+    # Clean up beam images
+    old_files = glob(f'{workdir}/*.cutout.*.{stoke.lower()}.*beam[00..36]*.fits')
+    for old in old_files:
+        os.remove(old)
+
 
 def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None, verbose=True):
     """Main script
