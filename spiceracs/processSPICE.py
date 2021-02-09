@@ -4,6 +4,7 @@ from prefect import task, Task, Flow
 from prefect.engine.executors import DaskExecutor
 from spiceracs import cutout
 from spiceracs import linmos
+from spiceracs import cleanup
 from spiceracs import rmsynth_oncuts
 from spiceracs import rmclean_oncuts
 from spiceracs import makecat
@@ -20,6 +21,7 @@ def main(args):
     host = args.host
     cut_task = task(cutout.cutout_islands, name='cutout')
     linmos_task = task(linmos.main, name='LINMOS')
+    cleanup_task = task(cleanup.main, name='Clean up')
     rmsynth_task = task(rmsynth_oncuts.main, name='RM Synthesis')
     rmclean_task = task(rmclean_oncuts.main, name='RM-CLEAN')
     cat_task = task(makecat.main, name='Catalogue')
@@ -45,15 +47,15 @@ def main(args):
 
     # Define flow
     with Flow(f'SPICE-RACS: {args.field}') as flow:
-        cuts = cut_task(args.field,
-                        args.datadir,
-                        host,
-                        client,
-                        verbose=args.verbose,
-                        pad=args.pad,
-                        verbose_worker=args.verbose_worker,
-                        dryrun=args.dryrun
-                        )
+        # cuts = cut_task(args.field,
+        #                 args.datadir,
+        #                 host,
+        #                 client,
+        #                 verbose=args.verbose,
+        #                 pad=args.pad,
+        #                 verbose_worker=args.verbose_worker,
+        #                 dryrun=args.dryrun
+        #                 )
         mosaics = linmos_task(args.field,
                               args.datadir,
                               client,
@@ -62,48 +64,62 @@ def main(args):
                               prefix="",
                               stokeslist=None,
                               verbose=True,
-                              upstream_tasks=[cuts]
+                              #   upstream_tasks=[cuts]
                               )
-        dirty_spec = rmsynth_task(field=args.field,
-                                  outdir=args.datadir,
-                                  host=host,
-                                  client=client,
-                                  dimension=args.dimension,
-                                  verbose=args.verbose,
-                                  database=args.database,
-                                  validate=args.validate,
-                                  limit=args.limit,
-                                  savePlots=args.savePlots,
-                                  weightType=args.weightType,
-                                  fitRMSF=args.fitRMSF,
-                                  phiMax_radm2=args.phiMax_radm2,
-                                  dPhi_radm2=args.dPhi_radm2,
-                                  nSamples=args.nSamples,
-                                  polyOrd=args.polyOrd,
-                                  noStokesI=args.noStokesI,
-                                  showPlots=args.showPlots,
-                                  not_RMSF=args.not_RMSF,
-                                  rm_verbose=args.verbose_worker,
-                                  debug=args.debug,
-                                  upstream_tasks=[mosaics]
-                                  )
-        clean_spec = rmclean_task(field=args.field,
-                                  outdir=args.datadir,
-                                  host=host,
-                                  client=client,
-                                  dimension=args.dimension,
-                                  verbose=args.verbose,
-                                  database=args.database,
-                                  validate=args.validate,
-                                  limit=args.limit,
-                                  cutoff=args.cutoff,
-                                  maxIter=args.maxIter,
-                                  gain=args.gain,
-                                  showPlots=args.showPlots,
-                                  rm_verbose=args.rm_verbose,
-                                  upstream_tasks=[dirty_spec]
-                                  )
-        catalogue = cat_task(upstream_tasks=[clean_spec])
+        tidy = cleanup_task(datadir=args.datadir,
+                            client=client,
+                            stokeslist=None,
+                            verbose=True,
+                            upstream_tasks=[mosaics]
+                            )
+        # dirty_spec = rmsynth_task(field=args.field,
+        #                           outdir=args.datadir,
+        #                           host=host,
+        #                           client=client,
+        #                           dimension=args.dimension,
+        #                           verbose=args.verbose,
+        #                           database=args.database,
+        #                           validate=args.validate,
+        #                           limit=args.limit,
+        #                           savePlots=args.savePlots,
+        #                           weightType=args.weightType,
+        #                           fitRMSF=args.fitRMSF,
+        #                           phiMax_radm2=args.phiMax_radm2,
+        #                           dPhi_radm2=args.dPhi_radm2,
+        #                           nSamples=args.nSamples,
+        #                           polyOrd=args.polyOrd,
+        #                           noStokesI=args.noStokesI,
+        #                           showPlots=args.showPlots,
+        #                           not_RMSF=args.not_RMSF,
+        #                           rm_verbose=args.verbose_worker,
+        #                           debug=args.debug,
+        #                           upstream_tasks=[mosaics]
+        #                           )
+        # clean_spec = rmclean_task(field=args.field,
+        #                           outdir=args.datadir,
+        #                           host=host,
+        #                           client=client,
+        #                           dimension=args.dimension,
+        #                           verbose=args.verbose,
+        #                           database=args.database,
+        #                           validate=args.validate,
+        #                           limit=args.limit,
+        #                           cutoff=args.cutoff,
+        #                           maxIter=args.maxIter,
+        #                           gain=args.gain,
+        #                           showPlots=args.showPlots,
+        #                           rm_verbose=args.rm_verbose,
+        #                           upstream_tasks=[dirty_spec]
+        #                           )
+        # catalogue = cat_task(args.field,
+        #                      args.datadir,
+        #                      host,
+        #                      verbose=args.verbose,
+        #                      limit=args.limit,
+        #                      outfile=args.outfile,
+        #                      cat_format=args.format,
+        #                      upstream_tasks=[clean_spec]
+        #                      )
 
     with performance_report(f'{args.field}-report.html'):
         flow.run()
@@ -169,7 +185,12 @@ def cli():
         action="store_true",
         help="Verbose output [False]."
     )
-
+    parser.add_argument(
+        "-vw",
+        dest="verbose_worker",
+        action="store_true",
+        help="Verbose worker output [False]."
+    )
     parser.add_argument(
         '-p',
         '--pad',
@@ -233,6 +254,14 @@ def cli():
                         help="maximum number of CLEAN iterations [10000].")
     parser.add_argument("-g", dest="gain", type=float, default=0.1,
                         help="CLEAN loop gain [0.1].")
+
+    # Cat args
+    parser.add_argument("--write", dest="outfile", default=None,
+                        type=str, help="File to save table to [None].")
+
+    parser.add_argument("-f", "--format", dest="format", default=None,
+                        type=str, help="Format for output file [None].")
+
     args = parser.parse_args()
 
     verbose = args.verbose
