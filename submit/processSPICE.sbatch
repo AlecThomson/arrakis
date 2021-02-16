@@ -25,4 +25,4 @@ host=$(hostname -i)
 echo $host
 numactl --interleave=all mongod --dbpath=database --bind_ip $host >> /dev/null &
 
-python spiceracs/processSPICE.py 0918+06A /group/askap/athomson/projects/RACS/pipelinetest/RACS_test4_1.05_0918+06A database/ $host -v -vw
+python spiceracs/processSPICE.py 0918+06A /group/askap/athomson/projects/RACS/newpipelinetest/RACS_test4_1.05_0918+06A database/ $host -v -vw -p 0 -t -s 100 -o 5 -c -5 -m

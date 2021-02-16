@@ -25,9 +25,9 @@ host=$(hostname -i)
 
 echo $host
 
-numactl --interleave=all mongod --dbpath=database --bind_ip $host &
+numactl --interleave=all mongod --dbpath=database --bind_ip $host >> /dev/null &
 
-srun -n 2000 python spiceracs/cutout_rolling.py /group/askap/athomson/projects/RACS/pipelinetest/RACS_test4_1.05_0918+06A 0918+06A $host -v -p 5
+srun -n 2000 python spiceracs/cutout_rolling.py 0918+06A /group/askap/athomson/projects/RACS/pipelinetest/RACS_test4_1.05_0918+06A $host -v -p 5
 
 numactl --interleave=all  mongod --dbpath=database --shutdown
 
