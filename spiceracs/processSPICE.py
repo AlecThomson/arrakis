@@ -147,7 +147,7 @@ def cli():
     descStr = f"""
     {logostr}
     SPICE-RACS
-    
+
     """
 
     # Parse the command line options
@@ -155,7 +155,7 @@ def cli():
                                       description=descStr,
                                       formatter_class=configargparse.RawTextHelpFormatter
                                       )
-    parser.add('--my-config', required=False,
+    parser.add('--config', required=False,
                is_config_file=True, help='Config file path')
     parser.add_argument(
         'field',
