@@ -44,8 +44,8 @@ def main(args):
 
     # Prin out Dask client info
     print(client.scheduler_info()['services'])
-    
-    #Define flow
+
+    # Define flow
     with Flow(f'SPICE-RACS: {args.field}') as flow:
         cuts = cut_task(args.field,
                         args.datadir,
@@ -64,7 +64,7 @@ def main(args):
                               prefix="",
                               stokeslist=None,
                               verbose=True,
-                                upstream_tasks=[cuts]
+                              upstream_tasks=[cuts]
                               )
         tidy = cleanup_task(datadir=args.datadir,
                             client=client,
@@ -112,13 +112,13 @@ def main(args):
                                   upstream_tasks=[dirty_spec]
                                   )
         catalogue = cat_task(args.field,
-                            host,
-                            verbose=args.verbose,
-                            limit=args.limit,
-                            outfile=f'{args.field}.pipe.test.fits',
-                            cat_format='fits',
-                            upstream_tasks=[clean_spec]
-                            )
+                             host,
+                             verbose=args.verbose,
+                             limit=args.limit,
+                             outfile=f'{args.field}.pipe.test.fits',
+                             cat_format='fits',
+                             upstream_tasks=[clean_spec]
+                             )
 
     with performance_report(f'{args.field}-report.html'):
         flow.run()
@@ -127,7 +127,7 @@ def main(args):
 def cli():
     """Command-line interface
     """
-    import argparse
+    import configargparse
 
     # Help string to be shown using the -h option
     logostr = """
@@ -147,13 +147,16 @@ def cli():
     descStr = f"""
     {logostr}
     SPICE-RACS
+    
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
-    )
-
+    parser = configargparse.ArgParser(default_config_files=['.default_config.txt'],
+                                      description=descStr,
+                                      formatter_class=configargparse.RawTextHelpFormatter
+                                      )
+    parser.add('--my-config', required=False,
+               is_config_file=True, help='Config file path')
     parser.add_argument(
         'field',
         metavar='field',
@@ -177,90 +180,95 @@ def cli():
         metavar='host',
         type=str,
         help='Host of mongodb (probably $hostname -i).')
-
-    parser.add_argument(
+    options = parser.add_argument_group("output options")
+    options.add_argument(
         "-v",
-        dest="verbose",
+        "--verbose",
         action="store_true",
-        help="Verbose output [False]."
+        help="Verbose output [True]."
     )
-    parser.add_argument(
+    options.add_argument(
         "-vw",
-        dest="verbose_worker",
+        "--verbose_worker",
         action="store_true",
         help="Verbose worker output [False]."
     )
-    parser.add_argument(
+    cutout = parser.add_argument_group("cutout arguments")
+    cutout.add_argument(
         '-p',
         '--pad',
-        dest='pad',
         type=float,
-        default=3,
-        help='Number of beamwidths to pad around source [3].')
-
-    parser.add_argument(
+        default=5,
+        help='Number of beamwidths to pad around source [5].')
+    synth = parser.add_argument_group("RM-synth/CLEAN arguments")
+    cutout.add_argument(
         "--dryrun",
-        dest="dryrun",
         action="store_true",
         help="Do a dry-run [False]."
     )
 
-    parser.add_argument("--dimension", dest="dimension", default="1d",
-                        help="How many dimensions for RMsynth [1d] or '3d'.")
+    synth.add_argument("--dimension", default="1d",
+                       help="How many dimensions for RMsynth [1d] or '3d'.")
 
-    parser.add_argument(
+    synth.add_argument(
         "-m",
-        dest="database",
+        "--database",
         action="store_true",
         help="Add RMsynth data to MongoDB [False]."
     )
 
-    parser.add_argument("--validate", dest="validate", action="store_true",
-                        help="Run on RMsynth Stokes I [False].")
+    synth.add_argument("--validate",
+                       action="store_true",
+                       help="Run on RMsynth Stokes I [False].")
 
-    parser.add_argument("--limit", dest="limit", default=None,
-                        type=int, help="Limit number of sources [All].")
-
+    synth.add_argument("--limit",
+                       default=None,
+                       help="Limit number of sources [All].")
+    tools = parser.add_argument_group("RM-tools arguments")
     # RM-tools args
-    parser.add_argument("-sp", dest="savePlots", action="store_true",
-                        help="save the plots [False].")
-    parser.add_argument("-w", dest="weightType", default="variance",
-                        help="weighting [variance] (all 1s) or 'variance'.")
-    parser.add_argument("-t", dest="fitRMSF", action="store_true",
-                        help="Fit a Gaussian to the RMSF [False]")
-    parser.add_argument("-l", dest="phiMax_radm2", type=float, default=None,
-                        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].")
-    parser.add_argument("-d", dest="dPhi_radm2", type=float, default=None,
-                        help="Width of Faraday depth channel [Auto].")
-    parser.add_argument("-s", dest="nSamples", type=float, default=5,
-                        help="Number of samples across the FWHM RMSF.")
-    parser.add_argument("-o", dest="polyOrd", type=int, default=3,
-                        help="polynomial order to fit to I spectrum [3].")
-    parser.add_argument("-i", dest="noStokesI", action="store_true",
-                        help="ignore the Stokes I spectrum [False].")
-    parser.add_argument("--plots", dest="showPlots", action="store_true",
-                        help="show the plots [False].")
-    parser.add_argument("-R", dest="not_RMSF", action="store_true",
-                        help="Skip calculation of RMSF? [False]")
-    parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
-                        help="Verbose RMsynth/CLEAN [False].")
-    parser.add_argument("-D", dest="debug", action="store_true",
-                        help="turn on debugging messages & plots [False].")
+    tools.add_argument("-sp",
+                       "--savePlots",
+                       action="store_true",
+                       help="save the plots [False].")
+    tools.add_argument("-w",
+                       "--weightType",
+                       default="variance",
+                       help="weighting [variance] (all 1s) or 'variance'.")
+    tools.add_argument("-t", "--fitRMSF", action="store_true",
+                       help="Fit a Gaussian to the RMSF [False]")
+    tools.add_argument("-l", "--phiMax_radm2", type=float, default=None,
+                       help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].")
+    tools.add_argument("-d", "--dPhi_radm2", type=float, default=None,
+                       help="Width of Faraday depth channel [Auto].")
+    tools.add_argument("-s", "--nSamples", type=float, default=5,
+                       help="Number of samples across the FWHM RMSF.")
+    tools.add_argument("-o", "--polyOrd", type=int, default=3,
+                       help="polynomial order to fit to I spectrum [3].")
+    tools.add_argument("-i", "--noStokesI", action="store_true",
+                       help="ignore the Stokes I spectrum [False].")
+    tools.add_argument("--plots", "--showPlots", action="store_true",
+                       help="show the plots [False].")
+    tools.add_argument("-R", "--not_RMSF", action="store_true",
+                       help="Skip calculation of RMSF? [False]")
+    tools.add_argument("-rmv", "--rm_verbose", action="store_true",
+                       help="Verbose RMsynth/CLEAN [False].")
+    tools.add_argument("-D", "--debug", action="store_true",
+                       help="turn on debugging messages & plots [False].")
     # RM-tools args
-    parser.add_argument("-c", dest="cutoff", type=float, default=-3,
-                        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].")
-    parser.add_argument("-n", dest="maxIter", type=int, default=10000,
-                        help="maximum number of CLEAN iterations [10000].")
-    parser.add_argument("-g", dest="gain", type=float, default=0.1,
-                        help="CLEAN loop gain [0.1].")
+    tools.add_argument("-c", "--cutoff", type=float, default=-3,
+                       help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].")
+    tools.add_argument("-n", "--maxIter", type=int, default=10000,
+                       help="maximum number of CLEAN iterations [10000].")
+    tools.add_argument("-g", "--gain", type=float, default=0.1,
+                       help="CLEAN loop gain [0.1].")
 
+    cat = parser.add_argument_group("catalogue arguments")
     # Cat args
-    parser.add_argument("--write", dest="outfile", default=None,
-                        type=str, help="File to save table to [None].")
+    cat.add_argument("--outfile", default=None,
+                     type=str, help="File to save table to [None].")
 
-    parser.add_argument("-f", "--format", dest="format", default=None,
-                        type=str, help="Format for output file [None].")
-
+    cat.add_argument("-f", "--format", default=None,
+                     type=str, help="Format for output file [None].")
     args = parser.parse_args()
 
     verbose = args.verbose
