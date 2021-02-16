@@ -93,12 +93,12 @@ def genparset(field, stoke, datadir, septab, prefix=""):
     """
     ims = sorted(
         glob(
-            f"{datadir}/*.cutout.image.restored.{stoke.lower()}.*.beam*[00-35.total.fits]"
+            f"{datadir}/*.cutout.image.restored.{stoke.lower()}.*.beam*[00-35.conv.fits]"
         )
     )
     if len(ims) == 0:
         print(
-            f"{datadir}/*.cutout.image.restored.{stoke.lower()}.*.beam*[00-35.total.fits]"
+            f"{datadir}/*.cutout.image.restored.{stoke.lower()}.*.beam*[00-35.conv.fits]"
         )
         raise Exception(
             'No files found. Have you run imaging? Check your prefix?')
