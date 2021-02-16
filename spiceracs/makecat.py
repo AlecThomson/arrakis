@@ -12,7 +12,6 @@ from IPython import embed
 
 
 def main(field,
-         outdir,
          host,
          verbose=True,
          limit=None,
@@ -21,9 +20,6 @@ def main(field,
          ):
     """Main script.
     """
-    if outdir[-1] == '/':
-        outdir = outdir[:-1]
-    outdir = f'{outdir}/cutouts'
     # default connection (ie, local)
     with pymongo.MongoClient(host=host) as client:
         mydb = client['spiceracs']  # Create/open database
@@ -159,11 +155,6 @@ def cli():
         type=str,
         help="RACS field to mosaic - e.g. 2132-50A."
     )
-    parser.add_argument(
-        'outdir',
-        metavar='outdir',
-        type=str,
-        help='Directory containing cutouts (in subdir outdir/cutouts).')
 
     parser.add_argument(
         'host',
@@ -203,7 +194,6 @@ def cli():
                 print('MongoDB connection succesful!')
 
     main(args.field,
-         args.outdir,
          host,
          verbose=verbose,
          limit=args.limit,
