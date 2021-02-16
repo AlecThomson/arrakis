@@ -39,23 +39,23 @@ def main(args):
                            )
 
     # Request up to 50 nodes
-    cluster.adapt(minimum=1, maximum=50)
+    cluster.adapt(minimum=0, maximum=100)
     client = Client(cluster)
 
     # Prin out Dask client info
     print(client.scheduler_info()['services'])
-
-    # Define flow
+    
+    #Define flow
     with Flow(f'SPICE-RACS: {args.field}') as flow:
-        # cuts = cut_task(args.field,
-        #                 args.datadir,
-        #                 host,
-        #                 client,
-        #                 verbose=args.verbose,
-        #                 pad=args.pad,
-        #                 verbose_worker=args.verbose_worker,
-        #                 dryrun=args.dryrun
-        #                 )
+        cuts = cut_task(args.field,
+                        args.datadir,
+                        host,
+                        client,
+                        verbose=args.verbose,
+                        pad=args.pad,
+                        verbose_worker=args.verbose_worker,
+                        dryrun=args.dryrun
+                        )
         mosaics = linmos_task(args.field,
                               args.datadir,
                               client,
@@ -64,7 +64,7 @@ def main(args):
                               prefix="",
                               stokeslist=None,
                               verbose=True,
-                              #   upstream_tasks=[cuts]
+                                upstream_tasks=[cuts]
                               )
         tidy = cleanup_task(datadir=args.datadir,
                             client=client,
@@ -72,54 +72,53 @@ def main(args):
                             verbose=True,
                             upstream_tasks=[mosaics]
                             )
-        # dirty_spec = rmsynth_task(field=args.field,
-        #                           outdir=args.datadir,
-        #                           host=host,
-        #                           client=client,
-        #                           dimension=args.dimension,
-        #                           verbose=args.verbose,
-        #                           database=args.database,
-        #                           validate=args.validate,
-        #                           limit=args.limit,
-        #                           savePlots=args.savePlots,
-        #                           weightType=args.weightType,
-        #                           fitRMSF=args.fitRMSF,
-        #                           phiMax_radm2=args.phiMax_radm2,
-        #                           dPhi_radm2=args.dPhi_radm2,
-        #                           nSamples=args.nSamples,
-        #                           polyOrd=args.polyOrd,
-        #                           noStokesI=args.noStokesI,
-        #                           showPlots=args.showPlots,
-        #                           not_RMSF=args.not_RMSF,
-        #                           rm_verbose=args.verbose_worker,
-        #                           debug=args.debug,
-        #                           upstream_tasks=[mosaics]
-        #                           )
-        # clean_spec = rmclean_task(field=args.field,
-        #                           outdir=args.datadir,
-        #                           host=host,
-        #                           client=client,
-        #                           dimension=args.dimension,
-        #                           verbose=args.verbose,
-        #                           database=args.database,
-        #                           validate=args.validate,
-        #                           limit=args.limit,
-        #                           cutoff=args.cutoff,
-        #                           maxIter=args.maxIter,
-        #                           gain=args.gain,
-        #                           showPlots=args.showPlots,
-        #                           rm_verbose=args.rm_verbose,
-        #                           upstream_tasks=[dirty_spec]
-        #                           )
-        # catalogue = cat_task(args.field,
-        #                      args.datadir,
-        #                      host,
-        #                      verbose=args.verbose,
-        #                      limit=args.limit,
-        #                      outfile=args.outfile,
-        #                      cat_format=args.format,
-        #                      upstream_tasks=[clean_spec]
-        #                      )
+        dirty_spec = rmsynth_task(field=args.field,
+                                  outdir=args.datadir,
+                                  host=host,
+                                  client=client,
+                                  dimension=args.dimension,
+                                  verbose=args.verbose,
+                                  database=args.database,
+                                  validate=args.validate,
+                                  limit=args.limit,
+                                  savePlots=args.savePlots,
+                                  weightType=args.weightType,
+                                  fitRMSF=args.fitRMSF,
+                                  phiMax_radm2=args.phiMax_radm2,
+                                  dPhi_radm2=args.dPhi_radm2,
+                                  nSamples=args.nSamples,
+                                  polyOrd=args.polyOrd,
+                                  noStokesI=args.noStokesI,
+                                  showPlots=args.showPlots,
+                                  not_RMSF=args.not_RMSF,
+                                  rm_verbose=args.rm_verbose,
+                                  debug=args.debug,
+                                  upstream_tasks=[tidy]
+                                  )
+        clean_spec = rmclean_task(field=args.field,
+                                  outdir=args.datadir,
+                                  host=host,
+                                  client=client,
+                                  dimension=args.dimension,
+                                  verbose=args.verbose,
+                                  database=args.database,
+                                  validate=args.validate,
+                                  limit=args.limit,
+                                  cutoff=args.cutoff,
+                                  maxIter=args.maxIter,
+                                  gain=args.gain,
+                                  showPlots=args.showPlots,
+                                  rm_verbose=args.rm_verbose,
+                                  upstream_tasks=[dirty_spec]
+                                  )
+        catalogue = cat_task(args.field,
+                            host,
+                            verbose=args.verbose,
+                            limit=args.limit,
+                            outfile=f'{args.field}.pipe.test.fits',
+                            cat_format='fits',
+                            upstream_tasks=[clean_spec]
+                            )
 
     with performance_report(f'{args.field}-report.html'):
         flow.run()
