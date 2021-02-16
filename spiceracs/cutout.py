@@ -60,10 +60,24 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
     outfile = f"{outdir}/{outname}"
     cube = SpectralCube.read(image)
     padder = cube.header['BMAJ']*u.deg * pad
-    cutout = cube.subcube(xlo=ra_lo - padder,
-                          xhi=ra_hi + padder,
-                          ylo=dec_lo - padder,
-                          yhi=dec_hi + padder
+
+    # Don't know why this is required
+    # Dask breaks without it...
+    ra_lo = ra_lo.value*u.arcsec
+    ra_hi = ra_hi.value*u.arcsec
+    dec_lo = dec_lo.value*u.arcsec
+    dec_hi = dec_hi.value*u.arcsec
+
+    xlo = ra_lo - padder
+    xhi = ra_hi + padder
+    ylo = dec_lo  - padder
+    yhi = dec_hi  + padder
+
+
+    cutout = cube.subcube(xlo=xlo,
+                          xhi=xhi,
+                          ylo=ylo,
+                          yhi=yhi,
                           )
     if not dryrun:
         cutout.write(outfile, overwrite=True)
@@ -71,16 +85,16 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
             print(f'Written to {outfile}')
 
     image = image.replace('image.restored', 'weights').replace(
-        '.total.fits', '.fits')
+        '.conv.fits', '.fits')
     outfile = outfile.replace('image.restored', 'weights').replace(
-        '.total.fits', '.fits')
+        '.conv.fits', '.fits')
     if verbose:
         print(f'Reading {image}')
     cube = SpectralCube.read(image)
-    cutout = cube.subcube(xlo=ra_lo - padder,
-                          xhi=ra_hi + padder,
-                          ylo=dec_lo - padder,
-                          yhi=dec_hi + padder
+    cutout = cube.subcube(xlo=xlo,
+                          xhi=xhi,
+                          ylo=ylo,
+                          yhi=yhi,
                           )
     if not dryrun:
         cutout.write(outfile, overwrite=True)
@@ -126,12 +140,12 @@ def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=Tru
     decs = []
     majs = []
     for comp in comps:
-        ras += [comp['RA']]
-        decs += [comp['Dec']]
-        majs += [comp['Maj']]
-    ras *= u.deg
-    decs *= u.deg
-    majs *= u.arcsec
+        ras = ras + [comp['RA']]
+        decs = decs + [comp['Dec']]
+        majs = majs + [comp['Maj']]
+    ras = ras * u.deg
+    decs = decs * u.deg
+    majs = majs * u.arcsec
     ra_hi = majs[np.argmax(ras)] + np.max(ras)
     ra_lo = majs[np.argmin(ras)] + np.min(ras)
     dec_hi = majs[np.argmax(decs)] + np.max(decs)
@@ -140,9 +154,9 @@ def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=Tru
     args = []
     for beam_num in beam_list:
         images = glob(
-            f'{datadir}/image.restored*contcube*beam{beam_num:02}.total.fits')
+            f'{datadir}/image.restored*contcube*beam{beam_num:02}.conv.fits')
         for image in images:
-            args += [
+            args.extend([
                 {
                     'image': image,
                     'id': island['Source_ID'],
@@ -153,6 +167,7 @@ def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=Tru
                     'outdir': outdir,
                 }
             ]
+            )
     return args
 
 
@@ -230,15 +245,13 @@ def cutout_islands(field, directory, host, client, verbose=True, pad=3, verbose_
         args.append(arg)
 
     flat_args = unpack(args)
-    flat_args = flat_args.persist()
+    flat_args = client.compute(flat_args)
     if verbose:
         print("Getting args...")
     progress(flat_args)
-    flat_args = flat_args.compute()
-
+    flat_args = flat_args.result()
     cuts = []
     for arg in flat_args:
-        # for a in arg:
         cut = cutout(
             arg['image'],
             arg['id'],
