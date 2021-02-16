@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from astropy.wcs.wcs import NonseparableSubimageCoordinateSystemError
 from spiceracs.utils import getfreq, MyEncoder
 import json
 import numpy as np
@@ -183,7 +182,6 @@ def rms_1d(data):
     return rms
 
 
-@delayed
 def estimate_noise_annulus(x_center, y_center, cube):
     """
     Noise estimation for annulus taken around point source. Annulus has fixed 
