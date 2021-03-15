@@ -78,7 +78,7 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
                           xhi=xhi,
                           ylo=ylo,
                           yhi=yhi,
-                          )
+                          )                 
     if not dryrun:
         cutout.write(outfile, overwrite=True)
         if verbose:
@@ -146,10 +146,11 @@ def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=Tru
     ras = ras * u.deg
     decs = decs * u.deg
     majs = majs * u.arcsec
-    ra_hi = majs[np.argmax(ras)] + np.max(ras)
-    ra_lo = majs[np.argmin(ras)] + np.min(ras)
-    dec_hi = majs[np.argmax(decs)] + np.max(decs)
-    dec_lo = majs[np.argmin(decs)] + np.min(decs)
+
+    ra_hi = (majs[np.argmax(ras)] + np.max(ras)).to(u.arcsec)
+    ra_lo = (np.min(ras) - majs[np.argmin(ras)]).to(u.arcsec)
+    dec_hi = (majs[np.argmax(decs)] + np.max(decs)).to(u.arcsec)
+    dec_lo = (np.min(decs) - majs[np.argmin(decs)]).to(u.arcsec)
 
     args = []
     for beam_num in beam_list:
