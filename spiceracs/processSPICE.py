@@ -17,7 +17,6 @@ from time import sleep
 
 
 def main(args):
-    # proc, host = start_mongo(args.dbpath)
     host = args.host
     cut_task = task(cutout.cutout_islands, name='cutout')
     linmos_task = task(linmos.main, name='LINMOS')
@@ -192,16 +191,11 @@ def cli():
         help='Directory containing data cubes in FITS format.')
 
     parser.add_argument(
-        'dbpath',
-        metavar='dbpath',
-        type=str,
-        help='Location of SPICE-RACS mongodb.')
-
-    parser.add_argument(
         'host',
         metavar='host',
         type=str,
         help='Host of mongodb (probably $hostname -i).')
+
     options = parser.add_argument_group("output options")
     options.add_argument(
         "-v",
