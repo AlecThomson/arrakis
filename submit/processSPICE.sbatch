@@ -11,18 +11,22 @@
 export OMP_NUM_THREADS=1
 
 module load askapsoft
+unset PYTHONPATH
+source /home/$(whoami)/.bashrc
+conda activate base
+
 
 cd /group/askap/athomson/repos/spiceracs
 
 # Assuing defaut port for Dask
 # Forward the ports to the login nodes
-port=8787
-/usr/bin/ssh -N -f -R $port:localhost:$port galaxy-1
-/usr/bin/ssh -N -f -R $port:localhost:$port galaxy-2
+port=9999
+ssh -N -f -R $port:localhost:$port galaxy-1
+ssh -N -f -R $port:localhost:$port galaxy-2
 
 # Start MongoDB
 host=$(hostname -i)
 echo $host
 numactl --interleave=all mongod --dbpath=database --bind_ip $host >> /dev/null &
 
-python spiceracs/processSPICE.py 0918+06A /group/askap/athomson/projects/RACS/newpipelinetest/RACS_test4_1.05_0918+06A database/ $host -v -vw -p 0 -t -s 100 -o 5 -c -5 -m
+python spiceracs/processSPICE.py 1600-50A /home/athomson/athomson/projects/spiceracs/testing_april_2021/1600-50A database/ $host --config test_config.txt
