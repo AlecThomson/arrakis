@@ -289,13 +289,13 @@ def cli():
 
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage 1:
-    Produce cubelets from a RACS field using a Selavy table.
-    If Stokes V is present, it will be squished into RMS spectra.
+    SPICE-RACS Initialisation:
+    
+    Create MongoDB database from RACS catalogues.
 
-    To use with MPI:
-       mpirun -n $NPROCS python -u cutout.py $cubedir $tabledir
-       $outdir --mpi
+    Before running make sure to start a session of mongodb e.g.
+        $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
+
     """
 
     # Parse the command line options
@@ -331,8 +331,6 @@ def cli():
         action="store_true",
         help="Load catalogue into database [False]."
     )
-
-    group = parser.add_mutually_exclusive_group()
 
     args = parser.parse_args()
 
