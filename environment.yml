@@ -20,6 +20,7 @@ dependencies:
 - python-graphviz
 - bokeh
 - pymongo
+- mongodb
 - pip:
   - tqdm
   - configargparse
