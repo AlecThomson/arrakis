@@ -22,8 +22,8 @@ EMAIL = 'alec.thomson@anu.edu.au'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    'numpy', 'matplotlib', 'astropy', 'spectral_cube', 'tqdm',
-    'pymongo', 'schwimmbad', 'AegeanTools', 'pandas', 'psutil', 'RM-Tools'
+    # 'numpy', 'matplotlib', 'astropy', 'spectral_cube', 'tqdm',
+    # 'pymongo', 'schwimmbad', 'AegeanTools', 'pandas', 'psutil', 'RM-Tools'
 ]
 
 # What packages are optional?
@@ -108,15 +108,15 @@ setup(
     url=URL,
     packages=['spiceracs', 'rmtable'],
     entry_points={
-        'console_scripts': ['spicecutout=spiceracs.cutout:cli',
-                            'spiceunresolved=spiceracs.unresolved:cli',
-                            'spicemoments=spiceracs.moments_oncuts:cli',
-                            'spicepolfind=spiceracs.polfind:cli',
-                            'spicermsynth=spiceracs.rmsynth_oncuts:cli',
-                            'spicermclean=spiceracs.rmclean_oncuts:cli',
-                            'spicemakecat=spiceracs.makecat:cli'
-                            ],
+        'console_scripts': [
+            'initSPICE=spiceracs.init_database:cli',
+            'processSPICE=spiceracs.processSPICE:cli',
+        ],
     },
+    scripts=[
+        'scripts/check_cutout.py',
+        'scripts/make_links.py'
+    ],
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
@@ -138,6 +138,6 @@ setup(
     },
     test_suite='tests',
     package_data={
-        'spiceracs': ['..thirdparty/stilts/stilts.jar'],
+        # 'spiceracs': ['..thirdparty/stilts/stilts.jar'],
     }
 )
