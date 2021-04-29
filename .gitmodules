@@ -1,9 +1,6 @@
 [submodule "rmtable"]
 	path = rmtable
 	url = https://github.com/Cameron-Van-Eck/RMTable.git
-[submodule "RM"]
-	path = RM
-	url = https://github.com/CIRADA-Tools/RM.git
 [submodule "askap_surveys/racs"]
 	path = askap_surveys/racs
 	url = https://bitbucket.csiro.au/scm/askap_surveys/racs.git
