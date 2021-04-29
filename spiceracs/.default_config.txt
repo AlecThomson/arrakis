@@ -16,6 +16,7 @@ validate: False # Run on RMsynth Stokes I
 [RM-tools options]
 savePlots: False # save the plots
 weightType: variance # weighting [uniform] (all 1s) or 'variance'
+fitRMSF: True # Fit a gaussian to the RMSF
 # phiMax_radm2: # Absolute max Faraday depth sampled (overrides NSAMPLES)
 # dPhi_radm2: # Width of Faraday depth channel
 nSamples: 5 # Number of samples across the FWHM RMSF
