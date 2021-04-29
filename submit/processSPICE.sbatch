@@ -27,6 +27,7 @@ ssh -N -f -R $port:localhost:$port galaxy-2
 # Start MongoDB
 host=$(hostname -i)
 echo $host
-numactl --interleave=all mongod --dbpath=database --bind_ip $host >> /dev/null &
+database=/group/askap/athomson/projects/spiceracs/spiceracsDB
+numactl --interleave=all mongod --dbpath=$database --bind_ip $host >> /dev/null &
 
-python spiceracs/processSPICE.py 1600-50A /home/athomson/athomson/projects/spiceracs/testing_april_2021/1600-50A database/ $host --config test_config.txt
+processSPICE 1600-50A /home/athomson/athomson/projects/spiceracs/testing_april_2021/1600-50A $host --config test_config.txt
