@@ -1,0 +1,27 @@
+name: spice
+channels:
+- astropy
+- conda-forge
+- defaults
+dependencies:
+- python=3.7
+- pip
+- future
+- numpy
+- scipy
+- matplotlib
+- setuptools
+- ipython
+- astropy
+- dask
+- dask-jobqueue
+- distributed
+- prefect
+- python-graphviz
+- bokeh
+- pymongo
+- pip:
+  - tqdm
+  - configargparse
+  - spectral_cube
+  - -rrequirements.txt
