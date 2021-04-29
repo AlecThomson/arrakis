@@ -1,80 +1,169 @@
 # SPICE-RACS
-**S**pectra and **P**olarization **I**n **C**utouts of **E**xtragalactic **S**ources from **R**ACS
+**S**pectra and **P**olarization **I**n **C**utouts of **E**xtragalactic sources from **R**ACS
 
 Scripts for processing polarized RACS data products.
 
 
 ## Installation
-```
-pip install spiceracs
-```
-Or, after cloning this repo, please run:
-```
-cd SPICERACS/
-pip install -e .
-```
-This will install the python dependencies and the command-line scrips. Please note: this package requires `python >= 3.6`.
+First, ensure you have anaconda / miniconda installed.
 
-### Third-party tools
-Additionally, this package also requires `RM-Tools`, `java >= 8`, and `mongodb` to be installed. Details on how to install these can be found at their respective websites:
-* [RM-Tools](https://github.com/CIRADA-Tools/RM)
-* [Java](https://www.java.com/en/download/)
-* [MongoDB](https://www.mongodb.com/what-is-mongodb)
-* [CFITSIO](https://heasarc.gsfc.nasa.gov/fitsio/)
+After cloning this repo, please run:
+```
+cd spiceracs/
+conda env create
+```
+This will install the python dependencies and the command-line scrips into a conda environment called `spice`, which can be activated by:
+```
+conda activate spice
+```
 
 ### Parallelisation
-If you wish to use MPI for parallelisation, please also make sure some implementation (such as [OpenMPI](https://www.open-mpi.org/)) is also installed. If MPI is not available, then python multiprocessing can be used. Please note that multiprocessing is not capable of going across nodes in an HPC environment. 
+Dask is used for parallelisation and job submission. The pipeline is currently configured for the `galaxy` supercomputer at Pawsey, which uses a Slurm job manager. This configuration lives in YAML file in `spiceracs/dask/jobqueue.yaml`. Either use this as is for galaxy, or add your own configuration by editing the file (see the [docs](https://jobqueue.dask.org/en/latest/configuration.html)). Then export this environment varible to let dask find the file:
+```
+export DASK_ROOT_CONFIG=/path/to/spiceracs/dask
+```
+You may wish to simply put this line in your `~/.bashrc`.
 
 ## Getting started
-It is recommended to use the command-line tools. Alternatively, scripts for processing RACS data are located in `spiceracs/`. 
-
-Bash scripts which run everything together on PBS or SBATCH systems are located in `submit/`.
-
-To keep track of the many files, and associated metadata, these scripts use MongoDB. Additionally, the scripts are intended to be run in order (pipeline-style). 
-
-Currently, the order to run each script is:
-
-0. `numactl --interleave=all mongod --dbpath=database --bind_ip $(hostname -i) &` -- This initialises MongoDB in a directory of your choosing.
-1. `spicecutout` or `spiceracs/cutout.py` -- Produce cubelets from a RACS field using a Selavy table.
-2. The datacubes can be removed from disk, if required.
-Optional:
-    3. `spiceunresolved` or `spiceracs/unresolved.py` -- Find unresolved sources from a Selavy catalogue.
-    4. `spicemoments` or `spiceracs/moments_oncuts.py` -- Make Faraday moment maps for Farnes+ (2018) method.
-    5. `spicepolfind` or `spiceracs/polfind.py`-- Find polarized sources in a RACS field using the Farnes+ (2018) method.
-6. `spicermsynth` or `spiceracs/rmsynth_oncuts.py` -- Run RM synthesis on cutouts.
-7. `spicermclean` or `spiceracs/rmclean_oncuts.py` -- Run RM-CLEAN on cutouts.
-8.  `spicemakecat` or `spiceracs/makecat.py` -- Make RM catalogue from results.
-
-### Tips for running on Pawsey/Galaxy
-#### Multiprocessing
-If you want to test on a single node using multiprocessing for parallelisation, run the pipeline using the following:
-
-`salloc -n 1` -- request a single node on galaxy
-
-`srun -n 1 -c 20 spice... OPTIONS --ncores 20` -- This will use 20 cores (the maximum available on a single galaxy node). Without the addition of `srun` the processes will run on a single physical core, and will be much slower.
-
-#### MPI
-If you want to use MPI, there can be issues with the communication between the executable `mpirun` and your installation of `mpi4py`. It is reccommended to use the module/local installation of MPI instead. To ensure all the libraries you need, it is easiest to make a conda virtual environment:
+First you must initialise the SPICE-RACS database using MongoDB and the RACS catalogues. Start mongo using (for NUMA systems):
 ```
-conda create -n spice python=3.6
-conda activate spice
-pip install spiceracs
+host=$(hostname -i)
+database=/path/to/your/database/dir
+mkdir $database
+numactl --interleave=all mongod --dbpath=$database --bind_ip $host >> /dev/null &
 ```
-Now when you want to run the task in parallel with `N` cores:
+Then run the initialisation script:
 ```
-module load python/3.6.3
-module load numpy
-module load astropy
-module load scipy
-module load mpi4py
-module load pandas
-conda activate spice
+(spice) $ initSPICE -h
+usage: initSPICE [-h] [-i ISLANDCAT] [-c COMPCAT] [-v] [-l] host
 
-cd /path/to/your/dir
+    
+     mmm   mmm   mmm   mmm   mmm
+     )-(   )-(   )-(   )-(   )-(
+    ( S ) ( P ) ( I ) ( C ) ( E )
+    |   | |   | |   | |   | |   |
+    |___| |___| |___| |___| |___|
+     mmm     mmm     mmm     mmm
+     )-(     )-(     )-(     )-(
+    ( R )   ( A )   ( C )   ( S )
+    |   |   |   |   |   |   |   |
+    |___|   |___|   |___|   |___|
 
-srun -n N spice... OPTIONS --mpi
+    
+    SPICE-RACS Initialisation:
+    
+    Create MongoDB database from RACS catalogues.
+
+    Before running make sure to start a session of mongodb e.g.
+        $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
+
+    
+
+positional arguments:
+  host          Host of mongodb (probably $hostname -i).
+
+optional arguments:
+  -h, --help    show this help message and exit
+  -i ISLANDCAT  Master island RACS catalogue.
+  -c COMPCAT    Master component RACS catalogue.
+  -v            Verbose output [False].
+  -l            Load catalogue into database [False].
 ```
-Make sure you have requested enough nodes for the number of cores you want!
+
+## Running the pipeline
+With an initalised database you can call the pipeline:
+```
+(spice) $ processSPICE -h
+usage: processSPICE [-h] [--config CONFIG] [-v] [-vw] [-p PAD] [--dryrun]
+                    [--dimension DIMENSION] [-m] [--validate] [--limit LIMIT]
+                    [-sp] [-w WEIGHTTYPE] [-t] [-l PHIMAX_RADM2]
+                    [-d DPHI_RADM2] [-s NSAMPLES] [-o POLYORD] [-i]
+                    [--showPlots] [-R] [-rmv] [-D] [-c CUTOFF] [-n MAXITER]
+                    [-g GAIN] [--outfile OUTFILE] [-f FORMAT]
+                    field datadir host
+
+    
+     mmm   mmm   mmm   mmm   mmm
+     )-(   )-(   )-(   )-(   )-(
+    ( S ) ( P ) ( I ) ( C ) ( E )
+    |   | |   | |   | |   | |   |
+    |___| |___| |___| |___| |___|
+     mmm     mmm     mmm     mmm
+     )-(     )-(     )-(     )-(
+    ( R )   ( A )   ( C )   ( S )
+    |   |   |   |   |   |   |   |
+    |___|   |___|   |___|   |___|
+
+    
+    SPICE-RACS pipeline.
+
+    Before running make sure to start a session of mongodb e.g.
+        $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
+
+    
+
+positional arguments:
+  field                 Name of field (e.g. 2132-50A).
+  datadir               Directory containing data cubes in FITS format.
+  host                  Host of mongodb (probably $hostname -i).
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --config CONFIG       Config file path
+
+output options:
+  -v, --verbose         Verbose output [True].
+  -vw, --verbose_worker
+                        Verbose worker output [False].
+
+cutout arguments:
+  -p PAD, --pad PAD     Number of beamwidths to pad around source [5].
+  --dryrun              Do a dry-run [False].
+
+RM-synth/CLEAN arguments:
+  --dimension DIMENSION
+                        How many dimensions for RMsynth [1d] or '3d'.
+  -m, --database        Add RMsynth data to MongoDB [False].
+  --validate            Run on RMsynth Stokes I [False].
+  --limit LIMIT         Limit number of sources [All].
+
+RM-tools arguments:
+  -sp, --savePlots      save the plots [False].
+  -w WEIGHTTYPE, --weightType WEIGHTTYPE
+                        weighting [variance] (all 1s) or 'variance'.
+  -t, --fitRMSF         Fit a Gaussian to the RMSF [False]
+  -l PHIMAX_RADM2, --phiMax_radm2 PHIMAX_RADM2
+                        Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].
+  -d DPHI_RADM2, --dPhi_radm2 DPHI_RADM2
+                        Width of Faraday depth channel [Auto].
+  -s NSAMPLES, --nSamples NSAMPLES
+                        Number of samples across the FWHM RMSF.
+  -o POLYORD, --polyOrd POLYORD
+                        polynomial order to fit to I spectrum [3].
+  -i, --noStokesI       ignore the Stokes I spectrum [False].
+  --showPlots           show the plots [False].
+  -R, --not_RMSF        Skip calculation of RMSF? [False]
+  -rmv, --rm_verbose    Verbose RMsynth/CLEAN [False].
+  -D, --debug           turn on debugging messages & plots [False].
+  -c CUTOFF, --cutoff CUTOFF
+                        CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].
+  -n MAXITER, --maxIter MAXITER
+                        maximum number of CLEAN iterations [10000].
+  -g GAIN, --gain GAIN  CLEAN loop gain [0.1].
+
+catalogue arguments:
+  --outfile OUTFILE     File to save table to [None].
+  -f FORMAT, --format FORMAT
+                        Format for output file [None].
+
+Args that start with '--' (eg. -v) can also be set in a config file
+(.default_config.txt or specified via --config). Config file syntax allows:
+key=value, flag=true, stuff=[a,b,c] (for details, see syntax at
+https://goo.gl/R74nmi). If an arg is specified in more than one place, then
+commandline values override config file values which override defaults.
+```
+
+You can optionally pass a configuration file (with the `--config` argument) to set the options you prefer. An example file in contained in `spiceracs/.defailt_config.txt`.
 
 ## Acknowledging
 ### Third-party software
@@ -82,14 +171,14 @@ This package utilises a number of third-party libraries. Please acknowledge thes
 
 List of third party libraries:
 * [Numpy](https://numpy.org/)
+* [SciPy](https://www.scipy.org/)
 * [Matplotlib](https://matplotlib.org/)
 * [Astropy](https://www.astropy.org/)
+* [MongoDB](https://www.mongodb.com/) / [pymongo](https://api.mongodb.com/python/current/) 
+* [Dask](https://dask.org/)
+* [Prefect](https://www.prefect.io/)
 * [RM-Tools](https://github.com/CIRADA-Tools/RM)
+* [RMTable](https://github.com/Cameron-Van-Eck/RMTable)
 * [Spectral-Cube](https://spectral-cube.readthedocs.io/)
 * [tqdm](https://tqdm.github.io/) 
-* [MongoDB](https://www.mongodb.com/) / [pymongo](https://api.mongodb.com/python/current/) 
-* [Schwimmbad](https://schwimmbad.readthedocs.io/)
-* [AegeanTools](https://github.com/PaulHancock/Aegean)
-* [STILTS](http://www.star.bristol.ac.uk/~mbt/stilts/)
-* [pandas](https://pandas.pydata.org/)
-* [CFITSIO](https://heasarc.gsfc.nasa.gov/fitsio/)
+* [ConfigArgParse](https://github.com/bw2/ConfigArgParse) 
