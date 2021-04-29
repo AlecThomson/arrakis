@@ -9,7 +9,7 @@ from spiceracs import rmsynth_oncuts
 from spiceracs import rmclean_oncuts
 from spiceracs import makecat
 from dask_jobqueue import SLURMCluster
-from distributed import Client, progress, performance_report
+from distributed import Client, progress, performance_report, LocalCluster
 from dask.diagnostics import ProgressBar
 from dask import delayed
 from IPython import embed
@@ -35,11 +35,32 @@ def main(args):
                            job_extra=['-M galaxy'],
                            interface="ipogif0",
                            log_directory='logs',
-                           env_extra=['module load askapsoft']
+                           env_extra=[
+                               'module load askapsoft'
+                               'unset PYTHONPATH',
+                               'source /home/$(whoami)/.bashrc',
+                               'conda activate base'
+                           ],
+                           dashboard_address=":9999",
+                           python='srun -n 1 -c 20 python',
                            )
+    # Set up for Zeus
+    # cluster = SLURMCluster(cores=28,
+    #                     memory="120GB",
+    #                     project='askaprt',
+    #                     queue='workq',
+    #                     walltime='12:00:00',
+    #                     job_extra=['-M zeus'],
+    #                     interface='ib0',
+    #                     log_directory='logs',
+    #                     env_extra=['module load askapsoft'],
+    #                     dashboard_address=":9999"
+    #                     )
 
-    # Request up to 50 nodes
-    cluster.adapt(minimum=0, maximum=100)
+    # Request up to 20 nodes
+    cluster.adapt(minimum=0, maximum=20)
+    # cluster.scale(20)
+    # cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
 
     # Prin out Dask client info
@@ -62,13 +83,13 @@ def main(args):
                               host,
                               dryrun=False,
                               prefix="",
-                              stokeslist=None,
+                              stokeslist=["I", "Q", "U"],
                               verbose=True,
                               upstream_tasks=[cuts]
                               )
         tidy = cleanup_task(datadir=args.datadir,
                             client=client,
-                            stokeslist=None,
+                            stokeslist=["I", "Q", "U"],
                             verbose=True,
                             upstream_tasks=[mosaics]
                             )
@@ -94,6 +115,7 @@ def main(args):
                                   rm_verbose=args.rm_verbose,
                                   debug=args.debug,
                                   upstream_tasks=[tidy]
+                                  # upstream_tasks=[mosaics]
                                   )
         clean_spec = rmclean_task(field=args.field,
                                   outdir=args.datadir,
@@ -246,7 +268,7 @@ def cli():
                        help="polynomial order to fit to I spectrum [3].")
     tools.add_argument("-i", "--noStokesI", action="store_true",
                        help="ignore the Stokes I spectrum [False].")
-    tools.add_argument("--plots", "--showPlots", action="store_true",
+    tools.add_argument("--showPlots", action="store_true",
                        help="show the plots [False].")
     tools.add_argument("-R", "--not_RMSF", action="store_true",
                        help="Skip calculation of RMSF? [False]")
@@ -276,9 +298,9 @@ def cli():
     if verbose:
         print('Testing MongoDB connection...')
     # default connection (ie, local)
-    with pymongo.MongoClient(host=args.host, connect=False) as client:
+    with pymongo.MongoClient(host=args.host, connect=False) as dbclient:
         try:
-            client.list_database_names()
+            dbclient.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
             raise Exception("Please ensure 'mongod' is running")
         else:
