@@ -16,7 +16,7 @@ source /home/$(whoami)/.bashrc
 conda activate base
 
 
-cd /group/askap/athomson/repos/spiceracs
+cd /group/askap/athomson/projects/spiceracs/testing_april_2021
 
 # Assuing defaut port for Dask
 # Forward the ports to the login nodes
