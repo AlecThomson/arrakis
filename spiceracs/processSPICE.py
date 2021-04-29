@@ -58,12 +58,12 @@ def main(args):
                               verbose=True,
                               upstream_tasks=[cuts]
                               )
-        tidy = cleanup_task(datadir=args.datadir,
-                            client=client,
-                            stokeslist=["I", "Q", "U"],
-                            verbose=True,
-                            upstream_tasks=[mosaics]
-                            )
+        # tidy = cleanup_task(datadir=args.datadir,
+        #                     client=client,
+        #                     stokeslist=["I", "Q", "U"],
+        #                     verbose=True,
+        #                     upstream_tasks=[mosaics]
+        #                     )
         dirty_spec = rmsynth_task(field=args.field,
                                   outdir=args.datadir,
                                   host=host,
@@ -85,8 +85,8 @@ def main(args):
                                   not_RMSF=args.not_RMSF,
                                   rm_verbose=args.rm_verbose,
                                   debug=args.debug,
-                                  upstream_tasks=[tidy]
-                                  # upstream_tasks=[mosaics]
+                                #   upstream_tasks=[tidy]
+                                  upstream_tasks=[mosaics]
                                   )
         clean_spec = rmclean_task(field=args.field,
                                   outdir=args.datadir,
