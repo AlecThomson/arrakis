@@ -27,20 +27,31 @@ from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
 
 
+# def safe_mongocall(call):
+#     def _safe_mongocall(*args, **kwargs):
+#         for i in range(5):
+#             try:
+#                 return call(*args, **kwargs)
+#             except pymongo.errors.AutoReconnect:
+#                 time.sleep(np.random.random() / 100)
+#         print('Error: Failed operation!')
+#     return _safe_mongocall
+
+
 @delayed
-def rmsythoncut3d(island_id,
-                  freq,
-                  host,
-                  field,
-                  database=False,
-                  phiMax_radm2=None,
-                  dPhi_radm2=None,
-                  nSamples=5,
-                  weightType='variance',
-                  fitRMSF=False,
-                  not_RMSF=False,
-                  rm_verbose=False
-                  ):
+def rmsynthoncut3d(island_id,
+                   freq,
+                   host,
+                   field,
+                   database=False,
+                   phiMax_radm2=None,
+                   dPhi_radm2=None,
+                   nSamples=5,
+                   weightType='variance',
+                   fitRMSF=False,
+                   not_RMSF=False,
+                   rm_verbose=False
+                   ):
     """3D RM-synthesis
 
     Args:
@@ -74,7 +85,7 @@ def rmsythoncut3d(island_id,
     ifile = beam['beams'][field]['i_file']
     qfile = beam['beams'][field]['q_file']
     ufile = beam['beams'][field]['u_file']
-    vfile = beam['beams'][field]['v_file']
+    # vfile = beam['beams'][field]['v_file']
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
@@ -196,7 +207,7 @@ def estimate_noise_annulus(x_center, y_center, cube):
     ​Output: 2D array of standard deviation values with shape (length of 
     coordinate array, number of unflagged frequency channels).
     """
-
+    cube = np.nan_to_num(cube, nan=0)
     inner_radius = 10
     # Set outer radius to cutout edge if default value is too big
     if min(cube.shape[-2:]) <= 62:
@@ -207,51 +218,52 @@ def estimate_noise_annulus(x_center, y_center, cube):
     lenfreq = cube.shape[0]
     naxis = len(cube.shape)
     err = np.zeros(lenfreq)
-    try:
-        y, x = np.ogrid[-1*outer_radius:outer_radius +
-                        1, -1*outer_radius:outer_radius+1]
-        grid_mask = np.logical_or(
-            x**2+y**2 < inner_radius**2, x**2+y**2 > outer_radius**2)
-        for i in range(lenfreq):
-            if naxis == 4:
-                grid = cube[i, 0, y_center-outer_radius:y_center+outer_radius+1,
-                            x_center-outer_radius:x_center+outer_radius+1]
-            else:  # naxis ==3
-                grid = cube[i, y_center-outer_radius:y_center+outer_radius+1,
-                            x_center-outer_radius:x_center+outer_radius+1]
+    # try:
+    y, x = np.ogrid[-1*outer_radius:outer_radius +
+                    1, -1*outer_radius:outer_radius+1]
+    grid_mask = np.logical_or(
+        x**2+y**2 < inner_radius**2, x**2+y**2 > outer_radius**2)
+    for i in range(lenfreq):
+        if naxis == 4:
+            grid = cube[i, 0, y_center-outer_radius:y_center+outer_radius+1,
+                        x_center-outer_radius:x_center+outer_radius+1]
+        else:  # naxis ==3
+            grid = cube[i, y_center-outer_radius:y_center+outer_radius+1,
+                        x_center-outer_radius:x_center+outer_radius+1]
 
-            # Calculate the MADFM, and convert to standard sigma:
-            noisepix = np.ma.masked_array(grid, grid_mask)
-            # if (noisepix == np.nan).any():
-            #    embed
-            err[i] = np.ma.median(np.ma.fabs(
-                noisepix - np.ma.median(noisepix))) / 0.6745
-            return err
-    except np.ma.core.MaskError:
-        print('Too many NaNs in cutout - skipping...')
-        err *= np.nan
-        return err
+        # Calculate the MADFM, and convert to standard sigma:
+        noisepix = np.ma.masked_array(grid, grid_mask)
+        # if (noisepix == np.nan).any():
+        #    embed
+        err[i] = np.ma.median(np.ma.fabs(
+            noisepix - np.ma.median(noisepix))) / 0.6745
+    err[err==0] = np.nan        
+    return err
+    # except np.ma.core.MaskError:
+    #     print('Too many NaNs in cutout - skipping...')
+    #     err *= np.nan
+    #     return err
 
 
 @delayed
-def rmsythoncut1d(comp_id,
-                  outdir,
-                  freq,
-                  host,
-                  field,
-                  database=False,
-                  polyOrd=3,
-                  phiMax_radm2=None,
-                  dPhi_radm2=None,
-                  nSamples=5,
-                  weightType='variance',
-                  fitRMSF=False,
-                  noStokesI=False,
-                  showPlots=False,
-                  savePlots=False,
-                  debug=False,
-                  rm_verbose=False,
-                  ):
+def rmsynthoncut1d(comp_id,
+                   outdir,
+                   freq,
+                   host,
+                   field,
+                   database=False,
+                   polyOrd=3,
+                   phiMax_radm2=None,
+                   dPhi_radm2=None,
+                   nSamples=5,
+                   weightType='variance',
+                   fitRMSF=False,
+                   noStokesI=False,
+                   showPlots=False,
+                   savePlots=False,
+                   debug=False,
+                   rm_verbose=False,
+                   ):
     """1D RM synthesis
 
     Args:
@@ -280,208 +292,208 @@ def rmsythoncut1d(comp_id,
         comp_col = mydb['components']  # Create/open collection
         beams_col = mydb['beams']  # Create/open collection
 
-    # Basic querey
-    myquery = {"Component_ID": comp_id}
+        # Basic querey
+        myquery = {"Component_ID": comp_id}
 
-    doc = comp_col.find_one(myquery)
-    iname = doc['Source_ID']
-    cname = doc['Component_ID']
-    beam = beams_col.find_one({'Source_ID': iname})
+        doc = comp_col.find_one(myquery)
+        iname = doc['Source_ID']
+        cname = doc['Component_ID']
+        beam = beams_col.find_one({'Source_ID': iname})
 
-    ifile = beam['beams'][field]['i_file']
-    qfile = beam['beams'][field]['q_file']
-    ufile = beam['beams'][field]['u_file']
-    vfile = beam['beams'][field]['v_file']
+        ifile = beam['beams'][field]['i_file']
+        qfile = beam['beams'][field]['q_file']
+        ufile = beam['beams'][field]['u_file']
+        # vfile = beam['beams'][field]['v_file']
 
-    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
-    header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
-    header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
+        header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
+        header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
+        header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
 
-    dataQ = np.squeeze(dataQ)
-    dataU = np.squeeze(dataU)
-    dataI = np.squeeze(dataI)
+        dataQ = np.squeeze(dataQ)
+        dataU = np.squeeze(dataU)
+        dataI = np.squeeze(dataI)
 
-    if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
-        return
-        #rmsi = rms_1d(dataI)
-    rmsi = estimate_noise_annulus(
-        dataI.shape[2]//2,
-        dataI.shape[1]//2,
-        dataI
-    )
-    rmsi[rmsi == 0] = np.nan
-    rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
+        if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
+            return
+            #rmsi = rms_1d(dataI)
+        rmsi = estimate_noise_annulus(
+            dataI.shape[2]//2,
+            dataI.shape[1]//2,
+            dataI
+        )
+        rmsi[rmsi == 0] = np.nan
+        rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
 
-    #rmsq = rms_1d(dataQ)
-    rmsq = estimate_noise_annulus(
-        dataQ.shape[2]//2,
-        dataQ.shape[1]//2,
-        dataQ
-    )
-    rmsq[rmsq == 0] = np.nan
-    rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
+        #rmsq = rms_1d(dataQ)
+        rmsq = estimate_noise_annulus(
+            dataQ.shape[2]//2,
+            dataQ.shape[1]//2,
+            dataQ
+        )
+        rmsq[rmsq == 0] = np.nan
+        rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
 
-    #rmsu = rms_1d(dataU)
-    rmsu = estimate_noise_annulus(
-        dataU.shape[2]//2,
-        dataU.shape[1]//2,
-        dataU
-    )
-    rmsu[rmsu == 0] = np.nan
-    rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
+        #rmsu = rms_1d(dataU)
+        rmsu = estimate_noise_annulus(
+            dataU.shape[2]//2,
+            dataU.shape[1]//2,
+            dataU
+        )
+        rmsu[rmsu == 0] = np.nan
+        rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
 
-    if np.isnan(rmsi).all() or np.isnan(rmsq).all() or np.isnan(rmsu).all():
-        print(f'RMS data is all NaNs. Skipping component {cname}...')
-        return
+        # if np.isnan(rmsi).all() or np.isnan(rmsq).all() or np.isnan(rmsu).all():
+        #     print(f'RMS data is all NaNs. Skipping component {cname}...')
+        #     return
 
-    prefix = f"{os.path.dirname(ifile)}/{cname}"
+        prefix = f"{os.path.dirname(ifile)}/{cname}"
 
-    ra = doc['RA']
-    dec = doc['Dec']
-    if len(dataI.shape) == 4:
-        # drop Stokes axis
-        wcs = WCS(header).dropaxis(2)
-    else:
-        wcs = WCS(header)
-
-    x, y, z = np.array(wcs.all_world2pix(
-        ra, dec, np.nanmean(freq), 0)).round().astype(int)
-
-    qarr = dataQ[:, y, x]
-    uarr = dataU[:, y, x]
-    iarr = dataI[:, y, x]
-
-    iarr[iarr == 0] = np.nan
-    qarr[qarr == 0] = np.nan
-    uarr[uarr == 0] = np.nan
-
-    if np.isnan(qarr).all() or np.isnan(uarr).all():
-        print(f'QU data is all NaNs. Skipping component {cname}...')
-        return
-    else:
-        if noStokesI:
-            idx = np.isnan(qarr) | np.isnan(uarr)
-            data = [np.array(freq), qarr,
-                    uarr, rmsq, rmsu]
+        ra = doc['RA']
+        dec = doc['Dec']
+        if len(dataI.shape) == 4:
+            # drop Stokes axis
+            wcs = WCS(header).dropaxis(2)
         else:
-            if np.isnan(iarr).all():
-                print(f'I data is all NaNs. Skipping component {cname}...')
-                return
-            else:
-                idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
-                data = [np.array(freq), iarr, qarr,
-                        uarr, rmsi, rmsq, rmsu]
+            wcs = WCS(header)
 
-        # Run 1D RM-synthesis on the spectra
-        np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
+        x, y, z = np.array(wcs.all_world2pix(
+            ra, dec, np.nanmean(freq), 0)).round().astype(int)
 
-        mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                 polyOrd=polyOrd,
-                                                 phiMax_radm2=phiMax_radm2,
-                                                 dPhi_radm2=dPhi_radm2,
-                                                 nSamples=nSamples,
-                                                 weightType=weightType,
-                                                 fitRMSF=fitRMSF,
-                                                 noStokesI=noStokesI,
-                                                 nBits=32,
-                                                 showPlots=showPlots,
-                                                 verbose=rm_verbose,
-                                                 debug=debug)
-        if savePlots:
-            import matplotlib
-            matplotlib.use('Agg')
-            # if verbose:
-            #    print("Plotting the input data and spectral index fit.")
-            from RMutils.util_plotTk import plot_Ipqu_spectra_fig
-            from RMutils.util_misc import poly5
+        qarr = dataQ[:, y, x]
+        uarr = dataU[:, y, x]
+        iarr = dataI[:, y, x]
 
+        iarr[iarr == 0] = np.nan
+        qarr[qarr == 0] = np.nan
+        uarr[uarr == 0] = np.nan
+
+        if np.isnan(qarr).all() or np.isnan(uarr).all():
+            print(f'QU data is all NaNs. Skipping component {cname}...')
+            return
+        else:
             if noStokesI:
-                IArr = np.ones_like(qarr[~idx])
-                Ierr = np.zeros_like(qarr[~idx])
+                idx = np.isnan(qarr) | np.isnan(uarr)
+                data = [np.array(freq), qarr,
+                        uarr, rmsq, rmsu]
             else:
-                IArr = iarr[~idx]
-                Ierr = rmsi[~idx]
+                if np.isnan(iarr).all():
+                    print(f'I data is all NaNs. Skipping component {cname}...')
+                    return
+                else:
+                    idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
+                    data = [np.array(freq), iarr, qarr,
+                            uarr, rmsi, rmsq, rmsu]
 
-            IModArr, qArr, uArr, dqArr, duArr, fitDict = \
-                create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
-                                    IArr=IArr,
-                                    QArr=qarr[~idx],
-                                    UArr=uarr[~idx],
-                                    dIArr=Ierr,
-                                    dQArr=rmsq[~idx],
-                                    dUArr=rmsu[~idx],
-                                    polyOrd=polyOrd,
-                                    verbose=False,
-                                    debug=False)
+            # Run 1D RM-synthesis on the spectra
+            np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
+            mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                                    polyOrd=polyOrd,
+                                                    phiMax_radm2=phiMax_radm2,
+                                                    dPhi_radm2=dPhi_radm2,
+                                                    nSamples=nSamples,
+                                                    weightType=weightType,
+                                                    fitRMSF=fitRMSF,
+                                                    noStokesI=noStokesI,
+                                                    nBits=32,
+                                                    showPlots=showPlots,
+                                                    verbose=rm_verbose,
+                                                    debug=debug)
 
-            freqHirArr_Hz = np.linspace(
-                mDict['min_freq'], mDict['max_freq'], 10000)
-            coef = np.array(
-                mDict["polyCoeffs"].split(',')).astype(float)
-            IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
-            fig = plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
-                                        IArr=iarr[~idx],
-                                        qArr=qArr,
-                                        uArr=uArr,
+            if savePlots:
+                import matplotlib
+                matplotlib.use('Agg')
+                # if verbose:
+                #    print("Plotting the input data and spectral index fit.")
+                from RMutils.util_plotTk import plot_Ipqu_spectra_fig
+                from RMutils.util_misc import poly5
+
+                if noStokesI:
+                    IArr = np.ones_like(qarr[~idx])
+                    Ierr = np.zeros_like(qarr[~idx])
+                else:
+                    IArr = iarr[~idx]
+                    Ierr = rmsi[~idx]
+
+                IModArr, qArr, uArr, dqArr, duArr, fitDict = \
+                    create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
+                                        IArr=IArr,
+                                        QArr=qarr[~idx],
+                                        UArr=uarr[~idx],
                                         dIArr=Ierr,
-                                        dqArr=dqArr,
-                                        duArr=duArr,
-                                        freqHirArr_Hz=freqHirArr_Hz,
-                                        IModArr=IModHirArr,
-                                        fig=None,
-                                        units='Jy/beam')
-            plotname = f'{outdir}/plots/{cname}_specfig.png'
-            plt.savefig(plotname, dpi=75, bbox_inches='tight')
+                                        dQArr=rmsq[~idx],
+                                        dUArr=rmsu[~idx],
+                                        polyOrd=polyOrd,
+                                        verbose=False,
+                                        debug=False)
 
-            fdfFig = plt.figure(figsize=(12.0, 8))
-            plot_rmsf_fdf_fig(phiArr=aDict["phiArr_radm2"],
-                              FDF=aDict["dirtyFDF"],
-                              phi2Arr=aDict["phi2Arr_radm2"],
-                              RMSFArr=aDict["RMSFArr"],
-                              fwhmRMSF=mDict["fwhmRMSF"],
-                              vLine=mDict["phiPeakPIfit_rm2"],
-                              fig=fdfFig,
-                              units='Jy/beam')
-            plotname = f'{outdir}/plots/{cname}_FDFdirty.png'
-            plt.savefig(plotname, dpi=75, bbox_inches='tight')
+                freqHirArr_Hz = np.linspace(
+                    mDict['min_freq'], mDict['max_freq'], 10000)
+                coef = np.array(
+                    mDict["polyCoeffs"].split(',')).astype(float)
+                IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
+                fig = plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
+                                            IArr=iarr[~idx],
+                                            qArr=qArr,
+                                            uArr=uArr,
+                                            dIArr=Ierr,
+                                            dqArr=dqArr,
+                                            duArr=duArr,
+                                            freqHirArr_Hz=freqHirArr_Hz,
+                                            IModArr=IModHirArr,
+                                            fig=None,
+                                            units='Jy/beam')
+                plotname = f'{outdir}/plots/{cname}_specfig.png'
+                plt.savefig(plotname, dpi=75, bbox_inches='tight')
 
-        do_RMsynth_1D.saveOutput(
-            mDict, aDict, prefix, rm_verbose)
+                fdfFig = plt.figure(figsize=(12.0, 8))
+                plot_rmsf_fdf_fig(phiArr=aDict["phiArr_radm2"],
+                                  FDF=aDict["dirtyFDF"],
+                                  phi2Arr=aDict["phi2Arr_radm2"],
+                                  RMSFArr=aDict["RMSFArr"],
+                                  fwhmRMSF=mDict["fwhmRMSF"],
+                                  vLine=mDict["phiPeakPIfit_rm2"],
+                                  fig=fdfFig,
+                                  units='Jy/beam')
+                plotname = f'{outdir}/plots/{cname}_FDFdirty.png'
+                plt.savefig(plotname, dpi=75, bbox_inches='tight')
 
-        if database:
-            myquery = {"Component_ID": cname}
+            do_RMsynth_1D.saveOutput(
+                mDict, aDict, prefix, rm_verbose)
 
-            # Prep header
-            head_dict = dict(header)
-            head_dict.pop('', None)
-            head_dict['COMMENT'] = str(head_dict['COMMENT'])
+            if database:
+                myquery = {"Component_ID": cname}
 
-            newvalues = {
-                "$set": {
-                    f"rm1dfiles": {
-                        "FDF_dirty": f"{cname}_FDFdirty.dat",
-                        "RMSF": f"{cname}_RMSF.dat",
-                        "weights": f"{cname}_weight.dat",
-                        "summary_dat": f"{cname}_RMsynth.dat",
-                        "summary_json": f"{cname}_RMsynth.json",
-                    },
-                    f"rmsynth1d": True,
-                    "header": head_dict,
-                    f"rmsynth_summary": mDict
+                # Prep header
+                head_dict = dict(header)
+                head_dict.pop('', None)
+                head_dict['COMMENT'] = str(head_dict['COMMENT'])
+
+                newvalues = {
+                    "$set": {
+                        f"rm1dfiles": {
+                            "FDF_dirty": f"{cname}_FDFdirty.dat",
+                            "RMSF": f"{cname}_RMSF.dat",
+                            "weights": f"{cname}_weight.dat",
+                            "summary_dat": f"{cname}_RMsynth.dat",
+                            "summary_json": f"{cname}_RMsynth.json",
+                        },
+                        f"rmsynth1d": True,
+                        "header": head_dict,
+                        f"rmsynth_summary": mDict
+                    }
                 }
-            }
-            comp_col.update_one(myquery, newvalues)
+                comp_col.update_one(myquery, newvalues)
 
 
 @delayed
-def rmsythoncut_i(comp_id,
-                  freq,
-                  host,
-                  field,
-                  nSamples=5,
-                  phiMax_radm2=None,
-                  verbose=False,
-                  rm_verbose=False):
+def rmsynthoncut_i(comp_id,
+                   freq,
+                   host,
+                   field,
+                   nSamples=5,
+                   phiMax_radm2=None,
+                   verbose=False,
+                   rm_verbose=False):
     """RMsynth on Stokes I
 
     Args:
@@ -648,6 +660,35 @@ def main(field, outdir, host, client, dimension='1d', verbose=True,
     n_comp = comp_col.count_documents(query)
     n_island = isl_col.count_documents(query)
 
+    # Unset rmsynth in db
+    if dimension == '1d':
+        query = {
+            '$and': [
+                {
+                    'Source_ID': {'$in': island_ids}
+                },
+                {
+                    'rmsynth1d': True
+                }
+            ]
+        }
+
+        comp_col.update_many(query, {'$set': {'rmsynth1d': False}})
+
+    elif dimension == '3d':
+        query = {
+            '$and': [
+                {
+                    'Source_ID': {'$in': island_ids}
+                },
+                {
+                    'rmsynth3d': True
+                }
+            ]
+        }
+
+        isl_col.update(query, {'$set': {'rmsynth3d': False}})
+
     if limit is not None:
         count = limit
         n_comp = count
@@ -671,14 +712,14 @@ def main(field, outdir, host, client, dimension='1d', verbose=True,
             print(f'Running RMsynth on {n_comp} components')
         # We don't run this in parallel!
         for i, comp_id in enumerate(component_ids):
-            output = rmsythoncut_i(comp_id,
-                                   freq,
-                                   host,
-                                   field,
-                                   nSamples=nSamples,
-                                   phiMax_radm2=phiMax_radm2,
-                                   verbose=verbose,
-                                   rm_verbose=rm_verbose)
+            output = rmsynthoncut_i(comp_id,
+                                    freq,
+                                    host,
+                                    field,
+                                    nSamples=nSamples,
+                                    phiMax_radm2=phiMax_radm2,
+                                    verbose=verbose,
+                                    rm_verbose=rm_verbose)
             output.compute()
 
     elif dimension == '1d':
@@ -688,24 +729,24 @@ def main(field, outdir, host, client, dimension='1d', verbose=True,
             if i > n_comp+1:
                 break
             else:
-                output = rmsythoncut1d(comp_id,
-                                       outdir,
-                                       freq,
-                                       host,
-                                       field,
-                                       database=database,
-                                       polyOrd=polyOrd,
-                                       phiMax_radm2=phiMax_radm2,
-                                       dPhi_radm2=dPhi_radm2,
-                                       nSamples=nSamples,
-                                       weightType=weightType,
-                                       fitRMSF=fitRMSF,
-                                       noStokesI=noStokesI,
-                                       showPlots=showPlots,
-                                       savePlots=savePlots,
-                                       debug=debug,
-                                       rm_verbose=rm_verbose,
-                                       )
+                output = rmsynthoncut1d(comp_id,
+                                        outdir,
+                                        freq,
+                                        host,
+                                        field,
+                                        database=database,
+                                        polyOrd=polyOrd,
+                                        phiMax_radm2=phiMax_radm2,
+                                        dPhi_radm2=dPhi_radm2,
+                                        nSamples=nSamples,
+                                        weightType=weightType,
+                                        fitRMSF=fitRMSF,
+                                        noStokesI=noStokesI,
+                                        showPlots=showPlots,
+                                        savePlots=savePlots,
+                                        debug=debug,
+                                        rm_verbose=rm_verbose,
+                                        )
                 outputs.append(output)
 
     elif dimension == '3d':
@@ -716,19 +757,19 @@ def main(field, outdir, host, client, dimension='1d', verbose=True,
             if i > n_island+1:
                 break
             else:
-                output = rmsythoncut3d(island_id,
-                                       freq,
-                                       host,
-                                       field,
-                                       database=database,
-                                       phiMax_radm2=phiMax_radm2,
-                                       dPhi_radm2=dPhi_radm2,
-                                       nSamples=nSamples,
-                                       weightType=weightType,
-                                       fitRMSF=fitRMSF,
-                                       not_RMSF=not_RMSF,
-                                       rm_verbose=rm_verbose
-                                       )
+                output = rmsynthoncut3d(island_id,
+                                        freq,
+                                        host,
+                                        field,
+                                        database=database,
+                                        phiMax_radm2=phiMax_radm2,
+                                        dPhi_radm2=dPhi_radm2,
+                                        nSamples=nSamples,
+                                        weightType=weightType,
+                                        fitRMSF=fitRMSF,
+                                        not_RMSF=not_RMSF,
+                                        rm_verbose=rm_verbose
+                                        )
                 outputs.append(output)
 
     results = client.persist(outputs)
@@ -843,7 +884,7 @@ def cli():
     args = parser.parse_args()
     verbose = args.verbose
 
-    cluster = LocalCluster(n_workers=20)
+    cluster = LocalCluster(n_workers=20, dashboard_address=':9999')
     client = Client(cluster)
 
     host = args.host
