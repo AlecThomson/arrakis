@@ -38,7 +38,7 @@ def main(args):
                                'module load askapsoft'
                                'unset PYTHONPATH',
                                'source /home/$(whoami)/.bashrc',
-                               'conda activate base'
+                               'conda activate spice'
                            ],
                            dashboard_address=":9999",
                            python='srun -n 1 -c 20 python',
@@ -167,7 +167,10 @@ def cli():
 
     descStr = f"""
     {logostr}
-    SPICE-RACS
+    SPICE-RACS pipeline.
+
+    Before running make sure to start a session of mongodb e.g.
+        $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
 
     """
 

@@ -13,7 +13,7 @@ export OMP_NUM_THREADS=1
 module load askapsoft
 unset PYTHONPATH
 source /home/$(whoami)/.bashrc
-conda activate base
+conda activate spice
 
 
 cd /group/askap/athomson/projects/spiceracs/testing_april_2021
