@@ -268,6 +268,8 @@ def main(field,
 
     outputs = []
     if dimension == '1d':
+        if verbose:
+            print(f'Running RM-CLEAN on {n_comp} components')
         for i, comp_id in enumerate(component_ids):
             if i > n_comp+1:
                 break
@@ -299,10 +301,10 @@ def main(field,
                                    gain=gain,
                                    rm_verbose=rm_verbose)
                 outputs.append(output)
-
+                
     results = client.persist(outputs)
     if verbose:
-        print("Running RMsynth...")
+        print("Running RM-CLEAN...")
     progress(results)
 
     if verbose:
