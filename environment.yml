@@ -24,4 +24,5 @@ dependencies:
   - tqdm
   - configargparse
   - spectral_cube
+  - RM-Tools
   - -rrequirements.txt
