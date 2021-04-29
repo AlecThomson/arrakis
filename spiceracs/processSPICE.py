@@ -25,36 +25,8 @@ def main(args):
     rmclean_task = task(rmclean_oncuts.main, name='RM-CLEAN')
     cat_task = task(makecat.main, name='Catalogue')
 
-    # Set up for Galaxy
-    cluster = SLURMCluster(cores=20,
-                           memory="60GB",
-                           project='askap',
-                           queue='workq',
-                           walltime='12:00:00',
-                           job_extra=['-M galaxy'],
-                           interface="ipogif0",
-                           log_directory='logs',
-                           env_extra=[
-                               'module load askapsoft'
-                               'unset PYTHONPATH',
-                               'source /home/$(whoami)/.bashrc',
-                               'conda activate spice'
-                           ],
-                           dashboard_address=":9999",
-                           python='srun -n 1 -c 20 python',
-                           )
-    # Set up for Zeus
-    # cluster = SLURMCluster(cores=28,
-    #                     memory="120GB",
-    #                     project='askaprt',
-    #                     queue='workq',
-    #                     walltime='12:00:00',
-    #                     job_extra=['-M zeus'],
-    #                     interface='ib0',
-    #                     log_directory='logs',
-    #                     env_extra=['module load askapsoft'],
-    #                     dashboard_address=":9999"
-    #                     )
+    # Set up for Galaxy in dask/jobqueue.yaml
+    cluster = SLURMCluster(scheduler_options={"dashboard_address": f":{9999}"})
 
     # Request up to 20 nodes
     cluster.adapt(minimum=0, maximum=20)

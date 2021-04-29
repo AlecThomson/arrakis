@@ -1,0 +1,19 @@
+# Galaxy configuration
+jobqueue:
+  slurm:
+    name: 'spice-worker'
+    cores: 20
+    memory: 60GB
+    project: askap
+    queue: workq
+    walltime: '12:00:00'
+    job-extra: ['-M galaxy']
+    interface: "ipogif0"
+    log-directory: 'logs'
+    env-extra: [
+        'module load askapsoft',
+        'unset PYTHONPATH',
+        'source /home/$(whoami)/.bashrc',
+        'conda activate spice'
+    ]
+    python: 'srun -n 1 -c 20 python'
