@@ -11,7 +11,6 @@ import functools
 import psutil
 import shlex
 import subprocess
-import schwimmbad
 import json
 import time
 from tqdm import tqdm, trange
