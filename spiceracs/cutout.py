@@ -20,11 +20,13 @@ import numpy as np
 from astropy.coordinates import SkyCoord, search_around_sky
 from astropy import units as u
 from astropy.wcs import WCS
+from astropy.wcs.utils import skycoord_to_pixel
 from astropy.io import fits
 import sys
 import os
 from glob import glob
 from astropy.table import Table, vstack
+from astropy.coordinates import SkyCoord, Longitude, Latitude
 from spiceracs.utils import getdata, MyEncoder
 from astropy.utils import iers
 import astropy.units as u
@@ -63,24 +65,36 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
 
     # Don't know why this is required
     # Dask breaks without it...
-    ra_lo = ra_lo.value*u.arcsec
-    ra_hi = ra_hi.value*u.arcsec
-    dec_lo = dec_lo.value*u.arcsec
-    dec_hi = dec_hi.value*u.arcsec
+    # ra_lo = ra_lo.value*u.arcsec
+    # ra_hi = ra_hi.value*u.arcsec
+    # dec_lo = dec_lo.value*u.arcsec
+    # dec_hi = dec_hi.value*u.arcsec
 
-    xlo = ra_lo - padder
-    xhi = ra_hi + padder
-    ylo = dec_lo  - padder
-    yhi = dec_hi  + padder
+    # xlo = np.sign(ra_lo) * (np.abs(ra_lo) + padder) #ra_lo - padder
+    # xhi = np.sign(ra_hi) * (np.abs(ra_hi) + padder) #ra_hi + padder
+    # ylo = np.sign(dec_lo) * (np.abs(dec_lo) + padder) #dec_lo  - padder
+    # yhi = np.sign(dec_hi) * (np.abs(dec_hi) + padder) #dec_hi  + padder
 
+    xlo = Longitude(ra_lo*u.deg) - Longitude(padder)
+    xhi = Longitude(ra_hi*u.deg) + Longitude(padder)
+    ylo = Latitude(dec_lo*u.deg) - Latitude(padder)
+    yhi = Latitude(dec_hi*u.deg) + Latitude(padder)
 
-    cutout = cube.subcube(xlo=xlo,
-                          xhi=xhi,
-                          ylo=ylo,
-                          yhi=yhi,
-                          )                 
+    xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
+    xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
+    cutout_cube = cube[
+        :,
+        int(np.floor(yp_lo)):int(np.ceil(yp_hi)),
+        int(np.floor(xp_hi)):int(np.ceil(xp_lo))
+    ]
+
+    # cutout_cube = cube.subcube(xlo=xlo.deg*u.deg,
+    #                       xhi=xhi.deg*u.deg,
+    #                       ylo=ylo.deg*u.deg,
+    #                       yhi=yhi.deg*u.deg,
+    #                       )
     if not dryrun:
-        cutout.write(outfile, overwrite=True)
+        cutout_cube.write(outfile, overwrite=True)
         if verbose:
             print(f'Written to {outfile}')
 
@@ -91,13 +105,18 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
     if verbose:
         print(f'Reading {image}')
     cube = SpectralCube.read(image)
-    cutout = cube.subcube(xlo=xlo,
-                          xhi=xhi,
-                          ylo=ylo,
-                          yhi=yhi,
-                          )
+    cutout_cube = cube[
+        :,
+        int(np.floor(yp_lo)):int(np.ceil(yp_hi)),
+        int(np.floor(xp_hi)):int(np.ceil(xp_lo))
+    ]
+    # cutout_cube = cube.subcube(xlo=xlo.deg*u.deg,
+    #                       xhi=xhi.deg*u.deg,
+    #                       ylo=ylo.deg*u.deg,
+    #                       yhi=yhi.deg*u.deg,
+    #                       )
     if not dryrun:
-        cutout.write(outfile, overwrite=True)
+        cutout_cube.write(outfile, overwrite=True)
         if verbose:
             print(f'Written to {outfile}')
 
@@ -146,11 +165,32 @@ def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=Tru
     ras = ras * u.deg
     decs = decs * u.deg
     majs = majs * u.arcsec
+    coords = SkyCoord(ras, decs)
 
-    ra_hi = (majs[np.argmax(ras)] + np.max(ras)).to(u.arcsec)
-    ra_lo = (np.min(ras) - majs[np.argmin(ras)]).to(u.arcsec)
-    dec_hi = (majs[np.argmax(decs)] + np.max(decs)).to(u.arcsec)
-    dec_lo = (np.min(decs) - majs[np.argmin(decs)]).to(u.arcsec)
+    # ra_hi = (majs[np.argmax(ras)] + np.max(ras)).to(u.arcsec)
+    # ra_lo = (np.min(ras) - majs[np.argmin(ras)]).to(u.arcsec)
+    # dec_hi = (majs[np.argmax(decs)] + np.max(decs)).to(u.arcsec)
+    # dec_lo = (np.min(decs) - majs[np.argmin(decs)]).to(u.arcsec)
+
+    ra_max = np.max(coords.ra)
+    ra_i_max = np.argmax(coords.ra)
+    ra_off = Longitude(majs[ra_i_max])
+    ra_hi = ra_max + ra_off
+
+    ra_min = np.min(coords.ra)
+    ra_i_min = np.argmin(coords.ra)
+    ra_off = Longitude(majs[ra_i_min])
+    ra_lo = ra_min - ra_off
+
+    dec_max = np.max(coords.dec)
+    dec_i_max = np.argmax(coords.dec)
+    dec_off = Longitude(majs[dec_i_max])
+    dec_hi = dec_max + dec_off
+
+    dec_min = np.min(coords.dec)
+    dec_i_min = np.argmin(coords.dec)
+    dec_off = Longitude(majs[dec_i_min])
+    dec_lo = dec_min - dec_off
 
     args = []
     for beam_num in beam_list:
@@ -161,10 +201,10 @@ def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=Tru
                 {
                     'image': image,
                     'id': island['Source_ID'],
-                    'ra_hi': ra_hi,
-                    'ra_lo': ra_lo,
-                    'dec_hi': dec_hi,
-                    'dec_lo': dec_lo,
+                    'ra_hi': ra_hi.deg,
+                    'ra_lo': ra_lo.deg,
+                    'dec_hi': dec_hi.deg,
+                    'dec_lo': dec_lo.deg,
                     'outdir': outdir,
                 }
             ]
@@ -279,7 +319,7 @@ def main(args, verbose=True):
     Arguments:
         args {[type]} -- commandline args
     """
-    cluster = LocalCluster(n_workers=20)
+    cluster = LocalCluster(n_workers=20, dashboard_address=":9999")
     client = Client(cluster)
     cutout_islands(args.field,
                    args.datadir,
@@ -333,7 +373,6 @@ def cli():
         metavar='field',
         type=str,
         help='Name of field (e.g. 2132-50A).')
-
 
     parser.add_argument(
         'datadir',
