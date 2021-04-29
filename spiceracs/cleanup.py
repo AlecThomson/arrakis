@@ -2,6 +2,7 @@
 import os
 from glob import glob
 import dask
+from IPython import embed
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
@@ -11,7 +12,7 @@ from dask.diagnostics import ProgressBar
 def cleanup(workdir, stoke):
     # Clean up beam images
     old_files = glob(
-        f'{workdir}/*.cutout.*.{stoke.lower()}.*beam[00..36]*.fits')
+        f'{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits')
     for old in old_files:
         os.remove(old)
 
@@ -35,6 +36,7 @@ def main(datadir, client, stokeslist=None, verbose=True):
     cutdir = f"{datadir}/cutouts"
     files = sorted([name for name in glob(
         f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
+
 
     outputs = []
     for file in files:
