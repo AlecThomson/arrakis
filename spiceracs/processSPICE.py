@@ -25,12 +25,37 @@ def main(args):
     rmclean_task = task(rmclean_oncuts.main, name='RM-CLEAN')
     cat_task = task(makecat.main, name='Catalogue')
 
-    # Set up for Galaxy in dask/jobqueue.yaml
-    cluster = SLURMCluster(scheduler_options={"dashboard_address": f":{9999}"})
+    # Set up for Galaxy
+    cluster = SLURMCluster(
+        cores=20,
+        # processes=1,
+        name='spice-worker',
+        memory="60GB",
+        project='askap',
+        queue='workq',
+        walltime='12:00:00',
+        job_extra=['-M galaxy'],
+        interface="ipogif0",
+        log_directory='logs',
+        env_extra=[
+            'module unload askapsoft',
+            'module load askapsoft/1.1.0',
+            'unset PYTHONPATH',
+            'source /home/$(whoami)/.bashrc',
+            'conda activate spice'
+        ],
+        scheduler_options={"dashboard_address": f":{9999}"},
+        # dashboard_address=":9999",
+        python='srun -n 1 -c 20 python',
+        # python='srun -n 20 python',
+        # nanny=False
+    )
+    # cluster = SLURMCluster(scheduler_options={"dashboard_address": f":{9999}"})
+    print('Submitted scripts will look like: \n', cluster.job_script())
 
     # Request up to 20 nodes
-    cluster.adapt(minimum=0, maximum=20)
-    # cluster.scale(20)
+    # cluster.adapt(minimum=0, maximum=20)
+    cluster.scale(20)
     # cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
 
@@ -56,7 +81,7 @@ def main(args):
                               prefix="",
                               stokeslist=["I", "Q", "U"],
                               verbose=True,
-                              upstream_tasks=[cuts]
+                            #   upstream_tasks=[cuts]
                               )
         # tidy = cleanup_task(datadir=args.datadir,
         #                     client=client,
@@ -85,7 +110,7 @@ def main(args):
                                   not_RMSF=args.not_RMSF,
                                   rm_verbose=args.rm_verbose,
                                   debug=args.debug,
-                                #   upstream_tasks=[tidy]
+                                  #   upstream_tasks=[tidy]
                                   upstream_tasks=[mosaics]
                                   )
         clean_spec = rmclean_task(field=args.field,
