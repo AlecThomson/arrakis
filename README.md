@@ -18,11 +18,7 @@ conda activate spice
 ```
 
 ### Parallelisation
-Dask is used for parallelisation and job submission. The pipeline is currently configured for the `galaxy` supercomputer at Pawsey, which uses a Slurm job manager. This configuration lives in YAML file in `spiceracs/dask/jobqueue.yaml`. Either use this as is for galaxy, or add your own configuration by editing the file (see the dask [docs](https://jobqueue.dask.org/en/latest/configuration.html)). Then export this environment varible to let dask find the file:
-```
-export DASK_ROOT_CONFIG=/path/to/spiceracs/dask
-```
-You may wish to simply put this line in your `~/.bashrc`. If you use a machine with scheduler other than Slurm, you'll also need to edit the `cluster` variable in `spiceracs/processSPICE.py`. See [dask-jobqueue](https://jobqueue.dask.org/) for the available alternatives and documentation.
+Dask is used for parallelisation and job submission. The pipeline is currently configured for the `galaxy` supercomputer at Pawsey, which uses a Slurm job manager. This configuration is specicfied by the `cluster` variable in `spiceracs/processSPICE.py`. Either use this as is for galaxy, or add your own configuration by editing the variable (see the dask-jobqueue [docs](https://jobqueue.dask.org/en/latest/configuration.html)).
 
 ## Getting started
 First you must initialise the SPICE-RACS database using MongoDB and the RACS catalogues. For example, you can start mongo using (for NUMA systems):
