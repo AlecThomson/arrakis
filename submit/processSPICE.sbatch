@@ -10,7 +10,8 @@
 
 export OMP_NUM_THREADS=1
 
-module load askapsoft
+module unload askapsoft
+module load askapsoft/1.1.0
 unset PYTHONPATH
 source /home/$(whoami)/.bashrc
 conda activate spice
@@ -30,4 +31,4 @@ echo $host
 database=/group/askap/athomson/projects/spiceracs/spiceracsDB
 numactl --interleave=all mongod --dbpath=$database --bind_ip $host >> /dev/null &
 
-processSPICE 1600-50A /home/athomson/athomson/projects/spiceracs/testing_april_2021/1600-50A $host --config test_config.txt
+srun processSPICE 1600-50A /home/athomson/athomson/projects/spiceracs/testing_april_2021/1600-50A $host --config test_config.txt
