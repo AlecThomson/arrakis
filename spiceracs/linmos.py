@@ -29,7 +29,7 @@ def gen_seps(field, scriptdir):
         Table: Separation table
     """
     # get offsets
-    offsets = Table.read(f'{scriptdir}/../askap_surveys/racs/offsets.csv')
+    offsets = Table.read(f'{scriptdir}/../askap_surveys/racs_low_offsets.csv')
     offsets.add_index('Beam')
 
     master_cat = Table.read(
@@ -72,13 +72,14 @@ def gen_seps(field, scriptdir):
             f"{dec_field.d:02.0f}:{abs(dec_field.m):02.0f}:{abs(dec_field.s):05.2f}",
         ]
         cols += [row]
-    tab = Table(data=np.array(cols), names=names, dtype=[int, str,str,str,str,str,str])
+    tab = Table(data=np.array(cols), names=names, dtype=[
+                int, str, str, str, str, str, str])
     tab.add_index("BEAM")
     return tab
 
 
 @delayed
-def genparset(field, stoke, datadir, septab, prefix=""):
+def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
     """Generate parset for LINMOS
 
     Args:
@@ -91,15 +92,23 @@ def genparset(field, stoke, datadir, septab, prefix=""):
     Raises:
         Exception: If no files are found in the datadir
     """
-    ims = sorted(
-        glob(
-            f"{datadir}/*.cutout.image.restored.{stoke.lower()}.*.beam*[00-35.conv.fits]"
-        )
-    )
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
+        # default connection (ie, local)
+        mydb = dbclient['spiceracs']  # Create/open database
+        beams_col = mydb['beams']  # Create/open collection
+            # Update database
+    myquery = {
+        "Source_ID": src_name
+    }
+    beams = beams_col.find_one(myquery)['beams'][field]
+    ims = []
+    for bm in beams['beam_list']:
+        imfile = beams[f'{stoke.lower()}_beam{bm}_image_file']
+        assert os.path.dirname(imfile) == datadir, "Looking in wrong directory!"
+        ims.append(imfile)
+    ims = sorted(ims)
+
     if len(ims) == 0:
-        print(
-            f"{datadir}/*.cutout.image.restored.{stoke.lower()}.*.beam*[00-35.conv.fits]"
-        )
         raise Exception(
             'No files found. Have you run imaging? Check your prefix?')
     imlist = "["
@@ -107,11 +116,15 @@ def genparset(field, stoke, datadir, septab, prefix=""):
         imlist += im.replace(".fits", "") + ","
     imlist = imlist[:-1] + "]"
 
-    wgts = sorted(
-        glob(
-            f"{datadir}/*.weights.{stoke.lower()}.*.beam*[00-35.fits]"
-        )
-    )
+    wgts = []
+    for bm in beams['beam_list']:
+        wgtsfile = beams[f'{stoke.lower()}_beam{bm}_weight_file']
+        assert os.path.dirname(wgtsfile) == datadir, "Looking in wrong directory!"
+        wgts.append(wgtsfile)
+    wgts = sorted(wgts)
+
+    assert len(ims) == len(wgts), 'Unequal number of weights and images'
+
     weightlist = "["
     for wgt in wgts:
         weightlist += wgt.replace(".fits", "") + ","
@@ -166,12 +179,12 @@ def linmos(parset, fieldname, host, verbose=False):
     with open(log, 'w') as f:
         f.write(output.stdout.decode("utf-8"))
 
-
     new_file = glob(
         f'{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits'
-        )
+    )
 
-    assert len(new_file) == 1, "LINMOS file not found!"
+    if len(new_file) != 1:
+        raise Exception("LINMOS file not found!")
 
     if verbose:
         print(f'Cube now in {new_file[0]}')
@@ -209,27 +222,45 @@ def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None,
             datadir = datadir[:-1]
 
     cutdir = f"{datadir}/cutouts"
-    files = sorted([name for name in glob(f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
+
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
+        # default connection (ie, local)
+        mydb = dbclient['spiceracs']  # Create/open database
+        beams_col = mydb['beams']  # Create/open collection
+
+    # Query the DB
+    query = {
+        '$and':  [
+            {f'beams.{field}': {'$exists': True}},
+            {f'beams.{field}.DR1': True}
+        ]
+    }
+
+    island_ids = sorted(beams_col.distinct('Source_ID', query))
+
+    # files = sorted([name for name in glob(f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
 
     parfiles = []
-    for file in files:
-        if os.path.basename(file) == 'slurmFiles':
-            continue
+    for src in island_ids:
         for stoke in stokeslist:
-            parfile = genparset(field, stoke.capitalize(),
-                                file, beamseps, prefix=prefix)
+            parfile = genparset(field=field,
+                                src_name=src,
+                                stoke=stoke.capitalize(),
+                                datadir=f"{cutdir}/{src}",
+                                septab=beamseps,
+                                host=host,
+                                prefix=prefix
+                                )
             parfiles.append(parfile)
 
     results = []
     for parset in parfiles:
         results.append(linmos(parset, field, host, verbose=True))
 
-
     results = client.persist(results)
     if verbose:
-            print("Running LINMOS...")
+        print("Running LINMOS...")
     progress(results)
-
 
     print('LINMOS Done!')
 
@@ -306,7 +337,7 @@ def cli():
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(n_workers=20)
+    cluster = LocalCluster(n_workers=1)
     client = Client(cluster)
 
     verbose = args.verbose
