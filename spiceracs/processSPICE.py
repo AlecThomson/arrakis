@@ -14,7 +14,19 @@ from dask.diagnostics import ProgressBar
 from dask import delayed
 from IPython import embed
 from time import sleep
+import subprocess
+import shlex
 
+def port_forward(port, target):
+    """Forward ports to local host
+
+    Args:
+        port (int): port to forward
+        target (str): Target host
+    """    
+    cmd = f"ssh -N -f -R {port}:localhost:{port} {target}"
+    command = shlex.split(cmd)
+    output = subprocess.Popen(command)
 
 def main(args):
     host = args.host
@@ -28,7 +40,7 @@ def main(args):
     # Set up for Galaxy
     cluster = SLURMCluster(
         cores=20,
-        # processes=1,
+        processes=20,
         name='spice-worker',
         memory="60GB",
         project='askap',
@@ -36,7 +48,7 @@ def main(args):
         walltime='12:00:00',
         job_extra=['-M galaxy'],
         interface="ipogif0",
-        log_directory='logs',
+        log_directory='spice_logs',
         env_extra=[
             'module unload askapsoft',
             'module load askapsoft/1.1.0',
@@ -44,20 +56,64 @@ def main(args):
             'source /home/$(whoami)/.bashrc',
             'conda activate spice'
         ],
-        scheduler_options={"dashboard_address": f":{9999}"},
+        scheduler_options={"dashboard_address": f":{args.port}"},
         # dashboard_address=":9999",
         python='srun -n 1 -c 20 python',
+        extra=[
+            "--lifetime", "11h",
+        "--lifetime-stagger", "5m",
+        # "--nthreads", "20"
+        ]
         # python='srun -n 20 python',
         # nanny=False
     )
+
+    # # Set up for Magnus
+    # cluster = SLURMCluster(
+    #     cores=24,
+    #     # processes=24,
+    #     name='spice-worker',
+    #     memory="60GB",
+    #     project='ja3',
+    #     queue='workq',
+    #     walltime='12:00:00',
+    #     job_extra=['-M magnus'],
+    #     interface="ipogif0",
+    #     log_directory='spice_logs',
+    #     env_extra=[
+    #         'module unload askapsoft',
+    #         'module load askapsoft/1.1.0',
+    #         'unset PYTHONPATH',
+    #         'source /home/$(whoami)/.bashrc',
+    #         'conda activate spice'
+    #     ],
+    #     scheduler_options={"dashboard_address": f":{args.port}"},
+    #     # dashboard_address=":9999",
+    #     python='srun -n 1 -c 24 python',
+    #     extra=[
+    #         "--lifetime", "11h",
+    #         "--lifetime-stagger", "5m",
+    #     # "--nthreads", "20"
+    #     ]
+    #     # python='srun -n 20 python',
+    #     # nanny=False
+    # )
+
     # cluster = SLURMCluster(scheduler_options={"dashboard_address": f":{9999}"})
     print('Submitted scripts will look like: \n', cluster.job_script())
 
-    # Request up to 20 nodes
-    # cluster.adapt(minimum=0, maximum=20)
-    cluster.scale(20)
+    # # Request up to 20 nodes
+    # cluster.adapt(minimum_jobs=1,maximum_jobs=10)
+    cluster.scale(jobs=20)
+    # cluster = LocalCluster(n_workers=20, dashboard_address=f":{args.port}")
+    # cluster.scale(jobs=10)
     # cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
+
+
+    # Forward ports on galaxy
+    port_forward(args.port, 'galaxy-1')
+    port_forward(args.port, 'galaxy-2')
 
     # Prin out Dask client info
     print(client.scheduler_info()['services'])
@@ -70,6 +126,7 @@ def main(args):
                         client,
                         verbose=args.verbose,
                         pad=args.pad,
+                        stokeslist=["I", "Q", "U"],
                         verbose_worker=args.verbose_worker,
                         dryrun=args.dryrun
                         )
@@ -81,7 +138,7 @@ def main(args):
                               prefix="",
                               stokeslist=["I", "Q", "U"],
                               verbose=True,
-                            #   upstream_tasks=[cuts]
+                              upstream_tasks=[cuts]
                               )
         # tidy = cleanup_task(datadir=args.datadir,
         #                     client=client,
@@ -195,6 +252,13 @@ def cli():
         metavar='host',
         type=str,
         help='Host of mongodb (probably $hostname -i).')
+
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=9999,
+        help="Port to run Dask dashboard on."
+    )
 
     options = parser.add_argument_group("output options")
     options.add_argument(
