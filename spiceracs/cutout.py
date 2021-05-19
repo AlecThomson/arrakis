@@ -36,7 +36,21 @@ warnings.filterwarnings(
 
 
 @delayed
-def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose=False, dryrun=False):
+def cutout(image,
+           src_name,
+           beam,
+           ra_hi,
+           ra_lo,
+           dec_hi,
+           dec_lo,
+           outdir,
+           stoke,
+           host,
+           field,
+           pad=3,
+           verbose=False,
+           dryrun=False
+           ):
     """Cutout a source from a given image.
 
     Arguments:
@@ -52,6 +66,10 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
         verbose {bool} -- Verbose output (default: {False})
         dryrun {bool} -- Do everything except the cutout (default: {True})
     """
+    with pymongo.MongoClient(host=host, connect=False) as dbclient:
+        mydb = dbclient['spiceracs']  # Create/open database
+        beams_col = mydb['beams']  # Create/open collection
+
     if verbose:
         print(f'Reading {image}')
     if outdir[-1] == '/':
@@ -81,6 +99,7 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
 
     xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
     xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
+
     cutout_cube = cube[
         :,
         int(np.floor(yp_lo)):int(np.ceil(yp_hi)),
@@ -93,9 +112,27 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
     #                       yhi=yhi.deg*u.deg,
     #                       )
     if not dryrun:
-        cutout_cube.write(outfile, overwrite=True)
+        fits.writeto(outfile,
+                     cutout_cube.unmasked_data[:].value,
+                     header=cutout_cube.header,
+                     overwrite=True
+                     )
+        # cutout_cube.write(outfile, overwrite=True)
         if verbose:
             print(f'Written to {outfile}')
+
+        # Update database
+        myquery = {
+            "Source_ID": src_name
+        }
+        newvalues = {
+            "$set":
+            {
+                f"beams.{field}.{stoke}_beam{beam}_image_file": outfile
+            }
+        }
+
+        beams_col.update_one(myquery, newvalues, upsert=True)
 
     image = image.replace('image.restored', 'weights').replace(
         '.conv.fits', '.fits')
@@ -115,15 +152,41 @@ def cutout(image, src_name, ra_hi, ra_lo, dec_hi, dec_lo, outdir, pad=3, verbose
     #                       yhi=yhi.deg*u.deg,
     #                       )
     if not dryrun:
-        cutout_cube.write(outfile, overwrite=True)
+        fits.writeto(outfile,
+                     cutout_cube.unmasked_data[:].value,
+                     header=cutout_cube.header,
+                     overwrite=True
+                     )
+        # cutout_cube.write(outfile, overwrite=True)
         if verbose:
             print(f'Written to {outfile}')
+
+        # Update database
+        myquery = {
+            "Source_ID": src_name
+        }
+        newvalues = {
+            "$set":
+            {
+                f"beams.{field}.{stoke}_beam{beam}_weight_file": outfile
+            }
+        }
+
+        beams_col.update_one(myquery, newvalues, upsert=True)
 
     return src_name
 
 
 @delayed
-def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=True):
+def get_args(island,
+             comps,
+             beam,
+             island_id,
+             outdir,
+             field,
+             datadir,
+             stokeslist,
+             verbose=True):
     """[summary]
 
     Args:
@@ -193,21 +256,30 @@ def get_args(island, comps, beam, island_id, outdir, field, datadir, verbose=Tru
 
     args = []
     for beam_num in beam_list:
-        images = glob(
-            f'{datadir}/image.restored*contcube*beam{beam_num:02}.conv.fits')
-        for image in images:
-            args.extend([
-                {
-                    'image': image,
-                    'id': island['Source_ID'],
-                    'ra_hi': ra_hi.deg,
-                    'ra_lo': ra_lo.deg,
-                    'dec_hi': dec_hi.deg,
-                    'dec_lo': dec_lo.deg,
-                    'outdir': outdir,
-                }
-            ]
+        for stoke in stokeslist:
+            wild = f'{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits'
+            images = glob(
+                wild
             )
+            if len(images) == 0:
+                raise Exception(
+                    f"No images found matching '{wild}'"
+                )
+            for image in images:
+                args.extend([
+                    {
+                        'image': image,
+                        'id': island['Source_ID'],
+                        'ra_hi': ra_hi.deg,
+                        'ra_lo': ra_lo.deg,
+                        'dec_hi': dec_hi.deg,
+                        'dec_lo': dec_lo.deg,
+                        'outdir': outdir,
+                        'beam': beam_num,
+                        'stoke': stoke.lower()
+                    }
+                ]
+                )
     return args
 
 
@@ -231,7 +303,17 @@ def unpack(list_sq):
     return list_fl
 
 
-def cutout_islands(field, directory, host, client, verbose=True, pad=3, verbose_worker=False, dryrun=True):
+def cutout_islands(field,
+                   directory,
+                   host,
+                   client,
+                   verbose=True,
+                   pad=3,
+                   stokeslist=None,
+                   verbose_worker=False,
+                   dryrun=True):
+    if stokeslist is None:
+        stokeslist = ["I", "Q", "U", "V"]
     if verbose:
         print(f"Client is {client}")
     if directory[-1] == '/':
@@ -280,6 +362,7 @@ def cutout_islands(field, directory, host, client, verbose=True, pad=3, verbose_
             outdir,
             field,
             directory,
+            stokeslist,
             verbose=verbose_worker,
         )
         args.append(arg)
@@ -293,13 +376,17 @@ def cutout_islands(field, directory, host, client, verbose=True, pad=3, verbose_
     cuts = []
     for arg in flat_args:
         cut = cutout(
-            arg['image'],
-            arg['id'],
-            arg['ra_hi'],
-            arg['ra_lo'],
-            arg['dec_hi'],
-            arg['dec_lo'],
-            arg['outdir'],
+            image=arg['image'],
+            src_name=arg['id'],
+            beam=arg['beam'],
+            ra_hi=arg['ra_hi'],
+            ra_lo=arg['ra_lo'],
+            dec_hi=arg['dec_hi'],
+            dec_lo=arg['dec_lo'],
+            outdir=arg['outdir'],
+            stoke=arg['stoke'],
+            host=host,
+            field=field,
             pad=pad,
             verbose=verbose_worker,
             dryrun=dryrun
@@ -326,6 +413,7 @@ def main(args, verbose=True):
                    client,
                    verbose=verbose,
                    pad=args.pad,
+                   stokeslist=args.stokeslist,
                    verbose_worker=args.verbose_worker,
                    dryrun=args.dryrun)
 
@@ -410,6 +498,14 @@ def cli():
         dest="dryrun",
         action="store_true",
         help="Do a dry-run [False]."
+    )
+    parser.add_argument(
+        "-s",
+        "--stokes",
+        dest="stokeslist",
+        nargs='+',
+        type=str,
+        help="List of Stokes parameters to image [ALL]",
     )
 
     args = parser.parse_args()
