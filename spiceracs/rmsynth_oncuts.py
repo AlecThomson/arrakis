@@ -237,7 +237,7 @@ def estimate_noise_annulus(x_center, y_center, cube):
         #    embed
         err[i] = np.ma.median(np.ma.fabs(
             noisepix - np.ma.median(noisepix))) / 0.6745
-    err[err==0] = np.nan        
+    err[err == 0] = np.nan
     return err
     # except np.ma.core.MaskError:
     #     print('Too many NaNs in cutout - skipping...')
@@ -263,6 +263,7 @@ def rmsynthoncut1d(comp_id,
                    savePlots=False,
                    debug=False,
                    rm_verbose=False,
+                   fit_function='log'
                    ):
     """1D RM synthesis
 
@@ -387,75 +388,82 @@ def rmsynthoncut1d(comp_id,
             # Run 1D RM-synthesis on the spectra
             np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
             mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                    polyOrd=polyOrd,
-                                                    phiMax_radm2=phiMax_radm2,
-                                                    dPhi_radm2=dPhi_radm2,
-                                                    nSamples=nSamples,
-                                                    weightType=weightType,
-                                                    fitRMSF=fitRMSF,
-                                                    noStokesI=noStokesI,
-                                                    nBits=32,
-                                                    showPlots=showPlots,
-                                                    verbose=rm_verbose,
-                                                    debug=debug)
+                                                     polyOrd=polyOrd,
+                                                     phiMax_radm2=phiMax_radm2,
+                                                     dPhi_radm2=dPhi_radm2,
+                                                     nSamples=nSamples,
+                                                     weightType=weightType,
+                                                     fitRMSF=fitRMSF,
+                                                     noStokesI=noStokesI,
+                                                     nBits=32,
+                                                     showPlots=showPlots,
+                                                     verbose=rm_verbose,
+                                                     debug=debug,
+                                                     fit_function=fit_function
+                                                     )
 
             if savePlots:
-                import matplotlib
-                matplotlib.use('Agg')
-                # if verbose:
-                #    print("Plotting the input data and spectral index fit.")
-                from RMutils.util_plotTk import plot_Ipqu_spectra_fig
-                from RMutils.util_misc import poly5
+                try:
+                    import matplotlib
+                    matplotlib.use('Agg')
+                    # if verbose:
+                    #    print("Plotting the input data and spectral index fit.")
+                    from RMutils.util_plotTk import plot_Ipqu_spectra_fig
+                    from RMutils.util_misc import poly5
 
-                if noStokesI:
-                    IArr = np.ones_like(qarr[~idx])
-                    Ierr = np.zeros_like(qarr[~idx])
-                else:
-                    IArr = iarr[~idx]
-                    Ierr = rmsi[~idx]
+                    if noStokesI:
+                        IArr = np.ones_like(qarr[~idx])
+                        Ierr = np.zeros_like(qarr[~idx])
+                    else:
+                        IArr = iarr[~idx]
+                        Ierr = rmsi[~idx]
 
-                IModArr, qArr, uArr, dqArr, duArr, fitDict = \
-                    create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
-                                        IArr=IArr,
-                                        QArr=qarr[~idx],
-                                        UArr=uarr[~idx],
-                                        dIArr=Ierr,
-                                        dQArr=rmsq[~idx],
-                                        dUArr=rmsu[~idx],
-                                        polyOrd=polyOrd,
-                                        verbose=False,
-                                        debug=False)
-
-                freqHirArr_Hz = np.linspace(
-                    mDict['min_freq'], mDict['max_freq'], 10000)
-                coef = np.array(
-                    mDict["polyCoeffs"].split(',')).astype(float)
-                IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
-                fig = plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
-                                            IArr=iarr[~idx],
-                                            qArr=qArr,
-                                            uArr=uArr,
+                    IModArr, qArr, uArr, dqArr, duArr, fitDict = \
+                        create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
+                                            IArr=IArr,
+                                            QArr=qarr[~idx],
+                                            UArr=uarr[~idx],
                                             dIArr=Ierr,
-                                            dqArr=dqArr,
-                                            duArr=duArr,
-                                            freqHirArr_Hz=freqHirArr_Hz,
-                                            IModArr=IModHirArr,
-                                            fig=None,
-                                            units='Jy/beam')
-                plotname = f'{outdir}/plots/{cname}_specfig.png'
-                plt.savefig(plotname, dpi=75, bbox_inches='tight')
+                                            dQArr=rmsq[~idx],
+                                            dUArr=rmsu[~idx],
+                                            polyOrd=polyOrd,
+                                            verbose=False,
+                                            debug=False)
 
-                fdfFig = plt.figure(figsize=(12.0, 8))
-                plot_rmsf_fdf_fig(phiArr=aDict["phiArr_radm2"],
-                                  FDF=aDict["dirtyFDF"],
-                                  phi2Arr=aDict["phi2Arr_radm2"],
-                                  RMSFArr=aDict["RMSFArr"],
-                                  fwhmRMSF=mDict["fwhmRMSF"],
-                                  vLine=mDict["phiPeakPIfit_rm2"],
-                                  fig=fdfFig,
-                                  units='Jy/beam')
-                plotname = f'{outdir}/plots/{cname}_FDFdirty.png'
-                plt.savefig(plotname, dpi=75, bbox_inches='tight')
+                    freqHirArr_Hz = np.linspace(
+                        mDict['min_freq'], mDict['max_freq'], 10000)
+                    coef = np.array(
+                        mDict["polyCoeffs"].split(',')).astype(float)
+                    IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
+                    fig = plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
+                                                IArr=iarr[~idx],
+                                                qArr=qArr,
+                                                uArr=uArr,
+                                                dIArr=Ierr,
+                                                dqArr=dqArr,
+                                                duArr=duArr,
+                                                freqHirArr_Hz=freqHirArr_Hz,
+                                                IModArr=IModHirArr,
+                                                fig=None,
+                                                units='Jy/beam')
+                    plotname = f'{outdir}/plots/{cname}_specfig.png'
+                    plt.savefig(plotname, dpi=75, bbox_inches='tight')
+                    plt.close()
+
+                    fdfFig = plt.figure(figsize=(12.0, 8))
+                    plot_rmsf_fdf_fig(phiArr=aDict["phiArr_radm2"],
+                                      FDF=aDict["dirtyFDF"],
+                                      phi2Arr=aDict["phi2Arr_radm2"],
+                                      RMSFArr=aDict["RMSFArr"],
+                                      fwhmRMSF=mDict["fwhmRMSF"],
+                                      vLine=mDict["phiPeakPIfit_rm2"],
+                                      fig=fdfFig,
+                                      units='Jy/beam')
+                    plotname = f'{outdir}/plots/{cname}_FDFdirty.png'
+                    plt.savefig(plotname, dpi=75, bbox_inches='tight')
+                    plt.close()
+                except:
+                    pass
 
             do_RMsynth_1D.saveOutput(
                 mDict, aDict, prefix, rm_verbose)
@@ -617,11 +625,29 @@ def rmsynthoncut_i(comp_id,
     do_RMsynth_1D.saveOutput(mDict, aDict, prefix, verbose=verbose)
 
 
-def main(field, outdir, host, client, dimension='1d', verbose=True,
-         database=False, validate=False, limit=None, savePlots=False,
-         weightType="variance", fitRMSF=False, phiMax_radm2=None,
-         dPhi_radm2=None, nSamples=5, polyOrd=3, noStokesI=False,
-         showPlots=False, not_RMSF=False, rm_verbose=False, debug=False):
+def main(field,
+         outdir,
+         host,
+         client,
+         dimension='1d',
+         verbose=True,
+         database=False,
+         validate=False,
+         limit=None,
+         savePlots=False,
+         weightType="variance",
+         fitRMSF=False,
+         phiMax_radm2=None,
+         dPhi_radm2=None,
+         nSamples=5,
+         polyOrd=3,
+         noStokesI=False,
+         showPlots=False,
+         not_RMSF=False,
+         rm_verbose=False,
+         debug=False,
+         fit_function='log'
+         ):
 
     if outdir[-1] == '/':
         outdir = outdir[:-1]
@@ -746,6 +772,7 @@ def main(field, outdir, host, client, dimension='1d', verbose=True,
                                         savePlots=savePlots,
                                         debug=debug,
                                         rm_verbose=rm_verbose,
+                                        fit_function=fit_function
                                         )
                 outputs.append(output)
 
