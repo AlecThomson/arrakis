@@ -2,51 +2,132 @@
 import pymongo
 from prefect import task, Task, Flow
 from prefect.engine.executors import DaskExecutor
+from prefect.engine import signals
 from spiceracs import cutout
 from spiceracs import linmos
 from spiceracs import cleanup
 from spiceracs import rmsynth_oncuts
 from spiceracs import rmclean_oncuts
 from spiceracs import makecat
+from spiceracs.utils import port_forward
 from dask_jobqueue import SLURMCluster
 from distributed import Client, progress, performance_report, LocalCluster
 from dask.diagnostics import ProgressBar
 from dask import delayed
 from IPython import embed
 from time import sleep
-import subprocess
-import shlex
+from astropy.time import Time
 
-def port_forward(port, target):
-    """Forward ports to local host
+@task(name='Cutout')
+def cut_task(**kwargs):
+    check_cond = True
+    if check_cond:
+        raise signals.SUCCESS
+    else:
+        return cutout.cutout_islands(
+            **kwargs
+        )
 
-    Args:
-        port (int): port to forward
-        target (str): Target host
-    """    
-    cmd = f"ssh -N -f -R {port}:localhost:{port} {target}"
-    command = shlex.split(cmd)
-    output = subprocess.Popen(command)
+@task(name='LINMOS')
+def linmos_task(**kwargs):
+    check_cond = True
+    if check_cond:
+        raise signals.SUCCESS
+    else:
+        return linmos.main(
+            **kwargs
+        )
+
+@task(name='Clean up')
+def cleanup_task(**kwargs):
+    check_cond = True
+    if check_cond:
+        raise signals.SUCCESS
+    else:
+        return cleanup.main(
+            **kwargs
+        )
+
+@task(name='RM Synthesis')
+def rmsynth_task(**kwargs):
+    check_cond = False
+    if check_cond:
+        raise signals.SUCCESS
+    else:
+        return rmsynth_oncuts.main(
+            **kwargs
+        )
+
+@task(name='RM-CLEAN')
+def rmclean_task(**kwargs):
+    check_cond = False
+    if check_cond:
+        raise signals.SUCCESS
+    else:
+        return rmclean_oncuts.main(
+            **kwargs
+        )
+
+@task(name='Catalogue')
+def cat_task(**kwargs):
+    check_cond = False
+    if check_cond:
+        raise signals.SUCCESS
+    else:
+        return makecat.main(
+            **kwargs
+        )
 
 def main(args):
     host = args.host
-    cut_task = task(cutout.cutout_islands, name='cutout')
-    linmos_task = task(linmos.main, name='LINMOS')
-    cleanup_task = task(cleanup.main, name='Clean up')
-    rmsynth_task = task(rmsynth_oncuts.main, name='RM Synthesis')
-    rmclean_task = task(rmclean_oncuts.main, name='RM-CLEAN')
-    cat_task = task(makecat.main, name='Catalogue')
 
     # Set up for Galaxy
+    # cluster = SLURMCluster(
+    #     cores=20,
+    #     processes=20,
+    #     name='spice-worker',
+    #     memory="60GB",
+    #     project='askap',
+    #     queue='workq',
+    #     walltime='12:00:00',
+    #     job_extra=['-M galaxy'],
+    #     # interface for the workers
+    #     interface="ipogif0",
+    #     log_directory='spice_logs',
+    #     env_extra=[
+    #         'module unload askapsoft',
+    #         'module load askapsoft/1.1.0',
+    #         'unset PYTHONPATH',
+    #         'source /home/$(whoami)/.bashrc',
+    #         'conda activate spice'
+    #     ],
+    #     scheduler_options={
+    #         "dashboard_address": f":{args.port}",
+    #         # interface for the scheduler
+    #         # 'interface': 'ib0'
+    #     },
+    #     # dashboard_address=":9999",
+    #     python='srun -n 1 -c 20 python',
+    #     extra=[
+    #         "--lifetime", "11h",
+    #         "--lifetime-stagger", "5m",
+    #         # "--nthreads", "20"
+    #     ],
+    #     death_timeout=300
+    #     # python='srun -n 20 python',
+    #     # nanny=False
+    # )
+
+    # Set up for Magnus
     cluster = SLURMCluster(
-        cores=20,
-        processes=20,
+        cores=24,
+        # processes=24,
         name='spice-worker',
         memory="60GB",
-        project='askap',
+        project='ja3',
         queue='workq',
         walltime='12:00:00',
-        job_extra=['-M galaxy'],
+        job_extra=['-M magnus'],
         interface="ipogif0",
         log_directory='spice_logs',
         env_extra=[
@@ -58,46 +139,15 @@ def main(args):
         ],
         scheduler_options={"dashboard_address": f":{args.port}"},
         # dashboard_address=":9999",
-        python='srun -n 1 -c 20 python',
+        python='srun -n 1 -c 24 python',
         extra=[
             "--lifetime", "11h",
-        "--lifetime-stagger", "5m",
+            "--lifetime-stagger", "5m",
         # "--nthreads", "20"
         ]
         # python='srun -n 20 python',
         # nanny=False
     )
-
-    # # Set up for Magnus
-    # cluster = SLURMCluster(
-    #     cores=24,
-    #     # processes=24,
-    #     name='spice-worker',
-    #     memory="60GB",
-    #     project='ja3',
-    #     queue='workq',
-    #     walltime='12:00:00',
-    #     job_extra=['-M magnus'],
-    #     interface="ipogif0",
-    #     log_directory='spice_logs',
-    #     env_extra=[
-    #         'module unload askapsoft',
-    #         'module load askapsoft/1.1.0',
-    #         'unset PYTHONPATH',
-    #         'source /home/$(whoami)/.bashrc',
-    #         'conda activate spice'
-    #     ],
-    #     scheduler_options={"dashboard_address": f":{args.port}"},
-    #     # dashboard_address=":9999",
-    #     python='srun -n 1 -c 24 python',
-    #     extra=[
-    #         "--lifetime", "11h",
-    #         "--lifetime-stagger", "5m",
-    #     # "--nthreads", "20"
-    #     ]
-    #     # python='srun -n 20 python',
-    #     # nanny=False
-    # )
 
     # cluster = SLURMCluster(scheduler_options={"dashboard_address": f":{9999}"})
     print('Submitted scripts will look like: \n', cluster.job_script())
@@ -110,7 +160,6 @@ def main(args):
     # cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
 
-
     # Forward ports on galaxy
     port_forward(args.port, 'galaxy-1')
     port_forward(args.port, 'galaxy-2')
@@ -120,32 +169,32 @@ def main(args):
 
     # Define flow
     with Flow(f'SPICE-RACS: {args.field}') as flow:
-        cuts = cut_task(args.field,
-                        args.datadir,
-                        host,
-                        client,
+        cuts = cut_task(field=args.field,
+                        directory=args.datadir,
+                        host=host,
+                        client=client,
                         verbose=args.verbose,
                         pad=args.pad,
                         stokeslist=["I", "Q", "U"],
                         verbose_worker=args.verbose_worker,
                         dryrun=args.dryrun
                         )
-        mosaics = linmos_task(args.field,
-                              args.datadir,
-                              client,
-                              host,
+        mosaics = linmos_task(field=args.field,
+                              datadir=args.datadir,
+                              client=client,
+                              host=host,
                               dryrun=False,
                               prefix="",
                               stokeslist=["I", "Q", "U"],
                               verbose=True,
                               upstream_tasks=[cuts]
                               )
-        # tidy = cleanup_task(datadir=args.datadir,
-        #                     client=client,
-        #                     stokeslist=["I", "Q", "U"],
-        #                     verbose=True,
-        #                     upstream_tasks=[mosaics]
-        #                     )
+        tidy = cleanup_task(datadir=args.datadir,
+                            client=client,
+                            stokeslist=["I", "Q", "U"],
+                            verbose=True,
+                            upstream_tasks=[mosaics]
+                            )
         dirty_spec = rmsynth_task(field=args.field,
                                   outdir=args.datadir,
                                   host=host,
@@ -167,8 +216,7 @@ def main(args):
                                   not_RMSF=args.not_RMSF,
                                   rm_verbose=args.rm_verbose,
                                   debug=args.debug,
-                                  #   upstream_tasks=[tidy]
-                                  upstream_tasks=[mosaics]
+                                    upstream_tasks=[tidy]
                                   )
         clean_spec = rmclean_task(field=args.field,
                                   outdir=args.datadir,
@@ -186,8 +234,8 @@ def main(args):
                                   rm_verbose=args.rm_verbose,
                                   upstream_tasks=[dirty_spec]
                                   )
-        catalogue = cat_task(args.field,
-                             host,
+        catalogue = cat_task(field=args.field,
+                             host=host,
                              verbose=args.verbose,
                              limit=args.limit,
                              outfile=f'{args.field}.pipe.test.fits',
@@ -195,7 +243,7 @@ def main(args):
                              upstream_tasks=[clean_spec]
                              )
 
-    with performance_report(f'{args.field}-report.html'):
+    with performance_report(f'{args.field}-report-{Time.now().fits}.html'):
         flow.run()
 
 
