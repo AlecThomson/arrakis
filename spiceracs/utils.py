@@ -2,7 +2,11 @@
 import numpy as np
 import os
 import stat
-from tqdm import tqdm
+from tqdm.auto import tqdm
+from tornado.ioloop import IOLoop
+from distributed.utils import LoopRunner, is_kernel
+from distributed.client import futures_of
+from distributed.diagnostics.progressbar import ProgressBar
 from glob import glob
 from spectral_cube import SpectralCube
 from astropy.io import fits
@@ -16,9 +20,67 @@ from astropy.wcs import WCS
 import astropy.units as u
 import functools
 from os import name
+import subprocess
+import shlex
 
 
 print = functools.partial(print, flush=True)
+
+# stolen from https://github.com/tqdm/tqdm/issues/278
+class TqdmProgressBar(ProgressBar):
+    def __init__(
+        self,
+        keys,
+        scheduler=None,
+        interval="100ms",
+        loop=None,
+        complete=True,
+        start=True,
+        **tqdm_kwargs
+    ):
+        super(TqdmProgressBar, self).__init__(
+            keys, scheduler, interval, complete)
+        self.tqdm = tqdm(keys, **tqdm_kwargs)
+        self.loop = loop or IOLoop()
+
+        if start:
+            loop_runner = LoopRunner(self.loop)
+            loop_runner.run_sync(self.listen)
+
+    def _draw_bar(self, remaining, all, **kwargs):
+        update_ct = (all - remaining) - self.tqdm.n
+        self.tqdm.update(update_ct)
+
+    def _draw_stop(self, **kwargs):
+        self.tqdm.close()
+
+def tqdm_dask(futures, **kwargs):
+    futures = futures_of(futures)
+    if not isinstance(futures, (set, list)):
+        futures = [futures]
+    TqdmProgressBar(futures, **kwargs)
+
+def port_forward(port, target):
+    """Forward ports to local host
+
+    Args:
+        port (int): port to forward
+        target (str): Target host
+    """
+    cmd = f"ssh -N -f -R {port}:localhost:{port} {target}"
+    command = shlex.split(cmd)
+    output = subprocess.Popen(command)
+
+
+def try_mkdir(dir_path, verbose=True):
+    # Create output dir if it doesn't exist
+    try:
+        os.mkdir(dir_path)
+        if verbose:
+            print(f"Made directory '{dir_path}'.")
+    except FileExistsError:
+        if verbose:
+            print(f"Directory '{dir_path}' exists.")
 
 
 def head2dict(h):
@@ -308,6 +370,7 @@ def tmatchn(nin, inN, valuesN,
                           capture_output=(not verbose),
                           encoding="utf-8", check=True)
 
+
 def getfreq(cube, outdir=None, filename=None, verbose=False):
     """Get list of frequencies from FITS data.
 
@@ -442,7 +505,7 @@ def getdata(cubedir='./', tabledir='./', mapdata=None, verbose=True):
     wcs_cube = WCS(i_cube.header)
     q_cube = SpectralCube.read(qcubes[0], mode='denywrite')
     u_cube = SpectralCube.read(ucubes[0], mode='denywrite')
-    if len(vcubes) is not 0:
+    if len(vcubes) != 0:
         v_cube = SpectralCube.read(vcubes[0], mode='denywrite')
     else:
         v_cube = None
