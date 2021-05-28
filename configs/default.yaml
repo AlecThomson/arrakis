@@ -1,0 +1,25 @@
+# Set up for Magnus
+cores: 24
+name: 'spice-worker'
+memory: "60GB"
+project: 'ja3'
+queue: 'workq'
+walltime: '12:00:00'
+job_extra: ['-M magnus']
+# interface for the workers
+interface: "ipogif0"
+log_directory: 'spice_logs'
+env_extra: [
+    'module unload askapsoft',
+    'module load askapsoft/1.1.0',
+    'unset PYTHONPATH',
+    'source /home/$(whoami)/.bashrc',
+    'conda activate spice'
+]
+python: 'srun -n 1 -c 24 python'
+extra: [
+    "--lifetime", "11h",
+    "--lifetime-stagger", "5m",
+]
+death_timeout: 300
+local_directory: '/dev/shm'
