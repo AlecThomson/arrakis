@@ -49,17 +49,17 @@ def main(name: str,
     for idir in [sb_dir, field_dir, bpcal, check]:
         try_mkdir(idir)
 
-    # prsync(
-    #     f"{racs_area}/{sbid}/BPCAL/calparameters_1934_bp_*.tab",
-    #     f"{bpcal}/",
-    #     ncores
-    # )
-    # Needed until pipeline update
     prsync(
-        f"{racs_area}/{sbid}/RACS_test4_1.05_{name}/*_averaged_cal.ms",
-        f"{field_dir}/",
+        f"{racs_area}/{sbid}/BPCAL/calparameters_1934_bp_*.tab",
+        f"{bpcal}/",
         ncores
     )
+    # Needed until pipeline update
+    # prsync(
+    #     f"{racs_area}/{sbid}/RACS_test4_1.05_{name}/*_averaged_cal.ms",
+    #     f"{field_dir}/",
+    #     ncores
+    # )
     # prsync(
     #     f"{racs_area}/{sbid}/RACS_test4_1.05_{name}/*.ms.flagSummary",
     #     f"{field_dir}/",
