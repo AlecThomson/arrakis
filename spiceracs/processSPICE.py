@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import pymongo
 from prefect import task, Task, Flow
 from prefect.engine.executors import DaskExecutor
@@ -9,6 +10,7 @@ from spiceracs import cleanup
 from spiceracs import rmsynth_oncuts
 from spiceracs import rmclean_oncuts
 from spiceracs import makecat
+import spiceracs
 from spiceracs.utils import port_forward
 from dask_jobqueue import SLURMCluster
 from distributed import Client, progress, performance_report, LocalCluster
@@ -17,10 +19,11 @@ from dask import delayed
 from IPython import embed
 from time import sleep
 from astropy.time import Time
+import yaml
 
 @task(name='Cutout')
 def cut_task(**kwargs):
-    check_cond = True
+    check_cond = False
     if check_cond:
         raise signals.SUCCESS
     else:
@@ -30,7 +33,7 @@ def cut_task(**kwargs):
 
 @task(name='LINMOS')
 def linmos_task(**kwargs):
-    check_cond = True
+    check_cond = False
     if check_cond:
         raise signals.SUCCESS
     else:
@@ -40,7 +43,7 @@ def linmos_task(**kwargs):
 
 @task(name='Clean up')
 def cleanup_task(**kwargs):
-    check_cond = True
+    check_cond = False
     if check_cond:
         raise signals.SUCCESS
     else:
@@ -79,85 +82,31 @@ def cat_task(**kwargs):
         )
 
 def main(args):
+    """Main script
+    """
     host = args.host
 
-    # Set up for Galaxy
-    # cluster = SLURMCluster(
-    #     cores=20,
-    #     processes=20,
-    #     name='spice-worker',
-    #     memory="60GB",
-    #     project='askap',
-    #     queue='workq',
-    #     walltime='12:00:00',
-    #     job_extra=['-M galaxy'],
-    #     # interface for the workers
-    #     interface="ipogif0",
-    #     log_directory='spice_logs',
-    #     env_extra=[
-    #         'module unload askapsoft',
-    #         'module load askapsoft/1.1.0',
-    #         'unset PYTHONPATH',
-    #         'source /home/$(whoami)/.bashrc',
-    #         'conda activate spice'
-    #     ],
-    #     scheduler_options={
-    #         "dashboard_address": f":{args.port}",
-    #         # interface for the scheduler
-    #         # 'interface': 'ib0'
-    #     },
-    #     # dashboard_address=":9999",
-    #     python='srun -n 1 -c 20 python',
-    #     extra=[
-    #         "--lifetime", "11h",
-    #         "--lifetime-stagger", "5m",
-    #         # "--nthreads", "20"
-    #     ],
-    #     death_timeout=300
-    #     # python='srun -n 20 python',
-    #     # nanny=False
-    # )
+    if args.dask_config is None:
+        scriptdir = os.path.dirname(os.path.realpath(__file__))
+        config_dir = f"{scriptdir}/../configs"
+        dask_config = f'{config_dir}/default.yaml'
+    else:
+        dask_config = args.dask_config
 
-    # Set up for Magnus
+    # Following https://github.com/dask/dask-jobqueue/issues/499
+    with open(dask_config) as f:
+        config = yaml.safe_load(f)
+
+    config.update({'scheduler_options': {"dashboard_address": f":{args.port}"}})
+
     cluster = SLURMCluster(
-        cores=24,
-        # processes=24,
-        name='spice-worker',
-        memory="60GB",
-        project='ja3',
-        queue='workq',
-        walltime='12:00:00',
-        job_extra=['-M magnus'],
-        interface="ipogif0",
-        log_directory='spice_logs',
-        env_extra=[
-            'module unload askapsoft',
-            'module load askapsoft/1.1.0',
-            'unset PYTHONPATH',
-            'source /home/$(whoami)/.bashrc',
-            'conda activate spice'
-        ],
-        scheduler_options={"dashboard_address": f":{args.port}"},
-        # dashboard_address=":9999",
-        python='srun -n 1 -c 24 python',
-        extra=[
-            "--lifetime", "11h",
-            "--lifetime-stagger", "5m",
-        # "--nthreads", "20"
-        ]
-        # python='srun -n 20 python',
-        # nanny=False
+        **config,
     )
-
-    # cluster = SLURMCluster(scheduler_options={"dashboard_address": f":{9999}"})
+    print(config)
     print('Submitted scripts will look like: \n', cluster.job_script())
 
-    # # Request up to 20 nodes
-    # cluster.adapt(minimum_jobs=1,maximum_jobs=10)
+    # Request 20 nodes
     cluster.scale(jobs=20)
-    # cluster = LocalCluster(n_workers=20, dashboard_address=f":{args.port}")
-    # cluster.scale(jobs=10)
-    # cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
 
     # Forward ports on galaxy
@@ -308,6 +257,13 @@ def cli():
         help="Port to run Dask dashboard on."
     )
 
+    parser.add_argument(
+        '--dask_config',
+        type=str,
+        default=None,
+        help="Config file for Dask SlurmCLUSTER."
+    )
+
     options = parser.add_argument_group("output options")
     options.add_argument(
         "-v",
@@ -321,15 +277,15 @@ def cli():
         action="store_true",
         help="Verbose worker output [False]."
     )
-    cutout = parser.add_argument_group("cutout arguments")
-    cutout.add_argument(
+    cutargs = parser.add_argument_group("cutout arguments")
+    cutargs.add_argument(
         '-p',
         '--pad',
         type=float,
         default=5,
         help='Number of beamwidths to pad around source [5].')
     synth = parser.add_argument_group("RM-synth/CLEAN arguments")
-    cutout.add_argument(
+    cutargs.add_argument(
         "--dryrun",
         action="store_true",
         help="Do a dry-run [False]."
@@ -361,7 +317,7 @@ def cli():
     tools.add_argument("-w",
                        "--weightType",
                        default="variance",
-                       help="weighting [variance] (all 1s) or 'variance'.")
+                       help="weighting [variance] (all 1s) or 'uniform'.")
     tools.add_argument("-t", "--fitRMSF", action="store_true",
                        help="Fit a Gaussian to the RMSF [False]")
     tools.add_argument("-l", "--phiMax_radm2", type=float, default=None,
