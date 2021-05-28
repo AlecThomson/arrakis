@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from logging import disable
 import os
 import subprocess
 import shlex
@@ -9,7 +10,7 @@ from astropy.table import Table
 from glob import glob
 from astropy.coordinates import SkyCoord
 import astropy.units as u
-from tqdm import tqdm, trange
+from spiceracs.utils import tqdm_dask
 from IPython import embed
 import astropy
 import dask
@@ -258,9 +259,7 @@ def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None,
         results.append(linmos(parset, field, host, verbose=True))
 
     results = client.persist(results)
-    if verbose:
-        print("Running LINMOS...")
-    progress(results)
+    tqdm_dask(results, desc='Runing LINMOS', disable=(not verbose))
 
     print('LINMOS Done!')
 
