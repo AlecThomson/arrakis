@@ -115,7 +115,11 @@ setup(
     },
     scripts=[
         'scripts/check_cutout.py',
-        'scripts/make_links.py'
+        'scripts/make_links.py',
+        'scripts/find_sbid.py',
+        'scripts/find_row.py',
+        'scripts/copy_data.py',
+        'scripts/spica.py',
     ],
     install_requires=REQUIRED,
     extras_require=EXTRAS,
