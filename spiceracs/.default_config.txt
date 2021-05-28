@@ -2,9 +2,19 @@
 [General options]
 verbose: True # Verbose output
 verbose_worker: False #Verbose worker output
+port: 9999
+port_forward:
+
+[Flow options]
+skip_cutout: False
+skip_linmos: False
+skip_cleanup: False
+skip_rmsynth: False
+skip_rmclean: False
+skip_cat: False
 
 [Cutout options]
-pad: 5 # Number of beamwidths to pad around source
+pad: 3 # Number of beamwidths to pad around source
 dryrun: False # Do a dry-run
 
 [RM-synth/CLEAN options]
