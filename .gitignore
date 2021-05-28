@@ -118,6 +118,7 @@ racs_db/
 # vscode
 .vscode
 .DS_Store
+*.code-workspace
 
 # submodules
 failed.txt
