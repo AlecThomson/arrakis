@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-from spiceracs.utils import getfreq, MyEncoder
+from logging import disable
+from spiceracs.utils import getfreq, MyEncoder, tqdm_dask
 import json
 import numpy as np
 import os
@@ -303,9 +304,7 @@ def main(field,
                 outputs.append(output)
                 
     results = client.persist(outputs)
-    if verbose:
-        print("Running RM-CLEAN...")
-    progress(results)
+    tqdm_dask(results, desc='Running RM-CLEAN', disable=(not verbose))
 
     if verbose:
         print('Done!')
