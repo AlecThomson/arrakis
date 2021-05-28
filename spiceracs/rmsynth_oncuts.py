@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from spiceracs.utils import getfreq, MyEncoder
+from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, try_mkdir
 import json
 import numpy as np
 import os
@@ -14,6 +14,7 @@ from RMtools_3D import do_RMsynth_3D
 from spectral_cube import SpectralCube
 from astropy.io import fits
 from astropy.wcs import WCS
+from astropy.stats import sigma_clip, mad_std
 import matplotlib.pyplot as plt
 from RMutils.util_plotTk import plot_rmsf_fdf_fig
 from RMutils.util_misc import create_frac_spectra
@@ -23,7 +24,7 @@ import pdb
 from IPython import embed
 import dask
 from dask import delayed
-from dask.distributed import Client, progress, LocalCluster
+from dask.distributed import Client, progress, LocalCluster, wait
 from dask.diagnostics import ProgressBar
 
 
@@ -48,7 +49,7 @@ def rmsynthoncut3d(island_id,
                    dPhi_radm2=None,
                    nSamples=5,
                    weightType='variance',
-                   fitRMSF=False,
+                   fitRMSF=True,
                    not_RMSF=False,
                    rm_verbose=False
                    ):
@@ -257,7 +258,7 @@ def rmsynthoncut1d(comp_id,
                    dPhi_radm2=None,
                    nSamples=5,
                    weightType='variance',
-                   fitRMSF=False,
+                   fitRMSF=True,
                    noStokesI=False,
                    showPlots=False,
                    savePlots=False,
@@ -367,6 +368,19 @@ def rmsynthoncut1d(comp_id,
         iarr[iarr == 0] = np.nan
         qarr[qarr == 0] = np.nan
         uarr[uarr == 0] = np.nan
+
+        i_filter = sigma_clip(rmsi, sigma=5, stdfunc=mad_std)
+        q_filter = sigma_clip(rmsq, sigma=5, stdfunc=mad_std)
+        u_filter = sigma_clip(rmsu, sigma=5, stdfunc=mad_std)
+
+        filter_idx = (i_filter.mask) | (q_filter.mask) | (u_filter.mask)
+
+        iarr[filter_idx] = np.nan
+        qarr[filter_idx] = np.nan
+        uarr[filter_idx] = np.nan
+        rmsi[filter_idx] = np.nan
+        rmsq[filter_idx] = np.nan
+        rmsu[filter_idx] = np.nan
 
         if np.isnan(qarr).all() or np.isnan(uarr).all():
             print(f'QU data is all NaNs. Skipping component {cname}...')
@@ -636,7 +650,7 @@ def main(field,
          limit=None,
          savePlots=False,
          weightType="variance",
-         fitRMSF=False,
+         fitRMSF=True,
          phiMax_radm2=None,
          dPhi_radm2=None,
          nSamples=5,
@@ -655,11 +669,7 @@ def main(field,
 
     if savePlots:
         plotdir = f'{outdir}/plots'
-        try:
-            os.mkdir(plotdir)
-            print('Made plot directory.')
-        except FileExistsError:
-            print('Directory exists.')
+        try_mkdir(plotdir)
 
     # default connection (ie, local)
     with pymongo.MongoClient(host=host, connect=False) as dbclient:
@@ -799,10 +809,11 @@ def main(field,
                                         )
                 outputs.append(output)
 
-    results = client.persist(outputs)
-    if verbose:
-        print("Running RMsynth...")
-    progress(results)
+    futures = client.persist(outputs)
+    # dumb solution for https://github.com/dask/distributed/issues/4831
+    time.sleep(5)
+    tqdm_dask(futures, desc="Running RMsynth", disable=(not verbose))
+    # progress(futures)
 
     if verbose:
         print('Done!')
@@ -886,7 +897,9 @@ def cli():
     parser.add_argument("-sp", dest="savePlots", action="store_true",
                         help="save the plots [False].")
     parser.add_argument("-w", dest="weightType", default="variance",
-                        help="weighting [variance] (all 1s) or 'variance'.")
+                        help="weighting [variance] (all 1s) or 'uniform'.")
+    parser.add_argument("-f", dest="fit_function", type=str, default="log",
+                        help="Stokes I fitting function: 'linear' or ['log'] polynomials.")
     parser.add_argument("-t", dest="fitRMSF", action="store_true",
                         help="Fit a Gaussian to the RMSF [False]")
     parser.add_argument("-l", dest="phiMax_radm2", type=float, default=None,
@@ -911,7 +924,7 @@ def cli():
     args = parser.parse_args()
     verbose = args.verbose
 
-    cluster = LocalCluster(n_workers=20, dashboard_address=':9999')
+    cluster = LocalCluster()
     client = Client(cluster)
 
     host = args.host
@@ -948,6 +961,7 @@ def cli():
          not_RMSF=args.not_RMSF,
          rm_verbose=args.rm_verbose,
          debug=args.debug,
+         fit_function=args.fit_function
          )
 
 
