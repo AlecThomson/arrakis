@@ -9,20 +9,29 @@ from matplotlib.patches import Ellipse
 def plot_comp(row, c='b'):
     ax = plt.gca()
     ax.plot(
-        row['RA']*u.deg, 
-        row['Dec']*u.deg, 
+        row['RA'], 
+        row['Dec'], 
         marker='X', 
         color=c,
         transform=ax.get_transform('world')
     )
     e = Ellipse(
-        (row['RA']*u.deg, row['Dec']*u.deg),
-        width=row['Maj'],
-        height=row['Min'],
-        angle=row['PA'],
-        transform=ax.get_transform('world')
+        ((row['RA']*u.deg).value, (row['Dec']*u.deg).value),
+        width=(row['Maj']*u.arcsec).to(u.deg).value,
+        height=(row['Min']*u.arcsec).to(u.deg).value,
+        angle=row['PA']+90,
+        transform=ax.get_transform('world'),
+        facecolor='none',
+        edgecolor=c,
+        linewidth=2
     )
     ax.add_artist(e)
+
+    ax.text(
+        (row['RA']*u.deg).value, (row['Dec']*u.deg).value,
+        row['Peak_flux'],
+        transform=ax.get_transform('world')
+    )
 
 
 
@@ -48,15 +57,41 @@ def main(cutdir, source):
     fig = plt.figure()
     ax = plt.subplot(projection=mom0.wcs)
     ax.imshow(mom0.value)
-    ax.plot(sub['RA']*u.deg, sub['Dec']*u.deg, 'rX')
-    ax.plot(sub_S['RA']*u.deg, sub_S['Dec']*u.deg, 'bX')
-    ra = ax.coords['ra'] 
+    ax.plot(sub['RA']*u.deg, sub['Dec']*u.deg, 'rX', transform=ax.get_transform('world'))
+    ax.plot(sub_S['RA']*u.deg, sub_S['Dec']*u.deg, 'bX', transform=ax.get_transform('world'))
+    ra = ax.coords['ra']
     dec = ax.coords['dec']
-    ra.set_major_formatter('d.ddd')
-    dec.set_major_formatter('d.ddd')
-    plt.savefig('test.png')
+    ra.set_major_formatter('d.dd')
+    dec.set_major_formatter('d.dd')
+    for row in sub:
+        plot_comp(row, c='w')
+    plt.show()
+    # plt.savefig('test.png')
 
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    descStr = """
+    Check cutouts
+    """
+    parser = argparse.ArgumentParser(
+        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        'cutdir',
+        metavar='cutdir',
+        type=str,
+        help='Cutout dir')
+
+    parser.add_argument(
+        'source',
+        metavar='source',
+        type=str,
+        help='Source name.')
+    
+    args = parser.parse_args()
+    main(
+        args.cutdir,
+        args.source
+    )
