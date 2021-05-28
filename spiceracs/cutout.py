@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from logging import disable
 import warnings
 import pymongo
 import dask
@@ -26,13 +27,14 @@ import os
 from glob import glob
 from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord, Longitude, Latitude
-from spiceracs.utils import getdata, MyEncoder
+from spiceracs.utils import getdata, MyEncoder, try_mkdir, tqdm_dask
 from astropy.utils import iers
 import astropy.units as u
 from spectral_cube import SpectralCube
 iers.conf.auto_download = False
 warnings.filterwarnings(
-    "ignore", message="Cube is a Stokes cube, returning spectral cube for I component")
+    "ignore", message="Cube is a Stokes cube, returning spectral cube for I component"
+)
 
 
 @delayed
@@ -70,109 +72,93 @@ def cutout(image,
         mydb = dbclient['spiceracs']  # Create/open database
         beams_col = mydb['beams']  # Create/open collection
 
-    if verbose:
-        print(f'Reading {image}')
     if outdir[-1] == '/':
         outdir = outdir[:-1]
-    basename = os.path.basename(image)
-    outname = f'{src_name}.cutout.{basename}'
-    outfile = f"{outdir}/{outname}"
-    cube = SpectralCube.read(image)
-    padder = cube.header['BMAJ']*u.deg * pad
 
-    # Don't know why this is required
-    # Dask breaks without it...
-    # ra_lo = ra_lo.value*u.arcsec
-    # ra_hi = ra_hi.value*u.arcsec
-    # dec_lo = dec_lo.value*u.arcsec
-    # dec_hi = dec_hi.value*u.arcsec
+    for imtype in ['image', 'weight']:
+        basename = os.path.basename(image)
+        outname = f'{src_name}.cutout.{basename}'
+        outfile = f"{outdir}/{outname}"
 
-    # xlo = np.sign(ra_lo) * (np.abs(ra_lo) + padder) #ra_lo - padder
-    # xhi = np.sign(ra_hi) * (np.abs(ra_hi) + padder) #ra_hi + padder
-    # ylo = np.sign(dec_lo) * (np.abs(dec_lo) + padder) #dec_lo  - padder
-    # yhi = np.sign(dec_hi) * (np.abs(dec_hi) + padder) #dec_hi  + padder
+        if imtype == 'weight':
+            image = image.replace('image.restored', 'weights').replace(
+                '.conv.fits', '.fits')
+            outfile = outfile.replace('image.restored', 'weights').replace(
+                '.conv.fits', '.fits')
 
-    xlo = Longitude(ra_lo*u.deg) - Longitude(padder)
-    xhi = Longitude(ra_hi*u.deg) + Longitude(padder)
-    ylo = Latitude(dec_lo*u.deg) - Latitude(padder)
-    yhi = Latitude(dec_hi*u.deg) + Latitude(padder)
-
-    xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
-    xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
-
-    cutout_cube = cube[
-        :,
-        int(np.floor(yp_lo)):int(np.ceil(yp_hi)),
-        int(np.floor(xp_hi)):int(np.ceil(xp_lo))
-    ]
-
-    # cutout_cube = cube.subcube(xlo=xlo.deg*u.deg,
-    #                       xhi=xhi.deg*u.deg,
-    #                       ylo=ylo.deg*u.deg,
-    #                       yhi=yhi.deg*u.deg,
-    #                       )
-    if not dryrun:
-        fits.writeto(outfile,
-                     cutout_cube.unmasked_data[:].value,
-                     header=cutout_cube.header,
-                     overwrite=True
-                     )
-        # cutout_cube.write(outfile, overwrite=True)
         if verbose:
-            print(f'Written to {outfile}')
+            print(f'Reading {image}')
 
-        # Update database
-        myquery = {
-            "Source_ID": src_name
-        }
-        newvalues = {
-            "$set":
-            {
-                f"beams.{field}.{stoke}_beam{beam}_image_file": outfile
+        cube = SpectralCube.read(image)
+        if imtype == 'image':
+            padder = cube.header['BMAJ']*u.deg * pad
+        # Don't know why this is required
+        # Dask breaks without it...
+        # ra_lo = ra_lo.value*u.arcsec
+        # ra_hi = ra_hi.value*u.arcsec
+        # dec_lo = dec_lo.value*u.arcsec
+        # dec_hi = dec_hi.value*u.arcsec
+
+        # xlo = np.sign(ra_lo) * (np.abs(ra_lo) + padder) #ra_lo - padder
+        # xhi = np.sign(ra_hi) * (np.abs(ra_hi) + padder) #ra_hi + padder
+        # ylo = np.sign(dec_lo) * (np.abs(dec_lo) + padder) #dec_lo  - padder
+        # yhi = np.sign(dec_hi) * (np.abs(dec_hi) + padder) #dec_hi  + padder
+
+        xlo = Longitude(ra_lo*u.deg) - Longitude(padder)
+        xhi = Longitude(ra_hi*u.deg) + Longitude(padder)
+        ylo = Latitude(dec_lo*u.deg) - Latitude(padder)
+        yhi = Latitude(dec_hi*u.deg) + Latitude(padder)
+
+        xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
+        xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
+
+        # Use subcube for header transformation
+        cutout_cube = cube[
+            :,
+            int(np.floor(yp_lo)):int(np.ceil(yp_hi)),
+            int(np.floor(xp_hi)):int(np.ceil(xp_lo))
+        ]
+
+        # # Use astropy for data access - more speed!
+        with fits.open(image, memmap=True, mode='denywrite') as hdulist:
+            data = hdulist[0].data
+
+        sub_data = data[
+            :,  # freq
+            0,  # useless Stokes
+            int(np.floor(yp_lo)):int(np.ceil(yp_hi)),
+            int(np.floor(xp_hi)):int(np.ceil(xp_lo))
+        ]
+
+        # cutout_cube = cube.subcube(xlo=xlo.deg*u.deg,
+        #                       xhi=xhi.deg*u.deg,
+        #                       ylo=ylo.deg*u.deg,
+        #                       yhi=yhi.deg*u.deg,
+        #                       )
+        if not dryrun:
+            fits.writeto(outfile,
+                         sub_data,
+                         # cutout_cube.unmasked_data[:].value,
+                         header=cutout_cube.header,
+                         overwrite=True
+                         )
+            # cutout_cube.write(outfile, overwrite=True)
+            if verbose:
+                print(f'Written to {outfile}')
+
+            # Update database
+            myquery = {
+                "Source_ID": src_name
             }
-        }
 
-        beams_col.update_one(myquery, newvalues, upsert=True)
-
-    image = image.replace('image.restored', 'weights').replace(
-        '.conv.fits', '.fits')
-    outfile = outfile.replace('image.restored', 'weights').replace(
-        '.conv.fits', '.fits')
-    if verbose:
-        print(f'Reading {image}')
-    cube = SpectralCube.read(image)
-    cutout_cube = cube[
-        :,
-        int(np.floor(yp_lo)):int(np.ceil(yp_hi)),
-        int(np.floor(xp_hi)):int(np.ceil(xp_lo))
-    ]
-    # cutout_cube = cube.subcube(xlo=xlo.deg*u.deg,
-    #                       xhi=xhi.deg*u.deg,
-    #                       ylo=ylo.deg*u.deg,
-    #                       yhi=yhi.deg*u.deg,
-    #                       )
-    if not dryrun:
-        fits.writeto(outfile,
-                     cutout_cube.unmasked_data[:].value,
-                     header=cutout_cube.header,
-                     overwrite=True
-                     )
-        # cutout_cube.write(outfile, overwrite=True)
-        if verbose:
-            print(f'Written to {outfile}')
-
-        # Update database
-        myquery = {
-            "Source_ID": src_name
-        }
-        newvalues = {
-            "$set":
-            {
-                f"beams.{field}.{stoke}_beam{beam}_weight_file": outfile
+            newvalues = {
+                "$set":
+                {
+                    f"beams.{field}.{stoke}_beam{beam}_{imtype}_file": outfile
+                }
             }
-        }
 
-        beams_col.update_one(myquery, newvalues, upsert=True)
+            beams_col.update_one(myquery, newvalues, upsert=True)
 
     return src_name
 
@@ -208,13 +194,7 @@ def get_args(island,
     beam_list = np.unique(beam['beams'][field]['beam_list'])
 
     outdir = f"{outdir}/{island['Source_ID']}"
-    try:
-        os.mkdir(outdir)
-        if verbose:
-            print('Made island directory.')
-    except FileExistsError:
-        if verbose:
-            print('Directory exists.')
+    try_mkdir(outdir, verbose=verbose)
 
     # Find image size
     ras = []
@@ -344,11 +324,7 @@ def cutout_islands(field,
     islands = [i for i in islands]
 
     # Create output dir if it doesn't exist
-    try:
-        os.mkdir(outdir)
-        print('Made cutout directory.')
-    except FileExistsError:
-        print('Directory exists.')
+    try_mkdir(outdir)
 
     args = []
     for (island_id, island, beam) in zip(island_ids, islands, beams):
@@ -369,9 +345,11 @@ def cutout_islands(field,
 
     flat_args = unpack(args)
     flat_args = client.compute(flat_args)
-    if verbose:
-        print("Getting args...")
-    progress(flat_args)
+    tqdm_dask(flat_args,
+              desc='Getting args',
+              disable=(not verbose),
+              total=len(islands)*2
+              )
     flat_args = flat_args.result()
     cuts = []
     for arg in flat_args:
@@ -394,9 +372,7 @@ def cutout_islands(field,
         cuts.append(cut)
 
     output = client.persist(cuts)
-    if verbose:
-        print("Cutting out...")
-    progress(output)
+    tqdm_dask(output, desc='Cutting out', disable=(not verbose))
 
 
 def main(args, verbose=True):
