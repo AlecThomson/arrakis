@@ -118,7 +118,6 @@ def cli():
     """Command-line interface
     """
     import argparse
-    import schwimmbad
     from astropy.utils.exceptions import AstropyWarning
     warnings.simplefilter('ignore', category=AstropyWarning)
     from astropy.io.fits.verify import VerifyWarning
