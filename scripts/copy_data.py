@@ -22,7 +22,7 @@ def rsync(src, tgt):
 
 def prsync(wild_src: str, tgt: str, ncores: int):
     os.system(
-        f"ls -d {wild_src} | xargs -n1 -P{ncores} -I% rsync -rPvh % {tgt}")
+        f"ls -d {wild_src} | xargs -n1 -P{ncores} -I% rsync -rvh % {tgt}")
 
 
 def main(name: str,
@@ -45,7 +45,12 @@ def main(name: str,
     field_dir = os.path.abspath(f"{sb_dir}/RACS_test4_1.05_{name}")
     bpcal = os.path.abspath(f"{sb_dir}/BPCAL")
     check = os.path.abspath(f"{field_dir}/Checkfiles")
-
+    if clean:
+        if force:
+            yes = True
+        else:
+            yes = yes_or_no(
+                f"This will delete the CONTCUBE checkfiles in {check}. Are you sure?")
     for idir in [sb_dir, field_dir, bpcal, check]:
         try_mkdir(idir)
 
@@ -88,16 +93,11 @@ def main(name: str,
             pass
         print(os.path.basename(newpath))
 
-    if clean:
-        if force:
-            yes = True
-        else:
-            yes = yes_or_no(
-                f"This will delete the CONTCUBE checkfiles in {check}. Are you sure?")
-        if yes:
-            files = glob(f"{check}/CONTCUBE*")
-            for f in files:
-                os.remove(f)
+
+    if yes:
+        files = glob(f"{check}/CONTCUBE*")
+        for f in files:
+            os.remove(f)
 
 
 if __name__ == "__main__":
@@ -127,6 +127,11 @@ if __name__ == "__main__":
         help="Cleanup Checkfiles",
     )
     parser.add_argument(
+        "--force",
+        action='store_true',
+        help="Force cleanup of Checkfiles",
+    )
+    parser.add_argument(
         "--ncores",
         type=int,
         default=1,
@@ -148,4 +153,12 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    main(args.field, args.cal_sbid, args.ncores, clean=args.clean)
+    main(
+        name=args.field,
+        sbid=args.cal_sbid,
+        racs_area=args.RACS,
+        spice_area=args.spice,
+        ncores=args.ncores,
+        clean=args.clean,
+        force=args.force,
+    )
