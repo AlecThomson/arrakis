@@ -1,5 +1,6 @@
 # Set up for Magnus
-cores: 24
+cores: 6
+processes: 6
 name: 'spice-worker'
 memory: "60GB"
 project: 'ja3'
