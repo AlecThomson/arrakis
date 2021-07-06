@@ -136,3 +136,4 @@ dask-worker-space/
 *.csv
 *.vot
 *.pdf
+dask_tests/core
