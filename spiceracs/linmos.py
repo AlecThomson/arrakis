@@ -97,7 +97,7 @@ def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
         # default connection (ie, local)
         mydb = dbclient['spiceracs']  # Create/open database
         beams_col = mydb['beams']  # Create/open collection
-            # Update database
+        # Update database
     myquery = {
         "Source_ID": src_name
     }
@@ -105,7 +105,9 @@ def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
     ims = []
     for bm in beams['beam_list']:
         imfile = beams[f'{stoke.lower()}_beam{bm}_image_file']
-        assert os.path.dirname(imfile) == datadir, "Looking in wrong directory!"
+        assert os.path.basename(os.path.dirname(
+            imfile)) == src_name, "Looking in wrong directory!"
+        imfile = os.path.join(os.path.abspath(datadir), imfile)
         ims.append(imfile)
     ims = sorted(ims)
 
@@ -120,7 +122,9 @@ def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
     wgts = []
     for bm in beams['beam_list']:
         wgtsfile = beams[f'{stoke.lower()}_beam{bm}_weight_file']
-        assert os.path.dirname(wgtsfile) == datadir, "Looking in wrong directory!"
+        assert os.path.basename(os.path.dirname(
+            wgtsfile)) == src_name, "Looking in wrong directory!"
+        wgtsfile = os.path.join(os.path.abspath(datadir), wgtsfile)
         wgts.append(wgtsfile)
     wgts = sorted(wgts)
 
@@ -199,7 +203,7 @@ def linmos(parset, fieldname, host, verbose=False):
     newvalues = {
         "$set":
         {
-            f"beams.{fieldname}.{stoke.lower()}_file": new_file[0]
+            f"beams.{fieldname}.{stoke.lower()}_file": os.path.basename(new_file[0])
         }
     }
 
@@ -219,10 +223,9 @@ def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None,
         stokeslist = ["I", "Q", "U", "V"]
 
     if datadir is not None:
-        if datadir[-1] == '/':
-            datadir = datadir[:-1]
+        datadir = os.path.abspath(datadir)
 
-    cutdir = f"{datadir}/cutouts"
+    cutdir = os.path.abspath(os.path.join(datadir, "cutouts"))
 
     with pymongo.MongoClient(host=host, connect=False) as dbclient:
         # default connection (ie, local)
@@ -247,7 +250,7 @@ def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None,
             parfile = genparset(field=field,
                                 src_name=src,
                                 stoke=stoke.capitalize(),
-                                datadir=f"{cutdir}/{src}",
+                                datadir=cutdir,
                                 septab=beamseps,
                                 host=host,
                                 prefix=prefix

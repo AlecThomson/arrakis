@@ -41,6 +41,7 @@ from dask.diagnostics import ProgressBar
 
 @delayed
 def rmsynthoncut3d(island_id,
+                   outdir,
                    freq,
                    host,
                    field,
@@ -83,9 +84,9 @@ def rmsynthoncut3d(island_id,
     iname = doc['Source_ID']
     beam = beams_col.find_one({'Source_ID': iname})
 
-    ifile = beam['beams'][field]['i_file']
-    qfile = beam['beams'][field]['q_file']
-    ufile = beam['beams'][field]['u_file']
+    ifile = os.path.join(outdir, beam['beams'][field]['i_file'])
+    qfile = os.path.join(outdir, beam['beams'][field]['q_file'])
+    ufile = os.path.join(outdir, beam['beams'][field]['u_file'])
     # vfile = beam['beams'][field]['v_file']
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
@@ -163,17 +164,19 @@ def rmsynthoncut3d(island_id,
         head_dict.pop('', None)
         head_dict['COMMENT'] = str(head_dict['COMMENT'])
 
+        outer_dir = os.path.basename(os.path.dirname(ifile))
+
         newvalues = {
             "$set":
             {
                 "rm3dfiles":
                 {
-                    "FDF_real_dirty": f"{prefix}FDF_real_dirty.fits",
-                    "FDF_im_dirty": f"{prefix}FDF_im_dirty.fits",
-                    "FDF_tot_dirty": f"{prefix}FDF_tot_dirty.fits",
-                    "RMSF_real": f"{prefix}RMSF_real.fits",
-                    "RMSF_tot": f"{prefix}RMSF_tot.fits",
-                    "RMSF_FWHM": f"{prefix}RMSF_FWHM.fits"
+                    "FDF_real_dirty": os.path.join(outer_dir, f"{prefix}FDF_real_dirty.fits"),
+                    "FDF_im_dirty": os.path.join(outer_dir, f"{prefix}FDF_im_dirty.fits"),
+                    "FDF_tot_dirty": os.path.join(outer_dir, f"{prefix}FDF_tot_dirty.fits"),
+                    "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
+                    "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
+                    "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
                 },
                 "rmsynth3d": True,
                 "header": dict(header)
@@ -302,9 +305,9 @@ def rmsynthoncut1d(comp_id,
         cname = doc['Component_ID']
         beam = beams_col.find_one({'Source_ID': iname})
 
-        ifile = beam['beams'][field]['i_file']
-        qfile = beam['beams'][field]['q_file']
-        ufile = beam['beams'][field]['u_file']
+        ifile = os.path.join(outdir, beam['beams'][field]['i_file'])
+        qfile = os.path.join(outdir, beam['beams'][field]['q_file'])
+        ufile = os.path.join(outdir, beam['beams'][field]['u_file'])
         # vfile = beam['beams'][field]['v_file']
 
         header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
@@ -410,74 +413,13 @@ def rmsynthoncut1d(comp_id,
                                                      fitRMSF=fitRMSF,
                                                      noStokesI=noStokesI,
                                                      nBits=32,
+                                                     saveFigures=savePlots,
                                                      showPlots=showPlots,
                                                      verbose=rm_verbose,
                                                      debug=debug,
-                                                     fit_function=fit_function
+                                                     fit_function=fit_function,
+                                                     prefixOut=prefix,
                                                      )
-
-            if savePlots:
-                try:
-                    import matplotlib
-                    matplotlib.use('Agg')
-                    # if verbose:
-                    #    print("Plotting the input data and spectral index fit.")
-                    from RMutils.util_plotTk import plot_Ipqu_spectra_fig
-                    from RMutils.util_misc import poly5
-
-                    if noStokesI:
-                        IArr = np.ones_like(qarr[~idx])
-                        Ierr = np.zeros_like(qarr[~idx])
-                    else:
-                        IArr = iarr[~idx]
-                        Ierr = rmsi[~idx]
-
-                    IModArr, qArr, uArr, dqArr, duArr, fitDict = \
-                        create_frac_spectra(freqArr=np.array(freq)[~idx]/1e9,
-                                            IArr=IArr,
-                                            QArr=qarr[~idx],
-                                            UArr=uarr[~idx],
-                                            dIArr=Ierr,
-                                            dQArr=rmsq[~idx],
-                                            dUArr=rmsu[~idx],
-                                            polyOrd=polyOrd,
-                                            verbose=False,
-                                            debug=False)
-
-                    freqHirArr_Hz = np.linspace(
-                        mDict['min_freq'], mDict['max_freq'], 10000)
-                    coef = np.array(
-                        mDict["polyCoeffs"].split(',')).astype(float)
-                    IModHirArr = poly5(coef)(freqHirArr_Hz/1e9)
-                    fig = plot_Ipqu_spectra_fig(freqArr_Hz=np.array(freq)[~idx],
-                                                IArr=iarr[~idx],
-                                                qArr=qArr,
-                                                uArr=uArr,
-                                                dIArr=Ierr,
-                                                dqArr=dqArr,
-                                                duArr=duArr,
-                                                freqHirArr_Hz=freqHirArr_Hz,
-                                                IModArr=IModHirArr,
-                                                fig=None,
-                                                units='Jy/beam')
-                    plotname = f'{outdir}/plots/{cname}_specfig.png'
-                    plt.savefig(plotname, dpi=75, bbox_inches='tight')
-                    plt.close()
-
-                    fdfFig = plt.figure(figsize=(12.0, 8))
-                    plot_rmsf_fdf_fig(phiArr=aDict["phiArr_radm2"],
-                                      FDF=aDict["dirtyFDF"],
-                                      phi2Arr=aDict["phi2Arr_radm2"],
-                                      RMSFArr=aDict["RMSFArr"],
-                                      fwhmRMSF=mDict["fwhmRMSF"],
-                                      vLine=mDict["phiPeakPIfit_rm2"],
-                                      fig=fdfFig,
-                                      units='Jy/beam')
-                    plotname = f'{outdir}/plots/{cname}_FDFdirty.png'
-                    plt.savefig(plotname, dpi=75, bbox_inches='tight')
-                    plt.close()
-                except:
-                    pass
 
             do_RMsynth_1D.saveOutput(
                 mDict, aDict, prefix, rm_verbose)
@@ -490,14 +432,16 @@ def rmsynthoncut1d(comp_id,
                 head_dict.pop('', None)
                 head_dict['COMMENT'] = str(head_dict['COMMENT'])
 
+                outer_dir = os.path.basename(os.path.dirname(ifile))
+
                 newvalues = {
                     "$set": {
                         f"rm1dfiles": {
-                            "FDF_dirty": f"{cname}_FDFdirty.dat",
-                            "RMSF": f"{cname}_RMSF.dat",
-                            "weights": f"{cname}_weight.dat",
-                            "summary_dat": f"{cname}_RMsynth.dat",
-                            "summary_json": f"{cname}_RMsynth.json",
+                            "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
+                            "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
+                            "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
+                            "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
+                            "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
                         },
                         f"rmsynth1d": True,
                         "header": head_dict,
@@ -509,6 +453,7 @@ def rmsynthoncut1d(comp_id,
 
 @delayed
 def rmsynthoncut_i(comp_id,
+                   outdir,
                    freq,
                    host,
                    field,
@@ -543,7 +488,7 @@ def rmsynthoncut_i(comp_id,
     cname = doc['Component_ID']
 
     beams = beams_col.find_one({'Source_ID': iname})
-    ifile = beams['beams'][field]['i_file']
+    ifile = os.path.join(outdir, beams['beams'][field]['i_file'])
     outdir = os.path.dirname(ifile)
 
     header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
@@ -663,12 +608,11 @@ def main(field,
          fit_function='log'
          ):
 
-    if outdir[-1] == '/':
-        outdir = outdir[:-1]
-    outdir = f'{outdir}/cutouts'
+    outdir = os.path.abspath(outdir)
+    outdir = os.path.join(outdir, 'cutouts')
 
     if savePlots:
-        plotdir = f'{outdir}/plots'
+        plotdir = os.path.join(outdir, 'plots')
         try_mkdir(plotdir)
 
     # default connection (ie, local)
@@ -734,7 +678,7 @@ def main(field,
 
     # Make frequency file
     freq, freqfile = getfreq(
-        f"{beams[0]['beams'][f'{field}']['q_file']}",
+        os.path.join(outdir, f"{beams[0]['beams'][f'{field}']['q_file']}"),
         outdir=outdir,
         filename='frequencies.txt',
         verbose=verbose
@@ -749,6 +693,7 @@ def main(field,
         # We don't run this in parallel!
         for i, comp_id in enumerate(component_ids):
             output = rmsynthoncut_i(comp_id,
+                                    outdir,
                                     freq,
                                     host,
                                     field,
@@ -795,6 +740,7 @@ def main(field,
                 break
             else:
                 output = rmsynthoncut3d(island_id,
+                                        outdir,
                                         freq,
                                         host,
                                         field,
@@ -924,8 +870,10 @@ def cli():
     args = parser.parse_args()
     verbose = args.verbose
 
-    cluster = LocalCluster()
+    cluster = LocalCluster(n_workers=16, processes=True,
+                           threads_per_worker=2, local_directory='/dev/shm')
     client = Client(cluster)
+    print(client)
 
     host = args.host
     if verbose:

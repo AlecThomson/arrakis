@@ -151,10 +151,11 @@ def cutout(image,
                 "Source_ID": src_name
             }
 
+            filename = os.path.join(os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile))
             newvalues = {
                 "$set":
                 {
-                    f"beams.{field}.{stoke}_beam{beam}_{imtype}_file": outfile
+                    f"beams.{field}.{stoke}_beam{beam}_{imtype}_file": filename
                 }
             }
 

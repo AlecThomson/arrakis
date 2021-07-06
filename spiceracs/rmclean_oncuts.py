@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from logging import disable
 from spiceracs.utils import getfreq, MyEncoder, tqdm_dask
 import json
 import numpy as np
@@ -25,6 +24,7 @@ from dask.diagnostics import ProgressBar
 
 @delayed
 def rmclean1d(comp_id,
+              outdir,
               host,
               field,
               cutoff=-3,
@@ -65,15 +65,15 @@ def rmclean1d(comp_id,
         print(f'Working on {comp_id}')
     try:
         cname = comp_id
-        ifile = beam['beams'][field]['i_file']
-        outdir = f"{os.path.dirname(ifile)}"
-        prefix = f"{outdir}/{cname}"
 
         rm1dfiles = doc['rm1dfiles']
-        fdfFile = f"{outdir}/{rm1dfiles['FDF_dirty']}"
-        rmsfFile = f"{outdir}/{rm1dfiles['RMSF']}"
-        weightFile = f"{outdir}/{rm1dfiles['weights']}"
-        rmSynthFile = f"{outdir}/{rm1dfiles['summary_json']}"
+        fdfFile = os.path.join(outdir, f"{rm1dfiles['FDF_dirty']}")
+        rmsfFile = os.path.join(outdir, f"{rm1dfiles['RMSF']}")
+        weightFile = os.path.join(outdir, f"{rm1dfiles['weights']}")
+        rmSynthFile = os.path.join(outdir, f"{rm1dfiles['summary_json']}")
+
+        prefix = os.path.join(os.path.abspath(os.path.dirname(fdfFile)), cname)
+
         # Sanity checks
         for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
             if not os.path.exists(f):
@@ -82,6 +82,7 @@ def rmclean1d(comp_id,
         nBits = 32
         mDict, aDict = do_RMclean_1D.readFiles(
             fdfFile, rmsfFile, weightFile, rmSynthFile, nBits)
+
         # Run RM-CLEAN on the spectrum
         outdict, arrdict = do_RMclean_1D.run_rmclean(mDict=mDict,
                                                      aDict=aDict,
@@ -116,11 +117,12 @@ def rmclean1d(comp_id,
 
 @delayed
 def rmclean3d(island_id,
+              outdir,
               host,
-              field,
               cutoff=-3,
               maxIter=10000,
               gain=0.1,
+              database=False,
               rm_verbose=False,
               ):
     """3D RM-CLEAN
@@ -138,7 +140,6 @@ def rmclean3d(island_id,
         mydb = dbclient['spiceracs']  # Create/open database
         isl_col = mydb['islands']  # Create/open collection
         comp_col = mydb['components']  # Create/open collection
-        beams_col = mydb['beams']  # Create/open collection
 
     # Basic querey
     myquery = {"Source_ID": island_id}
@@ -146,16 +147,13 @@ def rmclean3d(island_id,
     doc = comp_col.find_one(myquery)
     iname = doc['Source_ID']
     prefix = f"{iname}_"
-    beam = beams_col.find_one({'Source_ID': iname})
-    ifile = beam['beams'][field]['i_file']
-    outdir = os.path.dirname(ifile)
 
     island = isl_col.find_one(myquery)
     rm3dfiles = island["rm3dfiles"]
 
     cleanFDF, ccArr, iterCountArr, residFDF, headtemp = do_RMclean_3D.run_rmclean(
-        fitsFDF=f"{outdir}/{rm3dfiles['FDF_real_dirty']}",
-        fitsRMSF=f"{outdir}/{rm3dfiles['RMSF_tot']}",
+        fitsFDF=os.path.join(outdir, rm3dfiles['FDF_real_dirty']),
+        fitsRMSF=os.path.join(outdir, rm3dfiles['RMSF_tot']),
         cutoff=cutoff,
         maxIter=maxIter,
         gain=gain,
@@ -171,9 +169,16 @@ def rmclean3d(island_id,
         residFDF,
         headtemp,
         prefixOut=prefix,
-        outDir=outdir,
+        outDir=os.path.abspath(os.path.dirname(
+            os.path.join(outdir, rm3dfiles['FDF_real_dirty']))),
         write_separate_FDF=True,
         verbose=rm_verbose)
+    
+    if database:
+        # Load into Mongo
+        myquery = {"Source_ID": iname}
+        newvalues = {"$set": {f"rmclean3d": True}}
+        isl_col.update_one(myquery, newvalues)
 
 
 def main(field,
@@ -276,6 +281,7 @@ def main(field,
                 break
             else:
                 output = rmclean1d(comp_id,
+                                   outdir,
                                    host,
                                    field,
                                    cutoff=cutoff,
@@ -294,15 +300,16 @@ def main(field,
             if i > n_island+1:
                 break
             else:
-                output = rmclean3d(island_id,
-                                   host,
-                                   field,
+                output = rmclean3d(island_id=island_id,
+                                   outdir=outdir,
+                                   host=host,
                                    cutoff=cutoff,
                                    maxIter=maxIter,
                                    gain=gain,
+                                   database=database,
                                    rm_verbose=rm_verbose)
                 outputs.append(output)
-                
+
     results = client.persist(outputs)
     tqdm_dask(results, desc='Running RM-CLEAN', disable=(not verbose))
 
