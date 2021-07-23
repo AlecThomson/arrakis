@@ -254,14 +254,13 @@ def main(args, verbose=True):
         island_cat = Table.read(islandcat)
         comp_cat = Table.read(compcat)
         print("This will overwrite the source database!")
-        check = yes_or_no("Are you sure you wish to proceed?")
-        if check:
+        check_source = yes_or_no("Are you sure you wish to proceed?")
+        print("This will overwrite the beams database!")
+        check_beam = yes_or_no("Are you sure you wish to proceed?")
+        if check_source:
             source_database(island_cat, comp_cat,
                             args.host, verbose=verbose)
-
-        print("This will overwrite the beams database!")
-        check = yes_or_no("Are you sure you wish to proceed?")
-        if check:
+        if check_beam:
             beam_database(island_cat, args.host, verbose=verbose)
     
     else:
