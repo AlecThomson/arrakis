@@ -6,29 +6,32 @@
 #SBATCH --mail-type=ALL
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
-#SBATCH --time=24:00:00
+#SBATCH --time=7:00:00
+#SBATCH --cluster=magnus
+#SBATCH --account=ja3
+#SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.err
+#SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.out
 
 export OMP_NUM_THREADS=1
 
+# Module sorting
 module unload askapsoft
-module load askapsoft/1.1.0
+module load askapsoft
 unset PYTHONPATH
 source /home/$(whoami)/.bashrc
 conda activate spice
 
 
-cd /group/askap/athomson/projects/spiceracs/testing_april_2021
-
-# Assuing defaut port for Dask
-# Forward the ports to the login nodes
-port=9999
-ssh -N -f -R $port:localhost:$port galaxy-1
-ssh -N -f -R $port:localhost:$port galaxy-2
+# Image dirctory
+cd /scratch/ja3/athomson/spica
 
 # Start MongoDB
 host=$(hostname -i)
 echo $host
-database=/group/askap/athomson/projects/spiceracs/spiceracsDB
+database=/group/askap/athomson/projects/spiceracs/spica/spicaDB
 numactl --interleave=all mongod --dbpath=$database --bind_ip $host >> /dev/null &
 
-srun processSPICE 1600-50A /home/athomson/athomson/projects/spiceracs/testing_april_2021/1600-50A $host --config test_config.txt
+field=1213-25A
+cal_sbid=8577
+
+processSPICE $field /scratch/ja3/athomson/spica/$cal_sbid/RACS_test4_1.05_$field $host --config /group/askap/athomson/projects/spiceracs/spica/spica_config.txt --savePlots
