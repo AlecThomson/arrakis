@@ -130,14 +130,17 @@ def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
 
     assert len(ims) == len(wgts), 'Unequal number of weights and images'
 
+    for im, wt in zip(ims, wgts):
+        assert os.path.basename(os.path.dirname(im)) == os.path.basename(os.path.dirname(wt)), "Image and weight are in different areas!"
+
     weightlist = "["
     for wgt in wgts:
         weightlist += wgt.replace(".fits", "") + ","
     weightlist = weightlist[:-1] + "]"
 
-    parset_dir = datadir
+    parset_dir = os.path.join(os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0])))
 
-    parset_file = f"{parset_dir}/linmos_{stoke}.in"
+    parset_file = os.path.join(parset_dir, f"linmos_{stoke}.in")
     parset = f"""linmos.names            = {imlist}
 linmos.weights          = {weightlist}
 linmos.imagetype        = fits
@@ -181,6 +184,7 @@ def linmos(parset, fieldname, host, verbose=False):
     # os.chdir(workdir)
     linmos_command = shlex.split(f"linmos -c {parset}")
     output = subprocess.run(linmos_command, capture_output=True)
+    print('output is', output)
     with open(log, 'w') as f:
         f.write(output.stdout.decode("utf-8"))
 
@@ -191,8 +195,13 @@ def linmos(parset, fieldname, host, verbose=False):
     if len(new_file) != 1:
         raise Exception("LINMOS file not found!")
 
+    new_file = os.path.abspath(new_file[0])
+    outer = os.path.basename(os.path.dirname(new_file))
+    inner = os.path.basename(new_file)
+    new_file = os.path.join(outer, inner)
+
     if verbose:
-        print(f'Cube now in {new_file[0]}')
+        print(f'Cube now in {new_file}')
 
     with pymongo.MongoClient(host=host, connect=False) as dbclient:
         # default connection (ie, local)
@@ -203,7 +212,7 @@ def linmos(parset, fieldname, host, verbose=False):
     newvalues = {
         "$set":
         {
-            f"beams.{fieldname}.{stoke.lower()}_file": os.path.basename(new_file[0])
+            f"beams.{fieldname}.{stoke.lower()}_file": new_file
         }
     }
 
