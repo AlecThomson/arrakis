@@ -21,6 +21,7 @@ dependencies:
 - bokeh
 - pymongo
 - mongodb
+- dask_mpi
 - pip:
   - tqdm
   - configargparse

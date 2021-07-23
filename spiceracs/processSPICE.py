@@ -11,6 +11,7 @@ from spiceracs import rmsynth_oncuts
 from spiceracs import rmclean_oncuts
 from spiceracs import makecat
 import spiceracs
+from dask_mpi import initialize
 from spiceracs.utils import port_forward
 from dask_jobqueue import SLURMCluster
 from distributed import Client, progress, performance_report, LocalCluster
@@ -111,45 +112,49 @@ def main(args):
     """
     host = args.host
 
-    if args.dask_config is None:
-        scriptdir = os.path.dirname(os.path.realpath(__file__))
-        config_dir = f"{scriptdir}/../configs"
-        args.dask_config = f'{config_dir}/default.yaml'
+    if args.use_mpi:
+        client = Client()
 
-    if args.outfile is None:
-        args.outfile = f'{args.field}.pipe.test.fits'
+    else:
+        if args.dask_config is None:
+            scriptdir = os.path.dirname(os.path.realpath(__file__))
+            config_dir = f"{scriptdir}/../configs"
+            args.dask_config = f'{config_dir}/default.yaml'
 
-    args_yaml = yaml.dump(vars(args))
-    args_yaml_f = os.path.abspath(
-        f'{args.field}-config-{Time.now().fits}.yaml')
-    if args.verbose:
-        print(f"Saving config to '{args_yaml_f}'")
-    with open(args_yaml_f, 'w') as f:
-        f.write(args_yaml)
+        if args.outfile is None:
+            args.outfile = f'{args.field}.pipe.test.fits'
 
-    # Following https://github.com/dask/dask-jobqueue/issues/499
-    with open(args.dask_config) as f:
-        config = yaml.safe_load(f)
+        args_yaml = yaml.dump(vars(args))
+        args_yaml_f = os.path.abspath(
+            f'{args.field}-config-{Time.now().fits}.yaml')
+        if args.verbose:
+            print(f"Saving config to '{args_yaml_f}'")
+        with open(args_yaml_f, 'w') as f:
+            f.write(args_yaml)
 
-    config.update(
-        {
-            'scheduler_options': {
-                "dashboard_address": f":{args.port}"
-                },
-            'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
-        }
-    )
+        # Following https://github.com/dask/dask-jobqueue/issues/499
+        with open(args.dask_config) as f:
+            config = yaml.safe_load(f)
 
-
-    cluster = SLURMCluster(
-        **config,
-    )
-    print('Submitted scripts will look like: \n', cluster.job_script())
+        config.update(
+            {
+                'scheduler_options': {
+                    "dashboard_address": f":{args.port}"
+                    },
+                'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
+            }
+        )
 
 
-    # Request 20 nodes
-    cluster.scale(jobs=20)
-    client = Client(cluster)
+        cluster = SLURMCluster(
+            **config,
+        )
+        print('Submitted scripts will look like: \n', cluster.job_script())
+
+
+        # Request 20 nodes
+        cluster.scale(jobs=20)
+        client = Client(cluster)
 
     print(client.scheduler_info()['services'])
 
@@ -333,6 +338,12 @@ def cli():
         type=str,
         default=None,
         help="Config file for Dask SlurmCLUSTER."
+    )
+
+    parser.add_argument(
+        '--use_mpi',
+        action="store_true",
+        help="Use Dask-mpi to parallelise -- must use srun/mpirun to assign resources."
     )
 
     flowargs = parser.add_argument_group("pipeline flow options")
@@ -532,6 +543,10 @@ def cli():
         help="Format for output file [None]."
     )
     args = parser.parse_args()
+
+    if args.use_mpi:
+        print('GAAAHHH')
+        initialize(dashboard_address=f":{args.port}")
 
     verbose = args.verbose
 
