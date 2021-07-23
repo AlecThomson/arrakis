@@ -11,6 +11,7 @@ from spiceracs.utils import try_mkdir
 racs_area = os.path.abspath('/askapbuffer/payne/mcc381/RACS')
 # spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')
 spice_area = os.path.abspath('/scratch/ja3/athomson/spica')
+group_area = os.path.abspath('/group/ja3/athomson/spica/')
 
 SPICA = [
     '1416+00A',
@@ -92,6 +93,7 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
         image = len(cubes) == 108
         spica_tab.add_row([f"RACS_{name}", cal_sbid, sbid, leak, index, image])
 
+    spica_tab.sort('SBID')
     spica_tab.pprint_all()
     if cal:
         print('The following row indcies are ready to image:')
@@ -162,6 +164,11 @@ if __name__ == "__main__":
         "--copy",
         action="store_true",
         help="Copy calibrated data from racs's area [False]."
+    )
+    parser.add_argument(
+        "--copy_cutouts",
+        action="store_true",
+        help="Copy cutouts back to /group [False]."
     )
     parser.add_argument(
         "--force",
