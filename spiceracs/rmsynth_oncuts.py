@@ -3,6 +3,8 @@ from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, try_mkdir
 import json
 import numpy as np
 import os
+from glob import glob
+from shutil import copyfile
 import pymongo
 import sys
 import subprocess
@@ -52,7 +54,7 @@ def rmsynthoncut3d(island_id,
                    weightType='variance',
                    fitRMSF=True,
                    not_RMSF=False,
-                   rm_verbose=False
+                   rm_verbose=False,
                    ):
     """3D RM-synthesis
 
@@ -267,7 +269,8 @@ def rmsynthoncut1d(comp_id,
                    savePlots=False,
                    debug=False,
                    rm_verbose=False,
-                   fit_function='log'
+                   fit_function='log',
+                   cat_model=False
                    ):
     """1D RM synthesis
 
@@ -298,11 +301,11 @@ def rmsynthoncut1d(comp_id,
         beams_col = mydb['beams']  # Create/open collection
 
         # Basic querey
-        myquery = {"Component_ID": comp_id}
+        myquery = {"Gaussian_ID": comp_id}
 
         doc = comp_col.find_one(myquery)
         iname = doc['Source_ID']
-        cname = doc['Component_ID']
+        cname = doc['Gaussian_ID']
         beam = beams_col.find_one({'Source_ID': iname})
 
         ifile = os.path.join(outdir, beam['beams'][field]['i_file'])
@@ -420,12 +423,19 @@ def rmsynthoncut1d(comp_id,
                                                      fit_function=fit_function,
                                                      prefixOut=prefix,
                                                      )
+            if savePlots:
+                plotdir = os.path.join(outdir, 'plots')
+                plot_files = glob(os.path.join(os.path.dirname(ifile), '*.pdf'))
+                for src in plot_files:
+                    base = os.path.basename(src)
+                    dst = os.path.join(plotdir,base)
+                    copyfile(src, dst)
 
             do_RMsynth_1D.saveOutput(
                 mDict, aDict, prefix, rm_verbose)
 
             if database:
-                myquery = {"Component_ID": cname}
+                myquery = {"Gaussian_ID": cname}
 
                 # Prep header
                 head_dict = dict(header)
@@ -481,11 +491,11 @@ def rmsynthoncut_i(comp_id,
         beams_col = mydb['beams']  # Create/open collection
 
     # Basic querey
-    myquery = {"Component_ID": comp_id}
+    myquery = {"Gaussian_ID": comp_id}
     doc = comp_col.find_one(myquery)
 
     iname = doc['Source_ID']
-    cname = doc['Component_ID']
+    cname = doc['Gaussian_ID']
 
     beams = beams_col.find_one({'Source_ID': iname})
     ifile = os.path.join(outdir, beams['beams'][field]['i_file'])
@@ -635,7 +645,7 @@ def main(field,
     query = {'Source_ID': {'$in': island_ids}}
     islands = isl_col.find(query).sort('Source_ID')
     components = comp_col.find(query).sort('Source_ID')
-    component_ids = [doc['Component_ID'] for doc in components]
+    component_ids = [doc['Gaussian_ID'] for doc in components]
 
     n_comp = comp_col.count_documents(query)
     n_island = isl_col.count_documents(query)
@@ -870,8 +880,8 @@ def cli():
     args = parser.parse_args()
     verbose = args.verbose
 
-    cluster = LocalCluster(n_workers=16, processes=True,
-                           threads_per_worker=2, local_directory='/dev/shm')
+    cluster = LocalCluster(n_workers=12, processes=True,
+                           threads_per_worker=1, local_directory='/dev/shm')
     client = Client(cluster)
     print(client)
 
