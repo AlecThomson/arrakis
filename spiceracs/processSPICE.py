@@ -132,17 +132,26 @@ def main(args):
         config = yaml.safe_load(f)
 
     config.update(
-        {'scheduler_options': {"dashboard_address": f":{args.port}"}})
+        {
+            'scheduler_options': {
+                "dashboard_address": f":{args.port}"
+                },
+            'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
+        }
+    )
+
 
     cluster = SLURMCluster(
         **config,
     )
-    print(config)
     print('Submitted scripts will look like: \n', cluster.job_script())
+
 
     # Request 20 nodes
     cluster.scale(jobs=20)
     client = Client(cluster)
+
+    print(client.scheduler_info()['services'])
 
     # Forward ports
     if args.port_forward is not None:
