@@ -22,6 +22,8 @@ from astropy import units as u
 from astropy.wcs import WCS
 from astropy.wcs.utils import skycoord_to_pixel
 from astropy.io import fits
+import fitsio
+from fitsio import FITS,FITSHDR
 import sys
 import os
 from glob import glob
@@ -120,8 +122,10 @@ def cutout(image,
         ]
 
         # # Use astropy for data access - more speed!
-        with fits.open(image, memmap=True, mode='denywrite') as hdulist:
-            data = hdulist[0].data
+        # with fits.open(image, memmap=True, mode='denywrite') as hdulist:
+        #     data = hdulist[0].data
+        with FITS(image) as hdulist:
+            data = hdulist[0].read()
 
         sub_data = data[
             :,  # freq
@@ -130,17 +134,17 @@ def cutout(image,
             int(np.floor(xp_hi)):int(np.ceil(xp_lo))
         ]
 
-        # cutout_cube = cube.subcube(xlo=xlo.deg*u.deg,
-        #                       xhi=xhi.deg*u.deg,
-        #                       ylo=ylo.deg*u.deg,
-        #                       yhi=yhi.deg*u.deg,
-        #                       )
         if not dryrun:
-            fits.writeto(outfile,
+            # fits.writeto(outfile,
+            #              sub_data,
+            #              # cutout_cube.unmasked_data[:].value,
+            #              header=cutout_cube.header,
+            #              overwrite=True
+            #              )
+            fitsio.write(outfile,
                          sub_data,
-                         # cutout_cube.unmasked_data[:].value,
                          header=cutout_cube.header,
-                         overwrite=True
+                         clobber=True
                          )
             # cutout_cube.write(outfile, overwrite=True)
             if verbose:
@@ -382,8 +386,9 @@ def main(args, verbose=True):
     Arguments:
         args {[type]} -- commandline args
     """
-    cluster = LocalCluster(n_workers=20, dashboard_address=":9999")
+    cluster = LocalCluster(n_workers=12, threads_per_worker=1, dashboard_address=":9898")
     client = Client(cluster)
+    print(client)
     cutout_islands(args.field,
                    args.datadir,
                    args.host,
