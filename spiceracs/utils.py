@@ -67,6 +67,7 @@ def port_forward(port, target):
         port (int): port to forward
         target (str): Target host
     """
+    print(f"Forwarding {port} from {target}")
     cmd = f"ssh -N -f -R {port}:localhost:{port} {target}"
     command = shlex.split(cmd)
     output = subprocess.Popen(command)
