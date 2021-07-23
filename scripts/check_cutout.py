@@ -5,6 +5,7 @@ import os
 import matplotlib.pyplot as plt
 import astropy.units as u 
 from matplotlib.patches import Ellipse
+from astropy.visualization import SqrtStretch, ZScaleInterval, ImageNormalize, LogStretch, MinMaxInterval
 
 def plot_comp(row, c='b'):
     ax = plt.gca()
@@ -52,17 +53,20 @@ def main(cutdir, source):
     images = glob(f"{cutdir}/{source}/*.image.*.i.*.linmos.fits")
 
     cube = SpectralCube.read(images[0])
-    mom0 = cube.sum(axis=0)
+    mom0 = cube.mean(axis=0)
 
     fig = plt.figure()
     ax = plt.subplot(projection=mom0.wcs)
-    ax.imshow(mom0.value)
+    norm = ImageNormalize(mom0.value, interval=MinMaxInterval(),
+                      stretch=SqrtStretch())
+    im = ax.imshow(mom0.value, norm=norm)
     ax.plot(sub['RA']*u.deg, sub['Dec']*u.deg, 'rX', transform=ax.get_transform('world'))
     ax.plot(sub_S['RA']*u.deg, sub_S['Dec']*u.deg, 'bX', transform=ax.get_transform('world'))
     ra = ax.coords['ra']
     dec = ax.coords['dec']
     ra.set_major_formatter('d.dd')
     dec.set_major_formatter('d.dd')
+    fig.colorbar(im, label=f'Average flux density [{mom0.unit}]')
     for row in sub:
         plot_comp(row, c='w')
     plt.show()
