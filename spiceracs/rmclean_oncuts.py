@@ -54,7 +54,7 @@ def rmclean1d(comp_id,
         beams_col = mydb['beams']  # Create/open collection
 
     # Basic querey
-    myquery = {"Component_ID": comp_id}
+    myquery = {"Gaussian_ID": comp_id}
 
     doc = comp_col.find_one(myquery)
 
@@ -101,7 +101,7 @@ def rmclean1d(comp_id,
 
         if database:
             # Load into Mongo
-            myquery = {"Component_ID": cname}
+            myquery = {"Gaussian_ID": cname}
 
             newvalues = {"$set": {f"rmclean1d": True}}
             comp_col.update_one(myquery, newvalues)
@@ -262,7 +262,7 @@ def main(field,
     }
 
     components = comp_col.find(query).sort('Source_ID')
-    component_ids = [doc['Component_ID'] for doc in components]
+    component_ids = [doc['Gaussian_ID'] for doc in components]
     n_comp = comp_col.count_documents(query)
 
     if limit is not None:
