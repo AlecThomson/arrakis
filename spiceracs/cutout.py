@@ -317,7 +317,7 @@ def cutout_islands(field,
 
     beams = beams_col.find(query).sort('Source_ID')
 
-    island_ids = sorted(beams_col.distinct('Source_ID', query))
+    island_ids = sorted(beams_col.distinct('Source_ID', query))[:10]
     islands = island_col.find(
         {'Source_ID': {'$in': island_ids}}).sort('Source_ID')
 
