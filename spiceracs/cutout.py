@@ -22,8 +22,6 @@ from astropy import units as u
 from astropy.wcs import WCS
 from astropy.wcs.utils import skycoord_to_pixel
 from astropy.io import fits
-import fitsio
-from fitsio import FITS, FITSHDR
 import sys
 import os
 from glob import glob
@@ -116,8 +114,8 @@ def cutout(image,
             xp_lo_idx:xp_hi_idx
         ]
 
-        with FITS(image, verbose=False) as hdulist:
-            data = hdulist[0]
+        with fits.open(image, memmap=True, mode='denywrite') as hdulist:
+            data = hdulist[0].data
 
             sub_data = data[
                 :,  # freq
@@ -125,12 +123,11 @@ def cutout(image,
                 yp_lo_idx:yp_hi_idx,
                 xp_lo_idx:xp_hi_idx
             ]
-            head = dict(cutout_cube.header)
         if not dryrun:
-            fitsio.write(outfile,
+            fits.writeto(outfile,
                          sub_data,
-                         header=head,
-                         clobber=True
+                         header=cutout_cube.header,
+                         overwrite=True
                          )
             if verbose:
                 print(f'Written to {outfile}')
