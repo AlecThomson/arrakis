@@ -382,7 +382,8 @@ def main(args, verbose=True):
     Arguments:
         args {[type]} -- commandline args
     """
-    cluster = LocalCluster(n_workers=20, dashboard_address=":9999")
+    cluster = LocalCluster(
+        n_workers=12, threads_per_worker=1, dashboard_address=":9898")
     client = Client(cluster)
     cutout_islands(args.field,
                    args.datadir,
