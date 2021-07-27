@@ -22,6 +22,8 @@ from astropy import units as u
 from astropy.wcs import WCS
 from astropy.wcs.utils import skycoord_to_pixel
 from astropy.io import fits
+import fitsio
+from fitsio import FITS, FITSHDR
 import sys
 import os
 from glob import glob
@@ -92,17 +94,6 @@ def cutout(image,
         cube = SpectralCube.read(image)
         if imtype == 'image':
             padder = cube.header['BMAJ']*u.deg * pad
-        # Don't know why this is required
-        # Dask breaks without it...
-        # ra_lo = ra_lo.value*u.arcsec
-        # ra_hi = ra_hi.value*u.arcsec
-        # dec_lo = dec_lo.value*u.arcsec
-        # dec_hi = dec_hi.value*u.arcsec
-
-        # xlo = np.sign(ra_lo) * (np.abs(ra_lo) + padder) #ra_lo - padder
-        # xhi = np.sign(ra_hi) * (np.abs(ra_hi) + padder) #ra_hi + padder
-        # ylo = np.sign(dec_lo) * (np.abs(dec_lo) + padder) #dec_lo  - padder
-        # yhi = np.sign(dec_hi) * (np.abs(dec_hi) + padder) #dec_hi  + padder
 
         xlo = Longitude(ra_lo*u.deg) - Longitude(padder)
         xhi = Longitude(ra_hi*u.deg) + Longitude(padder)
@@ -112,37 +103,35 @@ def cutout(image,
         xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
         xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
 
+        # Round for cutout
+        yp_lo_idx = int(np.floor(yp_lo))
+        yp_hi_idx = int(np.ceil(yp_hi))
+        xp_lo_idx = int(np.floor(xp_hi))
+        xp_hi_idx = int(np.ceil(xp_lo))
+
         # Use subcube for header transformation
         cutout_cube = cube[
             :,
-            int(np.floor(yp_lo)):int(np.ceil(yp_hi)),
-            int(np.floor(xp_hi)):int(np.ceil(xp_lo))
+            yp_lo_idx:yp_hi_idx,
+            xp_lo_idx:xp_hi_idx
         ]
 
-        # # Use astropy for data access - more speed!
-        with fits.open(image, memmap=True, mode='denywrite') as hdulist:
-            data = hdulist[0].data
+        with FITS(image, verbose=False) as hdulist:
+            data = hdulist[0]
 
-        sub_data = data[
-            :,  # freq
-            0,  # useless Stokes
-            int(np.floor(yp_lo)):int(np.ceil(yp_hi)),
-            int(np.floor(xp_hi)):int(np.ceil(xp_lo))
-        ]
-
-        # cutout_cube = cube.subcube(xlo=xlo.deg*u.deg,
-        #                       xhi=xhi.deg*u.deg,
-        #                       ylo=ylo.deg*u.deg,
-        #                       yhi=yhi.deg*u.deg,
-        #                       )
+            sub_data = data[
+                :,  # freq
+                0,  # useless Stokes
+                yp_lo_idx:yp_hi_idx,
+                xp_lo_idx:xp_hi_idx
+            ]
+            head = dict(cutout_cube.header)
         if not dryrun:
-            fits.writeto(outfile,
+            fitsio.write(outfile,
                          sub_data,
-                         # cutout_cube.unmasked_data[:].value,
-                         header=cutout_cube.header,
-                         overwrite=True
+                         header=head,
+                         clobber=True
                          )
-            # cutout_cube.write(outfile, overwrite=True)
             if verbose:
                 print(f'Written to {outfile}')
 
@@ -151,7 +140,8 @@ def cutout(image,
                 "Source_ID": src_name
             }
 
-            filename = os.path.join(os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile))
+            filename = os.path.join(os.path.basename(
+                os.path.dirname(outfile)), os.path.basename(outfile))
             newvalues = {
                 "$set":
                 {
@@ -385,6 +375,7 @@ def main(args, verbose=True):
     cluster = LocalCluster(
         n_workers=12, threads_per_worker=1, dashboard_address=":9898")
     client = Client(cluster)
+    print(client)
     cutout_islands(args.field,
                    args.datadir,
                    args.host,

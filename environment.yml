@@ -21,6 +21,7 @@ dependencies:
 - bokeh
 - pymongo
 - mongodb
+- fitsio
 - pip:
   - tqdm
   - configargparse
