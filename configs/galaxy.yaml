@@ -3,7 +3,7 @@ cores: 20
 processes: 20
 name: 'spice-worker'
 memory: "60GB"
-project: 'askap'
+project: 'askaprt'
 queue: 'workq'
 walltime: '12:00:00'
 job_extra: ['-M galaxy']
