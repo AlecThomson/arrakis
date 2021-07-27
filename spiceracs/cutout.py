@@ -200,11 +200,6 @@ def get_args(island,
     majs = majs * u.arcsec
     coords = SkyCoord(ras, decs)
 
-    # ra_hi = (majs[np.argmax(ras)] + np.max(ras)).to(u.arcsec)
-    # ra_lo = (np.min(ras) - majs[np.argmin(ras)]).to(u.arcsec)
-    # dec_hi = (majs[np.argmax(decs)] + np.max(decs)).to(u.arcsec)
-    # dec_lo = (np.min(decs) - majs[np.argmin(decs)]).to(u.arcsec)
-
     ra_max = np.max(coords.ra)
     ra_i_max = np.argmax(coords.ra)
     ra_off = Longitude(majs[ra_i_max])
@@ -307,7 +302,7 @@ def cutout_islands(field,
 
     beams = beams_col.find(query).sort('Source_ID')
 
-    island_ids = sorted(beams_col.distinct('Source_ID', query))[:10]
+    island_ids = sorted(beams_col.distinct('Source_ID', query))
     islands = island_col.find(
         {'Source_ID': {'$in': island_ids}}).sort('Source_ID')
 
