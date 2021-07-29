@@ -311,6 +311,8 @@ def main(field,
                 outputs.append(output)
 
     results = client.persist(outputs)
+    # dumb solution for https://github.com/dask/distributed/issues/4831
+    time.sleep(5)
     tqdm_dask(results, desc='Running RM-CLEAN', disable=(not verbose))
 
     if verbose:

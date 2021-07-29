@@ -13,7 +13,7 @@ import astropy.units as u
 from spiceracs.utils import tqdm_dask
 from IPython import embed
 import astropy
-import dask
+import time
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
@@ -271,6 +271,8 @@ def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None,
         results.append(linmos(parset, field, host, verbose=True))
 
     results = client.persist(results)
+    # dumb solution for https://github.com/dask/distributed/issues/4831
+    time.sleep(5)
     tqdm_dask(results, desc='Runing LINMOS', disable=(not verbose))
 
     print('LINMOS Done!')
