@@ -103,7 +103,7 @@ def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
     }
     beams = beams_col.find_one(myquery)['beams'][field]
     ims = []
-    for bm in beams['beam_list']:
+    for bm in list(set(beams['beam_list'])): # Ensure list of beams is unique!
         imfile = beams[f'{stoke.lower()}_beam{bm}_image_file']
         assert os.path.basename(os.path.dirname(
             imfile)) == src_name, "Looking in wrong directory!"
@@ -114,13 +114,10 @@ def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
     if len(ims) == 0:
         raise Exception(
             'No files found. Have you run imaging? Check your prefix?')
-    imlist = "["
-    for im in ims:
-        imlist += im.replace(".fits", "") + ","
-    imlist = imlist[:-1] + "]"
+    imlist = "[" + ','.join([im.replace(".fits", "") for im in ims]) + "]"
 
     wgts = []
-    for bm in beams['beam_list']:
+    for bm in list(set(beams['beam_list'])): # Ensure list of beams is unique!
         wgtsfile = beams[f'{stoke.lower()}_beam{bm}_weight_file']
         assert os.path.basename(os.path.dirname(
             wgtsfile)) == src_name, "Looking in wrong directory!"
@@ -133,10 +130,7 @@ def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
     for im, wt in zip(ims, wgts):
         assert os.path.basename(os.path.dirname(im)) == os.path.basename(os.path.dirname(wt)), "Image and weight are in different areas!"
 
-    weightlist = "["
-    for wgt in wgts:
-        weightlist += wgt.replace(".fits", "") + ","
-    weightlist = weightlist[:-1] + "]"
+    weightlist = "[" + ','.join([wgt.replace(".fits", "") for wgt in wgts]) + "]"
 
     parset_dir = os.path.join(os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0])))
 
