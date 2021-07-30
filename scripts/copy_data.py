@@ -22,7 +22,7 @@ def rsync(src, tgt):
 
 def prsync(wild_src: str, tgt: str, ncores: int):
     os.system(
-        f"ls -d {wild_src} | xargs -n1 -P{ncores} -I% rsync -rvh % {tgt}")
+        f"ls -d {wild_src} | xargs -n 1 -P {ncores} -I% rsync -rvh % {tgt}")
 
 
 def main(name: str,
