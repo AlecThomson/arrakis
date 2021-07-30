@@ -1,29 +1,18 @@
-#!/usr/bin/env python
 """Tests for CLI."""
 
 import subprocess
 import unittest
 
 class test_cli(unittest.TestCase):
-    def test_cli_spicecutout(self):
-        """Tests that the CLI `spicecutout` runs."""
-        res = subprocess.run(['spicecutout', '--help'])
+    def test_cli_init(self):
+        """Tests that the CLI `initSPICE` runs."""
+        res = subprocess.run(['initSPICE', '--help'], check=True)
         self.assertEqual(res.returncode, 0)
 
-    def test_cli_spiceunresolved(self):
-        """Tests that the CLI `spiceunresolved` runs."""
-        res = subprocess.run(['spiceunresolved', '--help'])
+    def test_cli_processSPICE(self):
+        """Tests that the CLI `processSPICE` runs."""
+        res = subprocess.run(['processSPICE', '--help'], check=True)
         self.assertEqual(res.returncode, 0)
-
-    def test_cli_moments(self):
-        """Tests that the CLI `spicemoments` runs."""
-        res = subprocess.run(['spicemoments', '--help'])
-        self.assertEqual(res.returncode, 0)
-
-    def test_cli_spicepolfind(self):
-            """Tests that the CLI `spicepolfind` runs."""
-            res = subprocess.run(['spicepolfind', '--help'])
-            self.assertEqual(res.returncode, 0)
 
 
 if __name__ == '__main__':
