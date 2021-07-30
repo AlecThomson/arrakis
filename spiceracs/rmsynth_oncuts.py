@@ -893,7 +893,7 @@ def cli():
                         type=int, help="Limit number of sources [All].")
 
     # RM-tools args
-    parser.add_argument("-sp", dest="savePlots", action="store_true",
+    parser.add_argument("-sp", "--savePlots", action="store_true",
                         help="save the plots [False].")
     parser.add_argument("-w", dest="weightType", default="variance",
                         help="weighting [variance] (all 1s) or 'uniform'.")
