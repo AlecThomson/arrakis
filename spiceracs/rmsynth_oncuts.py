@@ -17,6 +17,9 @@ from spectral_cube import SpectralCube
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.stats import sigma_clip, mad_std
+from astropy.coordinates import SkyCoord
+from astropy.modeling import models, fitting
+import astropy.units as u
 import matplotlib.pyplot as plt
 from RMutils.util_plotTk import plot_rmsf_fdf_fig
 from RMutils.util_misc import create_frac_spectra
@@ -28,6 +31,7 @@ import dask
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster, wait
 from dask.diagnostics import ProgressBar
+
 
 
 # def safe_mongocall(call):
@@ -270,7 +274,8 @@ def rmsynthoncut1d(comp_id,
                    debug=False,
                    rm_verbose=False,
                    fit_function='log',
-                   cat_model=False
+                   tt0=None,
+                   tt1=None
                    ):
     """1D RM synthesis
 
@@ -358,14 +363,16 @@ def rmsynthoncut1d(comp_id,
 
         ra = doc['RA']
         dec = doc['Dec']
+        coord = SkyCoord(ra*u.deg,dec*u.deg)
         if len(dataI.shape) == 4:
             # drop Stokes axis
             wcs = WCS(header).dropaxis(2)
         else:
             wcs = WCS(header)
 
-        x, y, z = np.array(wcs.all_world2pix(
-            ra, dec, np.nanmean(freq), 0)).round().astype(int)
+        x, y = np.array(
+            wcs.celestial.world_to_pixel(coord)
+        ).round().astype(int)
 
         qarr = dataQ[:, y, x]
         uarr = dataU[:, y, x]
@@ -388,6 +395,24 @@ def rmsynthoncut1d(comp_id,
         rmsq[filter_idx] = np.nan
         rmsu[filter_idx] = np.nan
 
+        if tt0 and tt1:
+            print(f'tt0 is {tt0}')
+            print(f'tt1 is {tt1}')
+            mfs_i_0 = fits.getdata(tt0, memmap=True)
+            mfs_i_1 = fits.getdata(tt1, memmap=True)
+            mfs_head = fits.getheader(tt0)
+            mfs_wcs = WCS(mfs_head)
+            xp, yp = np.array(mfs_wcs.celestial.world_to_pixel(coord)).round().astype(int)
+            tt1_p = mfs_i_1[yp, xp]
+            tt0_p = mfs_i_0[yp, xp]
+            alpha = tt1_p / tt0_p
+            print(f'alpha is {alpha}')
+            model_I = models.PowerLaw1D(tt0_p, mfs_head['RESTFREQ'], alpha=-alpha)
+            modStokesI = model_I(freq)
+
+        else:
+            modStokesI=None
+
         if np.isnan(qarr).all() or np.isnan(uarr).all():
             print(f'QU data is all NaNs. Skipping component {cname}...')
             return
@@ -408,21 +433,22 @@ def rmsynthoncut1d(comp_id,
             # Run 1D RM-synthesis on the spectra
             np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
             mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                     polyOrd=polyOrd,
-                                                     phiMax_radm2=phiMax_radm2,
-                                                     dPhi_radm2=dPhi_radm2,
-                                                     nSamples=nSamples,
-                                                     weightType=weightType,
-                                                     fitRMSF=fitRMSF,
-                                                     noStokesI=noStokesI,
-                                                     nBits=32,
-                                                     saveFigures=savePlots,
-                                                     showPlots=showPlots,
-                                                     verbose=rm_verbose,
-                                                     debug=debug,
-                                                     fit_function=fit_function,
-                                                     prefixOut=prefix,
-                                                     )
+                                                    polyOrd=polyOrd,
+                                                    phiMax_radm2=phiMax_radm2,
+                                                    dPhi_radm2=dPhi_radm2,
+                                                    nSamples=nSamples,
+                                                    weightType=weightType,
+                                                    fitRMSF=fitRMSF,
+                                                    noStokesI=noStokesI,
+                                                    modStokesI=modStokesI,
+                                                    nBits=32,
+                                                    saveFigures=savePlots,
+                                                    showPlots=showPlots,
+                                                    verbose=rm_verbose,
+                                                    debug=debug,
+                                                    fit_function=fit_function,
+                                                    prefixOut=prefix,
+                                                    )
             if savePlots:
                 plotdir = os.path.join(outdir, 'plots')
                 plot_files = glob(os.path.join(os.path.dirname(ifile), '*.pdf'))
@@ -615,7 +641,9 @@ def main(field,
          not_RMSF=False,
          rm_verbose=False,
          debug=False,
-         fit_function='log'
+         fit_function='log',
+         tt0=None,
+         tt1=None,
          ):
 
     outdir = os.path.abspath(outdir)
@@ -643,8 +671,7 @@ def main(field,
     island_ids = sorted(beams_col.distinct('Source_ID', query))
 
     query = {'Source_ID': {'$in': island_ids}}
-    islands = isl_col.find(query).sort('Source_ID')
-    components = comp_col.find(query).sort('Source_ID')
+    components = comp_col.find(query).sort('Peak_flux', pymongo.DESCENDING)
     component_ids = [doc['Gaussian_ID'] for doc in components]
 
     n_comp = comp_col.count_documents(query)
@@ -737,7 +764,9 @@ def main(field,
                                         savePlots=savePlots,
                                         debug=debug,
                                         rm_verbose=rm_verbose,
-                                        fit_function=fit_function
+                                        fit_function=fit_function,
+                                        tt0=tt0,
+                                        tt1=tt1
                                         )
                 outputs.append(output)
 
@@ -843,6 +872,20 @@ def cli():
         help="Add data to MongoDB [False]."
     )
 
+    parser.add_argument(
+        "--tt0",
+        default=None,
+        type=str,
+        help="TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1."
+    )
+
+    parser.add_argument(
+        "--tt1",
+        default=None,
+        type=str,
+        help="TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0."
+    )
+
     parser.add_argument("--validate", dest="validate", action="store_true",
                         help="Run on Stokes I [False].")
 
@@ -850,7 +893,7 @@ def cli():
                         type=int, help="Limit number of sources [All].")
 
     # RM-tools args
-    parser.add_argument("-sp", dest="savePlots", action="store_true",
+    parser.add_argument("-sp", "--savePlots", action="store_true",
                         help="save the plots [False].")
     parser.add_argument("-w", dest="weightType", default="variance",
                         help="weighting [variance] (all 1s) or 'uniform'.")
@@ -878,6 +921,12 @@ def cli():
                         help="turn on debugging messages & plots [False].")
 
     args = parser.parse_args()
+
+    if args.tt0 and not args.tt1:
+        parser.error('the following arguments are required: tt1')
+    elif args.tt1 and not args.tt0:
+        parser.error('the following arguments are required: tt0')
+
     verbose = args.verbose
 
     cluster = LocalCluster(n_workers=12, processes=True,
@@ -919,7 +968,9 @@ def cli():
          not_RMSF=args.not_RMSF,
          rm_verbose=args.rm_verbose,
          debug=args.debug,
-         fit_function=args.fit_function
+         fit_function=args.fit_function,
+         tt0=args.tt0,
+         tt1=args.tt1
          )
 
 

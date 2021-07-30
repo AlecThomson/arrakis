@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import os
 from glob import glob
-import dask
-from IPython import embed
+import time
+from spiceracs.utils import tqdm_dask
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
@@ -47,9 +47,9 @@ def main(datadir, client, stokeslist=None, verbose=True):
             outputs.append(output)
 
     results = client.persist(outputs)
-    if verbose:
-        print("Running cleanup...")
-    progress(results)
+    # dumb solution for https://github.com/dask/distributed/issues/4831
+    time.sleep(5)
+    tqdm_dask(results, desc="Running cleanup", disable=(not verbose))
 
     print('Cleanup done!')
 

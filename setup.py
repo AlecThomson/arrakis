@@ -15,16 +15,16 @@ from setuptools import find_packages, setup, Command
 NAME = 'spiceracs'
 DESCRIPTION = 'Processing polarized RACS data products.'
 URL = 'https://bitbucket.csiro.au/projects/SPICE/repos/spiceracs/'
-REQUIRES_PYTHON = '>=3.6.0'
+REQUIRES_PYTHON = '>=3.8.0'
 VERSION = None  # Read from __version__.py
 AUTHOR = 'Alec Thomson'
-EMAIL = 'alec.thomson@anu.edu.au'
+EMAIL = 'alec.thomson@csiro.au'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
     # 'numpy', 'matplotlib', 'astropy', 'spectral_cube', 'tqdm',
     # 'pymongo', 'schwimmbad', 'AegeanTools', 'pandas', 'psutil', 'RM-Tools'
-]
+] 
 
 # What packages are optional?
 EXTRAS = {
@@ -120,6 +120,7 @@ setup(
         'scripts/find_row.py',
         'scripts/copy_data.py',
         'scripts/spica.py',
+        'scripts/copy_cutouts.py'
     ],
     install_requires=REQUIRED,
     extras_require=EXTRAS,

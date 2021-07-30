@@ -20,7 +20,8 @@ import dask
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
-
+from glob import glob
+from shutil import copyfile
 
 @delayed
 def rmclean1d(comp_id,
@@ -31,6 +32,7 @@ def rmclean1d(comp_id,
               maxIter=10000,
               gain=0.1,
               showPlots=False,
+              savePlots=False,
               database=False,
               rm_verbose=True,
               ):
@@ -44,6 +46,7 @@ def rmclean1d(comp_id,
         maxIter (int, optional): CLEAN max iterations. Defaults to 10000.
         gain (float, optional): CLEAN gain. Defaults to 0.1.
         showPlots (bool, optional): Show plots. Defaults to False.
+        savePlots (bool, optional): Save plots. Defaults to False.
         database (bool, optional): Update MongoDB. Defaults to False.
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to True.
     """
@@ -91,13 +94,22 @@ def rmclean1d(comp_id,
                                                      gain=gain,
                                                      nBits=nBits,
                                                      showPlots=showPlots,
-                                                     verbose=rm_verbose)
+                                                     verbose=rm_verbose,
+                                                     saveFigures=savePlots
+                                                     )
 
         # Save output
         do_RMclean_1D.saveOutput(outdict,
                                  arrdict,
                                  prefixOut=prefix,
                                  verbose=rm_verbose)
+        if savePlots:
+            plotdir = os.path.join(outdir, 'plots')
+            plot_files = glob(os.path.join(os.path.abspath(os.path.dirname(fdfFile)), '*.pdf'))
+            for src in plot_files:
+                base = os.path.basename(src)
+                dst = os.path.join(plotdir,base)
+                copyfile(src, dst)
 
         if database:
             # Load into Mongo
@@ -173,7 +185,7 @@ def rmclean3d(island_id,
             os.path.join(outdir, rm3dfiles['FDF_real_dirty']))),
         write_separate_FDF=True,
         verbose=rm_verbose)
-    
+
     if database:
         # Load into Mongo
         myquery = {"Source_ID": iname}
@@ -188,6 +200,7 @@ def main(field,
          dimension='1d',
          verbose=True,
          database=False,
+         savePlots=True,
          validate=False,
          limit=None,
          cutoff=-3,
@@ -214,9 +227,8 @@ def main(field,
         showPlots (bool, optional): Show CLEAN plots. Defaults to False.
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to False.
     """
-    if outdir[-1] == '/':
-        outdir = outdir[:-1]
-    outdir = f'{outdir}/cutouts'
+    outdir = os.path.abspath(outdir)
+    outdir = os.path.join(outdir, 'cutouts')
 
     # default connection (ie, local)
     with pymongo.MongoClient(host=host, connect=False) as dbclient:
@@ -288,6 +300,7 @@ def main(field,
                                    maxIter=maxIter,
                                    gain=gain,
                                    showPlots=showPlots,
+                                   savePlots=savePlots,
                                    database=database,
                                    rm_verbose=rm_verbose)
                 outputs.append(output)
@@ -311,6 +324,8 @@ def main(field,
                 outputs.append(output)
 
     results = client.persist(outputs)
+    # dumb solution for https://github.com/dask/distributed/issues/4831
+    time.sleep(5)
     tqdm_dask(results, desc='Running RM-CLEAN', disable=(not verbose))
 
     if verbose:
@@ -383,7 +398,8 @@ def cli():
         action="store_true",
         help="Add data to MongoDB [False]."
     )
-
+    parser.add_argument("-sp", "--savePlots", action="store_true",
+                        help="save the plots [False].")
     parser.add_argument("--validate", dest="validate", action="store_true",
                         help="Run on Stokes I [False].")
 
@@ -428,6 +444,7 @@ def cli():
          dimension=args.dimension,
          verbose=verbose,
          database=args.database,
+         savePlots=args.savePlots,
          validate=args.validate,
          limit=args.limit,
          cutoff=args.cutoff,
