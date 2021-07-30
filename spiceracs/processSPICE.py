@@ -135,17 +135,15 @@ def main(args):
         {
             'scheduler_options': {
                 "dashboard_address": f":{args.port}"
-                },
+            },
             'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
         }
     )
-
 
     cluster = SLURMCluster(
         **config,
     )
     print('Submitted scripts will look like: \n', cluster.job_script())
-
 
     # Request 20 nodes
     cluster.scale(jobs=20)
@@ -218,6 +216,9 @@ def main(args):
             not_RMSF=args.not_RMSF,
             rm_verbose=args.rm_verbose,
             debug=args.debug,
+            fit_function=args.fit_function,
+            tt0=args.tt0,
+            tt1=args.tt1,
             upstream_tasks=[tidy]
         )
         clean_spec = rmclean_task(
@@ -409,6 +410,20 @@ def cli():
         help="Add RMsynth data to MongoDB [False]."
     )
 
+    synth.add_argument(
+        "--tt0",
+        default=None,
+        type=str,
+        help="TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1."
+    )
+
+    synth.add_argument(
+        "--tt1",
+        default=None,
+        type=str,
+        help="TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0."
+    )
+
     synth.add_argument("--validate",
                        action="store_true",
                        help="Run on RMsynth Stokes I [False]."
@@ -432,6 +447,8 @@ def cli():
         default="variance",
         help="weighting [variance] (all 1s) or 'uniform'."
     )
+    tools.add_argument("--fit_function", type=str, default="log",
+                        help="Stokes I fitting function: 'linear' or ['log'] polynomials.")
     tools.add_argument(
         "-t", "--fitRMSF",
         action="store_true",
