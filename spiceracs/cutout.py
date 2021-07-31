@@ -179,7 +179,7 @@ def get_args(island,
     assert island['Source_ID'] == island_id
     assert beam['Source_ID'] == island_id
 
-    beam_list = np.unique(beam['beams'][field]['beam_list'])
+    beam_list = list(set(beam['beams'][field]['beam_list']))
 
     outdir = f"{outdir}/{island['Source_ID']}"
     try_mkdir(outdir, verbose=verbose)
