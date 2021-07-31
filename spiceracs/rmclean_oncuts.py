@@ -95,6 +95,7 @@ def rmclean1d(comp_id,
                                                      nBits=nBits,
                                                      showPlots=showPlots,
                                                      verbose=rm_verbose,
+                                                     prefixOut=prefix,
                                                      saveFigures=savePlots
                                                      )
 
