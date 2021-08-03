@@ -316,6 +316,14 @@ def cli():
     )
 
     parser.add_argument(
+        "--username", type=str, default=None, help="Username of mongodb."
+    )
+
+    parser.add_argument(
+        "--password", type=str, default=None, help="Password of mongodb."
+    )
+
+    parser.add_argument(
         '--port',
         type=int,
         default=9999,
