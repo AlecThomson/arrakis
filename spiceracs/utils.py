@@ -22,9 +22,39 @@ import functools
 from os import name
 import subprocess
 import shlex
+import pymongo
 
 
 print = functools.partial(print, flush=True)
+
+
+def get_db(host, username=None, password=None):
+    """Get MongoDBs
+
+    Args:
+        host (str): Mongo host IP.
+        username (str, optional): Username. Defaults to None.
+        password (str, optional): Password. Defaults to None.
+
+    Returns:
+        Tuple(Collection): beams_col, island_col, comp_col
+    """
+    auth_mechanism = None
+    if username or password:
+        auth_mechanism = "SCRAM-SHA-256"
+    with pymongo.MongoClient(
+        host=host,
+        connect=False,
+        username=username,
+        password=password,
+        authMechanism=auth_mechanism,
+    ) as dbclient:
+        mydb = dbclient["spiceracs"]  # Create/open database
+        comp_col = mydb["components"]  # Create/open collection
+        island_col = mydb["islands"]  # Create/open collection
+        beams_col = mydb["beams"]  # Create/open collection
+    return beams_col, island_col, comp_col
+
 
 # stolen from https://github.com/tqdm/tqdm/issues/278
 class TqdmProgressBar(ProgressBar):
@@ -36,10 +66,9 @@ class TqdmProgressBar(ProgressBar):
         loop=None,
         complete=True,
         start=True,
-        **tqdm_kwargs
+        **tqdm_kwargs,
     ):
-        super(TqdmProgressBar, self).__init__(
-            keys, scheduler, interval, complete)
+        super(TqdmProgressBar, self).__init__(keys, scheduler, interval, complete)
         self.tqdm = tqdm(keys, **tqdm_kwargs)
         self.loop = loop or IOLoop()
 
@@ -54,11 +83,13 @@ class TqdmProgressBar(ProgressBar):
     def _draw_stop(self, **kwargs):
         self.tqdm.close()
 
+
 def tqdm_dask(futures, **kwargs):
     futures = futures_of(futures)
     if not isinstance(futures, (set, list)):
         futures = [futures]
     TqdmProgressBar(futures, **kwargs)
+
 
 def port_forward(port, target):
     """Forward ports to local host
@@ -99,11 +130,11 @@ def head2dict(h):
 
     """
     data = {}
-    for c in h.__dict__['_cards']:
-        if c[0] == '':
+    for c in h.__dict__["_cards"]:
+        if c[0] == "":
             continue
         data[c[0]] = c[1]
-    return(data)
+    return data
 
 
 class MyEncoder(json.JSONEncoder):
@@ -153,8 +184,16 @@ def cpu_to_use(max_cpu, count):
     return max(factors[factors <= max_cpu])
 
 
-def tmatchtwo(inN, valuesN, matcher='sky', params=10, omode='out',
-              out='tmatch.default.xml', join='1or2', verbose=True):
+def tmatchtwo(
+    inN,
+    valuesN,
+    matcher="sky",
+    params=10,
+    omode="out",
+    out="tmatch.default.xml",
+    join="1or2",
+    verbose=True,
+):
     """
     inN = <tableN>       (StarTable)
         The location of input table #N. This may take one of the
@@ -251,34 +290,52 @@ def tmatchtwo(inN, valuesN, matcher='sky', params=10, omode='out',
         [Default: 1and2]
 
     """
-    assert len(inN) == 2, 'Can only match 2 tables!'
-    assert len(valuesN) == 2, 'Can only match 2 tables!'
-    assert len(inN) == len(valuesN), 'Need same number of inputs (2).'
-    stiltspath = Path(os.path.realpath(__file__)
-                      ).parent.parent/"thirdparty"/"stilts"/"stilts.jar"
+    assert len(inN) == 2, "Can only match 2 tables!"
+    assert len(valuesN) == 2, "Can only match 2 tables!"
+    assert len(inN) == len(valuesN), "Need same number of inputs (2)."
+    stiltspath = (
+        Path(os.path.realpath(__file__)).parent.parent
+        / "thirdparty"
+        / "stilts"
+        / "stilts.jar"
+    )
     # Construct command
     if verbose:
-        progress = 'log'
+        progress = "log"
     if not verbose:
-        progress = 'none'
-    command = ['java', '-jar', stiltspath, 'tmatch2',
-               f'matcher={matcher}', f'params={params}',
-               f'omode={omode}', f'out={out}', f'progress={progress}',
-               f'join={join}'
-               ]
+        progress = "none"
+    command = [
+        "java",
+        "-jar",
+        stiltspath,
+        "tmatch2",
+        f"matcher={matcher}",
+        f"params={params}",
+        f"omode={omode}",
+        f"out={out}",
+        f"progress={progress}",
+        f"join={join}",
+    ]
     for i in range(len(inN)):
-        command.append(f'in{i+1}={inN[i]}')
-        command.append(f'values{i+1}={valuesN[i]}')
+        command.append(f"in{i+1}={inN[i]}")
+        command.append(f"values{i+1}={valuesN[i]}")
     command = [str(i) for i in command]
     # Run STILTS
-    proc = subprocess.run(command,
-                          capture_output=(not verbose),
-                          encoding="utf-8", check=True)
+    proc = subprocess.run(
+        command, capture_output=(not verbose), encoding="utf-8", check=True
+    )
 
 
-def tmatchn(nin, inN, valuesN,
-            matcher='sky', params=10, omode='out',
-            out='tmatch.default.xml', verbose=True):
+def tmatchn(
+    nin,
+    inN,
+    valuesN,
+    matcher="sky",
+    params=10,
+    omode="out",
+    out="tmatch.default.xml",
+    verbose=True,
+):
     """Run STILTS tmatchn
     nin = <count>       (Integer)
         The number of input tables for this task. For each of the input
@@ -352,24 +409,37 @@ def tmatchn(nin, inN, valuesN,
         of "out".
         [Default: -]
     """
-    stiltspath = Path(os.path.realpath(__file__)
-                      ).parent.parent/"thirdparty"/"stilts"/"stilts.jar"
+    stiltspath = (
+        Path(os.path.realpath(__file__)).parent.parent
+        / "thirdparty"
+        / "stilts"
+        / "stilts.jar"
+    )
     # Construct command
     if verbose:
-        progress = 'log'
+        progress = "log"
     if not verbose:
-        progress = 'none'
-    command = ['java', '-jar', stiltspath, 'tmatchn', f'nin={nin}',
-               f'matcher={matcher}', f'params={params}',
-               f'omode={omode}', f'out={out}', f'progress={progress}']
+        progress = "none"
+    command = [
+        "java",
+        "-jar",
+        stiltspath,
+        "tmatchn",
+        f"nin={nin}",
+        f"matcher={matcher}",
+        f"params={params}",
+        f"omode={omode}",
+        f"out={out}",
+        f"progress={progress}",
+    ]
     for i in range(len(inN)):
-        command.append(f'in{i+1}={inN[i]}')
-        command.append(f'values{i+1}={valuesN[i]}')
+        command.append(f"in{i+1}={inN[i]}")
+        command.append(f"values{i+1}={valuesN[i]}")
     command = [str(i) for i in command]
     # Run STILTS
-    proc = subprocess.run(command,
-                          capture_output=(not verbose),
-                          encoding="utf-8", check=True)
+    proc = subprocess.run(
+        command, capture_output=(not verbose), encoding="utf-8", check=True
+    )
 
 
 def getfreq(cube, outdir=None, filename=None, verbose=False):
@@ -398,7 +468,7 @@ def getfreq(cube, outdir=None, filename=None, verbose=False):
 
     # If cube is a file, open with SpectralCube
     if type(cube) is str:
-        cube = SpectralCube.read(cube, mode='denywrite')
+        cube = SpectralCube.read(cube, mode="denywrite")
 
     # Test that cube is Spectral cube
     assert type(cube) is SpectralCube, "cube should be a SpectralCube!"
@@ -408,14 +478,14 @@ def getfreq(cube, outdir=None, filename=None, verbose=False):
 
     # Write to file if outdir is specified
     if outdir is not None:
-        if outdir[-1] == '/':
+        if outdir[-1] == "/":
             outdir = outdir[:-1]
         if filename is None:
-            outfile = f'{outdir}/frequencies.txt'
+            outfile = f"{outdir}/frequencies.txt"
         else:
-            outfile = f'{outdir}/{filename}'
+            outfile = f"{outdir}/{filename}"
         if verbose:
-            print(f'Saving to {outfile}')
+            print(f"Saving to {outfile}")
         np.savetxt(outfile, np.array(freq))
     else:
         outfile = None
@@ -441,25 +511,25 @@ def gettable(tabledir, keyword, verbose=True):
             Spectral cubes.
 
     """
-    if tabledir[-1] == '/':
+    if tabledir[-1] == "/":
         tabledir = tabledir[:-1]
     # Glob out the necessary files
-    files = glob(f'{tabledir}/*.{keyword}*.xml')  # Selvay VOTab
+    files = glob(f"{tabledir}/*.{keyword}*.xml")  # Selvay VOTab
     filename = files[0]
     if verbose:
-        print(f'Getting table data from {filename}...')
+        print(f"Getting table data from {filename}...")
 
     # Get selvay data from VOTab
-    table = Table.read(filename, format='votable')
+    table = Table.read(filename, format="votable")
     table = table.to_pandas()
     str_df = table.select_dtypes([np.object])
-    str_df = str_df.stack().str.decode('utf-8').unstack()
+    str_df = str_df.stack().str.decode("utf-8").unstack()
     for col in str_df:
         table[col] = str_df[col]
     return table, filename
 
 
-def getdata(cubedir='./', tabledir='./', mapdata=None, verbose=True):
+def getdata(cubedir="./", tabledir="./", mapdata=None, verbose=True):
     """Get the spectral and source-finding data.
 
     Args:
@@ -475,47 +545,46 @@ def getdata(cubedir='./', tabledir='./', mapdata=None, verbose=True):
             Spectral cubes.
 
     """
-    if cubedir[-1] == '/':
+    if cubedir[-1] == "/":
         cubedir = cubedir[:-1]
 
-    if tabledir[-1] == '/':
+    if tabledir[-1] == "/":
         tabledir = tabledir[:-1]
     # Glob out the necessary files
     # Data cubes
-    icubes = glob(f'{cubedir}/image.restored.i.*contcube*linmos.fits')
-    qcubes = glob(f'{cubedir}/image.restored.q.*contcube*linmos.fits')
-    ucubes = glob(f'{cubedir}/image.restored.u.*contcube*linmos.fits')
-    vcubes = glob(f'{cubedir}/image.restored.v.*contcube*linmos.fits')
+    icubes = glob(f"{cubedir}/image.restored.i.*contcube*linmos.fits")
+    qcubes = glob(f"{cubedir}/image.restored.q.*contcube*linmos.fits")
+    ucubes = glob(f"{cubedir}/image.restored.u.*contcube*linmos.fits")
+    vcubes = glob(f"{cubedir}/image.restored.v.*contcube*linmos.fits")
 
     cubes = [icubes, qcubes, ucubes, vcubes]
     # Selavy images
     selavyfits = mapdata
     # Get selvay data from VOTab
-    i_tab, voisle = gettable(
-        tabledir, 'islands', verbose=verbose)  # Selvay VOTab
-    components, tablename = gettable(tabledir, 'components', verbose=verbose)
+    i_tab, voisle = gettable(tabledir, "islands", verbose=verbose)  # Selvay VOTab
+    components, tablename = gettable(tabledir, "components", verbose=verbose)
 
     if verbose:
-        print(f'Getting spectral data from: {cubes}', '\n')
-        print(f'Getting source location data from:', selavyfits, '\n')
+        print(f"Getting spectral data from: {cubes}", "\n")
+        print(f"Getting source location data from:", selavyfits, "\n")
 
     # Read data using Spectral cube
-    i_taylor = SpectralCube.read(selavyfits, mode='denywrite')
+    i_taylor = SpectralCube.read(selavyfits, mode="denywrite")
     wcs_taylor = WCS(i_taylor.header)
-    i_cube = SpectralCube.read(icubes[0], mode='denywrite')
+    i_cube = SpectralCube.read(icubes[0], mode="denywrite")
     wcs_cube = WCS(i_cube.header)
-    q_cube = SpectralCube.read(qcubes[0], mode='denywrite')
-    u_cube = SpectralCube.read(ucubes[0], mode='denywrite')
+    q_cube = SpectralCube.read(qcubes[0], mode="denywrite")
+    u_cube = SpectralCube.read(ucubes[0], mode="denywrite")
     if len(vcubes) != 0:
-        v_cube = SpectralCube.read(vcubes[0], mode='denywrite')
+        v_cube = SpectralCube.read(vcubes[0], mode="denywrite")
     else:
         v_cube = None
     # Mask out using Stokes I == 0 -- seems to be the current fill value
-    mask = ~(i_cube == 0*u.jansky/u.beam)
+    mask = ~(i_cube == 0 * u.jansky / u.beam)
     i_cube = i_cube.with_mask(mask)
-    mask = ~(q_cube == 0*u.jansky/u.beam)
+    mask = ~(q_cube == 0 * u.jansky / u.beam)
     q_cube = q_cube.with_mask(mask)
-    mask = ~(u_cube == 0*u.jansky/u.beam)
+    mask = ~(u_cube == 0 * u.jansky / u.beam)
     u_cube = u_cube.with_mask(mask)
 
     datadict = {
@@ -565,7 +634,7 @@ class RegistryError(Exception):
 
 def _samefile(src, dst):
     # Macintosh, Unix.
-    if hasattr(os.path, 'samefile'):
+    if hasattr(os.path, "samefile"):
         try:
             return os.path.samefile(src, dst)
         except OSError:
@@ -596,20 +665,17 @@ def copyfile(src, dst, *, follow_symlinks=True, verbose=True):
     if not follow_symlinks and os.path.islink(src):
         os.symlink(os.readlink(src), dst)
     else:
-        with open(src, 'rb') as fsrc:
-            with open(dst, 'wb') as fdst:
+        with open(src, "rb") as fsrc:
+            with open(dst, "wb") as fdst:
                 copyfileobj(fsrc, fdst, verbose=verbose)
     return dst
 
 
-def copyfileobj(fsrc, fdst, length=16*1024, verbose=True):
-    #copied = 0
+def copyfileobj(fsrc, fdst, length=16 * 1024, verbose=True):
+    # copied = 0
     total = os.fstat(fsrc.fileno()).st_size
     with tqdm(
-            total=total,
-            disable=(not verbose),
-            unit_scale=True,
-            desc='Copying file'
+        total=total, disable=(not verbose), unit_scale=True, desc="Copying file"
     ) as pbar:
         while True:
             buf = fsrc.read(length)
