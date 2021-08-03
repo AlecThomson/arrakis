@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from logging import disable
 import warnings
 import pymongo
 import dask
@@ -27,10 +26,11 @@ import os
 from glob import glob
 from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord, Longitude, Latitude
-from spiceracs.utils import getdata, MyEncoder, try_mkdir, tqdm_dask
+from spiceracs.utils import getdata, MyEncoder, try_mkdir, tqdm_dask, get_db
 from astropy.utils import iers
 import astropy.units as u
 from spectral_cube import SpectralCube
+
 iers.conf.auto_download = False
 warnings.filterwarnings(
     "ignore", message="Cube is a Stokes cube, returning spectral cube for I component"
@@ -38,21 +38,24 @@ warnings.filterwarnings(
 
 
 @delayed
-def cutout(image,
-           src_name,
-           beam,
-           ra_hi,
-           ra_lo,
-           dec_hi,
-           dec_lo,
-           outdir,
-           stoke,
-           host,
-           field,
-           pad=3,
-           verbose=False,
-           dryrun=False
-           ):
+def cutout(
+    image,
+    src_name,
+    beam,
+    ra_hi,
+    ra_lo,
+    dec_hi,
+    dec_lo,
+    outdir,
+    stoke,
+    host,
+    field,
+    pad=3,
+    verbose=False,
+    dryrun=False,
+    username=None,
+    password=None,
+):
     """Cutout a source from a given image.
 
     Arguments:
@@ -68,35 +71,36 @@ def cutout(image,
         verbose {bool} -- Verbose output (default: {False})
         dryrun {bool} -- Do everything except the cutout (default: {True})
     """
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        mydb = dbclient['spiceracs']  # Create/open database
-        beams_col = mydb['beams']  # Create/open collection
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
 
-    if outdir[-1] == '/':
-        outdir = outdir[:-1]
+    outdir = os.path.abspath(outdir)
 
-    for imtype in ['image', 'weight']:
+    for imtype in ["image", "weight"]:
         basename = os.path.basename(image)
-        outname = f'{src_name}.cutout.{basename}'
-        outfile = f"{outdir}/{outname}"
+        outname = f"{src_name}.cutout.{basename}"
+        outfile = os.path.join(outdir, outname)
 
-        if imtype == 'weight':
-            image = image.replace('image.restored', 'weights').replace(
-                '.conv.fits', '.fits')
-            outfile = outfile.replace('image.restored', 'weights').replace(
-                '.conv.fits', '.fits')
+        if imtype == "weight":
+            image = image.replace("image.restored", "weights").replace(
+                ".conv.fits", ".fits"
+            )
+            outfile = outfile.replace("image.restored", "weights").replace(
+                ".conv.fits", ".fits"
+            )
 
         if verbose:
-            print(f'Reading {image}')
+            print(f"Reading {image}")
 
         cube = SpectralCube.read(image)
-        if imtype == 'image':
-            padder = cube.header['BMAJ']*u.deg * pad
+        if imtype == "image":
+            padder = cube.header["BMAJ"] * u.deg * pad
 
-        xlo = Longitude(ra_lo*u.deg) - Longitude(padder)
-        xhi = Longitude(ra_hi*u.deg) + Longitude(padder)
-        ylo = Latitude(dec_lo*u.deg) - Latitude(padder)
-        yhi = Latitude(dec_hi*u.deg) + Latitude(padder)
+        xlo = Longitude(ra_lo * u.deg) - Longitude(padder)
+        xhi = Longitude(ra_hi * u.deg) + Longitude(padder)
+        ylo = Latitude(dec_lo * u.deg) - Latitude(padder)
+        yhi = Latitude(dec_hi * u.deg) + Latitude(padder)
 
         xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
         xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
@@ -108,42 +112,27 @@ def cutout(image,
         xp_hi_idx = int(np.ceil(xp_lo))
 
         # Use subcube for header transformation
-        cutout_cube = cube[
-            :,
-            yp_lo_idx:yp_hi_idx,
-            xp_lo_idx:xp_hi_idx
-        ]
+        cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
 
-        with fits.open(image, memmap=True, mode='denywrite') as hdulist:
+        with fits.open(image, memmap=True, mode="denywrite") as hdulist:
             data = hdulist[0].data
 
             sub_data = data[
-                :,  # freq
-                0,  # useless Stokes
-                yp_lo_idx:yp_hi_idx,
-                xp_lo_idx:xp_hi_idx
+                :, 0, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx  # freq  # useless Stokes
             ]
         if not dryrun:
-            fits.writeto(outfile,
-                         sub_data,
-                         header=cutout_cube.header,
-                         overwrite=True
-                         )
+            fits.writeto(outfile, sub_data, header=cutout_cube.header, overwrite=True)
             if verbose:
-                print(f'Written to {outfile}')
+                print(f"Written to {outfile}")
 
             # Update database
-            myquery = {
-                "Source_ID": src_name
-            }
+            myquery = {"Source_ID": src_name}
 
-            filename = os.path.join(os.path.basename(
-                os.path.dirname(outfile)), os.path.basename(outfile))
+            filename = os.path.join(
+                os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
+            )
             newvalues = {
-                "$set":
-                {
-                    f"beams.{field}.{stoke}_beam{beam}_{imtype}_file": filename
-                }
+                "$set": {f"beams.{field}.{stoke}_beam{beam}_{imtype}_file": filename}
             }
 
             beams_col.update_one(myquery, newvalues, upsert=True)
@@ -152,15 +141,9 @@ def cutout(image,
 
 
 @delayed
-def get_args(island,
-             comps,
-             beam,
-             island_id,
-             outdir,
-             field,
-             datadir,
-             stokeslist,
-             verbose=True):
+def get_args(
+    island, comps, beam, island_id, outdir, field, datadir, stokeslist, verbose=True
+):
     """[summary]
 
     Args:
@@ -176,10 +159,10 @@ def get_args(island,
     Returns:
         [type]: [description]
     """
-    assert island['Source_ID'] == island_id
-    assert beam['Source_ID'] == island_id
+    assert island["Source_ID"] == island_id
+    assert beam["Source_ID"] == island_id
 
-    beam_list = np.unique(beam['beams'][field]['beam_list'])
+    beam_list = np.unique(beam["beams"][field]["beam_list"])
 
     outdir = f"{outdir}/{island['Source_ID']}"
     try_mkdir(outdir, verbose=verbose)
@@ -189,9 +172,9 @@ def get_args(island,
     decs = []
     majs = []
     for comp in comps:
-        ras = ras + [comp['RA']]
-        decs = decs + [comp['Dec']]
-        majs = majs + [comp['Maj']]
+        ras = ras + [comp["RA"]]
+        decs = decs + [comp["Dec"]]
+        majs = majs + [comp["Maj"]]
     ras = ras * u.deg
     decs = decs * u.deg
     majs = majs * u.arcsec
@@ -220,39 +203,35 @@ def get_args(island,
     args = []
     for beam_num in beam_list:
         for stoke in stokeslist:
-            wild = f'{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits'
-            images = glob(
-                wild
-            )
+            wild = f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
+            images = glob(wild)
             if len(images) == 0:
-                raise Exception(
-                    f"No images found matching '{wild}'"
-                )
+                raise Exception(f"No images found matching '{wild}'")
             for image in images:
-                args.extend([
-                    {
-                        'image': image,
-                        'id': island['Source_ID'],
-                        'ra_hi': ra_hi.deg,
-                        'ra_lo': ra_lo.deg,
-                        'dec_hi': dec_hi.deg,
-                        'dec_lo': dec_lo.deg,
-                        'outdir': outdir,
-                        'beam': beam_num,
-                        'stoke': stoke.lower()
-                    }
-                ]
+                args.extend(
+                    [
+                        {
+                            "image": image,
+                            "id": island["Source_ID"],
+                            "ra_hi": ra_hi.deg,
+                            "ra_lo": ra_lo.deg,
+                            "dec_hi": dec_hi.deg,
+                            "dec_lo": dec_lo.deg,
+                            "outdir": outdir,
+                            "beam": beam_num,
+                            "stoke": stoke.lower(),
+                        }
+                    ]
                 )
     return args
 
 
 @delayed
-def find_comps(island_id, host):
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        # default connection (ie, local)
-        mydb = dbclient['spiceracs']  # Create/open database
-        comp_col = mydb['components']  # Create/open collection
-    comps = comp_col.find({'Source_ID': island_id})
+def find_comps(island_id, host, username=None, password=None):
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
+    comps = comp_col.find({"Source_ID": island_id})
     comps = [c for c in comps]
     return comps
 
@@ -266,42 +245,39 @@ def unpack(list_sq):
     return list_fl
 
 
-def cutout_islands(field,
-                   directory,
-                   host,
-                   client,
-                   verbose=True,
-                   pad=3,
-                   stokeslist=None,
-                   verbose_worker=False,
-                   dryrun=True):
+def cutout_islands(
+    field,
+    directory,
+    host,
+    client,
+    username=None,
+    password=None,
+    verbose=True,
+    pad=3,
+    stokeslist=None,
+    verbose_worker=False,
+    dryrun=True,
+):
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
     if verbose:
         print(f"Client is {client}")
-    if directory[-1] == '/':
-        directory = directory[:-1]
-    outdir = f'{directory}/cutouts'
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        # default connection (ie, local)
-        mydb = dbclient['spiceracs']  # Create/open database
-        comp_col = mydb['components']  # Create/open collection
-        island_col = mydb['islands']  # Create/open collection
-        beams_col = mydb['beams']  # Create/open collection
+    directory = os.path.abspath(directory)
+    outdir = os.path.join(directory, "cutouts")
+
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
 
     # Query the DB
     query = {
-        '$and':  [
-            {f'beams.{field}': {'$exists': True}},
-            {f'beams.{field}.DR1': True}
-        ]
+        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    beams = beams_col.find(query).sort('Source_ID')
+    beams = beams_col.find(query).sort("Source_ID")
 
-    island_ids = sorted(beams_col.distinct('Source_ID', query))
-    islands = island_col.find(
-        {'Source_ID': {'$in': island_ids}}).sort('Source_ID')
+    island_ids = sorted(beams_col.distinct("Source_ID", query))
+    islands = island_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
 
     beams = [i for i in beams]
     islands = [i for i in islands]
@@ -311,8 +287,8 @@ def cutout_islands(field,
 
     args = []
     for (island_id, island, beam) in zip(island_ids, islands, beams):
-        #comps = comp_col.find({'Source_ID': island_id})
-        comps = find_comps(island_id, host)
+        # comps = comp_col.find({'Source_ID': island_id})
+        comps = find_comps(island_id, host, username=username, password=password)
         arg = get_args(
             island,
             comps,
@@ -328,34 +304,34 @@ def cutout_islands(field,
 
     flat_args = unpack(args)
     flat_args = client.compute(flat_args)
-    tqdm_dask(flat_args,
-              desc='Getting args',
-              disable=(not verbose),
-              total=len(islands)*2
-              )
+    tqdm_dask(
+        flat_args, desc="Getting args", disable=(not verbose), total=len(islands) * 2
+    )
     flat_args = flat_args.result()
     cuts = []
     for arg in flat_args:
         cut = cutout(
-            image=arg['image'],
-            src_name=arg['id'],
-            beam=arg['beam'],
-            ra_hi=arg['ra_hi'],
-            ra_lo=arg['ra_lo'],
-            dec_hi=arg['dec_hi'],
-            dec_lo=arg['dec_lo'],
-            outdir=arg['outdir'],
-            stoke=arg['stoke'],
+            image=arg["image"],
+            src_name=arg["id"],
+            beam=arg["beam"],
+            ra_hi=arg["ra_hi"],
+            ra_lo=arg["ra_lo"],
+            dec_hi=arg["dec_hi"],
+            dec_lo=arg["dec_lo"],
+            outdir=arg["outdir"],
+            stoke=arg["stoke"],
             host=host,
             field=field,
             pad=pad,
             verbose=verbose_worker,
-            dryrun=dryrun
+            dryrun=dryrun,
+            username=username,
+            password=password,
         )
         cuts.append(cut)
 
     output = client.persist(cuts)
-    tqdm_dask(output, desc='Cutting out', disable=(not verbose))
+    tqdm_dask(output, desc="Cutting out", disable=(not verbose))
 
 
 def main(args, verbose=True):
@@ -365,18 +341,23 @@ def main(args, verbose=True):
         args {[type]} -- commandline args
     """
     cluster = LocalCluster(
-        n_workers=12, threads_per_worker=1, dashboard_address=":9898")
+        n_workers=12, threads_per_worker=1, dashboard_address=":9898"
+    )
     client = Client(cluster)
     print(client)
-    cutout_islands(args.field,
-                   args.datadir,
-                   args.host,
-                   client,
-                   verbose=verbose,
-                   pad=args.pad,
-                   stokeslist=args.stokeslist,
-                   verbose_worker=args.verbose_worker,
-                   dryrun=args.dryrun)
+    cutout_islands(
+        field=args.field,
+        directory=args.datadir,
+        host=args.host,
+        client=client,
+        username=args.username,
+        password=args.password,
+        verbose=verbose,
+        pad=args.pad,
+        stokeslist=args.stokeslist,
+        verbose_worker=args.verbose_worker,
+        dryrun=args.dryrun,
+    )
 
     print("Done!")
 
@@ -417,54 +398,57 @@ def cli():
         description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        'field',
-        metavar='field',
-        type=str,
-        help='Name of field (e.g. 2132-50A).')
+        "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
+    )
 
     parser.add_argument(
-        'datadir',
-        metavar='datadir',
+        "datadir",
+        metavar="datadir",
         type=str,
-        help='Directory containing data cubes in FITS format.')
+        help="Directory containing data cubes in FITS format.",
+    )
 
     parser.add_argument(
-        'host',
-        metavar='host',
+        "host",
+        metavar="host",
         type=str,
-        help='Host of mongodb (probably $hostname -i).')
+        help="Host of mongodb (probably $hostname -i).",
+    )
 
     parser.add_argument(
-        "-v",
-        dest="verbose",
-        action="store_true",
-        help="Verbose output [False]."
+        "--username", type=str, default=None, help="Username of mongodb."
+    )
+
+    parser.add_argument(
+        "--password", type=str, default=None, help="Password of mongodb."
+    )
+
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Verbose output [False]."
     )
     parser.add_argument(
-        '-p',
-        '--pad',
-        dest='pad',
+        "-p",
+        "--pad",
+        dest="pad",
         type=float,
         default=3,
-        help='Number of beamwidths to pad around source [3].')
+        help="Number of beamwidths to pad around source [3].",
+    )
 
     parser.add_argument(
         "-vw",
         dest="verbose_worker",
         action="store_true",
-        help="Verbose worker output [False]."
+        help="Verbose worker output [False].",
     )
     parser.add_argument(
-        "-d",
-        dest="dryrun",
-        action="store_true",
-        help="Do a dry-run [False]."
+        "-d", dest="dryrun", action="store_true", help="Do a dry-run [False]."
     )
     parser.add_argument(
         "-s",
         "--stokes",
         dest="stokeslist",
-        nargs='+',
+        nargs="+",
         type=str,
         help="List of Stokes parameters to image [ALL]",
     )
@@ -473,7 +457,7 @@ def cli():
 
     verbose = args.verbose
     if verbose:
-        print('Testing MongoDB connection...')
+        print("Testing MongoDB connection...")
     # default connection (ie, local)
     with pymongo.MongoClient(host=args.host, connect=False) as client:
         try:
@@ -482,7 +466,7 @@ def cli():
             raise Exception("Please ensure 'mongod' is running")
         else:
             if verbose:
-                print('MongoDB connection succesful!')
+                print("MongoDB connection succesful!")
 
     main(args, verbose=verbose)
 
