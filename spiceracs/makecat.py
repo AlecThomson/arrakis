@@ -6,6 +6,7 @@ from astropy.io import fits
 import pymongo
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
+from spiceracs.utils import get_db
 import rmtable.rmtable as RMT
 import json
 from IPython import embed
@@ -13,6 +14,8 @@ from IPython import embed
 
 def main(field,
          host,
+         username=None,
+         password=None,
          verbose=True,
          limit=None,
          outfile=None,
@@ -21,12 +24,9 @@ def main(field,
     """Main script.
     """
     # default connection (ie, local)
-    with pymongo.MongoClient(host=host) as client:
-        mydb = client['spiceracs']  # Create/open database
-        isl_col = mydb['islands']  # Create/open collection
-        comp_col = mydb['components']  # Create/open collection
-        beams_col = mydb['beams']  # Create/open collection
-
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
     query = {
         '$and':  [
             {f'beams.{field}': {'$exists': True}},
@@ -161,7 +161,15 @@ def cli():
         type=str,
         help='Host of mongodb (probably $hostname -i).')
 
-    parser.add_argument("-v", dest="verbose", action="store_true",
+    parser.add_argument(
+        "--username", type=str, default=None, help="Username of mongodb."
+    )
+
+    parser.add_argument(
+        "--password", type=str, default=None, help="Password of mongodb."
+    )
+
+    parser.add_argument("-v", "--verbose", action="store_true",
                         help="verbose output [False].")
 
     parser.add_argument("--limit", dest="limit", default=None,
