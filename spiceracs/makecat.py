@@ -195,8 +195,10 @@ def cli():
         verbose=verbose
     )
 
-    main(args.field,
-         host,
+    main(field=args.field,
+         host=host,
+         username=args.username,
+         password=args.password,
          verbose=verbose,
          limit=args.limit,
          outfile=args.outfile,
