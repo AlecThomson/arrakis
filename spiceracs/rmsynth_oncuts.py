@@ -31,6 +31,7 @@ import dask
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster, wait
 from dask.diagnostics import ProgressBar
+import traceback
 
 
 
@@ -396,8 +397,6 @@ def rmsynthoncut1d(comp_id,
         rmsu[filter_idx] = np.nan
 
         if tt0 and tt1:
-            print(f'tt0 is {tt0}')
-            print(f'tt1 is {tt1}')
             mfs_i_0 = fits.getdata(tt0, memmap=True)
             mfs_i_1 = fits.getdata(tt1, memmap=True)
             mfs_head = fits.getheader(tt0)
@@ -406,14 +405,15 @@ def rmsynthoncut1d(comp_id,
             tt1_p = mfs_i_1[yp, xp]
             tt0_p = mfs_i_0[yp, xp]
             alpha = tt1_p / tt0_p
-            print(f'alpha is {alpha}')
+            if rm_verbose:
+                print(f'alpha is {alpha}')
             model_I = models.PowerLaw1D(tt0_p, mfs_head['RESTFREQ'], alpha=-alpha)
             modStokesI = model_I(freq)
 
         else:
             modStokesI=None
 
-        if np.isnan(qarr).all() or np.isnan(uarr).all():
+        if np.sum(np.isfinite(qarr)) < 2 or np.sum(np.isfinite(uarr)) < 2:
             print(f'QU data is all NaNs. Skipping component {cname}...')
             return
         else:
@@ -432,23 +432,27 @@ def rmsynthoncut1d(comp_id,
 
             # Run 1D RM-synthesis on the spectra
             np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
-            mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                    polyOrd=polyOrd,
-                                                    phiMax_radm2=phiMax_radm2,
-                                                    dPhi_radm2=dPhi_radm2,
-                                                    nSamples=nSamples,
-                                                    weightType=weightType,
-                                                    fitRMSF=fitRMSF,
-                                                    noStokesI=noStokesI,
-                                                    modStokesI=modStokesI,
-                                                    nBits=32,
-                                                    saveFigures=savePlots,
-                                                    showPlots=showPlots,
-                                                    verbose=rm_verbose,
-                                                    debug=debug,
-                                                    fit_function=fit_function,
-                                                    prefixOut=prefix,
-                                                    )
+            try:
+                mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
+                                                        polyOrd=polyOrd,
+                                                        phiMax_radm2=phiMax_radm2,
+                                                        dPhi_radm2=dPhi_radm2,
+                                                        nSamples=nSamples,
+                                                        weightType=weightType,
+                                                        fitRMSF=fitRMSF,
+                                                        noStokesI=noStokesI,
+                                                        modStokesI=modStokesI,
+                                                        nBits=32,
+                                                        saveFigures=savePlots,
+                                                        showPlots=showPlots,
+                                                        verbose=rm_verbose,
+                                                        debug=debug,
+                                                        fit_function=fit_function,
+                                                        prefixOut=prefix,
+                                                        )
+            except Exception as err:
+                traceback.print_tb(err.__traceback__)
+                raise err
             if savePlots:
                 plotdir = os.path.join(outdir, 'plots')
                 plot_files = glob(os.path.join(os.path.dirname(ifile), '*.pdf'))
