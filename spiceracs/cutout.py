@@ -26,7 +26,7 @@ import os
 from glob import glob
 from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord, Longitude, Latitude
-from spiceracs.utils import getdata, MyEncoder, try_mkdir, tqdm_dask, get_db
+from spiceracs.utils import getdata, MyEncoder, try_mkdir, tqdm_dask, get_db, test_db
 from astropy.utils import iers
 import astropy.units as u
 from spectral_cube import SpectralCube
@@ -456,17 +456,12 @@ def cli():
     args = parser.parse_args()
 
     verbose = args.verbose
-    if verbose:
-        print("Testing MongoDB connection...")
-    # default connection (ie, local)
-    with pymongo.MongoClient(host=args.host, connect=False) as client:
-        try:
-            client.list_database_names()
-        except pymongo.errors.ServerSelectionTimeoutError:
-            raise Exception("Please ensure 'mongod' is running")
-        else:
-            if verbose:
-                print("MongoDB connection succesful!")
+    test_db(
+        host=args.host,
+        username=args.username,
+        password=args.password,
+        verbose=verbose
+    )
 
     main(args, verbose=verbose)
 

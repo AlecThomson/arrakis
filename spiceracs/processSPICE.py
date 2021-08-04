@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+#SBATCH --job-name=processSPICE
+#SBATCH --no-requeue
+#SBATCH --export=ALL
+#SBATCH --ntasks=1
+#SBATCH --time=06:00:00
+
 import os
 import pymongo
 from prefect import task, Task, Flow
@@ -10,9 +16,7 @@ from spiceracs import cleanup
 from spiceracs import rmsynth_oncuts
 from spiceracs import rmclean_oncuts
 from spiceracs import makecat
-import spiceracs
-from dask_mpi import initialize
-from spiceracs.utils import port_forward
+from spiceracs.utils import port_forward, test_db
 from dask_jobqueue import SLURMCluster
 from distributed import Client, progress, performance_report, LocalCluster
 from dask.diagnostics import ProgressBar
@@ -112,49 +116,45 @@ def main(args):
     """
     host = args.host
 
-    if args.use_mpi:
-        client = Client()
+    if args.dask_config is None:
+        scriptdir = os.path.dirname(os.path.realpath(__file__))
+        config_dir = f"{scriptdir}/../configs"
+        args.dask_config = f'{config_dir}/default.yaml'
 
-    else:
-        if args.dask_config is None:
-            scriptdir = os.path.dirname(os.path.realpath(__file__))
-            config_dir = f"{scriptdir}/../configs"
-            args.dask_config = f'{config_dir}/default.yaml'
+    if args.outfile is None:
+        args.outfile = f'{args.field}.pipe.test.fits'
 
-        if args.outfile is None:
-            args.outfile = f'{args.field}.pipe.test.fits'
+    args_yaml = yaml.dump(vars(args))
+    args_yaml_f = os.path.abspath(
+        f'{args.field}-config-{Time.now().fits}.yaml')
+    if args.verbose:
+        print(f"Saving config to '{args_yaml_f}'")
+    with open(args_yaml_f, 'w') as f:
+        f.write(args_yaml)
 
-        args_yaml = yaml.dump(vars(args))
-        args_yaml_f = os.path.abspath(
-            f'{args.field}-config-{Time.now().fits}.yaml')
-        if args.verbose:
-            print(f"Saving config to '{args_yaml_f}'")
-        with open(args_yaml_f, 'w') as f:
-            f.write(args_yaml)
+    # Following https://github.com/dask/dask-jobqueue/issues/499
+    with open(args.dask_config) as f:
+        config = yaml.safe_load(f)
 
-        # Following https://github.com/dask/dask-jobqueue/issues/499
-        with open(args.dask_config) as f:
-            config = yaml.safe_load(f)
-
-        config.update(
-            {
-                'scheduler_options': {
-                    "dashboard_address": f":{args.port}"
-                    },
-                'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
-            }
-        )
+    config.update(
+        {
+            'scheduler_options': {
+                "dashboard_address": f":{args.port}"
+                },
+            'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
+        }
+    )
 
 
-        cluster = SLURMCluster(
-            **config,
-        )
-        print('Submitted scripts will look like: \n', cluster.job_script())
+    cluster = SLURMCluster(
+        **config,
+    )
+    print('Submitted scripts will look like: \n', cluster.job_script())
 
 
-        # Request 20 nodes
-        cluster.scale(jobs=20)
-        client = Client(cluster)
+    # Request 20 nodes
+    cluster.scale(jobs=20)
+    client = Client(cluster)
 
     print(client.scheduler_info()['services'])
 
@@ -316,8 +316,8 @@ def cli():
     )
 
     parser.add_argument(
-        'host',
-        metavar='host',
+        '--host',
+        default=None,
         type=str,
         help='Host of mongodb (probably $hostname -i).'
     )
@@ -349,12 +349,6 @@ def cli():
         type=str,
         default=None,
         help="Config file for Dask SlurmCLUSTER."
-    )
-
-    parser.add_argument(
-        '--use_mpi',
-        action="store_true",
-        help="Use Dask-mpi to parallelise -- must use srun/mpirun to assign resources."
     )
 
     flowargs = parser.add_argument_group("pipeline flow options")
@@ -411,12 +405,14 @@ def cli():
         default=5,
         help='Number of beamwidths to pad around source [5].'
     )
-    synth = parser.add_argument_group("RM-synth/CLEAN arguments")
+
     cutargs.add_argument(
         "--dryrun",
         action="store_true",
         help="Do a dry-run [False]."
     )
+
+    synth = parser.add_argument_group("RM-synth/CLEAN arguments")
 
     synth.add_argument(
         "--dimension",
@@ -570,25 +566,16 @@ def cli():
         help="Format for output file [None]."
     )
     args = parser.parse_args()
-
-    if args.use_mpi:
-        print('GAAAHHH')
-        initialize(dashboard_address=f":{args.port}")
+    parser.print_values()
 
     verbose = args.verbose
 
-    if verbose:
-        print('Testing MongoDB connection...')
-    # default connection (ie, local)
-    with pymongo.MongoClient(host=args.host, connect=False) as dbclient:
-        try:
-            dbclient.list_database_names()
-        except pymongo.errors.ServerSelectionTimeoutError:
-            raise Exception("Please ensure 'mongod' is running")
-        else:
-            if verbose:
-                print('MongoDB connection succesful!')
-
+    test_db(
+        host=args.host,
+        username=args.username,
+        password=args.password,
+        verbose=verbose
+    )
     main(args)
 
 

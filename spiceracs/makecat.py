@@ -6,7 +6,7 @@ from astropy.io import fits
 import pymongo
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
-from spiceracs.utils import get_db
+from spiceracs.utils import get_db, test_db
 import rmtable.rmtable as RMT
 import json
 from IPython import embed
@@ -188,17 +188,12 @@ def cli():
     verbose = args.verbose
 
     host = args.host
-    if verbose:
-        print('Testing MongoDB connection...')
-    # default connection (ie, local)
-    with pymongo.MongoClient(host=host) as client:
-        try:
-            client.list_database_names()
-        except pymongo.errors.ServerSelectionTimeoutError:
-            raise Exception("Please ensure 'mongod' is running")
-        else:
-            if verbose:
-                print('MongoDB connection succesful!')
+    test_db(
+        host=args.host,
+        username=args.username,
+        password=args.password,
+        verbose=verbose
+    )
 
     main(args.field,
          host,

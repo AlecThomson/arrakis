@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from spiceracs.utils import get_db
+from spiceracs.utils import get_db, test_db
 from IPython import embed
 from functools import partial
 import functools
@@ -352,18 +352,12 @@ def cli():
     args = parser.parse_args()
 
     verbose = args.verbose
-    if verbose:
-        print("Testing MongoDB connection...")
-    # default connection (ie, local)
-    client = pymongo.MongoClient(host=args.host)
-    try:
-        client.list_database_names()
-    except pymongo.errors.ServerSelectionTimeoutError:
-        raise Exception("Please ensure 'mongod' is running")
-    else:
-        if verbose:
-            print("MongoDB connection succesful!")
-    client.close()
+    test_db(
+        host=args.host,
+        username=args.username,
+        password=args.password,
+        verbose=verbose
+    )
 
     main(args, verbose=verbose)
 

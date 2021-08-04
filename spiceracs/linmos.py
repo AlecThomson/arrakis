@@ -10,7 +10,7 @@ from astropy.table import Table
 from glob import glob
 from astropy.coordinates import SkyCoord
 import astropy.units as u
-from spiceracs.utils import tqdm_dask, get_db
+from spiceracs.utils import tqdm_dask, get_db, test_db
 from IPython import embed
 import astropy
 import time
@@ -374,17 +374,12 @@ def cli():
     client = Client(cluster)
 
     verbose = args.verbose
-    if verbose:
-        print("Testing MongoDB connection...")
-    # default connection (ie, local)
-    with pymongo.MongoClient(host=args.host, connect=False) as dbclient:
-        try:
-            dbclient.list_database_names()
-        except pymongo.errors.ServerSelectionTimeoutError:
-            raise Exception("Please ensure 'mongod' is running")
-        else:
-            if verbose:
-                print("MongoDB connection succesful!")
+    test_db(
+        host=args.host,
+        username=args.username,
+        password=args.password,
+        verbose=verbose
+    )
 
     main(
         field=args.field,

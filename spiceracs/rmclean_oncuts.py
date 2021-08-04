@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, get_db
+from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, get_db, test_db
 import json
 import numpy as np
 import os
@@ -456,17 +456,12 @@ def cli():
 
     verbose = args.verbose
     host = args.host
-    if verbose:
-        print("Testing MongoDB connection...")
-    # default connection (ie, local)
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        try:
-            dbclient.list_database_names()
-        except pymongo.errors.ServerSelectionTimeoutError:
-            raise Exception("Please ensure 'mongod' is running")
-        else:
-            if verbose:
-                print("MongoDB connection succesful!")
+    test_db(
+        host=args.host,
+        username=args.username,
+        password=args.password,
+        verbose=verbose
+    )
 
     main(
         field=args.field,

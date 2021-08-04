@@ -27,6 +27,24 @@ import pymongo
 
 print = functools.partial(print, flush=True)
 
+def test_db(host, username=None, password=None, verbose=True):
+    if verbose:
+        print("Testing MongoDB connection...")
+    # default connection (ie, local)
+    with pymongo.MongoClient(
+        host=host,
+        connect=False,
+        username=username,
+        password=password,
+        authMechanism="SCRAM-SHA-256",
+    ) as dbclient:
+        try:
+            dbclient.list_database_names()
+        except pymongo.errors.ServerSelectionTimeoutError:
+            raise Exception("Please ensure 'mongod' is running")
+        else:
+            if verbose:
+                print("MongoDB connection succesful!")
 
 def get_db(host, username=None, password=None):
     """Get MongoDBs
@@ -39,15 +57,12 @@ def get_db(host, username=None, password=None):
     Returns:
         Tuple(Collection): beams_col, island_col, comp_col
     """
-    auth_mechanism = None
-    if username or password:
-        auth_mechanism = "SCRAM-SHA-256"
     with pymongo.MongoClient(
         host=host,
         connect=False,
         username=username,
         password=password,
-        authMechanism=auth_mechanism,
+        authMechanism="SCRAM-SHA-256",
     ) as dbclient:
         mydb = dbclient["spiceracs"]  # Create/open database
         comp_col = mydb["components"]  # Create/open collection
