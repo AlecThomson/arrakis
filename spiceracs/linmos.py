@@ -176,7 +176,7 @@ def linmos(parset, fieldname, host, verbose=False):
     log = parset.replace('.in', '.log')
 
     # os.chdir(workdir)
-    linmos_command = shlex.split(f"linmos -c {parset}")
+    linmos_command = shlex.split(f"linmos-mpi -c {parset}")
     output = subprocess.run(linmos_command, capture_output=True)
     print('output is', output)
     with open(log, 'w') as f:
