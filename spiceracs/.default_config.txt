@@ -1,9 +1,11 @@
 # SPICE-RACS default config
 [General options]
-verbose: True # Verbose output
-verbose_worker: False #Verbose worker output
-port: 9999
-port_forward:
+# host: # Host of mongodb.
+# username: # Username of mongodb.
+# password: # Password of mongodb.
+port: 8787 # Port to run Dask dashboard on.
+# port_forward: # Platform to fowards dask port [None].
+# dask_config: # Config file for Dask SlurmCLUSTER.
 
 [Flow options]
 skip_cutout: False
@@ -13,6 +15,10 @@ skip_rmsynth: False
 skip_rmclean: False
 skip_cat: False
 
+[Output options]
+verbose: True # Verbose output
+verbose_worker: False # Verbose worker output
+
 [Cutout options]
 pad: 3 # Number of beamwidths to pad around source
 dryrun: False # Do a dry-run
@@ -20,17 +26,20 @@ dryrun: False # Do a dry-run
 [RM-synth/CLEAN options]
 dimension: 1d # How many dimensions for RMsynth [1d] or '3d'
 database: True # Add RMsynth data to MongoDB
+# tt0: # TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1.
+# tt1: # TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.
 validate: False # Run on RMsynth Stokes I
 # limit: # Limit number of sources
 
 [RM-tools options]
 savePlots: False # save the plots
 weightType: variance # weighting [uniform] (all 1s) or 'variance'
+fit_function: log # Stokes I fitting function
 fitRMSF: True # Fit a gaussian to the RMSF
 # phiMax_radm2: # Absolute max Faraday depth sampled (overrides NSAMPLES)
 # dPhi_radm2: # Width of Faraday depth channel
 nSamples: 5 # Number of samples across the FWHM RMSF
-polyOrd: 3 # polynomial order to fit to I spectrum
+polyOrd: -3 # polynomial order to fit to I spectrum
 noStokesI: False # ignore the Stokes I spectrum
 showPlots: False # show the plots
 not_RMSF: False # Skip calculation of RMSF
