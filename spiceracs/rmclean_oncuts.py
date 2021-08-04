@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from spiceracs.utils import getfreq, MyEncoder, tqdm_dask
+from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, get_db
 import json
 import numpy as np
 import os
@@ -23,19 +23,23 @@ from dask.diagnostics import ProgressBar
 from glob import glob
 from shutil import copyfile
 
+
 @delayed
-def rmclean1d(comp_id,
-              outdir,
-              host,
-              field,
-              cutoff=-3,
-              maxIter=10000,
-              gain=0.1,
-              showPlots=False,
-              savePlots=False,
-              database=False,
-              rm_verbose=True,
-              ):
+def rmclean1d(
+    comp_id,
+    outdir,
+    host,
+    field,
+    username=None,
+    password=None,
+    cutoff=-3,
+    maxIter=10000,
+    gain=0.1,
+    showPlots=False,
+    savePlots=False,
+    database=False,
+    rm_verbose=True,
+):
     """1D RM-CLEAN
 
     Args:
@@ -50,26 +54,24 @@ def rmclean1d(comp_id,
         database (bool, optional): Update MongoDB. Defaults to False.
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to True.
     """
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        mydb = dbclient['spiceracs']  # Create/open database
-        isl_col = mydb['islands']  # Create/open collection
-        comp_col = mydb['components']  # Create/open collection
-        beams_col = mydb['beams']  # Create/open collection
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
 
     # Basic querey
     myquery = {"Gaussian_ID": comp_id}
 
     doc = comp_col.find_one(myquery)
 
-    iname = doc['Source_ID']
-    beam = beams_col.find_one({'Source_ID': iname})
+    iname = doc["Source_ID"]
+    beam = beams_col.find_one({"Source_ID": iname})
 
     if rm_verbose:
-        print(f'Working on {comp_id}')
+        print(f"Working on {comp_id}")
     try:
         cname = comp_id
 
-        rm1dfiles = doc['rm1dfiles']
+        rm1dfiles = doc["rm1dfiles"]
         fdfFile = os.path.join(outdir, f"{rm1dfiles['FDF_dirty']}")
         rmsfFile = os.path.join(outdir, f"{rm1dfiles['RMSF']}")
         weightFile = os.path.join(outdir, f"{rm1dfiles['weights']}")
@@ -80,36 +82,36 @@ def rmclean1d(comp_id,
         # Sanity checks
         for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
             if not os.path.exists(f):
-                print("File does not exist: '{:}'.".format(f), end=' ')
+                print("File does not exist: '{:}'.".format(f), end=" ")
                 sys.exit()
         nBits = 32
         mDict, aDict = do_RMclean_1D.readFiles(
-            fdfFile, rmsfFile, weightFile, rmSynthFile, nBits)
+            fdfFile, rmsfFile, weightFile, rmSynthFile, nBits
+        )
 
         # Run RM-CLEAN on the spectrum
-        outdict, arrdict = do_RMclean_1D.run_rmclean(mDict=mDict,
-                                                     aDict=aDict,
-                                                     cutoff=cutoff,
-                                                     maxIter=maxIter,
-                                                     gain=gain,
-                                                     nBits=nBits,
-                                                     showPlots=showPlots,
-                                                     verbose=rm_verbose,
-                                                     prefixOut=prefix,
-                                                     saveFigures=savePlots
-                                                     )
+        outdict, arrdict = do_RMclean_1D.run_rmclean(
+            mDict=mDict,
+            aDict=aDict,
+            cutoff=cutoff,
+            maxIter=maxIter,
+            gain=gain,
+            nBits=nBits,
+            showPlots=showPlots,
+            verbose=rm_verbose,
+            saveFigures=savePlots,
+        )
 
         # Save output
-        do_RMclean_1D.saveOutput(outdict,
-                                 arrdict,
-                                 prefixOut=prefix,
-                                 verbose=rm_verbose)
+        do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
         if savePlots:
-            plotdir = os.path.join(outdir, 'plots')
-            plot_files = glob(os.path.join(os.path.abspath(os.path.dirname(fdfFile)), '*.pdf'))
+            plotdir = os.path.join(outdir, "plots")
+            plot_files = glob(
+                os.path.join(os.path.abspath(os.path.dirname(fdfFile)), "*.pdf")
+            )
             for src in plot_files:
                 base = os.path.basename(src)
-                dst = os.path.join(plotdir,base)
+                dst = os.path.join(plotdir, base)
                 copyfile(src, dst)
 
         if database:
@@ -123,21 +125,24 @@ def rmclean1d(comp_id,
             comp_col.update_one(myquery, newvalues)
 
     except KeyError:
-        print('Failed to load data! RM-CLEAN not applied to component!')
-        print(f'Island is {iname}, component is {cname}')
+        print("Failed to load data! RM-CLEAN not applied to component!")
+        print(f"Island is {iname}, component is {cname}")
         return
 
 
 @delayed
-def rmclean3d(island_id,
-              outdir,
-              host,
-              cutoff=-3,
-              maxIter=10000,
-              gain=0.1,
-              database=False,
-              rm_verbose=False,
-              ):
+def rmclean3d(
+    island_id,
+    outdir,
+    host,
+    username=None,
+    password=None,
+    cutoff=-3,
+    maxIter=10000,
+    gain=0.1,
+    database=False,
+    rm_verbose=False,
+):
     """3D RM-CLEAN
 
     Args:
@@ -149,30 +154,30 @@ def rmclean3d(island_id,
         gain (float, optional): CLEAN gain. Defaults to 0.1.
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to False.
     """
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        mydb = dbclient['spiceracs']  # Create/open database
-        isl_col = mydb['islands']  # Create/open collection
-        comp_col = mydb['components']  # Create/open collection
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
 
     # Basic querey
     myquery = {"Source_ID": island_id}
 
     doc = comp_col.find_one(myquery)
-    iname = doc['Source_ID']
+    iname = doc["Source_ID"]
     prefix = f"{iname}_"
 
-    island = isl_col.find_one(myquery)
+    island = island_col.find_one(myquery)
     rm3dfiles = island["rm3dfiles"]
 
     cleanFDF, ccArr, iterCountArr, residFDF, headtemp = do_RMclean_3D.run_rmclean(
-        fitsFDF=os.path.join(outdir, rm3dfiles['FDF_real_dirty']),
-        fitsRMSF=os.path.join(outdir, rm3dfiles['RMSF_tot']),
+        fitsFDF=os.path.join(outdir, rm3dfiles["FDF_real_dirty"]),
+        fitsRMSF=os.path.join(outdir, rm3dfiles["RMSF_tot"]),
         cutoff=cutoff,
         maxIter=maxIter,
         gain=gain,
         chunksize=None,
         nBits=32,
-        verbose=rm_verbose)
+        verbose=rm_verbose,
+    )
 
     # Write results to disk
     do_RMclean_3D.writefits(
@@ -182,34 +187,39 @@ def rmclean3d(island_id,
         residFDF,
         headtemp,
         prefixOut=prefix,
-        outDir=os.path.abspath(os.path.dirname(
-            os.path.join(outdir, rm3dfiles['FDF_real_dirty']))),
+        outDir=os.path.abspath(
+            os.path.dirname(os.path.join(outdir, rm3dfiles["FDF_real_dirty"]))
+        ),
         write_separate_FDF=True,
-        verbose=rm_verbose)
+        verbose=rm_verbose,
+    )
 
     if database:
         # Load into Mongo
         myquery = {"Source_ID": iname}
         newvalues = {"$set": {f"rmclean3d": True}}
-        isl_col.update_one(myquery, newvalues)
+        island_col.update_one(myquery, newvalues)
 
 
-def main(field,
-         outdir,
-         host,
-         client,
-         dimension='1d',
-         verbose=True,
-         database=False,
-         savePlots=True,
-         validate=False,
-         limit=None,
-         cutoff=-3,
-         maxIter=10000,
-         gain=0.1,
-         showPlots=False,
-         rm_verbose=False
-         ):
+def main(
+    field,
+    outdir,
+    host,
+    client,
+    username=None,
+    password=None,
+    dimension="1d",
+    verbose=True,
+    database=False,
+    savePlots=True,
+    validate=False,
+    limit=None,
+    cutoff=-3,
+    maxIter=10000,
+    gain=0.1,
+    showPlots=False,
+    rm_verbose=False,
+):
     """Main script
 
     Args:
@@ -229,53 +239,30 @@ def main(field,
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to False.
     """
     outdir = os.path.abspath(outdir)
-    outdir = os.path.join(outdir, 'cutouts')
+    outdir = os.path.join(outdir, "cutouts")
 
     # default connection (ie, local)
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        mydb = dbclient['spiceracs']  # Create/open database
-        isl_col = mydb['islands']  # Create/open collection
-        comp_col = mydb['components']  # Create/open collection
-        beams_col = mydb['beams']  # Create/open collection
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
 
     query = {
-        '$and':  [
-            {f'beams.{field}': {'$exists': True}},
-            {f'beams.{field}.DR1': True}
-        ]
+        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    beams = beams_col.find(query).sort('Source_ID')
-    all_island_ids = sorted(beams_col.distinct('Source_ID', query))
+    beams = beams_col.find(query).sort("Source_ID")
+    all_island_ids = sorted(beams_col.distinct("Source_ID", query))
 
-    query = {
-        '$and': [
-            {
-                'Source_ID': {'$in': all_island_ids}
-            },
-            {
-                'rmsynth3d': True
-            }
-        ]
-    }
+    query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]}
 
-    islands = isl_col.find(query).sort('Source_ID')
-    island_ids = [doc['Source_ID'] for doc in islands]
-    n_island = isl_col.count_documents(query)
+    islands = island_col.find(query).sort("Source_ID")
+    island_ids = [doc["Source_ID"] for doc in islands]
+    n_island = island_col.count_documents(query)
 
-    query = {
-        '$and': [
-            {
-                'Source_ID': {'$in': all_island_ids}
-            },
-            {
-                'rmsynth1d': True
-            }
-        ]
-    }
+    query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
 
-    components = comp_col.find(query).sort('Source_ID')
-    component_ids = [doc['Gaussian_ID'] for doc in components]
+    components = comp_col.find(query).sort("Source_ID")
+    component_ids = [doc["Gaussian_ID"] for doc in components]
     n_comp = comp_col.count_documents(query)
 
     if limit is not None:
@@ -286,51 +273,59 @@ def main(field,
         component_ids = component_ids[:count]
 
     outputs = []
-    if dimension == '1d':
+    if dimension == "1d":
         if verbose:
-            print(f'Running RM-CLEAN on {n_comp} components')
+            print(f"Running RM-CLEAN on {n_comp} components")
         for i, comp_id in enumerate(component_ids):
-            if i > n_comp+1:
+            if i > n_comp + 1:
                 break
             else:
-                output = rmclean1d(comp_id,
-                                   outdir,
-                                   host,
-                                   field,
-                                   cutoff=cutoff,
-                                   maxIter=maxIter,
-                                   gain=gain,
-                                   showPlots=showPlots,
-                                   savePlots=savePlots,
-                                   database=database,
-                                   rm_verbose=rm_verbose)
+                output = rmclean1d(
+                    comp_id=comp_id,
+                    outdir=outdir,
+                    host=host,
+                    field=field,
+                    username=username,
+                    password=password,
+                    cutoff=cutoff,
+                    maxIter=maxIter,
+                    gain=gain,
+                    showPlots=showPlots,
+                    savePlots=savePlots,
+                    database=database,
+                    rm_verbose=rm_verbose,
+                )
                 outputs.append(output)
 
-    elif dimension == '3d':
+    elif dimension == "3d":
         if verbose:
-            print(f'Running RM-CLEAN on {n_island} islands')
+            print(f"Running RM-CLEAN on {n_island} islands")
 
         for i, island_id in enumerate(island_ids):
-            if i > n_island+1:
+            if i > n_island + 1:
                 break
             else:
-                output = rmclean3d(island_id=island_id,
-                                   outdir=outdir,
-                                   host=host,
-                                   cutoff=cutoff,
-                                   maxIter=maxIter,
-                                   gain=gain,
-                                   database=database,
-                                   rm_verbose=rm_verbose)
+                output = rmclean3d(
+                    island_id=island_id,
+                    outdir=outdir,
+                    host=host,
+                    username=username,
+                    password=password,
+                    cutoff=cutoff,
+                    maxIter=maxIter,
+                    gain=gain,
+                    database=database,
+                    rm_verbose=rm_verbose,
+                )
                 outputs.append(output)
 
     results = client.persist(outputs)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(5)
-    tqdm_dask(results, desc='Running RM-CLEAN', disable=(not verbose))
+    tqdm_dask(results, desc="Running RM-CLEAN", disable=(not verbose))
 
     if verbose:
-        print('Done!')
+        print("Done!")
 
 
 def cli():
@@ -338,9 +333,11 @@ def cli():
     """
     import argparse
     from astropy.utils.exceptions import AstropyWarning
-    warnings.simplefilter('ignore', category=AstropyWarning)
+
+    warnings.simplefilter("ignore", category=AstropyWarning)
     from astropy.io.fits.verify import VerifyWarning
-    warnings.simplefilter('ignore', category=VerifyWarning)
+
+    warnings.simplefilter("ignore", category=VerifyWarning)
     # Help string to be shown using the -h option
     logostr = """
      mmm   mmm   mmm   mmm   mmm
@@ -367,57 +364,90 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(description=descStr,
-                                     formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument(
-        "field",
-        metavar="field",
-        type=str,
-        help="RACS field to mosaic - e.g. 2132-50A."
+    parser = argparse.ArgumentParser(
+        description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        'outdir',
-        metavar='outdir',
+        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
+    )
+    parser.add_argument(
+        "outdir",
+        metavar="outdir",
         type=str,
-        help='Directory containing cutouts (in subdir outdir/cutouts).')
+        help="Directory containing cutouts (in subdir outdir/cutouts).",
+    )
 
     parser.add_argument(
-        'host',
-        metavar='host',
+        "host",
+        metavar="host",
         type=str,
-        help='Host of mongodb (probably $hostname -i).')
-
-    parser.add_argument("--dimension", dest="dimension", default="1d",
-                        help="How many dimensions for RMsynth [1d] or '3d'.")
-
-    parser.add_argument("-v", dest="verbose", action="store_true",
-                        help="verbose output [False].")
+        help="Host of mongodb (probably $hostname -i).",
+    )
 
     parser.add_argument(
-        "-m",
-        dest="database",
+        "--username", type=str, default=None, help="Username of mongodb."
+    )
+
+    parser.add_argument(
+        "--password", type=str, default=None, help="Password of mongodb."
+    )
+
+    parser.add_argument(
+        "--dimension",
+        dest="dimension",
+        default="1d",
+        help="How many dimensions for RMsynth [1d] or '3d'.",
+    )
+
+    parser.add_argument(
+        "-v", dest="verbose", action="store_true", help="verbose output [False]."
+    )
+
+    parser.add_argument(
+        "-m", dest="database", action="store_true", help="Add data to MongoDB [False]."
+    )
+    parser.add_argument(
+        "-sp", "--savePlots", action="store_true", help="save the plots [False]."
+    )
+    parser.add_argument(
+        "--validate",
+        dest="validate",
         action="store_true",
-        help="Add data to MongoDB [False]."
+        help="Run on Stokes I [False].",
     )
-    parser.add_argument("-sp", "--savePlots", action="store_true",
-                        help="save the plots [False].")
-    parser.add_argument("--validate", dest="validate", action="store_true",
-                        help="Run on Stokes I [False].")
 
-    parser.add_argument("--limit", dest="limit", default=None,
-                        type=int, help="Limit number of sources [All].")
+    parser.add_argument(
+        "--limit",
+        dest="limit",
+        default=None,
+        type=int,
+        help="Limit number of sources [All].",
+    )
 
     # RM-tools args
-    parser.add_argument("-c", dest="cutoff", type=float, default=-3,
-                        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].")
-    parser.add_argument("-n", dest="maxIter", type=int, default=10000,
-                        help="maximum number of CLEAN iterations [10000].")
-    parser.add_argument("-g", dest="gain", type=float, default=0.1,
-                        help="CLEAN loop gain [0.1].")
-    parser.add_argument("-p", dest="showPlots", action="store_true",
-                        help="show the plots [False].")
-    parser.add_argument("-rmv", dest="rm_verbose", action="store_true",
-                        help="Verbose RM-CLEAN [False].")
+    parser.add_argument(
+        "-c",
+        dest="cutoff",
+        type=float,
+        default=-3,
+        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].",
+    )
+    parser.add_argument(
+        "-n",
+        dest="maxIter",
+        type=int,
+        default=10000,
+        help="maximum number of CLEAN iterations [10000].",
+    )
+    parser.add_argument(
+        "-g", dest="gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
+    )
+    parser.add_argument(
+        "-p", dest="showPlots", action="store_true", help="show the plots [False]."
+    )
+    parser.add_argument(
+        "-rmv", dest="rm_verbose", action="store_true", help="Verbose RM-CLEAN [False]."
+    )
 
     args = parser.parse_args()
 
@@ -427,7 +457,7 @@ def cli():
     verbose = args.verbose
     host = args.host
     if verbose:
-        print('Testing MongoDB connection...')
+        print("Testing MongoDB connection...")
     # default connection (ie, local)
     with pymongo.MongoClient(host=host, connect=False) as dbclient:
         try:
@@ -436,24 +466,27 @@ def cli():
             raise Exception("Please ensure 'mongod' is running")
         else:
             if verbose:
-                print('MongoDB connection succesful!')
+                print("MongoDB connection succesful!")
 
-    main(field=args.field,
-         outdir=args.outdir,
-         host=host,
-         client=client,
-         dimension=args.dimension,
-         verbose=verbose,
-         database=args.database,
-         savePlots=args.savePlots,
-         validate=args.validate,
-         limit=args.limit,
-         cutoff=args.cutoff,
-         maxIter=args.maxIter,
-         gain=args.gain,
-         showPlots=args.showPlots,
-         rm_verbose=args.rm_verbose,
-         )
+    main(
+        field=args.field,
+        outdir=args.outdir,
+        host=host,
+        client=client,
+        username=args.username,
+        password=args.password,
+        dimension=args.dimension,
+        verbose=verbose,
+        database=args.database,
+        savePlots=args.savePlots,
+        validate=args.validate,
+        limit=args.limit,
+        cutoff=args.cutoff,
+        maxIter=args.maxIter,
+        gain=args.gain,
+        showPlots=args.showPlots,
+        rm_verbose=args.rm_verbose,
+    )
 
 
 if __name__ == "__main__":

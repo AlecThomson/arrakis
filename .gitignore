@@ -137,3 +137,4 @@ dask-worker-space/
 *.vot
 *.pdf
 dask_tests/core
+password.txt

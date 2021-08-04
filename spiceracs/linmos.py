@@ -10,7 +10,7 @@ from astropy.table import Table
 from glob import glob
 from astropy.coordinates import SkyCoord
 import astropy.units as u
-from spiceracs.utils import tqdm_dask
+from spiceracs.utils import tqdm_dask, get_db
 from IPython import embed
 import astropy
 import time
@@ -30,34 +30,43 @@ def gen_seps(field, scriptdir):
         Table: Separation table
     """
     # get offsets
-    offsets = Table.read(f'{scriptdir}/../askap_surveys/racs_low_offsets.csv')
-    offsets.add_index('Beam')
+    offsets = Table.read(f"{scriptdir}/../askap_surveys/racs_low_offsets.csv")
+    offsets.add_index("Beam")
 
     master_cat = Table.read(
-        f'{scriptdir}/../askap_surveys/racs/db/epoch_0/field_data.csv')
-    master_cat.add_index('FIELD_NAME')
+        f"{scriptdir}/../askap_surveys/racs/db/epoch_0/field_data.csv"
+    )
+    master_cat.add_index("FIELD_NAME")
     master_cat = master_cat.loc[f"RACS_{field}"]
     if type(master_cat) is not astropy.table.row.Row:
         master_cat = master_cat[0]
 
     # Look for multiple SBIDs - only need one
     cats = glob(
-        f'{scriptdir}/../askap_surveys/racs/db/epoch_0/beam_inf_*-RACS_{field}.csv')
+        f"{scriptdir}/../askap_surveys/racs/db/epoch_0/beam_inf_*-RACS_{field}.csv"
+    )
     beam_cat = Table.read(cats[0])
-    beam_cat.add_index('BEAM_NUM')
+    beam_cat.add_index("BEAM_NUM")
 
-    names = ["BEAM", "DELTA_RA", "DELTA_DEC", "BEAM_RA",
-             "BEAM_DEC", "FOOTPRINT_RA", "FOOTPRINT_DEC"]
+    names = [
+        "BEAM",
+        "DELTA_RA",
+        "DELTA_DEC",
+        "BEAM_RA",
+        "BEAM_DEC",
+        "FOOTPRINT_RA",
+        "FOOTPRINT_DEC",
+    ]
 
     cols = []
     for beam in range(36):
         beam = int(beam)
 
         beam_dat = beam_cat.loc[beam]
-        beam_coord = SkyCoord(
-            beam_dat['RA_DEG']*u.deg, beam_dat['DEC_DEG']*u.deg)
+        beam_coord = SkyCoord(beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
         field_coord = SkyCoord(
-            master_cat['RA_DEG']*u.deg, master_cat['DEC_DEG']*u.deg)
+            master_cat["RA_DEG"] * u.deg, master_cat["DEC_DEG"] * u.deg
+        )
         ra_beam = beam_coord.ra.hms
         dec_beam = beam_coord.dec.dms
         ra_field = field_coord.ra.hms
@@ -73,14 +82,25 @@ def gen_seps(field, scriptdir):
             f"{dec_field.d:02.0f}:{abs(dec_field.m):02.0f}:{abs(dec_field.s):05.2f}",
         ]
         cols += [row]
-    tab = Table(data=np.array(cols), names=names, dtype=[
-                int, str, str, str, str, str, str])
+    tab = Table(
+        data=np.array(cols), names=names, dtype=[int, str, str, str, str, str, str]
+    )
     tab.add_index("BEAM")
     return tab
 
 
 @delayed
-def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
+def genparset(
+    field,
+    src_name,
+    stoke,
+    datadir,
+    septab,
+    host,
+    prefix="",
+    username=None,
+    password=None,
+):
     """Generate parset for LINMOS
 
     Args:
@@ -93,15 +113,11 @@ def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
     Raises:
         Exception: If no files are found in the datadir
     """
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        # default connection (ie, local)
-        mydb = dbclient['spiceracs']  # Create/open database
-        beams_col = mydb['beams']  # Create/open collection
-        # Update database
-    myquery = {
-        "Source_ID": src_name
-    }
-    beams = beams_col.find_one(myquery)['beams'][field]
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
+    myquery = {"Source_ID": src_name}
+    beams = beams_col.find_one(myquery)["beams"][field]
     ims = []
     for bm in list(set(beams['beam_list'])): # Ensure list of beams is unique!
         imfile = beams[f'{stoke.lower()}_beam{bm}_image_file']
@@ -125,14 +141,18 @@ def genparset(field, src_name, stoke, datadir, septab, host, prefix=""):
         wgts.append(wgtsfile)
     wgts = sorted(wgts)
 
-    assert len(ims) == len(wgts), 'Unequal number of weights and images'
+    assert len(ims) == len(wgts), "Unequal number of weights and images"
 
     for im, wt in zip(ims, wgts):
-        assert os.path.basename(os.path.dirname(im)) == os.path.basename(os.path.dirname(wt)), "Image and weight are in different areas!"
+        assert os.path.basename(os.path.dirname(im)) == os.path.basename(
+            os.path.dirname(wt)
+        ), "Image and weight are in different areas!"
 
     weightlist = "[" + ','.join([wgt.replace(".fits", "") for wgt in wgts]) + "]"
 
-    parset_dir = os.path.join(os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0])))
+    parset_dir = os.path.join(
+        os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0]))
+    )
 
     parset_file = os.path.join(parset_dir, f"linmos_{stoke}.in")
     parset = f"""linmos.names            = {imlist}
@@ -148,9 +168,9 @@ linmos.feeds.spacing    = 1deg
 # Beam offsets
 """
     for im in ims:
-        basename = im.replace('.fits', '')
-        idx = basename.find('beam')
-        beamno = int(basename[len('beam')+idx:len('beam')+idx+2])
+        basename = im.replace(".fits", "")
+        idx = basename.find("beam")
+        beamno = int(basename[len("beam") + idx : len("beam") + idx + 2])
         offset = f"linmos.feeds.{basename} = [{septab[beamno]['DELTA_RA']},{septab[beamno]['DELTA_DEC']}]\n"
         parset += offset
     with open(parset_file, "w") as f:
@@ -160,7 +180,7 @@ linmos.feeds.spacing    = 1deg
 
 
 @delayed
-def linmos(parset, fieldname, host, verbose=False):
+def linmos(parset, fieldname, host, username=None, password=None, verbose=False):
     """Run LINMOS
 
     Args:
@@ -172,19 +192,17 @@ def linmos(parset, fieldname, host, verbose=False):
     workdir = os.path.dirname(parset)
     parset_name = os.path.basename(parset)
     source = os.path.basename(workdir)
-    stoke = parset_name[parset_name.find('.in')-1]
-    log = parset.replace('.in', '.log')
+    stoke = parset_name[parset_name.find(".in") - 1]
+    log = parset.replace(".in", ".log")
 
     # os.chdir(workdir)
     linmos_command = shlex.split(f"linmos-mpi -c {parset}")
     output = subprocess.run(linmos_command, capture_output=True)
-    print('output is', output)
-    with open(log, 'w') as f:
+    print("output is", output)
+    with open(log, "w") as f:
         f.write(output.stdout.decode("utf-8"))
 
-    new_file = glob(
-        f'{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits'
-    )
+    new_file = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
     if len(new_file) != 1:
         raise Exception("LINMOS file not found!")
@@ -195,25 +213,29 @@ def linmos(parset, fieldname, host, verbose=False):
     new_file = os.path.join(outer, inner)
 
     if verbose:
-        print(f'Cube now in {new_file}')
+        print(f"Cube now in {new_file}")
 
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        # default connection (ie, local)
-        mydb = dbclient['spiceracs']  # Create/open database
-        beams_col = mydb['beams']  # Create/open collection
-
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
     query = {"Source_ID": source}
-    newvalues = {
-        "$set":
-        {
-            f"beams.{fieldname}.{stoke.lower()}_file": new_file
-        }
-    }
+    newvalues = {"$set": {f"beams.{fieldname}.{stoke.lower()}_file": new_file}}
 
     beams_col.update_one(query, newvalues)
 
 
-def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None, verbose=True):
+def main(
+    field,
+    datadir,
+    client,
+    host,
+    username=None,
+    password=None,
+    dryrun=False,
+    prefix="",
+    stokeslist=None,
+    verbose=True,
+):
     """Main script
     """
 
@@ -230,46 +252,49 @@ def main(field, datadir, client, host, dryrun=False, prefix="", stokeslist=None,
 
     cutdir = os.path.abspath(os.path.join(datadir, "cutouts"))
 
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        # default connection (ie, local)
-        mydb = dbclient['spiceracs']  # Create/open database
-        beams_col = mydb['beams']  # Create/open collection
+    beams_col, island_col, comp_col = get_db(
+        host=host, username=username, password=password
+    )
 
     # Query the DB
     query = {
-        '$and':  [
-            {f'beams.{field}': {'$exists': True}},
-            {f'beams.{field}.DR1': True}
-        ]
+        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    island_ids = sorted(beams_col.distinct('Source_ID', query))
+    island_ids = sorted(beams_col.distinct("Source_ID", query))
 
     # files = sorted([name for name in glob(f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
 
     parfiles = []
     for src in island_ids:
         for stoke in stokeslist:
-            parfile = genparset(field=field,
-                                src_name=src,
-                                stoke=stoke.capitalize(),
-                                datadir=cutdir,
-                                septab=beamseps,
-                                host=host,
-                                prefix=prefix
-                                )
+            parfile = genparset(
+                field=field,
+                src_name=src,
+                stoke=stoke.capitalize(),
+                datadir=cutdir,
+                septab=beamseps,
+                host=host,
+                prefix=prefix,
+                username=username,
+                password=password,
+            )
             parfiles.append(parfile)
 
     results = []
     for parset in parfiles:
-        results.append(linmos(parset, field, host, verbose=True))
+        results.append(
+            linmos(
+                parset, field, host, username=username, password=password, verbose=True
+            )
+        )
 
     results = client.persist(results)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(5)
-    tqdm_dask(results, desc='Runing LINMOS', disable=(not verbose))
+    tqdm_dask(results, desc="Runing LINMOS", disable=(not verbose))
 
-    print('LINMOS Done!')
+    print("LINMOS Done!")
 
 
 def cli():
@@ -285,15 +310,11 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr,
-        formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
 
     parser.add_argument(
-        "field",
-        metavar="field",
-        type=str,
-        help="RACS field to mosaic - e.g. 2132-50A."
+        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
     )
 
     parser.add_argument(
@@ -323,23 +344,28 @@ def cli():
         "-s",
         "--stokes",
         dest="stokeslist",
-        nargs='+',
+        nargs="+",
         type=str,
         help="List of Stokes parameters to image [ALL]",
     )
 
     parser.add_argument(
-        'host',
-        metavar='host',
+        "host",
+        metavar="host",
         type=str,
-        help='Host of mongodb (probably $hostname -i).'
+        help="Host of mongodb (probably $hostname -i).",
     )
 
     parser.add_argument(
-        "-v",
-        dest="verbose",
-        action="store_true",
-        help="Verbose output [False]."
+        "-v", dest="verbose", action="store_true", help="Verbose output [False]."
+    )
+
+    parser.add_argument(
+        "--username", type=str, default=None, help="Username of mongodb."
+    )
+
+    parser.add_argument(
+        "--password", type=str, default=None, help="Password of mongodb."
     )
 
     args = parser.parse_args()
@@ -349,7 +375,7 @@ def cli():
 
     verbose = args.verbose
     if verbose:
-        print('Testing MongoDB connection...')
+        print("Testing MongoDB connection...")
     # default connection (ie, local)
     with pymongo.MongoClient(host=args.host, connect=False) as dbclient:
         try:
@@ -358,17 +384,20 @@ def cli():
             raise Exception("Please ensure 'mongod' is running")
         else:
             if verbose:
-                print('MongoDB connection succesful!')
+                print("MongoDB connection succesful!")
 
-    main(field=args.field,
-         datadir=args.datadir,
-         client=client,
-         host=args.host,
-         dryrun=args.dryrun,
-         prefix=args.prefix,
-         stokeslist=args.stokeslist,
-         verbose=verbose
-         )
+    main(
+        field=args.field,
+        datadir=args.datadir,
+        client=client,
+        host=args.host,
+        username=args.username,
+        password=args.password,
+        dryrun=args.dryrun,
+        prefix=args.prefix,
+        stokeslist=args.stokeslist,
+        verbose=verbose,
+    )
 
 
 if __name__ == "__main__":
