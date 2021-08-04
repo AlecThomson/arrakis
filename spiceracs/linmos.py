@@ -196,9 +196,8 @@ def linmos(parset, fieldname, host, username=None, password=None, verbose=False)
     log = parset.replace(".in", ".log")
 
     # os.chdir(workdir)
-    linmos_command = shlex.split(f"linmos-mpi -c {parset}")
+    linmos_command = shlex.split(f"linmos -c {parset}")
     output = subprocess.run(linmos_command, capture_output=True)
-    print("output is", output)
     with open(log, "w") as f:
         f.write(output.stdout.decode("utf-8"))
 
@@ -222,7 +221,6 @@ def linmos(parset, fieldname, host, username=None, password=None, verbose=False)
     newvalues = {"$set": {f"beams.{fieldname}.{stoke.lower()}_file": new_file}}
 
     beams_col.update_one(query, newvalues)
-
 
 def main(
     field,
