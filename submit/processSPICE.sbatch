@@ -6,7 +6,7 @@
 #SBATCH --mail-type=ALL
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
-#SBATCH --time=12:00:00
+#SBATCH --time=6:00:00
 #SBATCH --cluster=magnus
 #SBATCH --account=ja3
 #SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.err
@@ -31,8 +31,8 @@ echo $host
 database=/group/askap/athomson/projects/spiceracs/spica/spicaDB
 numactl --interleave=all mongod --dbpath=$database --bind_ip $host >> /dev/null &
 
-field=1416+00A
-cal_sbid=13615
+field=1303-12A
+cal_sbid=12509
 tt0_dir=/group/askap/athomson/projects/RACS/CI0_mosaic_1.0
 tt1_dir=/group/askap/athomson/projects/RACS/CI1_mosaic_1.0
 
