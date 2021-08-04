@@ -5,7 +5,7 @@ name: 'spice-worker'
 memory: "60GB"
 project: 'ja3'
 queue: 'workq'
-walltime: '12:00:00'
+walltime: '6:00:00'
 job_extra: ['-M magnus']
 # interface for the workers
 interface: "ipogif0"
