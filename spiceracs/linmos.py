@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from pprint import pprint
 from logging import disable
 import os
 import subprocess
@@ -93,13 +94,10 @@ def gen_seps(field, scriptdir):
 def genparset(
     field,
     src_name,
+    beams,
     stoke,
     datadir,
     septab,
-    host,
-    prefix="",
-    username=None,
-    password=None,
 ):
     """Generate parset for LINMOS
 
@@ -113,11 +111,7 @@ def genparset(
     Raises:
         Exception: If no files are found in the datadir
     """
-    beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
-    )
-    myquery = {"Source_ID": src_name}
-    beams = beams_col.find_one(myquery)["beams"][field]
+    beams = beams["beams"][field]
     ims = []
     for bm in list(set(beams['beam_list'])): # Ensure list of beams is unique!
         imfile = beams[f'{stoke.lower()}_beam{bm}_image_file']
@@ -180,7 +174,7 @@ linmos.feeds.spacing    = 1deg
 
 
 @delayed
-def linmos(parset, fieldname, host, username=None, password=None, verbose=False):
+def linmos(parset, fieldname, verbose=False):
     """Run LINMOS
 
     Args:
@@ -214,13 +208,10 @@ def linmos(parset, fieldname, host, username=None, password=None, verbose=False)
     if verbose:
         print(f"Cube now in {new_file}")
 
-    beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
-    )
     query = {"Source_ID": source}
     newvalues = {"$set": {f"beams.{fieldname}.{stoke.lower()}_file": new_file}}
 
-    beams_col.update_one(query, newvalues)
+    return pymongo.UpdateOne(query, newvalues)
 
 def main(
     field,
@@ -260,22 +251,20 @@ def main(
     }
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))
-
+    big_beams = list(beams_col.find({"Source_ID": {'$in': island_ids}}).sort("Source_ID"))
     # files = sorted([name for name in glob(f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
 
     parfiles = []
-    for src in island_ids:
+    for beams in big_beams:
+        src = beams['Source_ID']
         for stoke in stokeslist:
             parfile = genparset(
                 field=field,
                 src_name=src,
+                beams=beams,
                 stoke=stoke.capitalize(),
                 datadir=cutdir,
                 septab=beamseps,
-                host=host,
-                prefix=prefix,
-                username=username,
-                password=password,
             )
             parfiles.append(parfile)
 
@@ -283,14 +272,19 @@ def main(
     for parset in parfiles:
         results.append(
             linmos(
-                parset, field, host, username=username, password=password, verbose=True
+                parset, field, verbose=True
             )
         )
 
-    results = client.persist(results)
+    futures = client.persist(results)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(5)
-    tqdm_dask(results, desc="Runing LINMOS", disable=(not verbose))
+    tqdm_dask(futures, desc="Runing LINMOS", disable=(not verbose))
+
+    from IPython import embed; embed()
+    db_res = beams_col.bulk_write([f.compute() for f in futures])
+    if verbose:
+        pprint(db_res.bulk_api_result)
 
     print("LINMOS Done!")
 

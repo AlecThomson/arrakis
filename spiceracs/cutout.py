@@ -48,13 +48,11 @@ def cutout(
     dec_lo,
     outdir,
     stoke,
-    host,
+    beams_col,
     field,
     pad=3,
     verbose=False,
     dryrun=False,
-    username=None,
-    password=None,
 ):
     """Cutout a source from a given image.
 
@@ -71,10 +69,6 @@ def cutout(
         verbose {bool} -- Verbose output (default: {False})
         dryrun {bool} -- Do everything except the cutout (default: {True})
     """
-    beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
-    )
-
     outdir = os.path.abspath(outdir)
 
     for imtype in ["image", "weight"]:
@@ -180,25 +174,30 @@ def get_args(
     majs = majs * u.arcsec
     coords = SkyCoord(ras, decs)
 
-    ra_max = np.max(coords.ra)
-    ra_i_max = np.argmax(coords.ra)
-    ra_off = Longitude(majs[ra_i_max])
-    ra_hi = ra_max + ra_off
+    try:
+        ra_max = np.max(coords.ra)
+        ra_i_max = np.argmax(coords.ra)
+        ra_off = Longitude(majs[ra_i_max])
+        ra_hi = ra_max + ra_off
 
-    ra_min = np.min(coords.ra)
-    ra_i_min = np.argmin(coords.ra)
-    ra_off = Longitude(majs[ra_i_min])
-    ra_lo = ra_min - ra_off
+        ra_min = np.min(coords.ra)
+        ra_i_min = np.argmin(coords.ra)
+        ra_off = Longitude(majs[ra_i_min])
+        ra_lo = ra_min - ra_off
 
-    dec_max = np.max(coords.dec)
-    dec_i_max = np.argmax(coords.dec)
-    dec_off = Longitude(majs[dec_i_max])
-    dec_hi = dec_max + dec_off
+        dec_max = np.max(coords.dec)
+        dec_i_max = np.argmax(coords.dec)
+        dec_off = Longitude(majs[dec_i_max])
+        dec_hi = dec_max + dec_off
 
-    dec_min = np.min(coords.dec)
-    dec_i_min = np.argmin(coords.dec)
-    dec_off = Longitude(majs[dec_i_min])
-    dec_lo = dec_min - dec_off
+        dec_min = np.min(coords.dec)
+        dec_i_min = np.argmin(coords.dec)
+        dec_off = Longitude(majs[dec_i_min])
+        dec_lo = dec_min - dec_off
+    except Exception as e:
+        print("coords are", coords)
+        print("comps are", comps)
+        raise e
 
     args = []
     for beam_num in beam_list:
@@ -227,12 +226,8 @@ def get_args(
 
 
 @delayed
-def find_comps(island_id, host, username=None, password=None):
-    beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
-    )
-    comps = comp_col.find({"Source_ID": island_id})
-    comps = [c for c in comps]
+def find_comps(island_id, comp_col):
+    comps = list(comp_col.find({"Source_ID": island_id}))
     return comps
 
 
@@ -274,33 +269,41 @@ def cutout_islands(
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    beams = beams_col.find(query).sort("Source_ID")
+    beams = list(beams_col.find(query).sort("Source_ID"))
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))
-    islands = island_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
+    islands = list(island_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID"))
 
-    beams = [i for i in beams]
-    islands = [i for i in islands]
+    big_comps = list(comp_col.find({"Source_ID": {'$in': island_ids}}))
+    comps = []
+    for island_id in island_ids:
+        _comps = []
+        for c in big_comps:
+            if c["Source_ID"] == island_id:
+                _comps.append(c)
+        comps.append(_comps)
 
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
 
     args = []
-    for (island_id, island, beam) in zip(island_ids, islands, beams):
-        # comps = comp_col.find({'Source_ID': island_id})
-        comps = find_comps(island_id, host, username=username, password=password)
-        arg = get_args(
-            island,
-            comps,
-            beam,
-            island_id,
-            outdir,
-            field,
-            directory,
-            stokeslist,
-            verbose=verbose_worker,
-        )
-        args.append(arg)
+    for (island_id, island, comp, beam) in zip(island_ids, islands, comps, beams):
+        if len(comp) == 0:
+            warnings.warn(f"Skipping island {island_id} -- no components found")
+            continue
+        else:
+            arg = get_args(
+                island,
+                comp,
+                beam,
+                island_id,
+                outdir,
+                field,
+                directory,
+                stokeslist,
+                verbose=verbose_worker,
+            )
+            args.append(arg)
 
     flat_args = unpack(args)
     flat_args = client.compute(flat_args)
@@ -320,13 +323,11 @@ def cutout_islands(
             dec_lo=arg["dec_lo"],
             outdir=arg["outdir"],
             stoke=arg["stoke"],
-            host=host,
+            beams_col=beams_col,
             field=field,
             pad=pad,
             verbose=verbose_worker,
             dryrun=dryrun,
-            username=username,
-            password=password,
         )
         cuts.append(cut)
 
