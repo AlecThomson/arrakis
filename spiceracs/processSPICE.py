@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-#SBATCH --job-name=processSPICE
-#SBATCH --no-requeue
-#SBATCH --export=ALL
-#SBATCH --ntasks=1
-#SBATCH --time=06:00:00
 
 import os
 import pymongo
