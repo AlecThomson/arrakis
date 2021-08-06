@@ -281,7 +281,6 @@ def main(
     time.sleep(5)
     tqdm_dask(futures, desc="Runing LINMOS", disable=(not verbose))
 
-    from IPython import embed; embed()
     db_res = beams_col.bulk_write([f.compute() for f in futures])
     if verbose:
         pprint(db_res.bulk_api_result)
