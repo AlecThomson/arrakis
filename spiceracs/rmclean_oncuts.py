@@ -22,22 +22,17 @@ from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
 from glob import glob
 from shutil import copyfile
-
+from pprint import pprint
 
 @delayed
 def rmclean1d(
-    comp_id,
+    comp,
     outdir,
-    host,
-    field,
-    username=None,
-    password=None,
     cutoff=-3,
     maxIter=10000,
     gain=0.1,
     showPlots=False,
     savePlots=False,
-    database=False,
     rm_verbose=True,
 ):
     """1D RM-CLEAN
@@ -54,24 +49,14 @@ def rmclean1d(
         database (bool, optional): Update MongoDB. Defaults to False.
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to True.
     """
-    beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
-    )
-
-    # Basic querey
-    myquery = {"Gaussian_ID": comp_id}
-
-    doc = comp_col.find_one(myquery)
-
-    iname = doc["Source_ID"]
-    beam = beams_col.find_one({"Source_ID": iname})
+    iname = comp["Source_ID"]
+    cname = comp["Gaussian_ID"]
 
     if rm_verbose:
-        print(f"Working on {comp_id}")
+        print(f"Working on {comp}")
     try:
-        cname = comp_id
 
-        rm1dfiles = doc["rm1dfiles"]
+        rm1dfiles = comp["rm1dfiles"]
         fdfFile = os.path.join(outdir, f"{rm1dfiles['FDF_dirty']}")
         rmsfFile = os.path.join(outdir, f"{rm1dfiles['RMSF']}")
         weightFile = os.path.join(outdir, f"{rm1dfiles['weights']}")
@@ -103,44 +88,47 @@ def rmclean1d(
         )
 
         # Save output
-        do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
+        do_RMclean_1D.saveOutput(
+            outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
         if savePlots:
             plotdir = os.path.join(outdir, "plots")
             plot_files = glob(
-                os.path.join(os.path.abspath(os.path.dirname(fdfFile)), "*.pdf")
+                os.path.join(os.path.abspath(
+                    os.path.dirname(fdfFile)), "*.pdf")
             )
             for src in plot_files:
                 base = os.path.basename(src)
                 dst = os.path.join(plotdir, base)
                 copyfile(src, dst)
+        # Load into Mongo
+        myquery = {"Gaussian_ID": cname}
 
-        if database:
-            # Load into Mongo
-            myquery = {"Gaussian_ID": cname}
-
-            newvalues = {"$set": {f"rmclean1d": True}}
-            comp_col.update_one(myquery, newvalues)
-
-            newvalues = {"$set": {f"rmclean_summary": outdict}}
-            comp_col.update_one(myquery, newvalues)
-
+        newvalues = {
+            "$set": {
+                "rmclean1d": True,
+                "rmclean_summary": outdict
+            },
+        }
     except KeyError:
         print("Failed to load data! RM-CLEAN not applied to component!")
         print(f"Island is {iname}, component is {cname}")
-        return
+        myquery = {"Gaussian_ID": cname}
+
+        newvalues = {
+            "$set": {
+                "rmclean1d": False,
+            },
+        }
+    return pymongo.UpdateOne(myquery, newvalues)
 
 
 @delayed
 def rmclean3d(
-    island_id,
+    island,
     outdir,
-    host,
-    username=None,
-    password=None,
     cutoff=-3,
     maxIter=10000,
     gain=0.1,
-    database=False,
     rm_verbose=False,
 ):
     """3D RM-CLEAN
@@ -154,18 +142,8 @@ def rmclean3d(
         gain (float, optional): CLEAN gain. Defaults to 0.1.
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to False.
     """
-    beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
-    )
-
-    # Basic querey
-    myquery = {"Source_ID": island_id}
-
-    doc = comp_col.find_one(myquery)
-    iname = doc["Source_ID"]
+    iname = island["Source_ID"]
     prefix = f"{iname}_"
-
-    island = island_col.find_one(myquery)
     rm3dfiles = island["rm3dfiles"]
 
     cleanFDF, ccArr, iterCountArr, residFDF, headtemp = do_RMclean_3D.run_rmclean(
@@ -193,12 +171,10 @@ def rmclean3d(
         write_separate_FDF=True,
         verbose=rm_verbose,
     )
-
-    if database:
-        # Load into Mongo
-        myquery = {"Source_ID": iname}
-        newvalues = {"$set": {f"rmclean3d": True}}
-        island_col.update_one(myquery, newvalues)
+    # Load into Mongo
+    myquery = {"Source_ID": iname}
+    newvalues = {"$set": {f"rmclean3d": True}}
+    pymongo.UpdateOne(myquery, newvalues)
 
 
 def main(
@@ -250,19 +226,29 @@ def main(
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    beams = beams_col.find(query).sort("Source_ID")
+    beams = list(beams_col.find(query).sort("Source_ID"))
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
 
-    query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]}
+    query = {
+        "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]}
 
-    islands = island_col.find(query).sort("Source_ID")
+    islands = list(island_col.find(query).sort("Source_ID"))
     island_ids = [doc["Source_ID"] for doc in islands]
     n_island = island_col.count_documents(query)
 
-    query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
+    query = {
+        "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
 
-    components = comp_col.find(query).sort("Source_ID")
+    components = list(comp_col.find(query).sort("Source_ID"))
     component_ids = [doc["Gaussian_ID"] for doc in components]
+    comps = []
+    for i in island_ids:
+        _comp = []
+        for c in components:
+            if c["Source_ID"] == i:
+                _comp.append(c)
+        comps.append(_comp)
+
     n_comp = comp_col.count_documents(query)
 
     if limit is not None:
@@ -276,23 +262,18 @@ def main(
     if dimension == "1d":
         if verbose:
             print(f"Running RM-CLEAN on {n_comp} components")
-        for i, comp_id in enumerate(component_ids):
+        for i, comp in enumerate(components):
             if i > n_comp + 1:
                 break
             else:
                 output = rmclean1d(
-                    comp_id=comp_id,
+                    comp=comp,
                     outdir=outdir,
-                    host=host,
-                    field=field,
-                    username=username,
-                    password=password,
                     cutoff=cutoff,
                     maxIter=maxIter,
                     gain=gain,
                     showPlots=showPlots,
                     savePlots=savePlots,
-                    database=database,
                     rm_verbose=rm_verbose,
                 )
                 outputs.append(output)
@@ -301,31 +282,39 @@ def main(
         if verbose:
             print(f"Running RM-CLEAN on {n_island} islands")
 
-        for i, island_id in enumerate(island_ids):
+        for i, island in enumerate(islands):
             if i > n_island + 1:
                 break
             else:
                 output = rmclean3d(
-                    island_id=island_id,
+                    island=island,
                     outdir=outdir,
-                    host=host,
-                    username=username,
-                    password=password,
                     cutoff=cutoff,
                     maxIter=maxIter,
                     gain=gain,
-                    database=database,
                     rm_verbose=rm_verbose,
                 )
                 outputs.append(output)
 
-    results = client.persist(outputs)
+    futures = client.persist(outputs)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(5)
-    tqdm_dask(results, desc="Running RM-CLEAN", disable=(not verbose))
+    tqdm_dask(futures, desc="Running RM-CLEAN", disable=(not verbose))
 
+    if database:
+        if verbose:
+            print("Updating database...")
+        updates = [f.compute() for f in futures]
+        if dimension == "1d":
+            db_res = comp_col.bulk_write(updates)
+            if verbose:
+                pprint(db_res.bulk_api_result)
+        elif dimension == "3d":
+            db_res = island_col.bulk_write(updates)
+            if verbose:
+                pprint(db_res.bulk_api_result)
     if verbose:
-        print("Done!")
+        print("RM-CLEAN done!")
 
 
 def cli():
