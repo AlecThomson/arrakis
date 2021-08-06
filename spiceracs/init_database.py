@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from spiceracs.utils import get_db, test_db
+from spiceracs.utils import get_db, test_db, get_field_db
 from IPython import embed
 from functools import partial
 import functools
@@ -241,18 +241,10 @@ def field_database(host, username, password, verbose=True):
     field_list_dict = df.to_dict("records")
     if verbose:
         print("Loading fields into mongo...")
-    with pymongo.MongoClient(
-        host=host,
-        connect=False,
-        username=username,
-        password=password,
-        authMechanism="SCRAM-SHA-256",
-    ) as dbclient:
-        mydb = dbclient["spiceracs"]
-        field_col = mydb["fields"]
-        field_col.delete_many({})
-        field_col.insert_many(field_list_dict)
-        count = field_col.count_documents({})
+    field_col = get_field_db(host, username=username, password=password)
+    field_col.delete_many({})
+    field_col.insert_many(field_list_dict)
+    count = field_col.count_documents({})
     if verbose:
         print("Done loading")
         print("Total documents:", count)
