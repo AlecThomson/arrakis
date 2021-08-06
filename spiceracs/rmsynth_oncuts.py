@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, try_mkdir, get_db
+from pprint import pprint
+from spiceracs.utils import getfreq, MyEncoder, test_db, tqdm_dask, try_mkdir, get_db
 import json
 import numpy as np
 import os
@@ -34,27 +35,13 @@ from dask.diagnostics import ProgressBar
 import traceback
 
 
-# def safe_mongocall(call):
-#     def _safe_mongocall(*args, **kwargs):
-#         for i in range(5):
-#             try:
-#                 return call(*args, **kwargs)
-#             except pymongo.errors.AutoReconnect:
-#                 time.sleep(np.random.random() / 100)
-#         print('Error: Failed operation!')
-#     return _safe_mongocall
-
-
 @delayed
 def rmsynthoncut3d(
     island_id,
+    beam,
     outdir,
     freq,
-    host,
     field,
-    username=None,
-    password=None,
-    database=False,
     phiMax_radm2=None,
     dPhi_radm2=None,
     nSamples=5,
@@ -79,17 +66,8 @@ def rmsynthoncut3d(
         not_RMSF (bool, optional): Skip calculation of RMSF. Defaults to False.
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
-    # default connection (ie, local)
-    beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
-    )
 
-    # Basic querey
-    myquery = {"Source_ID": island_id}
-
-    doc = comp_col.find_one(myquery)
-    iname = doc["Source_ID"]
-    beam = beams_col.find_one({"Source_ID": iname})
+    iname = island_id
 
     ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
     qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
@@ -153,37 +131,37 @@ def rmsynthoncut3d(
         verbose=rm_verbose,
     )
 
-    if database:
-        myquery = {"Source_ID": iname}
-        # Prep header
-        head_dict = dict(header)
-        head_dict.pop("", None)
-        head_dict["COMMENT"] = str(head_dict["COMMENT"])
+    myquery = {"Source_ID": iname}
+    # Prep header
+    head_dict = dict(header)
+    head_dict.pop("", None)
+    head_dict["COMMENT"] = str(head_dict["COMMENT"])
 
-        outer_dir = os.path.basename(os.path.dirname(ifile))
+    outer_dir = os.path.basename(os.path.dirname(ifile))
 
-        newvalues = {
-            "$set": {
-                "rm3dfiles": {
-                    "FDF_real_dirty": os.path.join(
-                        outer_dir, f"{prefix}FDF_real_dirty.fits"
-                    ),
-                    "FDF_im_dirty": os.path.join(
-                        outer_dir, f"{prefix}FDF_im_dirty.fits"
-                    ),
-                    "FDF_tot_dirty": os.path.join(
-                        outer_dir, f"{prefix}FDF_tot_dirty.fits"
-                    ),
-                    "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
-                    "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
-                    "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
-                },
-                "rmsynth3d": True,
-                "header": dict(header),
-            }
+    newvalues = {
+        "$set": {
+            "rm3dfiles": {
+                "FDF_real_dirty": os.path.join(
+                    outer_dir, f"{prefix}FDF_real_dirty.fits"
+                ),
+                "FDF_im_dirty": os.path.join(
+                    outer_dir, f"{prefix}FDF_im_dirty.fits"
+                ),
+                "FDF_tot_dirty": os.path.join(
+                    outer_dir, f"{prefix}FDF_tot_dirty.fits"
+                ),
+                "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
+                "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
+                "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
+            },
+            "rmsynth3d": True,
+            "header": dict(header),
         }
+    }
 
-        island_col.update_one(myquery, newvalues)
+        # island_col.update_one(myquery, newvalues)
+    return pymongo.UpdateOne(myquery, newvalues)
 
 
 @delayed
@@ -259,14 +237,11 @@ def estimate_noise_annulus(x_center, y_center, cube):
 
 @delayed
 def rmsynthoncut1d(
-    comp_id,
+    comp,
+    beam,
     outdir,
     freq,
-    host,
     field,
-    username=None,
-    password=None,
-    database=False,
     polyOrd=3,
     phiMax_radm2=None,
     dPhi_radm2=None,
@@ -303,17 +278,8 @@ def rmsynthoncut1d(
         debug (bool, optional): Turn on debug plots. Defaults to False.
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
-    # default connection (ie, local)
-    beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
-    )
-    # Basic querey
-    myquery = {"Gaussian_ID": comp_id}
-
-    doc = comp_col.find_one(myquery)
-    iname = doc['Source_ID']
-    cname = doc['Gaussian_ID']
-    beam = beams_col.find_one({'Source_ID': iname})
+    iname = comp['Source_ID']
+    cname = comp['Gaussian_ID']
 
     ifile = os.path.join(outdir, beam['beams'][field]['i_file'])
     qfile = os.path.join(outdir, beam['beams'][field]['q_file'])
@@ -357,14 +323,10 @@ def rmsynthoncut1d(
     rmsu[rmsu == 0] = np.nan
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
 
-    # if np.isnan(rmsi).all() or np.isnan(rmsq).all() or np.isnan(rmsu).all():
-    #     print(f'RMS data is all NaNs. Skipping component {cname}...')
-    #     return
-
     prefix = f"{os.path.dirname(ifile)}/{cname}"
 
-    ra = doc['RA']
-    dec = doc['Dec']
+    ra = comp['RA']
+    dec = comp['Dec']
     coord = SkyCoord(ra*u.deg,dec*u.deg)
     if len(dataI.shape) == 4:
         # drop Stokes axis
@@ -465,31 +427,30 @@ def rmsynthoncut1d(
         do_RMsynth_1D.saveOutput(
             mDict, aDict, prefix, rm_verbose)
 
-        if database:
-            myquery = {"Gaussian_ID": cname}
+        myquery = {"Gaussian_ID": cname}
 
-            # Prep header
-            head_dict = dict(header)
-            head_dict.pop('', None)
-            head_dict['COMMENT'] = str(head_dict['COMMENT'])
+        # Prep header
+        head_dict = dict(header)
+        head_dict.pop('', None)
+        head_dict['COMMENT'] = str(head_dict['COMMENT'])
 
-            outer_dir = os.path.basename(os.path.dirname(ifile))
+        outer_dir = os.path.basename(os.path.dirname(ifile))
 
-            newvalues = {
-                "$set": {
-                    f"rm1dfiles": {
-                        "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
-                        "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
-                        "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
-                        "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
-                        "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
-                    },
-                    f"rmsynth1d": True,
-                    "header": head_dict,
-                    f"rmsynth_summary": mDict
-                }
+        newvalues = {
+            "$set": {
+                f"rm1dfiles": {
+                    "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
+                    "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
+                    "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
+                    "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
+                    "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
+                },
+                f"rmsynth1d": True,
+                "header": head_dict,
+                f"rmsynth_summary": mDict
             }
-            comp_col.update_one(myquery, newvalues)
+        }
+        return pymongo.UpdateOne(myquery, newvalues)
 
 
 
@@ -666,12 +627,19 @@ def main(
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    beams = beams_col.find(query).sort("Source_ID")
+    beams = list(beams_col.find(query).sort("Source_ID"))
     island_ids = sorted(beams_col.distinct("Source_ID", query))
 
     query = {"Source_ID": {"$in": island_ids}}
-    components = comp_col.find(query).sort("Peak_flux", pymongo.DESCENDING)
+    components = list(comp_col.find(query).sort("Source_ID"))
     component_ids = [doc["Gaussian_ID"] for doc in components]
+    comps = []
+    for i in island_ids:
+        _comp = []
+        for c in components:
+            if c["Source_ID"] == i:
+                _comp.append(c)
+        comps.append(_comp)
 
     n_comp = comp_col.count_documents(query)
     n_island = island_col.count_documents(query)
@@ -728,19 +696,18 @@ def main(
     elif dimension == "1d":
         if verbose:
             print(f"Running RMsynth on {n_comp} components")
-        for i, comp_id in enumerate(component_ids):
+        for i, comp in enumerate(components):
             if i > n_comp + 1:
                 break
             else:
+                beam_idx = [i for i,b in enumerate(beams) if b["Source_ID"] == comp["Source_ID"]][0]
+                beam = beams[beam_idx]
                 output = rmsynthoncut1d(
-                    comp_id=comp_id,
+                    comp=comp,
+                    beam=beam,
                     outdir=outdir,
                     freq=freq,
-                    host=host,
                     field=field,
-                    username=username,
-                    password=password,
-                    database=database,
                     polyOrd=polyOrd,
                     phiMax_radm2=phiMax_radm2,
                     dPhi_radm2=dPhi_radm2,
@@ -766,15 +733,14 @@ def main(
             if i > n_island + 1:
                 break
             else:
+                beam_idx = [i for i,b in enumerate(beams) if b['Source_ID'] == island_id][0]
+                beam = beams[beam_idx]
                 output = rmsynthoncut3d(
                     island_id=island_id,
+                    beam=beam,
                     outdir=outdir,
                     freq=freq,
-                    host=host,
                     field=field,
-                    username=username,
-                    password=password,
-                    database=database,
                     phiMax_radm2=phiMax_radm2,
                     dPhi_radm2=dPhi_radm2,
                     nSamples=nSamples,
@@ -791,8 +757,20 @@ def main(
     tqdm_dask(futures, desc="Running RMsynth", disable=(not verbose))
     # progress(futures)
 
+    if database:
+        if verbose:
+            print("Updating database...")
+        updates = [f.compute() for f in futures]
+        if dimension == "1d":
+            db_res = comp_col.bulk_write(updates)
+            if verbose:
+                pprint(db_res.bulk_api_result)
+        elif dimension == "3d":
+            db_res = island_col.bulk_write(updates)
+            if verbose:
+                pprint(db_res.bulk_api_result)
     if verbose:
-        print("Done!")
+        print("RMsynth done!")
 
 
 def cli():
@@ -995,23 +973,12 @@ def cli():
     client = Client(cluster)
     print(client)
 
-    host = args.host
-    if verbose:
-        print("Testing MongoDB connection...")
-    # default connection (ie, local)
-    with pymongo.MongoClient(host=host, connect=False) as dbclient:
-        try:
-            dbclient.list_database_names()
-        except pymongo.errors.ServerSelectionTimeoutError:
-            raise Exception("Please ensure 'mongod' is running")
-        else:
-            if verbose:
-                print("MongoDB connection succesful!")
+    test_db(host=args.host, username=args.username, password=args.password, verbose=verbose)
 
     main(
         field=args.field,
         outdir=args.outdir,
-        host=host,
+        host=args.host,
         username=args.username,
         password=args.password,
         client=client,
