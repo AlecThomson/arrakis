@@ -232,6 +232,30 @@ def get_beams(mastercat, database, verbose=True):
         )
     return beam_list
 
+def field_database(host, username, password, verbose=True):
+    scriptdir = os.path.dirname(os.path.realpath(__file__))
+    basedir = f"{scriptdir}/../askap_surveys/racs/db/epoch_0"
+    data_file = os.path.join(basedir, 'field_data.csv')
+    database = Table.read(data_file)
+    df = database.to_pandas()
+    field_list_dict = df.to_dict("records")
+    if verbose:
+        print("Loading fields into mongo...")
+    with pymongo.MongoClient(
+        host=host,
+        connect=False,
+        username=username,
+        password=password,
+        authMechanism="SCRAM-SHA-256",
+    ) as dbclient:
+        mydb = dbclient["spiceracs"]
+        field_col = mydb["fields"]
+        field_col.delete_many({})
+        field_col.insert_many(field_list_dict)
+        count = field_col.count_documents({})
+    if verbose:
+        print("Done loading")
+        print("Total documents:", count)
 
 def main(args, verbose=True):
     """Main script
@@ -277,6 +301,16 @@ def main(args, verbose=True):
                 password=args.password, 
                 verbose=verbose
                 )
+    if args.field:
+        print("This will overwrite the field database!")
+        check_field = yes_or_no("Are you sure you wish to proceed?")
+        if check_field:
+            field_database(
+                host=args.host,
+                username=args.username,
+                password=args.password, 
+                verbose=verbose
+            )
 
     else:
         print("Nothing to do!")
@@ -347,6 +381,12 @@ def cli():
         "--load",
         action="store_true",
         help="Load catalogue into database [False].",
+    )
+
+    parser.add_argument(
+        "--field",
+        action="store_true",
+        help="Load field table into database [False].",
     )
 
     args = parser.parse_args()
