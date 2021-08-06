@@ -272,7 +272,7 @@ def main(
     for parset in parfiles:
         results.append(
             linmos(
-                parset, field, verbose=True
+                parset, field, verbose=False
             )
         )
 
