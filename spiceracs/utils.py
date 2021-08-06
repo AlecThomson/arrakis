@@ -70,6 +70,27 @@ def get_db(host, username=None, password=None):
         beams_col = mydb["beams"]  # Create/open collection
     return beams_col, island_col, comp_col
 
+def get_field_db(host, username=None, password=None):
+    """Get MongoDBs
+
+    Args:
+        host (str): Mongo host IP.
+        username (str, optional): Username. Defaults to None.
+        password (str, optional): Password. Defaults to None.
+
+    Returns:
+        Tuple(Collection): beams_col, island_col, comp_col
+    """
+    with pymongo.MongoClient(
+        host=host,
+        connect=False,
+        username=username,
+        password=password,
+        authMechanism="SCRAM-SHA-256",
+    ) as dbclient:
+        mydb = dbclient["spiceracs"]  # Create/open database
+        field_col = mydb["fields"]  # Create/open collection
+    return field_col
 
 # stolen from https://github.com/tqdm/tqdm/issues/278
 class TqdmProgressBar(ProgressBar):
