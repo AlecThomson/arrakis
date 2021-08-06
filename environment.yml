@@ -23,9 +23,12 @@ dependencies:
 - mongodb
 - dask_mpi
 - fitsio
+- casacore
 - pip:
   - tqdm
   - configargparse
   - spectral_cube
   - RM-Tools
+  - RMextract
+  - git+https://github.com/CIRADA-Tools/FRion.git
   - -rrequirements.txt
