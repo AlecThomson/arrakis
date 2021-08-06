@@ -4,7 +4,7 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import SkyCoord
-from spiceracs.utils import get_field_db, getfreq, get_db
+from spiceracs.utils import get_field_db, getfreq, get_db, tqdm_dask
 from FRion import predict, correct
 from dask import delayed
 import pymongo
@@ -132,5 +132,5 @@ def main(
         print("Updating database...")
     updates = [f.compute() for f in futures]
     db_res = beams_col.bulk_write(updates)
-        if verbose:
-            pprint(db_res.bulk_api_result)
+    if verbose:
+        pprint(db_res.bulk_api_result)
