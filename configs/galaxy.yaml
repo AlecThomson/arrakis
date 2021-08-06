@@ -11,7 +11,7 @@ job_extra: ['-M galaxy']
 interface: "ipogif0"
 log_directory: 'spice_logs'
 env_extra: [
-    # 'export OMP_NUM_THREADS=1',
+    'export OMP_NUM_THREADS=1',
     'module unload askapsoft',
     'module load askapsoft',
     'unset PYTHONPATH',
