@@ -3,6 +3,7 @@ channels:
 - astropy
 - conda-forge
 - defaults
+- pkgw-forge
 dependencies:
 - python=3.8
 - pip
@@ -24,6 +25,7 @@ dependencies:
 - dask_mpi
 - fitsio
 - casacore
+- casa-data
 - pip:
   - tqdm
   - configargparse
