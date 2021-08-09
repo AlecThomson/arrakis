@@ -11,6 +11,7 @@ from spiceracs import cleanup
 from spiceracs import rmsynth_oncuts
 from spiceracs import rmclean_oncuts
 from spiceracs import makecat
+from spiceracs import frion
 from spiceracs.utils import port_forward, test_db
 from dask_jobqueue import SLURMCluster
 from distributed import Client, progress, performance_report, LocalCluster
@@ -46,6 +47,20 @@ def linmos_task(skip, **kwargs):
         raise signals.SUCCESS
     else:
         return linmos.main(
+            **kwargs
+        )
+
+
+@task(name='FRion')
+def frion_task(skip, **kwargs):
+    if skip:
+        check_cond = True
+    else:
+        check_cond = False
+    if check_cond:
+        raise signals.SUCCESS
+    else:
+        return frion.main(
             **kwargs
         )
 
@@ -135,17 +150,15 @@ def main(args):
         {
             'scheduler_options': {
                 "dashboard_address": f":{args.port}"
-                },
+            },
             'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
         }
     )
-
 
     cluster = SLURMCluster(
         **config,
     )
     print('Submitted scripts will look like: \n', cluster.job_script())
-
 
     # Request 20 nodes
     cluster.scale(jobs=20)
@@ -199,6 +212,18 @@ def main(args):
             verbose=True,
             upstream_tasks=[mosaics]
         )
+        frion_run = frion_task(
+            args.skip_frion,
+            field=args.field,
+            outdir=args.datadir,
+            host=host,
+            client=client,
+            username=args.username,
+            password=args.password,
+            database=args.database,
+            verbose=args.verbose,
+            upstream_tasks=[mosaics]
+        )
         dirty_spec = rmsynth_task(
             args.skip_rmsynth,
             field=args.field,
@@ -227,7 +252,8 @@ def main(args):
             fit_function=args.fit_function,
             tt0=args.tt0,
             tt1=args.tt1,
-            upstream_tasks=[tidy]
+            ion=True,
+            upstream_tasks=[frion_run]
         )
         clean_spec = rmclean_task(
             args.skip_rmclean,
@@ -373,6 +399,11 @@ def cli():
         help="Skip cleanup stage [False]."
     )
     flowargs.add_argument(
+        '--skip_frion',
+        action="store_true",
+        help="Skip cleanup stage [False]."
+    )
+    flowargs.add_argument(
         '--skip_rmsynth',
         action="store_true",
         help="Skip RM Synthesis stage [False]."
@@ -470,7 +501,7 @@ def cli():
         help="weighting [variance] (all 1s) or 'uniform'."
     )
     tools.add_argument("--fit_function", type=str, default="log",
-                        help="Stokes I fitting function: 'linear' or ['log'] polynomials.")
+                       help="Stokes I fitting function: 'linear' or ['log'] polynomials.")
     tools.add_argument(
         "-t", "--fitRMSF",
         action="store_true",
