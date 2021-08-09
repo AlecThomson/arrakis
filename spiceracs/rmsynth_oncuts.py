@@ -49,6 +49,7 @@ def rmsynthoncut3d(
     fitRMSF=True,
     not_RMSF=False,
     rm_verbose=False,
+    ion=False
 ):
     """3D RM-synthesis
 
@@ -69,9 +70,14 @@ def rmsynthoncut3d(
 
     iname = island_id
 
-    ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
-    qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
-    ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
+    if ion:
+        ifile = os.path.join(outdir, beam["beams"][field]["i_file_ion"])
+        qfile = os.path.join(outdir, beam["beams"][field]["q_file_ion"])
+        ufile = os.path.join(outdir, beam["beams"][field]["u_file_ion"])
+    else:
+        ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
+        qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
+        ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
     # vfile = beam['beams'][field]['v_file']
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
@@ -256,6 +262,7 @@ def rmsynthoncut1d(
     fit_function="log",
     tt0=None,
     tt1=None,
+    ion=False
 ):
     """1D RM synthesis
 
@@ -281,9 +288,14 @@ def rmsynthoncut1d(
     iname = comp['Source_ID']
     cname = comp['Gaussian_ID']
 
-    ifile = os.path.join(outdir, beam['beams'][field]['i_file'])
-    qfile = os.path.join(outdir, beam['beams'][field]['q_file'])
-    ufile = os.path.join(outdir, beam['beams'][field]['u_file'])
+    if ion:
+        ifile = os.path.join(outdir, beam['beams'][field]['i_file_ion'])
+        qfile = os.path.join(outdir, beam['beams'][field]['q_file_ion'])
+        ufile = os.path.join(outdir, beam['beams'][field]['u_file_ion'])
+    else:
+        ifile = os.path.join(outdir, beam['beams'][field]['i_file'])
+        qfile = os.path.join(outdir, beam['beams'][field]['q_file'])
+        ufile = os.path.join(outdir, beam['beams'][field]['u_file'])
     # vfile = beam['beams'][field]['v_file']
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
@@ -610,6 +622,7 @@ def main(
     fit_function="log",
     tt0=None,
     tt1=None,
+    ion=False
 ):
 
     outdir = os.path.abspath(outdir)
@@ -722,6 +735,7 @@ def main(
                     fit_function=fit_function,
                     tt0=tt0,
                     tt1=tt1,
+                    ion=ion,
                 )
                 outputs.append(output)
 
@@ -748,6 +762,7 @@ def main(
                     fitRMSF=fitRMSF,
                     not_RMSF=not_RMSF,
                     rm_verbose=rm_verbose,
+                    ion=ion
                 )
                 outputs.append(output)
 
@@ -762,11 +777,11 @@ def main(
             print("Updating database...")
         updates = [f.compute() for f in futures]
         if dimension == "1d":
-            db_res = comp_col.bulk_write(updates)
+            db_res = comp_col.bulk_write(updates, ordered=False)
             if verbose:
                 pprint(db_res.bulk_api_result)
         elif dimension == "3d":
-            db_res = island_col.bulk_write(updates)
+            db_res = island_col.bulk_write(updates, ordered=False)
             if verbose:
                 pprint(db_res.bulk_api_result)
     if verbose:
@@ -847,6 +862,10 @@ def cli():
 
     parser.add_argument(
         "-v", dest="verbose", action="store_true", help="verbose output [False]."
+    )
+
+    parser.add_argument(
+        "--ion", action="store_true", help="Use ionospheric-corrected data [False]."
     )
 
     parser.add_argument(
@@ -1002,6 +1021,7 @@ def cli():
         fit_function=args.fit_function,
         tt0=args.tt0,
         tt1=args.tt1,
+        ion=args.ion,
     )
 
 

@@ -281,7 +281,8 @@ def main(
     time.sleep(5)
     tqdm_dask(futures, desc="Runing LINMOS", disable=(not verbose))
 
-    db_res = beams_col.bulk_write([f.compute() for f in futures])
+    updates = [f.compute() for f in futures]
+    db_res = beams_col.bulk_write(updates, ordered=False)
     if verbose:
         pprint(db_res.bulk_api_result)
 

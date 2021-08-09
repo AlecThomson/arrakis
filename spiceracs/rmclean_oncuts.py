@@ -306,11 +306,11 @@ def main(
             print("Updating database...")
         updates = [f.compute() for f in futures]
         if dimension == "1d":
-            db_res = comp_col.bulk_write(updates)
+            db_res = comp_col.bulk_write(updates, ordered=False)
             if verbose:
                 pprint(db_res.bulk_api_result)
         elif dimension == "3d":
-            db_res = island_col.bulk_write(updates)
+            db_res = island_col.bulk_write(updates, ordered=False)
             if verbose:
                 pprint(db_res.bulk_api_result)
     if verbose:
