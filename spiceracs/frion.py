@@ -45,8 +45,8 @@ def correct_worker(beam, outdir, field, predict_file, island_id):
 
     newvalues = {
         '$set': {
-            'beams.field.q_file_ion': qout,
-            'beams.field.u_file_ion': uout,
+            f'beams.{field}.q_file_ion': qout,
+            f'beams.{field}.u_file_ion': uout,
         }
     }
     return pymongo.UpdateOne(myquery, newvalues)
@@ -211,7 +211,10 @@ def main(
         if verbose:
             print("Updating database...")
         updates = [f.compute() for f in futures]
-        db_res = beams_col.bulk_write(updates)
+        db_res = beams_col.bulk_write(
+            updates,
+            ordered=False
+            )
         if verbose:
             pprint(db_res.bulk_api_result)
 
