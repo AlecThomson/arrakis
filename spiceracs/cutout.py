@@ -30,6 +30,7 @@ from spiceracs.utils import getdata, MyEncoder, try_mkdir, tqdm_dask, get_db, te
 from astropy.utils import iers
 import astropy.units as u
 from spectral_cube import SpectralCube
+from pprint import pprint
 
 iers.conf.auto_download = False
 warnings.filterwarnings(
@@ -48,11 +49,10 @@ def cutout(
     dec_lo,
     outdir,
     stoke,
-    beams_col,
     field,
     pad=3,
     verbose=False,
-    dryrun=False,
+    dryrun=False
 ):
     """Cutout a source from a given image.
 
@@ -71,6 +71,7 @@ def cutout(
     """
     outdir = os.path.abspath(outdir)
 
+    ret = []
     for imtype in ["image", "weight"]:
         basename = os.path.basename(image)
         outname = f"{src_name}.cutout.{basename}"
@@ -119,19 +120,19 @@ def cutout(
             if verbose:
                 print(f"Written to {outfile}")
 
-            # Update database
-            myquery = {"Source_ID": src_name}
+        # Update database
+        myquery = {"Source_ID": src_name}
 
-            filename = os.path.join(
-                os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
-            )
-            newvalues = {
-                "$set": {f"beams.{field}.{stoke}_beam{beam}_{imtype}_file": filename}
-            }
+        filename = os.path.join(
+            os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
+        )
+        newvalues = {
+            "$set": {f"beams.{field}.{stoke}_beam{beam}_{imtype}_file": filename}
+        }
 
-            beams_col.update_one(myquery, newvalues, upsert=True)
+        ret += [pymongo.UpdateOne(myquery, newvalues, upsert=True)]
 
-    return src_name
+    return ret
 
 
 @delayed
@@ -308,7 +309,7 @@ def cutout_islands(
     flat_args = unpack(args)
     flat_args = client.compute(flat_args)
     tqdm_dask(
-        flat_args, desc="Getting args", disable=(not verbose), total=len(islands) * 2
+        flat_args, desc="Getting args", disable=(not verbose), total=len(islands)+1
     )
     flat_args = flat_args.result()
     cuts = []
@@ -323,7 +324,6 @@ def cutout_islands(
             dec_lo=arg["dec_lo"],
             outdir=arg["outdir"],
             stoke=arg["stoke"],
-            beams_col=beams_col,
             field=field,
             pad=pad,
             verbose=verbose_worker,
@@ -331,9 +331,20 @@ def cutout_islands(
         )
         cuts.append(cut)
 
-    output = client.persist(cuts)
-    tqdm_dask(output, desc="Cutting out", disable=(not verbose))
+    futures = client.persist(cuts)
+    # dumb solution for https://github.com/dask/distributed/issues/4831
+    time.sleep(5)
+    tqdm_dask(futures, desc="Cutting out", disable=(not verbose))
+    if not dryrun:
+        _updates = [f.compute() for f in futures]
+        updates = [val for sublist in _updates for val in sublist]
+        if verbose:
+            print("Updating database...")
+        db_res = beams_col.bulk_write(updates, ordered=False)
+        if verbose:
+            pprint(db_res.bulk_api_result)
 
+    print("Cutouts Done!")
 
 def main(args, verbose=True):
     """Main script
@@ -443,7 +454,7 @@ def cli():
         help="Verbose worker output [False].",
     )
     parser.add_argument(
-        "-d", dest="dryrun", action="store_true", help="Do a dry-run [False]."
+        "-d", "--dryrun", action="store_true", help="Do a dry-run [False]."
     )
     parser.add_argument(
         "-s",
