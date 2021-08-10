@@ -333,7 +333,7 @@ def cutout_islands(
 
     futures = client.persist(cuts)
     # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(5)
+    time.sleep(10)
     tqdm_dask(futures, desc="Cutting out", disable=(not verbose))
     if not dryrun:
         _updates = [f.compute() for f in futures]
