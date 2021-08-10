@@ -3,7 +3,7 @@ import os
 import numpy as np
 import astropy.units as u
 from astropy.time import Time, TimeDelta
-from spiceracs.utils import get_field_db, getfreq, get_db, tqdm_dask, test_db
+from spiceracs.utils import get_field_db, getfreq, get_db, tqdm_dask, test_db, try_mkdir
 from FRion import predict, correct
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster, wait
@@ -101,6 +101,7 @@ def predict_worker(island, field, beam, start_time, end_time, freq, cutdir):
         savename=plot_file
     )
     plotdir = os.path.join(cutdir, 'plots')
+    try_mkdir(plotdir)
     plot_files = glob(os.path.join(i_dir, '*ion.pdf'))
     for src in plot_files:
         base = os.path.basename(src)
@@ -202,10 +203,12 @@ def main(
         )
         outputs.append(output)
 
+    # Wait for IONEX data I guess...
+    time.sleep(10)
     # Execute
     futures = client.persist(outputs)
     # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(5)
+    time.sleep(10)
     tqdm_dask(futures, desc="Running FRion", disable=(not verbose), total=len(islands)*2)
     if database:
         if verbose:
