@@ -48,7 +48,7 @@ def main(datadir, client, stokeslist=None, verbose=True):
 
     results = client.persist(outputs)
     # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(5)
+    time.sleep(10)
     tqdm_dask(results, desc="Running cleanup", disable=(not verbose))
 
     print('Cleanup done!')
