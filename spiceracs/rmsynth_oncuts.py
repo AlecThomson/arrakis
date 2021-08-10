@@ -69,13 +69,12 @@ def rmsynthoncut3d(
     """
 
     iname = island_id
+    ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
 
     if ion:
-        ifile = os.path.join(outdir, beam["beams"][field]["i_file_ion"])
         qfile = os.path.join(outdir, beam["beams"][field]["q_file_ion"])
         ufile = os.path.join(outdir, beam["beams"][field]["u_file_ion"])
     else:
-        ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
         qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
         ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
     # vfile = beam['beams'][field]['v_file']
@@ -287,16 +286,13 @@ def rmsynthoncut1d(
     """
     iname = comp['Source_ID']
     cname = comp['Gaussian_ID']
-
+    ifile = os.path.join(outdir, beam['beams'][field]['i_file'])
     if ion:
-        ifile = os.path.join(outdir, beam['beams'][field]['i_file_ion'])
         qfile = os.path.join(outdir, beam['beams'][field]['q_file_ion'])
         ufile = os.path.join(outdir, beam['beams'][field]['u_file_ion'])
     else:
-        ifile = os.path.join(outdir, beam['beams'][field]['i_file'])
         qfile = os.path.join(outdir, beam['beams'][field]['q_file'])
         ufile = os.path.join(outdir, beam['beams'][field]['u_file'])
-    # vfile = beam['beams'][field]['v_file']
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
@@ -768,7 +764,7 @@ def main(
 
     futures = client.persist(outputs)
     # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(5)
+    time.sleep(10)
     tqdm_dask(futures, desc="Running RMsynth", disable=(not verbose))
     # progress(futures)
 
