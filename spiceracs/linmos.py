@@ -19,6 +19,7 @@ from dask import delayed
 from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
 
+os.environ["OMP_NUM_THREADS"] = "1"
 
 @delayed
 def gen_seps(field, scriptdir):
@@ -188,17 +189,16 @@ def linmos(parset, fieldname, verbose=False):
     source = os.path.basename(workdir)
     stoke = parset_name[parset_name.find(".in") - 1]
     log = parset.replace(".in", ".log")
-
-    # os.chdir(workdir)
+    # os.environ["OMP_NUM_THREADS"] = "1"
     linmos_command = shlex.split(f"linmos -c {parset}")
-    output = subprocess.run(linmos_command, capture_output=True)
+    output = subprocess.run(linmos_command, capture_output=True, check=True)
     with open(log, "w") as f:
         f.write(output.stdout.decode("utf-8"))
 
     new_file = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
     if len(new_file) != 1:
-        raise Exception("LINMOS file not found!")
+        raise Exception(f"LINMOS file not found! -- check {log}?")
 
     new_file = os.path.abspath(new_file[0])
     outer = os.path.basename(os.path.dirname(new_file))
@@ -278,8 +278,8 @@ def main(
 
     futures = client.persist(results)
     # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(5)
-    tqdm_dask(futures, desc="Runing LINMOS", disable=(not verbose))
+    time.sleep(10)
+    tqdm_dask(futures, desc="Runing LINMOS", disable=(not verbose), total=len(results)*2+1)
 
     updates = [f.compute() for f in futures]
     if verbose:
