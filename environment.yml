@@ -26,11 +26,13 @@ dependencies:
 - fitsio
 - casacore
 - casa-data
+- singularity
 - pip:
   - tqdm
   - configargparse
   - spectral_cube
   - RM-Tools
   - RMextract
+  - spython
   - git+https://github.com/CIRADA-Tools/FRion.git
   - -rrequirements.txt
