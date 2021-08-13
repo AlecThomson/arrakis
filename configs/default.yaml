@@ -12,10 +12,6 @@ interface: "ipogif0"
 log_directory: 'spice_logs'
 env_extra: [
     'export OMP_NUM_THREADS=1',
-    'module unload askapsoft',
-    'module load askapsoft',
-    'unset PYTHONPATH',
-    'source /home/$(whoami)/.bashrc',
     'conda activate spice'
 ]
 python: 'srun -n 1 -c 24 python'
