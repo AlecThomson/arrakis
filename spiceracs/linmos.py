@@ -18,6 +18,7 @@ import time
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
+from spython.main import Client as sclient
 import warnings
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -176,7 +177,7 @@ linmos.feeds.spacing    = 1deg
 
 
 @delayed
-def linmos(parset, fieldname, verbose=False):
+def linmos(parset, fieldname, image, verbose=False):
     """Run LINMOS
 
     Args:
@@ -192,9 +193,9 @@ def linmos(parset, fieldname, verbose=False):
     log = parset.replace(".in", ".log")
     # os.environ["OMP_NUM_THREADS"] = "1"
     linmos_command = shlex.split(f"linmos -c {parset}")
-    output = subprocess.run(linmos_command, capture_output=True, check=True)
+    output = sclient.execute(image=image, command=linmos_command)
     with open(log, "w") as f:
-        f.write(output.stdout.decode("utf-8"))
+        f.write("\n".join(output))
 
     new_file = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
@@ -228,6 +229,9 @@ def main(
 ):
     """Main script
     """
+    # Setup singularity image
+    sclient.load('docker://csirocass/yandasoft:1.2.2-galaxy')
+    image = sclient.pull(pull_folder='/tmp')
 
     # Use ASKAPcli to get beam separations for PB correction
     scriptdir = os.path.dirname(os.path.realpath(__file__))
@@ -287,10 +291,9 @@ def main(
     for parset in parfiles:
         results.append(
             linmos(
-                parset, field, verbose=False
+                parset, field, image, verbose=True
             )
         )
-
     futures = client.persist(results)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(10)
