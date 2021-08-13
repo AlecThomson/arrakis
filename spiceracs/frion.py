@@ -53,7 +53,7 @@ def correct_worker(beam, outdir, field, predict_file, island_id):
 
 
 @delayed
-def predict_worker(island, field, beam, start_time, end_time, freq, cutdir):
+def predict_worker(island, field, beam, start_time, end_time, freq, cutdir, plotdir):
     """FR prediction
 
     Args:
@@ -100,8 +100,6 @@ def predict_worker(island, field, beam, start_time, end_time, freq, cutdir):
         position=[ra, dec],
         savename=plot_file
     )
-    plotdir = os.path.join(cutdir, 'plots')
-    try_mkdir(plotdir)
     plot_files = glob(os.path.join(i_dir, '*ion.pdf'))
     for src in plot_files:
         base = os.path.basename(src)
@@ -134,6 +132,9 @@ def main(
     # Query database for data
     outdir = os.path.abspath(outdir)
     cutdir = os.path.join(outdir, "cutouts")
+
+    plotdir = os.path.join(cutdir, 'plots')
+    try_mkdir(plotdir)
 
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
@@ -191,7 +192,8 @@ def main(
             start_time=start_time,
             end_time=end_time,
             freq=freq,
-            cutdir=cutdir
+            cutdir=cutdir,
+            plotdir=plotdir,
         )
         # Apply FRion predictions
         output = correct_worker(
