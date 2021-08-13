@@ -162,6 +162,7 @@ def main(args):
 
     # Request 20 nodes
     cluster.scale(jobs=20)
+    # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
     client = Client(cluster)
 
     print(client.scheduler_info()['services'])
