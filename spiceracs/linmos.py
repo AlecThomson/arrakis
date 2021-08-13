@@ -18,6 +18,7 @@ import time
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
+import warnings
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
@@ -253,20 +254,34 @@ def main(
     island_ids = sorted(beams_col.distinct("Source_ID", query))
     big_beams = list(beams_col.find({"Source_ID": {'$in': island_ids}}).sort("Source_ID"))
     # files = sorted([name for name in glob(f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
+    big_comps = list(comp_col.find({"Source_ID": {'$in': island_ids}}).sort("Source_ID"))
+    comps = []
+    for island_id in island_ids:
+        _comps = []
+        for c in big_comps:
+            if c["Source_ID"] == island_id:
+                _comps.append(c)
+        comps.append(_comps)
+
+    assert len(big_beams) == len(comps)
 
     parfiles = []
-    for beams in big_beams:
+    for beams, comp in zip(big_beams, comps):
         src = beams['Source_ID']
-        for stoke in stokeslist:
-            parfile = genparset(
-                field=field,
-                src_name=src,
-                beams=beams,
-                stoke=stoke.capitalize(),
-                datadir=cutdir,
-                septab=beamseps,
-            )
-            parfiles.append(parfile)
+        if len(comp) == 0:
+            warnings.warn(f"Skipping island {src} -- no components found")
+            continue
+        else:
+            for stoke in stokeslist:
+                parfile = genparset(
+                    field=field,
+                    src_name=src,
+                    beams=beams,
+                    stoke=stoke.capitalize(),
+                    datadir=cutdir,
+                    septab=beamseps,
+                )
+                parfiles.append(parfile)
 
     results = []
     for parset in parfiles:
