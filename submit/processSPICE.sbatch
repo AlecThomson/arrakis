@@ -31,9 +31,9 @@ cd /scratch/ja3/athomson/spica
 # database=/group/askap/athomson/projects/spiceracs/spica/spicaDB
 # numactl --interleave=all mongod --dbpath=$database --bind_ip $host >> /dev/null &
 
-field=1303-12A
-cal_sbid=12509
+field=1213-25A
+cal_sbid=8577
 tt0_dir=/group/askap/athomson/projects/RACS/CI0_mosaic_1.0
 tt1_dir=/group/askap/athomson/projects/RACS/CI1_mosaic_1.0
 
-processSPICE $field /scratch/ja3/athomson/spica/$cal_sbid/RACS_test4_1.05_$field --config /group/askap/athomson/projects/spiceracs/spica/spica_config.txt --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits
+srun processSPICE $field /scratch/ja3/athomson/spica/$cal_sbid/RACS_test4_1.05_$field --config /group/askap/athomson/projects/spiceracs/spica/spica_config.txt --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits
