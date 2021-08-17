@@ -13,7 +13,7 @@ dependencies:
 - matplotlib
 - setuptools
 - ipython
-- astropy
+- astropy>=4.3
 - dask
 - dask-jobqueue
 - distributed
