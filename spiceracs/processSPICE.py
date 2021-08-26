@@ -14,7 +14,9 @@ from spiceracs import makecat
 from spiceracs import frion
 from spiceracs.utils import port_forward, test_db
 from dask_jobqueue import SLURMCluster
-from distributed import Client, progress, performance_report, LocalCluster
+from dask_mpi import initialize
+from dask import distributed
+from dask.distributed import Client, progress, performance_report, LocalCluster
 from dask.diagnostics import ProgressBar
 from dask import delayed
 from IPython import embed
@@ -126,6 +128,7 @@ def main(args):
     """
     host = args.host
 
+
     if args.dask_config is None:
         scriptdir = os.path.dirname(os.path.realpath(__file__))
         config_dir = f"{scriptdir}/../configs"
@@ -133,14 +136,6 @@ def main(args):
 
     if args.outfile is None:
         args.outfile = f'{args.field}.pipe.test.fits'
-
-    args_yaml = yaml.dump(vars(args))
-    args_yaml_f = os.path.abspath(
-        f'{args.field}-config-{Time.now().fits}.yaml')
-    if args.verbose:
-        print(f"Saving config to '{args_yaml_f}'")
-    with open(args_yaml_f, 'w') as f:
-        f.write(args_yaml)
 
     # Following https://github.com/dask/dask-jobqueue/issues/499
     with open(args.dask_config) as f:
@@ -154,18 +149,42 @@ def main(args):
             'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
         }
     )
+    if args.use_mpi:
+        initialize(
+            interface=config['interface'],
+            local_directory=config['local_directory'],
+            dashboard_address=f":{args.port}",
+        )
+        client = Client()
+        # client = Client(dashboard_address=f":{args.port}")
+    else:
+        cluster = SLURMCluster(
+            **config,
+        )
+        print('Submitted scripts will look like: \n', cluster.job_script())
 
-    cluster = SLURMCluster(
-        **config,
-    )
-    print('Submitted scripts will look like: \n', cluster.job_script())
-
-    # Request 15 nodes
-    cluster.scale(jobs=15)
-    # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
-    client = Client(cluster)
+        # Request 15 nodes
+        cluster.scale(jobs=15)
+        # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
+        client = Client(cluster)
 
     print(client.scheduler_info()['services'])
+
+    test_db(
+        host=args.host,
+        username=args.username,
+        password=args.password,
+        verbose=args.verbose
+    )
+
+    args_yaml = yaml.dump(vars(args))
+    args_yaml_f = os.path.abspath(
+        f'{args.field}-config-{Time.now().fits}.yaml')
+    if args.verbose:
+        print(f"Saving config to '{args_yaml_f}'")
+    with open(args_yaml_f, 'w') as f:
+        f.write(args_yaml)
+
 
     # Forward ports
     if args.port_forward is not None:
@@ -174,7 +193,11 @@ def main(args):
 
     # Prin out Dask client info
     print(client.scheduler_info()['services'])
-
+    import dask
+    print("I'm in the big master function!",'dask.__version__', dask.__version__)
+    print("I'm in the big master function!",'dask.__file__', dask.__file__)
+    # print("I'm in the big master!",'distributed.__version__', distributed.__version__)
+    print("I'm in the big master!",'distributed.__file__', distributed.__file__)
     # Define flow
     with Flow(f'SPICE-RACS: {args.field}') as flow:
         cuts = cut_task(
@@ -368,7 +391,11 @@ def cli():
         default=9999,
         help="Port to run Dask dashboard on."
     )
-
+    parser.add_argument(
+        '--use_mpi',
+        action="store_true",
+        help="Use Dask-mpi to parallelise -- must use srun/mpirun to assign resources."
+    )
     parser.add_argument(
         '--port_forward',
         default=None,
@@ -603,16 +630,9 @@ def cli():
         help="Format for output file [None]."
     )
     args = parser.parse_args()
-    parser.print_values()
+    if not args.use_mpi:
+        parser.print_values()
 
-    verbose = args.verbose
-
-    test_db(
-        host=args.host,
-        username=args.username,
-        password=args.password,
-        verbose=verbose
-    )
     main(args)
 
 
