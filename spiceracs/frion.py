@@ -77,7 +77,7 @@ def predict_worker(island, field, beam, start_time, end_time, freq, cutdir, plot
     times, RMs, theta = predict.calculate_modulation(
         start_time=start_time.fits,
         end_time=end_time.fits,
-        freq_array=freq.to(u.Hz).value,
+        freq_array=freq,
         telescope_location=predict.get_telescope_coordinates('ASKAP'),
         ra=ra,
         dec=dec,
@@ -86,7 +86,7 @@ def predict_worker(island, field, beam, start_time, end_time, freq, cutdir, plot
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
     predict.write_modulation(
-        freq_array=freq.to(u.Hz).value,
+        freq_array=freq,
         theta=theta,
         filename=predict_file
     )
@@ -96,7 +96,7 @@ def predict_worker(island, field, beam, start_time, end_time, freq, cutdir, plot
         times,
         RMs,
         theta,
-        freq.to(u.Hz).value,
+        freq,
         position=[ra, dec],
         savename=plot_file
     )
@@ -191,7 +191,7 @@ def main(
             beam=beam,
             start_time=start_time,
             end_time=end_time,
-            freq=freq,
+            freq=freq.to(u.Hz).value,
             cutdir=cutdir,
             plotdir=plotdir,
         )
