@@ -10,6 +10,7 @@ from distributed.diagnostics.progressbar import ProgressBar
 from glob import glob
 from spectral_cube import SpectralCube
 from astropy.io import fits
+from astropy.coordinates.angles import hms_tuple, dms_tuple
 import dataclasses
 from dataclasses import dataclass, asdict, make_dataclass
 import json
@@ -26,6 +27,67 @@ import pymongo
 
 
 print = functools.partial(print, flush=True)
+
+def deg_to_hms(deg):
+    """Convert degree to hms without astropy.
+
+    Args:
+        deg (float): Decimal degrees
+
+    Returns:
+        hms_tuple: HMS, like coord.ra.hms
+    """    
+    h_per_d = 24 / 360
+    hours = deg * h_per_d
+    hour = float(int(hours))
+    minutes = (hours - hour) * 60
+    minute = float(int(minutes))
+    seconds = (minutes - minute) * 60
+    return hms_tuple(hour, minute, seconds)
+
+def deg_to_dms(deg):
+    """Convert degree to hms without astropy.
+
+    Args:
+        deg (float): Decimal degrees
+
+    Returns:
+        hms_tuple: DMS, like coord.dec.dms
+    """  
+    degree = float(int(deg))
+    minutes = (deg - degree) * 60
+    minute = float(int(minutes))
+    seconds = (minutes - minute) * 60
+    return dms_tuple(degree, minute, seconds)
+
+def coord_to_string(coord):
+    """Convert coordinate to string without astropy
+
+    Args:
+        coord (SkyCoord): Coordinate
+
+    Returns:
+        (str,str): Tuple of RA string, Dec string
+    """    
+    ra = coord.ra
+    dec = coord.dec
+
+    ra_hms = deg_to_hms(ra.value)
+    dec_dms = deg_to_dms(dec.value)
+    
+    ra_str = f"{ra_hms.h:02.0f}:{ra_hms.m:02.0f}:{ra_hms.s:06.3f}"
+    dec_str = f"{dec_dms.d:02.0f}:{abs(dec_dms.m):02.0f}:{abs(dec_dms.s):05.2f}"
+
+    print('my version', ra_str, dec_str)
+    print(
+        'astropy', 
+        ra.to_string(u.hourangle, sep=':', precision=3),
+        dec.to_string(u.deg, sep=':', precision=2, pad=True)
+        )
+
+    assert ra.to_string(u.hourangle, sep=':', precision=3) == ra_str
+    assert dec.to_string(u.deg, sep=':', precision=2, pad=True) == dec_str
+    return ra_str, dec_str
 
 def test_db(host, username=None, password=None, verbose=True):
     if verbose:
