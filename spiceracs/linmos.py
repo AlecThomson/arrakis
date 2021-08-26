@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys
 from pprint import pprint
 from logging import disable
 import os
@@ -11,12 +12,14 @@ from astropy.table import Table
 from glob import glob
 from astropy.coordinates import SkyCoord
 import astropy.units as u
-from spiceracs.utils import tqdm_dask, get_db, test_db
+from spiceracs.utils import tqdm_dask, get_db, test_db, coord_to_string
 from IPython import embed
 import astropy
 import time
 from dask import delayed
-from dask.distributed import Client, progress, LocalCluster
+import dask
+from dask.distributed import Client, LocalCluster
+from dask import distributed
 from dask.diagnostics import ProgressBar
 from spython.main import Client as sclient
 import warnings
@@ -31,9 +34,8 @@ def gen_seps(field, scriptdir):
         field (str): File name e.g. 2132-50A
 
     Returns:
-        Table: Separation table
+        Table: Separation  table
     """
-    # get offsets
     offsets = Table.read(f"{scriptdir}/../askap_surveys/racs_low_offsets.csv")
     offsets.add_index("Beam")
 
@@ -71,19 +73,18 @@ def gen_seps(field, scriptdir):
         field_coord = SkyCoord(
             master_cat["RA_DEG"] * u.deg, master_cat["DEC_DEG"] * u.deg
         )
-        ra_beam = beam_coord.ra.hms
-        dec_beam = beam_coord.dec.dms
-        ra_field = field_coord.ra.hms
-        dec_field = field_coord.dec.dms
+
+        beam_ra_str, beam_dec_str = coord_to_string(beam_coord)
+        field_ra_str, field_dec_str = coord_to_string(field_coord)
 
         row = [
             beam,
             f"{offsets.loc[beam]['RA']:0.3f}",
             f"{offsets.loc[beam]['Dec']:0.3f}",
-            f"{ra_beam.h:02.0f}:{ra_beam.m:02.0f}:{ra_beam.s:06.3f}",
-            f"{dec_beam.d:02.0f}:{abs(dec_beam.m):02.0f}:{abs(dec_beam.s):05.2f}",
-            f"{ra_field.h:02.0f}:{ra_field.m:02.0f}:{ra_field.s:06.3f}",
-            f"{dec_field.d:02.0f}:{abs(dec_field.m):02.0f}:{abs(dec_field.s):05.2f}",
+            beam_ra_str,
+            beam_dec_str,
+            field_ra_str,
+            field_dec_str,
         ]
         cols += [row]
     tab = Table(
@@ -237,7 +238,6 @@ def main(
     scriptdir = os.path.dirname(os.path.realpath(__file__))
 
     beamseps = gen_seps(field, scriptdir)
-
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
