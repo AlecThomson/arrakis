@@ -156,7 +156,6 @@ def main(args):
             dashboard_address=f":{args.port}",
         )
         client = Client()
-        # client = Client(dashboard_address=f":{args.port}")
     else:
         cluster = SLURMCluster(
             **config,
@@ -167,8 +166,6 @@ def main(args):
         cluster.scale(jobs=15)
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
         client = Client(cluster)
-
-    print(client.scheduler_info()['services'])
 
     test_db(
         host=args.host,
@@ -193,11 +190,7 @@ def main(args):
 
     # Prin out Dask client info
     print(client.scheduler_info()['services'])
-    import dask
-    print("I'm in the big master function!",'dask.__version__', dask.__version__)
-    print("I'm in the big master function!",'dask.__file__', dask.__file__)
-    # print("I'm in the big master!",'distributed.__version__', distributed.__version__)
-    print("I'm in the big master!",'distributed.__file__', distributed.__file__)
+    
     # Define flow
     with Flow(f'SPICE-RACS: {args.field}') as flow:
         cuts = cut_task(
