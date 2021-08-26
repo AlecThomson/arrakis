@@ -54,10 +54,15 @@ def mslist(cal_sb, name):
     # os.system('module load askapsoft')
     try:
         ms = glob(f"{racs_area}/{cal_sb}/RACS_test4_1.05_{name}/*beam00_*.ms")[0]
+        # print('ms',ms)
     except:
         raise Exception(f"Can't find '{racs_area}/{cal_sb}/RACS_test4_1.05_{name}/*beam00_*.ms'")
 
-    mslist_out = sb.run(shlex.split(f"mslist --full {ms}"), capture_output=True, check=True)
+    mslist_out = sb.run(shlex.split(f"mslist --full {ms}"), capture_output=True, check=False)
+    if mslist_out.returncode > 0:
+        print(mslist_out.stderr.decode('utf-8'))
+        print(mslist_out.stdout.decode('utf-8'))
+        mslist_out.check_returncode()
     date_out = sb.run(shlex.split('date +%Y-%m-%d-%H%M%S'), capture_output=True, check=True)
 
     out = mslist_out.stderr.decode() + f"METADATA_IS_GOOD {date_out.stdout.decode()}"
@@ -108,16 +113,19 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
 
     if mslist_dir is not None:
         mslist_dir = os.path.abspath(mslist_dir)
+        # print('mslist_dir',mslist_dir)
         for row in spica_tab:
             try:
                 out = mslist(
                     name=row['Field name'].replace('RACS_', ''),
                     cal_sb=row['CAL SBID']
                 )
+                # print('out',out)
                 sbdir = f"{mslist_dir}/{row['SBID']}"
-                try_mkdir(sbdir)
+                # print('sbdir',sbdir)
+                try_mkdir(sbdir, verbose=False)
                 outdir = f"{sbdir}/metadata"
-                try_mkdir(outdir)
+                try_mkdir(outdir, verbose=False)
                 outfile = f"{outdir}/mslist-20_{row['Field name']}.txt"
                 with open(outfile, 'w') as f:
                     f.write(out)
