@@ -24,7 +24,8 @@ from os import name
 import subprocess
 import shlex
 import pymongo
-
+import warnings
+from astropy.utils.exceptions import AstropyWarning
 
 print = functools.partial(print, flush=True)
 
@@ -555,8 +556,10 @@ def getfreq(cube, outdir=None, filename=None, verbose=False):
     """
 
     # If cube is a file, open with SpectralCube
-    if type(cube) is str:
-        cube = SpectralCube.read(cube, mode="denywrite")
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', AstropyWarning)
+        if type(cube) is str:
+            cube = SpectralCube.read(cube, mode="denywrite")
 
     # Test that cube is Spectral cube
     assert type(cube) is SpectralCube, "cube should be a SpectralCube!"
