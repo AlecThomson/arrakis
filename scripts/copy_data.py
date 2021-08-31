@@ -148,7 +148,7 @@ if __name__ == "__main__":
         "--spice",
         type=str,
         default=os.path.abspath(
-            '/group/askap/athomson/projects/spiceracs/spica'),
+            '/scratch/ja3/athomson/spica'),
         help="SPICE area",
     )
 
