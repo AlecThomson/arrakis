@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from astropy.table import Table
 from spectral_cube import SpectralCube
 from glob import glob
