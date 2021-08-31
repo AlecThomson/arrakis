@@ -23,6 +23,7 @@ from IPython import embed
 from time import sleep
 from astropy.time import Time
 import yaml
+import socket
 
 
 @task(name='Cutout')
@@ -143,9 +144,9 @@ def main(args):
 
     config.update(
         {
-            'scheduler_options': {
-                "dashboard_address": f":{args.port}"
-            },
+            # 'scheduler_options': {
+                # "dashboard_address": f":{args.port}"
+            # },
             'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
         }
     )
@@ -153,7 +154,7 @@ def main(args):
         initialize(
             interface=config['interface'],
             local_directory=config['local_directory'],
-            dashboard_address=f":{args.port}",
+            # dashboard_address=f":{args.port}",
         )
         client = Client()
     else:
@@ -182,11 +183,13 @@ def main(args):
     with open(args_yaml_f, 'w') as f:
         f.write(args_yaml)
 
+    port = client.scheduler_info()['services']['dashboard']
+
 
     # Forward ports
     if args.port_forward is not None:
         for p in args.port_forward:
-            port_forward(args.port, p)
+            port_forward(port, p)
 
     # Prin out Dask client info
     print(client.scheduler_info()['services'])
@@ -378,12 +381,12 @@ def cli():
         "--password", type=str, default=None, help="Password of mongodb."
     )
 
-    parser.add_argument(
-        '--port',
-        type=int,
-        default=9999,
-        help="Port to run Dask dashboard on."
-    )
+    # parser.add_argument(
+    #     '--port',
+    #     type=int,
+    #     default=9999,
+    #     help="Port to run Dask dashboard on."
+    # )
     parser.add_argument(
         '--use_mpi',
         action="store_true",
