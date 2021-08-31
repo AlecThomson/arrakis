@@ -26,6 +26,7 @@ import warnings
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
+
 @delayed
 def gen_seps(field, scriptdir):
     """Get beam separations
@@ -69,7 +70,8 @@ def gen_seps(field, scriptdir):
         beam = int(beam)
 
         beam_dat = beam_cat.loc[beam]
-        beam_coord = SkyCoord(beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
+        beam_coord = SkyCoord(
+            beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
         field_coord = SkyCoord(
             master_cat["RA_DEG"] * u.deg, master_cat["DEC_DEG"] * u.deg
         )
@@ -117,7 +119,7 @@ def genparset(
     """
     beams = beams["beams"][field]
     ims = []
-    for bm in list(set(beams['beam_list'])): # Ensure list of beams is unique!
+    for bm in list(set(beams['beam_list'])):  # Ensure list of beams is unique!
         imfile = beams[f'{stoke.lower()}_beam{bm}_image_file']
         assert os.path.basename(os.path.dirname(
             imfile)) == src_name, "Looking in wrong directory!"
@@ -131,7 +133,7 @@ def genparset(
     imlist = "[" + ','.join([im.replace(".fits", "") for im in ims]) + "]"
 
     wgts = []
-    for bm in list(set(beams['beam_list'])): # Ensure list of beams is unique!
+    for bm in list(set(beams['beam_list'])):  # Ensure list of beams is unique!
         wgtsfile = beams[f'{stoke.lower()}_beam{bm}_weight_file']
         assert os.path.basename(os.path.dirname(
             wgtsfile)) == src_name, "Looking in wrong directory!"
@@ -146,7 +148,8 @@ def genparset(
             os.path.dirname(wt)
         ), "Image and weight are in different areas!"
 
-    weightlist = "[" + ','.join([wgt.replace(".fits", "") for wgt in wgts]) + "]"
+    weightlist = "[" + ','.join([wgt.replace(".fits", "")
+                                for wgt in wgts]) + "]"
 
     parset_dir = os.path.join(
         os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0]))
@@ -168,7 +171,7 @@ linmos.feeds.spacing    = 1deg
     for im in ims:
         basename = im.replace(".fits", "")
         idx = basename.find("beam")
-        beamno = int(basename[len("beam") + idx : len("beam") + idx + 2])
+        beamno = int(basename[len("beam") + idx: len("beam") + idx + 2])
         offset = f"linmos.feeds.{basename} = [{septab[beamno]['DELTA_RA']},{septab[beamno]['DELTA_DEC']}]\n"
         parset += offset
     with open(parset_file, "w") as f:
@@ -187,18 +190,42 @@ def linmos(parset, fieldname, image, verbose=False):
         host (str): Mongo host
         verbose (bool, optional): Verbose output. Defaults to False.
     """
+
     workdir = os.path.dirname(parset)
+    rootdir = os.path.split(workdir)[0]
+    junk = os.path.split(workdir)[-1]
     parset_name = os.path.basename(parset)
     source = os.path.basename(workdir)
     stoke = parset_name[parset_name.find(".in") - 1]
     log = parset.replace(".in", ".log")
+    # with open(f'junkyard/junk_{parset_name}.txt', 'w+') as f:
+    #     f.write(parset)
     # os.environ["OMP_NUM_THREADS"] = "1"
-    linmos_command = shlex.split(f"linmos -c {parset}")
-    output = sclient.execute(image=image, command=linmos_command)
-    with open(log, "w") as f:
-        f.write("\n".join(output))
 
-    new_file = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
+    # linmos_command = shlex.split(f"touch junkyard/{junk}_{parset}.txt && linmos -c {parset}")
+    linmos_command = shlex.split(f"linmos -c {parset}")
+    # linmos_command = shlex.split(f"which linmos")
+    output = sclient.execute(
+        image=image, command=linmos_command, bind=f"{rootdir}:{rootdir}", return_result=True)
+
+    outstr = "\n".join(output['message'])
+    with open(log, "w") as f:
+        f.write(outstr)
+        # f.write(output['message'])
+
+    if output['return_code'] != 0:
+        raise Exception(f"LINMOS failed! Check '{log}'")
+    # output = subprocess.run(linmos_command, capture_output=True)
+    # if output.returncode != 0:
+    #     raise Exception(f"LINMOS failed!\n{output.stderr.decode()}")
+    # with open(log, "w") as f:
+    #     # f.write("\n".join(output.stdout.decode()))
+    #     # f.write("\n".join(output.stderr.decode()))
+    #     f.write(output.stdout.decode())
+    #     f.write(output.stderr.decode())
+
+    new_file = glob(
+        f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
     if len(new_file) != 1:
         raise Exception(f"LINMOS file not found! -- check {log}?")
@@ -209,12 +236,18 @@ def linmos(parset, fieldname, image, verbose=False):
     new_file = os.path.join(outer, inner)
 
     if verbose:
-        print(f"Cube now in {new_file}")
+        print(f"Cube now in {workdir}/{new_file}")
 
     query = {"Source_ID": source}
     newvalues = {"$set": {f"beams.{fieldname}.{stoke.lower()}_file": new_file}}
 
     return pymongo.UpdateOne(query, newvalues)
+
+# @delayed
+def get_yanda():
+    sclient.load('docker://csirocass/yandasoft:1.2.2-galaxy')
+    image = os.path.abspath(sclient.pull())
+    return image
 
 def main(
     field,
@@ -231,8 +264,8 @@ def main(
     """Main script
     """
     # Setup singularity image
-    sclient.load('docker://csirocass/yandasoft:1.2.2-galaxy')
-    image = sclient.pull(pull_folder='/tmp')
+    image = get_yanda()
+    # image = sclient.pull()
 
     # Use ASKAPcli to get beam separations for PB correction
     scriptdir = os.path.dirname(os.path.realpath(__file__))
@@ -249,16 +282,18 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
-
+    print(f"{beams_col = }")
     # Query the DB
     query = {
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))
-    big_beams = list(beams_col.find({"Source_ID": {'$in': island_ids}}).sort("Source_ID"))
+    big_beams = list(beams_col.find(
+        {"Source_ID": {'$in': island_ids}}).sort("Source_ID"))
     # files = sorted([name for name in glob(f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
-    big_comps = list(comp_col.find({"Source_ID": {'$in': island_ids}}).sort("Source_ID"))
+    big_comps = list(comp_col.find(
+        {"Source_ID": {'$in': island_ids}}).sort("Source_ID"))
     comps = []
     for island_id in island_ids:
         _comps = []
@@ -297,7 +332,8 @@ def main(
     futures = client.persist(results)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(10)
-    tqdm_dask(futures, desc="Runing LINMOS", disable=(not verbose), total=len(results)*2+1)
+    tqdm_dask(futures, desc="Runing LINMOS", disable=(
+        not verbose), total=len(results)*2+1)
 
     updates = [f.compute() for f in futures]
     if verbose:
@@ -307,6 +343,7 @@ def main(
         pprint(db_res.bulk_api_result)
 
     print("LINMOS Done!")
+    # os.remove(image)
 
 
 def cli():
