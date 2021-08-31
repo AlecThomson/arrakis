@@ -31,6 +31,8 @@ from astropy.utils import iers
 import astropy.units as u
 from spectral_cube import SpectralCube
 from pprint import pprint
+import warnings
+from astropy.utils.exceptions import AstropyWarning
 
 iers.conf.auto_download = False
 warnings.filterwarnings(
@@ -87,8 +89,9 @@ def cutout(
 
         if verbose:
             print(f"Reading {image}")
-
-        cube = SpectralCube.read(image)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', AstropyWarning)
+            cube = SpectralCube.read(image)
         if imtype == "image":
             padder = cube.header["BMAJ"] * u.deg * pad
 
@@ -108,17 +111,18 @@ def cutout(
 
         # Use subcube for header transformation
         cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', AstropyWarning)
+            with fits.open(image, memmap=True, mode="denywrite") as hdulist:
+                data = hdulist[0].data
 
-        with fits.open(image, memmap=True, mode="denywrite") as hdulist:
-            data = hdulist[0].data
-
-            sub_data = data[
-                :, 0, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx  # freq  # useless Stokes
-            ]
-        if not dryrun:
-            fits.writeto(outfile, sub_data, header=cutout_cube.header, overwrite=True)
-            if verbose:
-                print(f"Written to {outfile}")
+                sub_data = data[
+                    :, 0, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx  # freq  # useless Stokes
+                ]
+            if not dryrun:
+                fits.writeto(outfile, sub_data, header=cutout_cube.header, overwrite=True)
+                if verbose:
+                    print(f"Written to {outfile}")
 
         # Update database
         myquery = {"Source_ID": src_name}
