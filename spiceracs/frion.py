@@ -206,6 +206,7 @@ def main(
         outputs.append(output)
 
     # Wait for IONEX data I guess...
+    _ = outputs[0].compute()
     time.sleep(10)
     # Execute
     futures = client.persist(outputs)
