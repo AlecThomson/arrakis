@@ -120,7 +120,8 @@ setup(
         'scripts/find_row.py',
         'scripts/copy_data.py',
         'scripts/spica.py',
-        'scripts/copy_cutouts.py'
+        'scripts/copy_cutouts.py',
+        'scripts/compute_leakage.py'
     ],
     install_requires=REQUIRED,
     extras_require=EXTRAS,
