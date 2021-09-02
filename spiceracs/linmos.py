@@ -23,6 +23,10 @@ from dask import distributed
 from dask.diagnostics import ProgressBar
 from spython.main import Client as sclient
 import warnings
+from astropy.utils.exceptions import AstropyWarning
+from spectral_cube.utils import SpectralCubeWarning
+warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
+warnings.simplefilter("ignore", category=AstropyWarning)
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
