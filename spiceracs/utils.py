@@ -26,6 +26,10 @@ import shlex
 import pymongo
 import warnings
 from astropy.utils.exceptions import AstropyWarning
+from spectral_cube.utils import SpectralCubeWarning
+
+warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
+warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
 
