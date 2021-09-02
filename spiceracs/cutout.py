@@ -33,12 +33,16 @@ from spectral_cube import SpectralCube
 from pprint import pprint
 import warnings
 from astropy.utils.exceptions import AstropyWarning
+from spectral_cube.utils import SpectralCubeWarning
 
 iers.conf.auto_download = False
 warnings.filterwarnings(
     "ignore", message="Cube is a Stokes cube, returning spectral cube for I component"
 )
 
+warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
+warnings.simplefilter("ignore", category=AstropyWarning)
+warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
 
 @delayed
 def cutout(
