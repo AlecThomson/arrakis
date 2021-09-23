@@ -76,7 +76,14 @@ def cat2beams(mastercat, database, max_sep=1, verbose=True):
     if verbose:
         print("Getting separations from beam centres...")
     c1 = SkyCoord(database["RA_DEG"] * u.deg, database["DEC_DEG"] * u.deg, frame="icrs")
-    c2 = SkyCoord(mastercat["RA"] * u.deg, mastercat["Dec"] * u.deg, frame="icrs")
+
+    m_ra = mastercat["RA"]
+    m_dec = mastercat["Dec"]
+    if not m_ra.unit:
+        m_ra = m_ra * u.deg
+    if not m_dec.unit:
+        m_dec = m_dec * u.deg
+    c2 = SkyCoord(m_ra, m_dec, frame="icrs")
 
     seps = search_around_sky(c1, c2, seplimit=max_sep * u.degree)
     return seps
@@ -270,7 +277,9 @@ def main(args, verbose=True):
             compcat = args.compcat
 
         # Get the master cat
+        print(f"Reading {islandcat}")
         island_cat = Table.read(islandcat)
+        print(f"Reading {compcat}")
         comp_cat = Table.read(compcat)
         print("This will overwrite the source database!")
         check_source = yes_or_no("Are you sure you wish to proceed?")
@@ -289,7 +298,7 @@ def main(args, verbose=True):
             beam_database(
                 islandcat=island_cat, 
                 host=args.host,
-                username=args.host,
+                username=args.username,
                 password=args.password, 
                 verbose=verbose
                 )
