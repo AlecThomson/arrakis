@@ -173,6 +173,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     plt.colorbar(im)
     ax = plt.gca()
     ax.set_aspect('equal', 'box')
+    ax.invert_xaxis()
     if save_plots:
         plt.savefig(f'q_leakage_{field}.png')
     # plt.xlim(-10,60)
@@ -186,6 +187,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     plt.colorbar(im)
     ax = plt.gca()
     ax.set_aspect('equal', 'box')
+    ax.invert_xaxis()
     if save_plots:
         plt.savefig(f'u_leakage_{field}.png')
     # plt.xlim(-10,60)
@@ -228,12 +230,14 @@ def main(field, datadir, username='admin', password=None):
                         cmap=plt.cm.coolwarm
                         )
         ax[0, i].axis('off')
+        ax[0, i].invert_xaxis()
         ax[0, i].set_title(f"{f/1e6:0.1f}MHz")
         ax[1, i].imshow(u, origin='lower',
                         cmap=plt.cm.coolwarm,
                         vmin=-lim, vmax=lim,
                         )
         ax[1, i].axis('off')
+        ax[1, i].invert_xaxis()
 
     ax[0, 0].text(-20, 50, 'Q')
     ax[1, 0].text(-20, 50, 'U')
