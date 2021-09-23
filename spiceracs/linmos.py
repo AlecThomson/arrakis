@@ -108,6 +108,7 @@ def genparset(
     stoke,
     datadir,
     septab,
+    holofile
 ):
     """Generate parset for LINMOS
 
@@ -167,6 +168,9 @@ linmos.outname          = {ims[0][:ims[0].find('beam')]}linmos
 linmos.outweight        = {wgts[0][:wgts[0].find('beam')]}linmos
 linmos.weighttype       = Combined
 linmos.weightstate      = Inherent
+linmos.primarybeam      = ASKAP_PB
+linmos.primarybeam.ASKAP_PB.image = {holofile}
+linmos.removeleakage    = true
 # Reference image for offsets
 linmos.feeds.centre     = [{septab['FOOTPRINT_RA'][0]}, {septab['FOOTPRINT_DEC'][0]}]
 linmos.feeds.spacing    = 1deg
@@ -258,6 +262,7 @@ def main(
     datadir,
     client,
     host,
+    holofile,
     username=None,
     password=None,
     dryrun=False,
@@ -282,6 +287,7 @@ def main(
         datadir = os.path.abspath(datadir)
 
     cutdir = os.path.abspath(os.path.join(datadir, "cutouts"))
+    holofile = os.path.abspath(holofile)
 
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
@@ -323,6 +329,7 @@ def main(
                     stoke=stoke.capitalize(),
                     datadir=cutdir,
                     septab=beamseps,
+                    holofile=holofile,
                 )
                 parfiles.append(parfile)
 
@@ -375,6 +382,12 @@ def cli():
         metavar="datadir",
         type=str,
         help="Directory containing cutouts (in subdir outdir/cutouts)..",
+    )
+
+    parser.add_argument(
+        "--holofile",
+        type=str,
+        help="Path to holography image"
     )
 
     parser.add_argument(
@@ -439,6 +452,7 @@ def cli():
         datadir=args.datadir,
         client=client,
         host=args.host,
+        holofile=args.holofile,
         username=args.username,
         password=args.password,
         dryrun=args.dryrun,
