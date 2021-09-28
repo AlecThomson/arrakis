@@ -2,6 +2,7 @@
 import warnings
 import pymongo
 import dask
+from shutil import copyfile
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
@@ -85,48 +86,52 @@ def cutout(
 
         if imtype == "weight":
             image = image.replace("image.restored", "weights").replace(
-                ".conv.fits", ".fits"
+                ".conv.fits", ".txt"
             )
             outfile = outfile.replace("image.restored", "weights").replace(
-                ".conv.fits", ".fits"
+                ".conv.fits", ".txt"
             )
+            copyfile(image,outfile)
+            if verbose:
+                print(f"Written to {outfile}")
 
-        if verbose:
-            print(f"Reading {image}")
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', AstropyWarning)
-            cube = SpectralCube.read(image)
+
         if imtype == "image":
+            if verbose:
+                print(f"Reading {image}")
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', AstropyWarning)
+                cube = SpectralCube.read(image)
             padder = cube.header["BMAJ"] * u.deg * pad
 
-        xlo = Longitude(ra_lo * u.deg) - Longitude(padder)
-        xhi = Longitude(ra_hi * u.deg) + Longitude(padder)
-        ylo = Latitude(dec_lo * u.deg) - Latitude(padder)
-        yhi = Latitude(dec_hi * u.deg) + Latitude(padder)
+            xlo = Longitude(ra_lo * u.deg) - Longitude(padder)
+            xhi = Longitude(ra_hi * u.deg) + Longitude(padder)
+            ylo = Latitude(dec_lo * u.deg) - Latitude(padder)
+            yhi = Latitude(dec_hi * u.deg) + Latitude(padder)
 
-        xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
-        xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
+            xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
+            xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
 
-        # Round for cutout
-        yp_lo_idx = int(np.floor(yp_lo))
-        yp_hi_idx = int(np.ceil(yp_hi))
-        xp_lo_idx = int(np.floor(xp_hi))
-        xp_hi_idx = int(np.ceil(xp_lo))
+            # Round for cutout
+            yp_lo_idx = int(np.floor(yp_lo))
+            yp_hi_idx = int(np.ceil(yp_hi))
+            xp_lo_idx = int(np.floor(xp_hi))
+            xp_hi_idx = int(np.ceil(xp_lo))
 
-        # Use subcube for header transformation
-        cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', AstropyWarning)
-            with fits.open(image, memmap=True, mode="denywrite") as hdulist:
-                data = hdulist[0].data
+            # Use subcube for header transformation
+            cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', AstropyWarning)
+                with fits.open(image, memmap=True, mode="denywrite") as hdulist:
+                    data = hdulist[0].data
 
-                sub_data = data[
-                    :, 0, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx  # freq  # useless Stokes
-                ]
-            if not dryrun:
-                fits.writeto(outfile, sub_data, header=cutout_cube.header, overwrite=True)
-                if verbose:
-                    print(f"Written to {outfile}")
+                    sub_data = data[
+                        :, 0, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx  # freq  # useless Stokes
+                    ]
+                if not dryrun:
+                    fits.writeto(outfile, sub_data, header=cutout_cube.header, overwrite=True)
+                    if verbose:
+                        print(f"Written to {outfile}")
 
         # Update database
         myquery = {"Source_ID": src_name}
