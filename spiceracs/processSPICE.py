@@ -216,8 +216,10 @@ def main(args):
             datadir=args.datadir,
             client=client,
             host=host,
+            holofile=args.holofile,
             username=args.username,
             password=args.password,
+            yanda=args.yanda,
             dryrun=False,
             prefix="",
             stokeslist=["I", "Q", "U"],
@@ -404,6 +406,18 @@ def cli():
         type=str,
         default=None,
         help="Config file for Dask SlurmCLUSTER."
+    )
+    parser.add_argument(
+        "--holofile",
+        type=str,
+        help="Path to holography image"
+    )
+
+    parser.add_argument(
+        "--yanda",
+        type=str,
+        default="1.3.0",
+        help="Yandasoft version to pull from DockerHub [1.3.0].",
     )
 
     flowargs = parser.add_argument_group("pipeline flow options")
