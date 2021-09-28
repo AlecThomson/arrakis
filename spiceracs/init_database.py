@@ -95,13 +95,15 @@ def source_database(
     # Read in main catalogues
     # Use pandas and follow
     # https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
-    islandcat = islandcat.to_pandas()
-    str_df = islandcat.select_dtypes([np.object])
-    str_df = str_df.stack().str.decode("utf-8").unstack()
-    for col in str_df:
-        islandcat[col] = str_df[col]
+    df_i = islandcat.to_pandas()
+    if type(df_i['Source_ID'][0]) is bytes:
+        print("Decoding strings!")
+        str_df = df_i.select_dtypes([np.object])
+        str_df = str_df.stack().str.decode("utf-8").unstack()
+        for col in str_df:
+            df_i[col] = str_df[col]
 
-    source_dict_list = islandcat.to_dict("records")
+    source_dict_list = df_i.to_dict("records")
     if verbose:
         print("Loading islands into mongo...")
     beams_col, island_col, comp_col = get_db(
@@ -114,13 +116,15 @@ def source_database(
         print("Done loading")
         print("Total documents:", count)
 
-    compcat = compcat.to_pandas()
-    str_df = compcat.select_dtypes([np.object])
-    str_df = str_df.stack().str.decode("utf-8").unstack()
-    for col in str_df:
-        compcat[col] = str_df[col]
+    df_c = compcat.to_pandas()
+    if type(df_c['Source_ID'][0]) is bytes:
+        print("Decoding strings!")
+        str_df = df_c.select_dtypes([np.object])
+        str_df = str_df.stack().str.decode("utf-8").unstack()
+        for col in str_df:
+            df_c[col] = str_df[col]
 
-    source_dict_list = compcat.to_dict("records")
+    source_dict_list = df_c.to_dict("records")
 
     if verbose:
         print("Loading components into mongo...")
