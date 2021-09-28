@@ -25,7 +25,8 @@ from spython.main import Client as sclient
 import warnings
 from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
-warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
+warnings.filterwarnings(
+    action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -166,6 +167,8 @@ linmos.weights          = {weightlist}
 linmos.imagetype        = fits
 linmos.outname          = {ims[0][:ims[0].find('beam')]}linmos
 linmos.outweight        = {wgts[0][:wgts[0].find('beam')]}linmos
+# For ASKAPsoft>1.3.0
+linmos.useweightslog    = true
 linmos.weighttype       = Combined
 linmos.weightstate      = Inherent
 linmos.primarybeam      = ASKAP_PB
@@ -251,11 +254,12 @@ def linmos(parset, fieldname, image, verbose=False):
 
     return pymongo.UpdateOne(query, newvalues)
 
-# @delayed
-def get_yanda():
-    sclient.load('docker://csirocass/yandasoft:1.2.2-galaxy')
+
+def get_yanda(version="1.3.0"):
+    sclient.load(f"docker://csirocass/yandasoft:{version}-galaxy")
     image = os.path.abspath(sclient.pull())
     return image
+
 
 def main(
     field,
@@ -265,6 +269,7 @@ def main(
     holofile,
     username=None,
     password=None,
+    yanda="1.3.0",
     dryrun=False,
     prefix="",
     stokeslist=None,
@@ -273,7 +278,7 @@ def main(
     """Main script
     """
     # Setup singularity image
-    image = get_yanda()
+    image = get_yanda(version=yanda)
     # image = sclient.pull()
 
     # Use ASKAPcli to get beam separations for PB correction
@@ -399,6 +404,13 @@ def cli():
     )
 
     parser.add_argument(
+        "--yanda",
+        type=str,
+        default="1.3.0",
+        help="Yandasoft version to pull from DockerHub [1.3.0].",
+    )
+
+    parser.add_argument(
         "--prefix",
         metavar="prefix",
         type=str,
@@ -455,6 +467,7 @@ def cli():
         holofile=args.holofile,
         username=args.username,
         password=args.password,
+        yanda=args.yanda,
         dryrun=args.dryrun,
         prefix=args.prefix,
         stokeslist=args.stokeslist,
