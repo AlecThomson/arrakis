@@ -27,11 +27,25 @@ import pymongo
 import warnings
 from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
+from FRion.correct import find_freq_axis
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
+
+def fix_header(cutout_header, original_header):
+    axis_cut = find_freq_axis(cutout_header)
+    axis_orig = find_freq_axis(original_header)
+    fixed_header = cutout_header.copy()
+    if axis_cut != axis_orig:
+        for key, val in cutout_header.items():
+            if key[-1] == str(axis_cut):
+                fixed_header[f"{key[:-1]}{axis_orig}"] = val
+                fixed_header[key] = original_header[key]
+
+    return fixed_header
+
 
 def deg_to_hms(deg):
     """Convert degree to hms without astropy.
@@ -559,17 +573,23 @@ def getfreq(cube, outdir=None, filename=None, verbose=False):
 
     """
 
-    # If cube is a file, open with SpectralCube
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore', AstropyWarning)
-        if type(cube) is str:
-            cube = SpectralCube.read(cube, mode="denywrite")
+    # # If cube is a file, open with SpectralCube
+    # with warnings.catch_warnings():
+    #     warnings.simplefilter('ignore', AstropyWarning)
+    #     if type(cube) is str:
+    #         cube = SpectralCube.read(cube, mode="denywrite")
 
-    # Test that cube is Spectral cube
-    assert type(cube) is SpectralCube, "cube should be a SpectralCube!"
+    # # Test that cube is Spectral cube
+    # assert type(cube) is SpectralCube, "cube should be a SpectralCube!"
 
-    # Get frequencies
-    freq = cube.spectral_axis
+    # # Get frequencies
+    # freq = cube.spectral_axis
+
+    with fits.open(cube, memmap=True, mode='denywrite') as hdulist:
+        hdu = hdulist[0]
+        data = hdu.data
+    wcs = WCS(hdu)
+    freq = wcs.spectral.pixel_to_world(np.arange(data.shape[0]))
 
     # Write to file if outdir is specified
     if outdir is not None:
