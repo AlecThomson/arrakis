@@ -216,7 +216,7 @@ def cli():
         description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
+        "field", metavar="field", type=str, help="RACS field - e.g. 2132-50A."
     )
 
     parser.add_argument(
