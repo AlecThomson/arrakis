@@ -22,15 +22,23 @@ export OMP_NUM_THREADS=1
 # source /home/$(whoami)/.bashrc
 conda activate spice
 module load singularity
-export SINGULARITY_BINDPATH=$(pwd)
+export SINGULARITY_BINDPATH=$(pwd),/group
 
 
 # Image dirctory
 cd /scratch/ja3/athomson/spica
 
-field=1416+00A
-cal_sbid=13615
+field=1237-12A
+cal_sbid=12509
 tt0_dir=/group/askap/athomson/projects/RACS/CI0_mosaic_1.0
 tt1_dir=/group/askap/athomson/projects/RACS/CI1_mosaic_1.0
+
+# Make a copy of this sbatch file for posterity
+sedstr="s/sbatch/${field}.${SLURM_JOB_ID}\.sbatch/g"
+slurmdir="/group/askap/athomson/projects/spiceracs/spica/slurmFiles"
+currentdir="/group/askap/athomson/repos/spiceracs/submit"
+sedstr2="s+${currentdir}+${slurmdir}+g"
+thisfile="/group/askap/athomson/repos/spiceracs/submit/processSPICE.sbatch"
+cp "$thisfile" "$(echo "$thisfile" | sed -e "$sedstr" | sed -e "$sedstr2")"
 
 srun -n 480 --export=ALL processSPICE $field /scratch/ja3/athomson/spica/$cal_sbid/RACS_test4_1.05_$field --config /group/askap/athomson/projects/spiceracs/spica/spica_config.txt --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits --use_mpi
