@@ -96,7 +96,7 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
             cubes.extend(glob(
                 f"{spice_area}/{cal_sbid}/RACS_test4_1.05_{name}/image.restored.{stoke}*.conv.fits"))
             cubes.extend(glob(
-            f"{spice_area}/{cal_sbid}/RACS_test4_1.05_{name}/weights.{stoke}*.fits"))
+            f"{spice_area}/{cal_sbid}/RACS_test4_1.05_{name}/weights.{stoke}*.txt"))
         image = len(cubes) == 216
         spica_tab.add_row([f"RACS_{name}", cal_sbid, sbid, leak, index, image])
 
