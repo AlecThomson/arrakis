@@ -89,18 +89,20 @@ def rmsynthoncut3d(
 
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         return
-        # rmsi = rms_1d(dataI)
-    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
+    rmsi = estimate_noise_annulus(
+        dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
     rmsi[rmsi == 0] = np.nan
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
 
     # rmsq = rms_1d(dataQ)
-    rmsq = estimate_noise_annulus(dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
+    rmsq = estimate_noise_annulus(
+        dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
     rmsq[rmsq == 0] = np.nan
     rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
 
     # rmsu = rms_1d(dataU)
-    rmsu = estimate_noise_annulus(dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
+    rmsu = estimate_noise_annulus(
+        dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
     rmsu[rmsu == 0] = np.nan
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
     rmsArr = np.max([rmsq, rmsu], axis=0)
@@ -165,7 +167,7 @@ def rmsynthoncut3d(
         }
     }
 
-        # island_col.update_one(myquery, newvalues)
+    # island_col.update_one(myquery, newvalues)
     return pymongo.UpdateOne(myquery, newvalues)
 
 
@@ -207,7 +209,7 @@ def estimate_noise_annulus(x_center, y_center, cube):
     err = np.zeros(lenfreq)
     # try:
     y, x = np.ogrid[
-        -1 * outer_radius : outer_radius + 1, -1 * outer_radius : outer_radius + 1
+        -1 * outer_radius: outer_radius + 1, -1 * outer_radius: outer_radius + 1
     ]
     grid_mask = np.logical_or(
         x ** 2 + y ** 2 < inner_radius ** 2, x ** 2 + y ** 2 > outer_radius ** 2
@@ -217,27 +219,24 @@ def estimate_noise_annulus(x_center, y_center, cube):
             grid = cube[
                 i,
                 0,
-                y_center - outer_radius : y_center + outer_radius + 1,
-                x_center - outer_radius : x_center + outer_radius + 1,
+                y_center - outer_radius: y_center + outer_radius + 1,
+                x_center - outer_radius: x_center + outer_radius + 1,
             ]
         else:  # naxis ==3
             grid = cube[
                 i,
-                y_center - outer_radius : y_center + outer_radius + 1,
-                x_center - outer_radius : x_center + outer_radius + 1,
+                y_center - outer_radius: y_center + outer_radius + 1,
+                x_center - outer_radius: x_center + outer_radius + 1,
             ]
 
         # Calculate the MADFM, and convert to standard sigma:
         noisepix = np.ma.masked_array(grid, grid_mask)
         # if (noisepix == np.nan).any():
         #    embed
-        err[i] = np.ma.median(np.ma.fabs(noisepix - np.ma.median(noisepix))) / 0.6745
+        err[i] = np.ma.median(np.ma.fabs(
+            noisepix - np.ma.median(noisepix))) / 0.6745
     err[err == 0] = np.nan
     return err
-    # except np.ma.core.MaskError:
-    #     print('Too many NaNs in cutout - skipping...')
-    #     err *= np.nan
-    #     return err
 
 
 @delayed
@@ -304,7 +303,7 @@ def rmsynthoncut1d(
 
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         return
-        #rmsi = rms_1d(dataI)
+
     rmsi = estimate_noise_annulus(
         dataI.shape[2]//2,
         dataI.shape[1]//2,
@@ -335,7 +334,7 @@ def rmsynthoncut1d(
 
     ra = comp['RA']
     dec = comp['Dec']
-    coord = SkyCoord(ra*u.deg,dec*u.deg)
+    coord = SkyCoord(ra*u.deg, dec*u.deg)
     if len(dataI.shape) == 4:
         # drop Stokes axis
         wcs = WCS(header).dropaxis(2)
@@ -372,7 +371,8 @@ def rmsynthoncut1d(
         mfs_i_1 = fits.getdata(tt1, memmap=True)
         mfs_head = fits.getheader(tt0)
         mfs_wcs = WCS(mfs_head)
-        xp, yp = np.array(mfs_wcs.celestial.world_to_pixel(coord)).round().astype(int)
+        xp, yp = np.array(mfs_wcs.celestial.world_to_pixel(
+            coord)).round().astype(int)
         tt1_p = mfs_i_1[yp, xp]
         tt0_p = mfs_i_0[yp, xp]
         alpha = tt1_p / tt0_p
@@ -382,45 +382,40 @@ def rmsynthoncut1d(
         modStokesI = model_I(freq)
 
     else:
-        modStokesI=None
+        modStokesI = None
 
     if np.sum(np.isfinite(qarr)) < 2 or np.sum(np.isfinite(uarr)) < 2:
-        print(f'QU data is all NaNs. Skipping component {cname}...')
+        print(f'{cname} QU data is all NaNs.')
         return
+    if noStokesI:
+        data = [np.array(freq), qarr, uarr, rmsq, rmsu]
     else:
-        if noStokesI:
-            idx = np.isnan(qarr) | np.isnan(uarr)
-            data = [np.array(freq), qarr,
-                    uarr, rmsq, rmsu]
-        else:
-            if np.isnan(iarr).all():
-                print(f'I data is all NaNs. Skipping component {cname}...')
-                return
-            else:
-                idx = np.isnan(qarr) | np.isnan(uarr) | np.isnan(iarr)
-                data = [np.array(freq), iarr, qarr,
-                        uarr, rmsi, rmsq, rmsu]
+        if np.isnan(iarr).all():
+            print(f'{cname} I data is all NaNs.')
+            return
+
+        data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
 
         # Run 1D RM-synthesis on the spectra
         np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
         try:
             mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                    polyOrd=polyOrd,
-                                                    phiMax_radm2=phiMax_radm2,
-                                                    dPhi_radm2=dPhi_radm2,
-                                                    nSamples=nSamples,
-                                                    weightType=weightType,
-                                                    fitRMSF=fitRMSF,
-                                                    noStokesI=noStokesI,
-                                                    modStokesI=modStokesI,
-                                                    nBits=32,
-                                                    saveFigures=savePlots,
-                                                    showPlots=showPlots,
-                                                    verbose=rm_verbose,
-                                                    debug=debug,
-                                                    fit_function=fit_function,
-                                                    prefixOut=prefix,
-                                                    )
+                                                     polyOrd=polyOrd,
+                                                     phiMax_radm2=phiMax_radm2,
+                                                     dPhi_radm2=dPhi_radm2,
+                                                     nSamples=nSamples,
+                                                     weightType=weightType,
+                                                     fitRMSF=fitRMSF,
+                                                     noStokesI=noStokesI,
+                                                     modStokesI=modStokesI,
+                                                     nBits=32,
+                                                     saveFigures=savePlots,
+                                                     showPlots=showPlots,
+                                                     verbose=rm_verbose,
+                                                     debug=debug,
+                                                     fit_function=fit_function,
+                                                     prefixOut=prefix,
+                                                     )
         except Exception as err:
             traceback.print_tb(err.__traceback__)
             raise err
@@ -429,7 +424,7 @@ def rmsynthoncut1d(
             plot_files = glob(os.path.join(os.path.dirname(ifile), '*.pdf'))
             for src in plot_files:
                 base = os.path.basename(src)
-                dst = os.path.join(plotdir,base)
+                dst = os.path.join(plotdir, base)
                 copyfile(src, dst)
 
         do_RMsynth_1D.saveOutput(
@@ -459,7 +454,6 @@ def rmsynthoncut1d(
             }
         }
         return pymongo.UpdateOne(myquery, newvalues)
-
 
 
 @delayed
@@ -516,7 +510,8 @@ def rmsynthoncut_i(
         wcs = WCS(header)
 
     x, y, z = (
-        np.array(wcs.all_world2pix(ra, dec, np.nanmean(freq), 0)).round().astype(int)
+        np.array(wcs.all_world2pix(ra, dec, np.nanmean(freq), 0)
+                 ).round().astype(int)
     )
 
     mom = np.nansum(dataI, axis=0)
@@ -529,9 +524,10 @@ def rmsynthoncut_i(
     _ = input("Press [enter] to continue")  # wait for input from the user
     plt.close()  # close the figure to show the next one.
 
-    data = np.nansum(dataI[:, y - 1 : y + 1 + 1, x - 1 : x + 1 + 1], axis=(1, 2))
+    data = np.nansum(dataI[:, y - 1: y + 1 + 1, x - 1: x + 1 + 1], axis=(1, 2))
 
-    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
+    rmsi = estimate_noise_annulus(
+        dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
     rmsi[rmsi == 0] = np.nan
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
     noise = rmsi
@@ -574,7 +570,6 @@ def rmsynthoncut_i(
 
     datalist = [freq, data, data, dqArr, duArr]
 
-    nSamples = nSamples
     phi_max = phiMax_radm2
     mDict, aDict = do_RMsynth_1D.run_rmsynth(
         datalist, phiMax_radm2=phi_max, nSamples=nSamples, verbose=True
@@ -655,12 +650,14 @@ def main(
 
     # Unset rmsynth in db
     if dimension == "1d":
-        query = {"$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth1d": True}]}
+        query = {
+            "$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth1d": True}]}
 
         comp_col.update_many(query, {"$set": {"rmsynth1d": False}})
 
     elif dimension == "3d":
-        query = {"$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth3d": True}]}
+        query = {
+            "$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth3d": True}]}
 
         island_col.update(query, {"$set": {"rmsynth3d": False}})
 
@@ -709,7 +706,8 @@ def main(
             if i > n_comp + 1:
                 break
             else:
-                beam_idx = [i for i,b in enumerate(beams) if b["Source_ID"] == comp["Source_ID"]][0]
+                beam_idx = [i for i, b in enumerate(
+                    beams) if b["Source_ID"] == comp["Source_ID"]][0]
                 beam = beams[beam_idx]
                 output = rmsynthoncut1d(
                     comp=comp,
@@ -743,7 +741,8 @@ def main(
             if i > n_island + 1:
                 break
             else:
-                beam_idx = [i for i,b in enumerate(beams) if b['Source_ID'] == island_id][0]
+                beam_idx = [i for i, b in enumerate(
+                    beams) if b['Source_ID'] == island_id][0]
                 beam = beams[beam_idx]
                 output = rmsynthoncut3d(
                     island_id=island_id,
@@ -771,7 +770,7 @@ def main(
     if database:
         if verbose:
             print("Updating database...")
-        updates = [f.compute() for f in futures]
+        updates = [f.compute() for f in futures if f.compute() is not None]
         if dimension == "1d":
             db_res = comp_col.bulk_write(updates, ordered=False)
             if verbose:
@@ -988,7 +987,8 @@ def cli():
     client = Client(cluster)
     print(client)
 
-    test_db(host=args.host, username=args.username, password=args.password, verbose=verbose)
+    test_db(host=args.host, username=args.username,
+            password=args.password, verbose=verbose)
 
     main(
         field=args.field,
