@@ -27,7 +27,7 @@ import os
 from glob import glob
 from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord, Longitude, Latitude
-from spiceracs.utils import getdata, MyEncoder, try_mkdir, tqdm_dask, get_db, test_db
+from spiceracs.utils import getdata, MyEncoder, try_mkdir, tqdm_dask, get_db, test_db, fix_header
 from astropy.utils import iers
 import astropy.units as u
 from spectral_cube import SpectralCube
@@ -120,16 +120,19 @@ def cutout(
 
             # Use subcube for header transformation
             cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
+            new_header = cutout_cube.header
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', AstropyWarning)
                 with fits.open(image, memmap=True, mode="denywrite") as hdulist:
                     data = hdulist[0].data
+                    old_header = hdulist[0].header
 
                     sub_data = data[
-                        :, 0, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx  # freq  # useless Stokes
+                        :, :, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx  # freq, Stokes, y, x
                     ]
+                fixed_header = fix_header(new_header, old_header)
                 if not dryrun:
-                    fits.writeto(outfile, sub_data, header=cutout_cube.header, overwrite=True)
+                    fits.writeto(outfile, sub_data, header=fixed_header, overwrite=True, output_verify='fix')
                     if verbose:
                         print(f"Written to {outfile}")
 
