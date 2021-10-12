@@ -121,7 +121,8 @@ setup(
         'scripts/copy_data.py',
         'scripts/spica.py',
         'scripts/copy_cutouts.py',
-        'scripts/compute_leakage.py'
+        'scripts/compute_leakage.py',
+        'scripts/compare_leakage.py'
     ],
     install_requires=REQUIRED,
     extras_require=EXTRAS,
