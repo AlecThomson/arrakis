@@ -36,4 +36,5 @@ dependencies:
   - mpi4py
   - dask_mpi
   - git+https://github.com/CIRADA-Tools/FRion.git
+  - pytest
   - -rrequirements.txt
