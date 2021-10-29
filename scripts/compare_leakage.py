@@ -13,6 +13,7 @@ x = sin(offset)*cos(angle)/incx + refx
 y = sin(offset)*sin(angle)/incy + refy
 """
 import os
+from IPython.core.pylabtools import figsize
 import numpy as np
 import warnings
 from astropy.coordinates import SkyCoord
@@ -31,7 +32,7 @@ from astropy.stats import sigma_clip, mad_std
 
 def make_plot(data, comp, imfile):
 
-    fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True)
+    fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(10,10))
     fig.suptitle(f"{comp['Gaussian_ID']} leakage")
     for i, s in enumerate(['q', 'u']):
         ax = axs[i]
@@ -40,8 +41,8 @@ def make_plot(data, comp, imfile):
             frac = dat[f'{s}_image'] / dat['i_image']
             filt = sigma_clip(frac, sigma=5, stdfunc=mad_std)
             frac[filt.mask] = np.nan
-            line, = ax.step(freq, frac, label = f'beam {beam}')
-            ax.step(freq, dat[f'{s}_holo'], ':', color = line.get_color())
+            line, = ax.step(freq, frac, label = f"beam {beam} -- off={dat['offset']:0.3f}, ang={dat['angle']:0.3f}")
+            ax.plot(freq, dat[f'{s}_holo'], ':', color = line.get_color())
         ax.set_ylabel(f'Stokes {s} [fractional]')
         
     plt.legend()
@@ -92,9 +93,12 @@ def interpolate(
 
         offset = coord.separation(beamcoord).to(u.deg)
         angle = coord.position_angle(beamcoord).to(u.deg)
+
+        data[bm].update({"offset": offset})
+        data[bm].update({"angle": angle})
         
-        x_holo = int(np.round(np.sin(offset) * np.cos(angle) / incx + refx))
-        y_holo = int(np.round(np.sin(offset) * np.sin(angle) / incy + refy))
+        x_holo = int(np.round(np.sin(offset) * np.sin(angle) / incx + refx))
+        y_holo = int(np.round(np.sin(offset) * np.cos(angle) / incy + refy))
 
         for i, s in enumerate(['i','q','u']):
             imfile = beam[f'{s}_beam{bm}_image_file']
@@ -122,6 +126,7 @@ def main(
     username=None,
     password=None,
     verbose=True,
+    snr_cut=None,
 ):
     scriptdir = os.path.dirname(os.path.realpath(__file__))
     beamseps = gen_seps(field, scriptdir)
@@ -160,6 +165,12 @@ def main(
     outputs = []
     for beams, comp in zip(big_beams, comps):
         for c in comp:
+            if snr_cut is not None:
+                noise = c['Noise']
+                signal = c['Total_flux_Gaussian']
+                snr_total = signal / noise
+                if snr_total < snr_cut:
+                    continue
             out = interpolate(
                 field=field,
                 comp=c,
@@ -250,6 +261,10 @@ def cli():
         "-v", "--verbose", action="store_true", help="Verbose output [False]."
     )
 
+    parser.add_argument(
+        "--snr", type=float, default=None, help="SNR cut (full band)."
+    )
+
     args = parser.parse_args()
 
     cluster = LocalCluster(
@@ -266,6 +281,7 @@ def cli():
         username=args.username,
         password=args.password,
         verbose=args.verbose,
+        snr_cut=args.snr,
     )
 
 if __name__ == "__main__":
