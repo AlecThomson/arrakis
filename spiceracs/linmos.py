@@ -175,16 +175,16 @@ linmos.primarybeam      = ASKAP_PB
 linmos.primarybeam.ASKAP_PB.image = {holofile}
 linmos.removeleakage    = true
 # Reference image for offsets
-linmos.feeds.centre     = [{septab['FOOTPRINT_RA'][0]}, {septab['FOOTPRINT_DEC'][0]}]
-linmos.feeds.spacing    = 1deg
+# linmos.feeds.centre     = [{septab['FOOTPRINT_RA'][0]}, {septab['FOOTPRINT_DEC'][0]}]
+# linmos.feeds.spacing    = 1deg
 # Beam offsets
 """
-    for im in ims:
-        basename = im.replace(".fits", "")
-        idx = basename.find("beam")
-        beamno = int(basename[len("beam") + idx: len("beam") + idx + 2])
-        offset = f"linmos.feeds.{basename} = [{septab[beamno]['DELTA_RA']},{septab[beamno]['DELTA_DEC']}]\n"
-        parset += offset
+    # for im in ims:
+    #     basename = im.replace(".fits", "")
+    #     idx = basename.find("beam")
+    #     beamno = int(basename[len("beam") + idx: len("beam") + idx + 2])
+    #     offset = f"linmos.feeds.{basename} = [{septab[beamno]['DELTA_RA']},{septab[beamno]['DELTA_DEC']}]\n"
+    #     parset += offset
     with open(parset_file, "w") as f:
         f.write(parset)
 
@@ -209,13 +209,7 @@ def linmos(parset, fieldname, image, verbose=False):
     source = os.path.basename(workdir)
     stoke = parset_name[parset_name.find(".in") - 1]
     log = parset.replace(".in", ".log")
-    # with open(f'junkyard/junk_{parset_name}.txt', 'w+') as f:
-    #     f.write(parset)
-    # os.environ["OMP_NUM_THREADS"] = "1"
-
-    # linmos_command = shlex.split(f"touch junkyard/{junk}_{parset}.txt && linmos -c {parset}")
     linmos_command = shlex.split(f"linmos -c {parset}")
-    # linmos_command = shlex.split(f"which linmos")
     output = sclient.execute(
         image=image, command=linmos_command, bind=f"{rootdir}:{rootdir}", return_result=True)
 
@@ -226,14 +220,6 @@ def linmos(parset, fieldname, image, verbose=False):
 
     if output['return_code'] != 0:
         raise Exception(f"LINMOS failed! Check '{log}'")
-    # output = subprocess.run(linmos_command, capture_output=True)
-    # if output.returncode != 0:
-    #     raise Exception(f"LINMOS failed!\n{output.stderr.decode()}")
-    # with open(log, "w") as f:
-    #     # f.write("\n".join(output.stdout.decode()))
-    #     # f.write("\n".join(output.stderr.decode()))
-    #     f.write(output.stdout.decode())
-    #     f.write(output.stderr.decode())
 
     new_file = glob(
         f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
@@ -247,7 +233,7 @@ def linmos(parset, fieldname, image, verbose=False):
     new_file = os.path.join(outer, inner)
 
     if verbose:
-        print(f"Cube now in {workdir}/{new_file}")
+        print(f"Cube now in {workdir}/{inner}")
 
     query = {"Source_ID": source}
     newvalues = {"$set": {f"beams.{fieldname}.{stoke.lower()}_file": new_file}}
