@@ -5,13 +5,11 @@
 
 Welcome to SPICE-RACS's documentation!
 ======================================
-.. include:: ../../README.md
-   :parser: myst_parser.sphinx_
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 1
    :caption: Contents:
-
+   
 
 Indices and tables
 ==================
