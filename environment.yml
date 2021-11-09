@@ -25,7 +25,6 @@ dependencies:
 - fitsio
 - casacore
 - casa-data
-- singularity
 - pip:
   - tqdm
   - configargparse
