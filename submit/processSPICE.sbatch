@@ -30,8 +30,8 @@ conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
-field=1212-06A
-cal_sbid=12455
+field=1402-25A
+cal_sbid=8585
 tt0_dir=/group/askap/athomson/projects/RACS/CI0_mosaic_1.0
 tt1_dir=/group/askap/athomson/projects/RACS/CI1_mosaic_1.0
 data_dir=/scratch/ja3/athomson/spica
