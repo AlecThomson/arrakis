@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Create the SPICE-RACS database"""
 from spiceracs.utils import get_db, test_db, get_field_db
 from IPython import embed
 from functools import partial
@@ -10,7 +11,7 @@ import time
 from tqdm import tqdm, trange
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.coordinates import SkyCoord, search_around_sky
+from astropy.coordinates import SkyCoord, search_around_sky, Angle
 from astropy import units as u
 from astropy.wcs import WCS
 from astropy.io import fits
@@ -18,30 +19,21 @@ import sys
 import os
 from glob import glob
 from astropy.table import Table, vstack
-from spiceracs.utils import getdata, MyEncoder
+from spiceracs.utils import getdata, MyEncoder, yes_or_no
+from typing import Tuple
 
 
-def yes_or_no(question):
-    while "Please answer 'y' or 'n'":
-        reply = str(input(question + " (y/n): ")).lower().strip()
-        if reply[:1] == "y":
-            return True
-        if reply[:1] == "n":
-            return False
+def source2beams(ra: float, dec: float, database: Table, max_sep=1) -> Table:
+    """Find RACS beams that contain a given source position
 
-
-def source2beams(ra, dec, database, max_sep=1):
-    """Find RACS beams containing a position.
-
-    Arguments:
-        ra {float} -- RA of source in degrees.
-        dec {float} -- DEC of source in degrees.
-        database {astropy.table.table.Table} -- RACS database loaded as one Table.
-    Keyword Arguments:
-        max_sep {int} -- Maximum angular distance to beam centre in degrees (default: {4})
+    Args:
+        ra (float): RA of source in degrees.
+        dec (float): DEC of source in degrees.
+        database (dict): RACS database table.
+        max_sep (int, optional): Maximum seperation of source to beam centre in degrees. Defaults to 1.
 
     Returns:
-        beams {astropy.table.table.Table} -- RACS database rows matching the source location.
+        Table: Subset of RACS databsae table containing beams that contain the source.
     """
     c1 = SkyCoord(database["RA_DEG"] * u.deg, database["DEC_DEG"] * u.deg, frame="icrs")
     c2 = SkyCoord(ra * u.deg, dec * u.deg, frame="icrs")
@@ -50,19 +42,18 @@ def source2beams(ra, dec, database, max_sep=1):
     return beams
 
 
-def ndix_unique(x):
-    """
-    From: https://stackoverflow.com/questions/54734545/indices-of-unique-values-in-array
-    Returns an N-dimensional array of indices
-    of the unique values in x
-    ----------
-    x: np.array
-       Array with arbitrary dimensions
-    Returns
-    -------
-    - 1D-array of sorted unique values
-    - Array of arrays. Each array contains the indices where a
-      given value in x is found
+def ndix_unique(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Find the N-dimensional array of indices of the unique values in x
+    From https://stackoverflow.com/questions/54734545/indices-of-unique-values-in-array
+
+    Args:
+        x (np.ndarray): Array of values.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]:
+            - 1D-array of sorted unique values
+            - Array of arrays. Each array contains the indices where a
+            given value in x is found
     """
     x_flat = x.ravel()
     ix_flat = np.argsort(x_flat)
@@ -72,7 +63,20 @@ def ndix_unique(x):
     return u, np.split(ix_ndim, ix_u[1:])
 
 
-def cat2beams(mastercat, database, max_sep=1, verbose=True):
+def cat2beams(
+    mastercat: Table, database: Table, max_sep=1, verbose=True
+) -> Tuple[np.ndarray, np.ndarray, Angle]:
+    """Find the separations between sources in the master catalogue and the RACS beams
+
+    Args:
+        mastercat (Table): Master catalogue table.
+        database (Table): RACS database table.
+        max_sep (int, optional): Maxium source separation in degrees. Defaults to 1.
+        verbose (bool, optional): Verbose output. Defaults to True.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, Angle]: Output of astropy.coordinates.search_around_sky
+    """
     if verbose:
         print("Getting separations from beam centres...")
     c1 = SkyCoord(database["RA_DEG"] * u.deg, database["DEC_DEG"] * u.deg, frame="icrs")
@@ -90,15 +94,32 @@ def cat2beams(mastercat, database, max_sep=1, verbose=True):
 
 
 def source_database(
-    islandcat, compcat, host, username=None, password=None, verbose=True
+    islandcat: Table,
+    compcat: Table,
+    host: str,
+    username: str = None,
+    password: str = None,
+    verbose=True,
 ):
+    """Insert sources into the database
+
+    Following https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
+
+    Args:
+        islandcat (Table): Island catalogue table.
+        compcat (Table): Component catalogue table.
+        host (str): MongoDB host IP.
+        username (str, optional): Mongo username. Defaults to None.
+        password (str, optional): Mongo host. Defaults to None.
+        verbose (bool, optional): Verbose output. Defaults to True.
+    """
     # Read in main catalogues
     # Use pandas and follow
     # https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
     df_i = islandcat.to_pandas()
-    if type(df_i['Source_ID'][0]) is bytes:
+    if type(df_i["Source_ID"][0]) is bytes:
         print("Decoding strings!")
-        str_df = df_i.select_dtypes([np.object])
+        str_df = df_i.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
         for col in str_df:
             df_i[col] = str_df[col]
@@ -117,9 +138,9 @@ def source_database(
         print("Total documents:", count)
 
     df_c = compcat.to_pandas()
-    if type(df_c['Source_ID'][0]) is bytes:
+    if type(df_c["Source_ID"][0]) is bytes:
         print("Decoding strings!")
-        str_df = df_c.select_dtypes([np.object])
+        str_df = df_c.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
         for col in str_df:
             df_c[col] = str_df[col]
@@ -243,10 +264,11 @@ def get_beams(mastercat, database, verbose=True):
         )
     return beam_list
 
+
 def field_database(host, username, password, verbose=True):
     scriptdir = os.path.dirname(os.path.realpath(__file__))
     basedir = f"{scriptdir}/../askap_surveys/racs/db/epoch_0"
-    data_file = os.path.join(basedir, 'field_data.csv')
+    data_file = os.path.join(basedir, "field_data.csv")
     database = Table.read(data_file)
     df = database.to_pandas()
     field_list_dict = df.to_dict("records")
@@ -259,6 +281,7 @@ def field_database(host, username, password, verbose=True):
     if verbose:
         print("Done loading")
         print("Total documents:", count)
+
 
 def main(args, verbose=True):
     """Main script
@@ -300,12 +323,12 @@ def main(args, verbose=True):
             )
         if check_beam:
             beam_database(
-                islandcat=island_cat, 
+                islandcat=island_cat,
                 host=args.host,
                 username=args.username,
-                password=args.password, 
-                verbose=verbose
-                )
+                password=args.password,
+                verbose=verbose,
+            )
     if args.field:
         print("This will overwrite the field database!")
         check_field = yes_or_no("Are you sure you wish to proceed?")
@@ -313,8 +336,8 @@ def main(args, verbose=True):
             field_database(
                 host=args.host,
                 username=args.username,
-                password=args.password, 
-                verbose=verbose
+                password=args.password,
+                verbose=verbose,
             )
 
     else:
@@ -322,8 +345,7 @@ def main(args, verbose=True):
 
 
 def cli():
-    """Command-line interface
-    """
+    """Command-line interface"""
     import argparse
 
     # Help string to be shown using the -h option
@@ -398,10 +420,7 @@ def cli():
 
     verbose = args.verbose
     test_db(
-        host=args.host,
-        username=args.username,
-        password=args.password,
-        verbose=verbose
+        host=args.host, username=args.username, password=args.password, verbose=verbose
     )
 
     main(args, verbose=verbose)
