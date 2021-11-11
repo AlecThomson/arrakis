@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+"""Run LINMOS on cutouts in parallel"""
 import sys
 from pprint import pprint
 from logging import disable
+from typing import List, Tuple
 import os
 import subprocess
 import shlex
@@ -25,23 +27,24 @@ from spython.main import Client as sclient
 import warnings
 from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
-warnings.filterwarnings(
-    action="ignore", category=SpectralCubeWarning, append=True)
+
+warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
 
 @delayed
-def gen_seps(field, scriptdir):
-    """Get beam separations
+def gen_seps(field: str) -> Table:
+    """Get separation table for a given RACS field
 
     Args:
-        field (str): File name e.g. 2132-50A
+        field (str): RACS field name.
 
     Returns:
-        Table: Separation  table
+        Table: Table of separation for each beam.
     """
+    scriptdir = os.path.dirname(os.path.realpath(__file__))
     offsets = Table.read(f"{scriptdir}/../askap_surveys/racs_low_offsets.csv")
     offsets.add_index("Beam")
 
@@ -75,8 +78,7 @@ def gen_seps(field, scriptdir):
         beam = int(beam)
 
         beam_dat = beam_cat.loc[beam]
-        beam_coord = SkyCoord(
-            beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
+        beam_coord = SkyCoord(beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
         field_coord = SkyCoord(
             master_cat["RA_DEG"] * u.deg, master_cat["DEC_DEG"] * u.deg
         )
@@ -103,46 +105,52 @@ def gen_seps(field, scriptdir):
 
 @delayed
 def genparset(
-    field,
-    src_name,
-    beams,
-    stoke,
-    datadir,
-    septab,
-    holofile
-):
+    field: str,
+    src_name: str,
+    beams: dict,
+    stoke: str,
+    datadir: str,
+    septab: Table,
+    holofile: str,
+) -> str:
     """Generate parset for LINMOS
 
     Args:
-        field (str): Name of RACS field
-        stoke (str): Stokes parameter
-        datadir (str): Directory containing cutouts
-        septab (Table): Table of beam seperations
-        prefix (str, optional): Search for files with a prefix. Defaults to "".
+        field (str): RACS field name.
+        src_name (str): RACE source name.
+        beams (dict): Mongo entry for RACS beams.
+        stoke (str): Stokes parameter.
+        datadir (str): Data directory.
+        septab (Table): Table of separations.
+        holofile (str): Full path to holography file.
 
     Raises:
-        Exception: If no files are found in the datadir
+        Exception: If no files are found.
+
+    Returns:
+        str: Path to parset file.
     """
     beams = beams["beams"][field]
     ims = []
-    for bm in list(set(beams['beam_list'])):  # Ensure list of beams is unique!
-        imfile = beams[f'{stoke.lower()}_beam{bm}_image_file']
-        assert os.path.basename(os.path.dirname(
-            imfile)) == src_name, "Looking in wrong directory!"
+    for bm in list(set(beams["beam_list"])):  # Ensure list of beams is unique!
+        imfile = beams[f"{stoke.lower()}_beam{bm}_image_file"]
+        assert (
+            os.path.basename(os.path.dirname(imfile)) == src_name
+        ), "Looking in wrong directory!"
         imfile = os.path.join(os.path.abspath(datadir), imfile)
         ims.append(imfile)
     ims = sorted(ims)
 
     if len(ims) == 0:
-        raise Exception(
-            'No files found. Have you run imaging? Check your prefix?')
-    imlist = "[" + ','.join([im.replace(".fits", "") for im in ims]) + "]"
+        raise Exception("No files found. Have you run imaging? Check your prefix?")
+    imlist = "[" + ",".join([im.replace(".fits", "") for im in ims]) + "]"
 
     wgts = []
-    for bm in list(set(beams['beam_list'])):  # Ensure list of beams is unique!
-        wgtsfile = beams[f'{stoke.lower()}_beam{bm}_weight_file']
-        assert os.path.basename(os.path.dirname(
-            wgtsfile)) == src_name, "Looking in wrong directory!"
+    for bm in list(set(beams["beam_list"])):  # Ensure list of beams is unique!
+        wgtsfile = beams[f"{stoke.lower()}_beam{bm}_weight_file"]
+        assert (
+            os.path.basename(os.path.dirname(wgtsfile)) == src_name
+        ), "Looking in wrong directory!"
         wgtsfile = os.path.join(os.path.abspath(datadir), wgtsfile)
         wgts.append(wgtsfile)
     wgts = sorted(wgts)
@@ -154,8 +162,7 @@ def genparset(
             os.path.dirname(wt)
         ), "Image and weight are in different areas!"
 
-    weightlist = "[" + ','.join([wgt.replace(".fits", "")
-                                for wgt in wgts]) + "]"
+    weightlist = "[" + ",".join([wgt.replace(".fits", "") for wgt in wgts]) + "]"
 
     parset_dir = os.path.join(
         os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0]))
@@ -192,14 +199,21 @@ linmos.removeleakage    = true
 
 
 @delayed
-def linmos(parset, fieldname, image, verbose=False):
-    """Run LINMOS
+def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.UpdateOne:
+    """Run linmos
 
     Args:
-        parset (str): Parset file to run
-        fieldname (str): RACS field name
-        host (str): Mongo host
+        parset (str): Path to parset file.
+        fieldname (str): Name of RACS field.
+        image (str): Name of Yandasoft image.
         verbose (bool, optional): Verbose output. Defaults to False.
+
+    Raises:
+        Exception: If LINMOS fails.
+        Exception: LINMOS output not found.
+
+    Returns:
+        pymongo.UpdateOne: Mongo update object.
     """
 
     workdir = os.path.dirname(parset)
@@ -211,23 +225,26 @@ def linmos(parset, fieldname, image, verbose=False):
     log = parset.replace(".in", ".log")
     linmos_command = shlex.split(f"linmos -c {parset}")
     output = sclient.execute(
-        image=image, command=linmos_command, bind=f"{rootdir}:{rootdir}", return_result=True)
+        image=image,
+        command=linmos_command,
+        bind=f"{rootdir}:{rootdir}",
+        return_result=True,
+    )
 
-    outstr = "\n".join(output['message'])
+    outstr = "\n".join(output["message"])
     with open(log, "w") as f:
         f.write(outstr)
         # f.write(output['message'])
 
-    if output['return_code'] != 0:
+    if output["return_code"] != 0:
         raise Exception(f"LINMOS failed! Check '{log}'")
 
-    new_file = glob(
-        f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
+    new_files = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
-    if len(new_file) != 1:
+    if len(new_files) != 1:
         raise Exception(f"LINMOS file not found! -- check {log}?")
 
-    new_file = os.path.abspath(new_file[0])
+    new_file = os.path.abspath(new_files[0])
     outer = os.path.basename(os.path.dirname(new_file))
     inner = os.path.basename(new_file)
     new_file = os.path.join(outer, inner)
@@ -241,36 +258,53 @@ def linmos(parset, fieldname, image, verbose=False):
     return pymongo.UpdateOne(query, newvalues)
 
 
-def get_yanda(version="1.3.0"):
+def get_yanda(version="1.3.0") -> str:
+    """Pull yandasoft image from dockerhub.
+
+    Args:
+        version (str, optional): Yandasoft version. Defaults to "1.3.0".
+
+    Returns:
+        str: Path to yandasoft image.
+    """
     sclient.load(f"docker://csirocass/yandasoft:{version}-galaxy")
     image = os.path.abspath(sclient.pull())
     return image
 
 
 def main(
-    field,
-    datadir,
-    client,
-    host,
-    holofile,
-    username=None,
-    password=None,
+    field: str,
+    datadir: str,
+    client: Client,
+    host: str,
+    holofile: str,
+    username: str = None,
+    password: str = None,
     yanda="1.3.0",
-    dryrun=False,
-    prefix="",
-    stokeslist=None,
+    stokeslist: List[str] = None,
     verbose=True,
-):
+) -> None:
     """Main script
+
+    Args:
+        field (str): RACS field name.
+        datadir (str): Data directory.
+        client (Client): Dask client.
+        host (str): MongoDB host IP.
+        holofile (str): Path to primary beam file.
+        username (str, optional): Mongo username. Defaults to None.
+        password (str, optional): Mongo password. Defaults to None.
+        yanda (str, optional): Yandasoft version. Defaults to "1.3.0".
+        stokeslist (List[str], optional): Stokes parameters to process. Defaults to None.
+        verbose (bool, optional): Verbose output. Defaults to True.
     """
     # Setup singularity image
     image = get_yanda(version=yanda)
     # image = sclient.pull()
 
     # Use ASKAPcli to get beam separations for PB correction
-    scriptdir = os.path.dirname(os.path.realpath(__file__))
 
-    beamseps = gen_seps(field, scriptdir)
+    beamseps = gen_seps(field)
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
@@ -290,11 +324,13 @@ def main(
     }
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))
-    big_beams = list(beams_col.find(
-        {"Source_ID": {'$in': island_ids}}).sort("Source_ID"))
+    big_beams = list(
+        beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
+    )
     # files = sorted([name for name in glob(f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
-    big_comps = list(comp_col.find(
-        {"Source_ID": {'$in': island_ids}}).sort("Source_ID"))
+    big_comps = list(
+        comp_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
+    )
     comps = []
     for island_id in island_ids:
         _comps = []
@@ -307,7 +343,7 @@ def main(
 
     parfiles = []
     for beams, comp in zip(big_beams, comps):
-        src = beams['Source_ID']
+        src = beams["Source_ID"]
         if len(comp) == 0:
             warnings.warn(f"Skipping island {src} -- no components found")
             continue
@@ -326,16 +362,13 @@ def main(
 
     results = []
     for parset in parfiles:
-        results.append(
-            linmos(
-                parset, field, image, verbose=True
-            )
-        )
+        results.append(linmos(parset, field, image, verbose=True))
     futures = client.persist(results)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(10)
-    tqdm_dask(futures, desc="Runing LINMOS", disable=(
-        not verbose), total=len(results)*2+1)
+    tqdm_dask(
+        futures, desc="Runing LINMOS", disable=(not verbose), total=len(results) * 2 + 1
+    )
 
     updates = [f.compute() for f in futures]
     if verbose:
@@ -349,8 +382,7 @@ def main(
 
 
 def cli():
-    """Command-line interface
-    """
+    """Command-line interface"""
     import argparse
 
     # Help string to be shown using the -h option
@@ -375,11 +407,7 @@ def cli():
         help="Directory containing cutouts (in subdir outdir/cutouts)..",
     )
 
-    parser.add_argument(
-        "--holofile",
-        type=str,
-        help="Path to holography image"
-    )
+    parser.add_argument("--holofile", type=str, help="Path to holography image")
 
     parser.add_argument(
         "-d",
@@ -439,10 +467,7 @@ def cli():
 
     verbose = args.verbose
     test_db(
-        host=args.host,
-        username=args.username,
-        password=args.password,
-        verbose=verbose
+        host=args.host, username=args.username, password=args.password, verbose=verbose
     )
 
     main(
