@@ -304,7 +304,6 @@ def main(args):
             username=args.username,
             password=args.password,
             verbose=args.verbose,
-            limit=args.limit,
             outfile=args.outfile,
             cat_format=args.format,
             upstream_tasks=[clean_spec]
