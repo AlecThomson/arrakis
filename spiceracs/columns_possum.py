@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Sep 19 08:35:07 2019
+Column names from RM-tools to catalogue
 
 @author: cvaneck
 """
