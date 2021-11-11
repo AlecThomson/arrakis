@@ -20,8 +20,7 @@ Scripts for processing polarized RACS data products.
    start
    pipeline
    acknowledge
-
-..  readme
+   autoapi/index
 
 
 
