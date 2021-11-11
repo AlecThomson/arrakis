@@ -19,10 +19,11 @@ def cleanup(workdir: str, stoke: str) -> None:
         stoke (str): Stokes parameter
     """
     # Clean up beam images
-    old_files = glob(f"{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits")
-    for old in old_files:
-        os.remove(old)
+    # old_files = glob(f"{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits")
+    # for old in old_files:
+    #     os.remove(old)
 
+    pass
 
 def main(
     datadir: str, client: Client, stokeslist: List[str] = None, verbose=True
