@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""DANGER ZONE: Purge directories of un-needed FITS files."""
 import os
 from glob import glob
 import time
@@ -6,41 +7,54 @@ from spiceracs.utils import tqdm_dask
 from dask import delayed
 from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
+from typing import List, Optional
 
 
 @delayed
-def cleanup(workdir, stoke):
+def cleanup(workdir: str, stoke: str) -> None:
+    """Clean up beam images
+
+    Args:
+        workdir (str): Directory containing images
+        stoke (str): Stokes parameter
+    """
     # Clean up beam images
-    old_files = glob(
-        f'{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits')
+    old_files = glob(f"{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits")
     for old in old_files:
         os.remove(old)
 
 
-def main(datadir, client, stokeslist=None, verbose=True):
+def main(
+    datadir: str, client: Client, stokeslist: List[str] = None, verbose=True
+) -> None:
+
     """Clean up beam images
 
     Args:
         datadir (str): Directory with sub dir 'cutouts'
         client (Client): Dask Client
-        stokeslist ([type], optional): [description]. Defaults to None.
+        stokeslist (List[str], optional): List of Stokes parameters to purge. Defaults to None.
         verbose (bool, optional): Verbose output. Defaults to True.
-    """    
+    """
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
     if datadir is not None:
-        if datadir[-1] == '/':
+        if datadir[-1] == "/":
             datadir = datadir[:-1]
 
     cutdir = f"{datadir}/cutouts"
-    files = sorted([name for name in glob(
-        f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
-
+    files = sorted(
+        [
+            name
+            for name in glob(f"{cutdir}/*")
+            if os.path.isdir(os.path.join(cutdir, name))
+        ]
+    )
 
     outputs = []
     for file in files:
-        if os.path.basename(file) == 'slurmFiles':
+        if os.path.basename(file) == "slurmFiles":
             continue
         for stoke in stokeslist:
             output = cleanup(file, stoke)
@@ -51,12 +65,11 @@ def main(datadir, client, stokeslist=None, verbose=True):
     time.sleep(10)
     tqdm_dask(results, desc="Running cleanup", disable=(not verbose))
 
-    print('Cleanup done!')
+    print("Cleanup done!")
 
 
 def cli():
-    """Command-line interface
-    """
+    """Command-line interface"""
     import argparse
 
     logostr = """
@@ -83,20 +96,18 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(description=descStr,
-                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+    )
     parser.add_argument(
-        'outdir',
-        metavar='outdir',
+        "outdir",
+        metavar="outdir",
         type=str,
-        help='Directory containing cutouts (in subdir outdir/cutouts).'
+        help="Directory containing cutouts (in subdir outdir/cutouts).",
     )
 
     parser.add_argument(
-        "-v",
-        dest="verbose",
-        action="store_true",
-        help="Verbose output [False]."
+        "-v", dest="verbose", action="store_true", help="Verbose output [False]."
     )
     args = parser.parse_args()
     verbose = args.verbose
@@ -104,14 +115,11 @@ def cli():
     cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
 
-    main(datadir=args.outdir,
-         client=client,
-         stokeslist=None,
-         verbose=verbose
-         )
+    main(datadir=args.outdir, client=client, stokeslist=None, verbose=verbose)
 
     client.close()
     cluster.close()
+
 
 if __name__ == "__main__":
     cli()
