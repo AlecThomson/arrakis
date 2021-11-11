@@ -34,6 +34,14 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
 
+def yes_or_no(question):
+    while "Please answer 'y' or 'n'":
+        reply = str(input(question + " (y/n): ")).lower().strip()
+        if reply[:1] == "y":
+            return True
+        if reply[:1] == "n":
+            return False
+
 def fix_header(cutout_header, original_header):
     axis_cut = find_freq_axis(cutout_header)
     axis_orig = find_freq_axis(original_header)
