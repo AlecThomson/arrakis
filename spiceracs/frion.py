@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Correct for the ionosphere in parallel"""
 import os
 import numpy as np
 import astropy.units as u
@@ -12,27 +13,30 @@ import time
 from pprint import pprint
 from shutil import copyfile
 from glob import glob
+from typing import Dict, List, Tuple
 
 
 @delayed
-def correct_worker(beam, outdir, field, predict_file, island_id):
-    """FR correction
+def correct_worker(
+    beam: Dict, outdir: str, field: str, predict_file: str, island_id: str
+) -> pymongo.UpdateOne:
+    """Apply FRion corrections to a single island
 
     Args:
-        beam (dict): Beam database
-        outdir (str): Directory containing cutouts
-        field (str): RACS field
-        predict_file (str): Name of predict file to read
-        island_id (str): Source ID
+        beam (Dict): MongoDB beam document
+        outdir (str): Output directory
+        field (str): RACS field name
+        predict_file (str): FRion prediction file
+        island_id (str): RACS island ID
 
     Returns:
-        UpdateOne: Mongo update
-    """    
-    qfile = os.path.join(outdir, beam['beams'][field]['q_file'])
-    ufile = os.path.join(outdir, beam['beams'][field]['u_file'])
+        pymongo.UpdateOne: Pymongo update query
+    """
+    qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
+    ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
 
-    qout = beam['beams'][field]['q_file'].replace('.fits', '.ion.fits')
-    uout = beam['beams'][field]['u_file'].replace('.fits', '.ion.fits')
+    qout = beam["beams"][field]["q_file"].replace(".fits", ".ion.fits")
+    uout = beam["beams"][field]["u_file"].replace(".fits", ".ion.fits")
 
     qout_f = os.path.join(outdir, qout)
     uout_f = os.path.join(outdir, uout)
@@ -44,63 +48,64 @@ def correct_worker(beam, outdir, field, predict_file, island_id):
     myquery = {"Source_ID": island_id}
 
     newvalues = {
-        '$set': {
-            f'beams.{field}.q_file_ion': qout,
-            f'beams.{field}.u_file_ion': uout,
+        "$set": {
+            f"beams.{field}.q_file_ion": qout,
+            f"beams.{field}.u_file_ion": uout,
         }
     }
     return pymongo.UpdateOne(myquery, newvalues)
 
 
 @delayed
-def predict_worker(island, field, beam, start_time, end_time, freq, cutdir, plotdir):
-    """FR prediction
+def predict_worker(
+    island: Dict,
+    field: str,
+    beam: Dict,
+    start_time: Time,
+    end_time: Time,
+    freq: np.ndarray,
+    cutdir: str,
+    plotdir: str,
+) -> str:
+    """Make FRion prediction for a single island
 
     Args:
-        island (dict): Island databse entry
-        field (str): RACS field
-        beam (dict): Beam database entry
-        start_time (Time): Obs start time
-        end_time (Time): Obs end time
-        freq (array): Frequency array
-        cutdir (str): Directory containing cutouts
+        island (Dict): Pymongo island document
+        field (str): RACS field name
+        beam (Dict): Pymongo beam document
+        start_time (Time): Start time of the observation
+        end_time (Time): End time of the observation
+        freq (np.ndarray): Array of frequencies with units
+        cutdir (str): Cutout directory
+        plotdir (str): Plot directory
 
     Returns:
-        str: Location of prediction file
-    """    
+        str: Prediction file name
+    """
     ifile = os.path.join(cutdir, beam["beams"][field]["i_file"])
     i_dir = os.path.dirname(ifile)
     iname = island["Source_ID"]
-    ra = island['RA']
-    dec = island['Dec']
+    ra = island["RA"]
+    dec = island["Dec"]
 
     times, RMs, theta = predict.calculate_modulation(
         start_time=start_time.fits,
         end_time=end_time.fits,
         freq_array=freq,
-        telescope_location=predict.get_telescope_coordinates('ASKAP'),
+        telescope_location=predict.get_telescope_coordinates("ASKAP"),
         ra=ra,
         dec=dec,
         timestep=300.0,
-        ionexPath=os.path.join(os.path.dirname(cutdir), 'IONEXdata')
+        ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
-    predict.write_modulation(
-        freq_array=freq,
-        theta=theta,
-        filename=predict_file
-    )
+    predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
 
-    plot_file = os.path.join(i_dir, f'{iname}_ion.pdf')
+    plot_file = os.path.join(i_dir, f"{iname}_ion.pdf")
     predict.generate_plots(
-        times,
-        RMs,
-        theta,
-        freq,
-        position=[ra, dec],
-        savename=plot_file
+        times, RMs, theta, freq, position=[ra, dec], savename=plot_file
     )
-    plot_files = glob(os.path.join(i_dir, '*ion.pdf'))
+    plot_files = glob(os.path.join(i_dir, "*ion.pdf"))
     for src in plot_files:
         base = os.path.basename(src)
         dst = os.path.join(plotdir, base)
@@ -109,58 +114,55 @@ def predict_worker(island, field, beam, start_time, end_time, freq, cutdir, plot
 
 
 def main(
-    field,
-    outdir,
-    host,
-    client,
-    username=None,
-    password=None,
+    field: str,
+    outdir: str,
+    host: str,
+    client: Client,
+    username: str = None,
+    password: str = None,
     database=False,
-    verbose=True
+    verbose=True,
 ):
     """Main script
 
     Args:
-        field (str): RACS field
-        outdir (str): Dir containing 'cutouts'
-        host (str): MongoDB host
-        client (client): Dask client
-        username (str, optional): MongoDB username. Defaults to None.
-        password (str, optional): Mongodb password. Defaults to None.
+        field (str): RACS field name
+        outdir (str): Output directory
+        host (str): MongoDB host IP address
+        client (Client): Dask distributed client
+        username (str, optional): Mongo username. Defaults to None.
+        password (str, optional): Mongo passwrod. Defaults to None.
+        database (bool, optional): Update database. Defaults to False.
         verbose (bool, optional): Verbose output. Defaults to True.
     """
     # Query database for data
     outdir = os.path.abspath(outdir)
     cutdir = os.path.join(outdir, "cutouts")
 
-    plotdir = os.path.join(cutdir, 'plots')
+    plotdir = os.path.join(cutdir, "plots")
     try_mkdir(plotdir)
 
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
 
-    query = {
+    query_1 = {
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    beams = list(beams_col.find(query).sort("Source_ID"))
-    island_ids = sorted(beams_col.distinct("Source_ID", query))
+    beams = list(beams_col.find(query_1).sort("Source_ID"))
+    island_ids = sorted(beams_col.distinct("Source_ID", query_1))
 
     # Get FRion arguments
-    query = {"Source_ID": {"$in": island_ids}}
-    islands = list(island_col.find(query).sort("Source_ID"))
+    query_2 = {"Source_ID": {"$in": island_ids}}
+    islands = list(island_col.find(query_2).sort("Source_ID"))
 
-    field_col = get_field_db(
-        host,
-        username=username,
-        password=password
-    )
-    query = {"FIELD_NAME": f"RACS_{field}"}
+    field_col = get_field_db(host, username=username, password=password)
+    query_3 = {"FIELD_NAME": f"RACS_{field}"}
     # Get most recent SBID
-    if field_col.count_documents(query) > 1:
+    if field_col.count_documents(query_3) > 1:
         field_datas = list(field_col.find({"FIELD_NAME": f"RACS_{field}"}))
-        sbids = [f['CAL_SBID'] for f in field_datas]
+        sbids = [f["CAL_SBID"] for f in field_datas]
         max_idx = np.argmax(sbids)
         if verbose:
             print(f"Using CAL_SBID {sbids[max_idx]}")
@@ -168,21 +170,19 @@ def main(
     else:
         field_data = field_col.find_one({"FIELD_NAME": f"RACS_{field}"})
 
-    start_time = Time(field_data['SCAN_START']*u.second, format='mjd')
-    end_time = start_time + TimeDelta(field_data['SCAN_TINT']*u.second)
+    start_time = Time(field_data["SCAN_START"] * u.second, format="mjd")
+    end_time = start_time + TimeDelta(field_data["SCAN_TINT"] * u.second)
 
     freq = getfreq(
         os.path.join(cutdir, f"{beams[0]['beams'][f'{field}']['q_file']}"),
         verbose=verbose,
     )
 
-    
     # Loop over islands in parallel
     outputs = []
     for island in islands:
-        island_id = island['Source_ID']
-        beam_idx = [i for i, b in enumerate(
-            beams) if b['Source_ID'] == island_id][0]
+        island_id = island["Source_ID"]
+        beam_idx = [i for i, b in enumerate(beams) if b["Source_ID"] == island_id][0]
         beam = beams[beam_idx]
         # Get FRion predictions
         predict_file = predict_worker(
@@ -201,7 +201,7 @@ def main(
             outdir=cutdir,
             field=field,
             predict_file=predict_file,
-            island_id=island_id
+            island_id=island_id,
         )
         outputs.append(output)
 
@@ -212,22 +212,20 @@ def main(
     futures = client.persist(outputs)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(10)
-    tqdm_dask(futures, desc="Running FRion", disable=(not verbose), total=len(islands)*2)
+    tqdm_dask(
+        futures, desc="Running FRion", disable=(not verbose), total=len(islands) * 2
+    )
     if database:
         if verbose:
             print("Updating database...")
         updates = [f.compute() for f in futures]
-        db_res = beams_col.bulk_write(
-            updates,
-            ordered=False
-            )
+        db_res = beams_col.bulk_write(updates, ordered=False)
         if verbose:
             pprint(db_res.bulk_api_result)
 
 
 def cli():
-    """Command-line interface
-    """
+    """Command-line interface"""
     import argparse
     import warnings
     from astropy.utils.exceptions import AstropyWarning
@@ -282,13 +280,13 @@ def cli():
     )
 
     parser.add_argument(
-        "--username", type=str, default='admin', help="Username of mongodb."
+        "--username", type=str, default="admin", help="Username of mongodb."
     )
 
     parser.add_argument(
         "--password", type=str, default=None, help="Password of mongodb."
     )
-    
+
     parser.add_argument(
         "-m", "--database", action="store_true", help="Add data to MongoDB [False]."
     )
@@ -296,7 +294,6 @@ def cli():
     parser.add_argument(
         "-v", dest="verbose", action="store_true", help="verbose output [False]."
     )
-
 
     args = parser.parse_args()
 
@@ -308,8 +305,9 @@ def cli():
     client = Client(cluster)
     print(client)
 
-    test_db(host=args.host, username=args.username,
-            password=args.password, verbose=verbose)
+    test_db(
+        host=args.host, username=args.username, password=args.password, verbose=verbose
+    )
 
     main(
         field=args.field,
@@ -319,7 +317,7 @@ def cli():
         username=args.username,
         password=args.password,
         database=args.database,
-        verbose=verbose
+        verbose=verbose,
     )
 
 
