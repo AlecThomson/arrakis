@@ -24,10 +24,24 @@ from time import sleep
 from astropy.time import Time
 import yaml
 import socket
+import configargparse
 
 
-@task(name='Cutout')
-def cut_task(skip, **kwargs):
+@task(name="Cutout")
+def cut_task(skip: bool, **kwargs) -> Task:
+    """Cutout task
+
+    Kwargs passed to cutout.cutout_islands
+
+    Args:
+        skip (bool): Whether to skip this task
+
+    Raises:
+        signals.SUCCESS: If task is skipped
+
+    Returns:
+        Task: Runs cutout.cutout_islands
+    """
     if skip:
         check_cond = True
     else:
@@ -35,13 +49,24 @@ def cut_task(skip, **kwargs):
     if check_cond:
         raise signals.SUCCESS
     else:
-        return cutout.cutout_islands(
-            **kwargs
-        )
+        return cutout.cutout_islands(**kwargs)
 
 
-@task(name='LINMOS')
-def linmos_task(skip, **kwargs):
+@task(name="LINMOS")
+def linmos_task(skip: bool, **kwargs) -> Task:
+    """LINOS task
+
+    Kwargs passed to linmos.main
+
+    Args:
+        skip (bool): Whether to skip this task
+
+    Raises:
+        signals.SUCCESS: If task is skipped
+
+    Returns:
+        Task: Runs linmos.main
+    """
     if skip:
         check_cond = True
     else:
@@ -49,13 +74,24 @@ def linmos_task(skip, **kwargs):
     if check_cond:
         raise signals.SUCCESS
     else:
-        return linmos.main(
-            **kwargs
-        )
+        return linmos.main(**kwargs)
 
 
-@task(name='FRion')
-def frion_task(skip, **kwargs):
+@task(name="FRion")
+def frion_task(skip: bool, **kwargs) -> Task:
+    """FRion task
+
+    Kwargs passed to frion.main
+
+    Args:
+        skip (bool): Whether to skip this task
+
+    Raises:
+        signals.SUCCESS: If task is skipped
+
+    Returns:
+        Task: Runs frion.main
+    """
     if skip:
         check_cond = True
     else:
@@ -63,13 +99,24 @@ def frion_task(skip, **kwargs):
     if check_cond:
         raise signals.SUCCESS
     else:
-        return frion.main(
-            **kwargs
-        )
+        return frion.main(**kwargs)
 
 
-@task(name='Clean up')
-def cleanup_task(skip, **kwargs):
+@task(name="Clean up")
+def cleanup_task(skip: bool, **kwargs) -> Task:
+    """Cleanup task
+
+    Kwargs passed to cleanup.main
+
+    Args:
+        skip (bool): Whether to skip this task
+
+    Raises:
+        signals.SUCCESS: If task is skipped
+
+    Returns:
+        Task: Runs cleanup.main
+    """
     if skip:
         check_cond = True
     else:
@@ -77,13 +124,24 @@ def cleanup_task(skip, **kwargs):
     if check_cond:
         raise signals.SUCCESS
     else:
-        return cleanup.main(
-            **kwargs
-        )
+        return cleanup.main(**kwargs)
 
 
-@task(name='RM Synthesis')
-def rmsynth_task(skip, **kwargs):
+@task(name="RM Synthesis")
+def rmsynth_task(skip: bool, **kwargs) -> Task:
+    """RM synth task
+
+    Kwargs passed to rmsynth_oncuts.main
+
+    Args:
+        skip (bool): Whether to skip this task
+
+    Raises:
+        signals.SUCCESS: If task is skipped
+
+    Returns:
+        Task: Runs rmsynth_oncuts.main
+    """
     if skip:
         check_cond = True
     else:
@@ -91,13 +149,24 @@ def rmsynth_task(skip, **kwargs):
     if check_cond:
         raise signals.SUCCESS
     else:
-        return rmsynth_oncuts.main(
-            **kwargs
-        )
+        return rmsynth_oncuts.main(**kwargs)
 
 
-@task(name='RM-CLEAN')
-def rmclean_task(skip, **kwargs):
+@task(name="RM-CLEAN")
+def rmclean_task(skip: bool, **kwargs) -> Task:
+    """RM-CLEAN task
+
+    Kwargs passed to rmclean_oncuts.main
+
+    Args:
+        skip (bool): Whether to skip this task
+
+    Raises:
+        signals.SUCCESS: If task is skipped
+
+    Returns:
+        Task: Runs rmclean_oncuts.main
+    """
     if skip:
         check_cond = True
     else:
@@ -105,13 +174,24 @@ def rmclean_task(skip, **kwargs):
     if check_cond:
         raise signals.SUCCESS
     else:
-        return rmclean_oncuts.main(
-            **kwargs
-        )
+        return rmclean_oncuts.main(**kwargs)
 
 
-@task(name='Catalogue')
-def cat_task(skip, **kwargs):
+@task(name="Catalogue")
+def cat_task(skip: bool, **kwargs) -> Task:
+    """Catalogue task
+
+    Kwargs passed to makecat.main
+
+    Args:
+        skip (bool): Whether to skip this task
+
+    Raises:
+        signals.SUCCESS: If task is skipped
+
+    Returns:
+        Task: Runs makecat.main
+    """
     if skip:
         check_cond = True
     else:
@@ -119,24 +199,24 @@ def cat_task(skip, **kwargs):
     if check_cond:
         raise signals.SUCCESS
     else:
-        return makecat.main(
-            **kwargs
-        )
+        return makecat.main(**kwargs)
 
 
-def main(args):
+def main(args: configargparse.Namespace) -> None:
     """Main script
+
+    Args:
+        args (configargparse.Namespace): Command line arguments.
     """
     host = args.host
-
 
     if args.dask_config is None:
         scriptdir = os.path.dirname(os.path.realpath(__file__))
         config_dir = f"{scriptdir}/../configs"
-        args.dask_config = f'{config_dir}/default.yaml'
+        args.dask_config = f"{config_dir}/default.yaml"
 
     if args.outfile is None:
-        args.outfile = f'{args.field}.pipe.test.fits'
+        args.outfile = f"{args.field}.pipe.test.fits"
 
     # Following https://github.com/dask/dask-jobqueue/issues/499
     with open(args.dask_config) as f:
@@ -145,15 +225,15 @@ def main(args):
     config.update(
         {
             # 'scheduler_options': {
-                # "dashboard_address": f":{args.port}"
+            # "dashboard_address": f":{args.port}"
             # },
-            'log_directory': f'{args.field}_{Time.now().fits}_spice_logs/'
+            "log_directory": f"{args.field}_{Time.now().fits}_spice_logs/"
         }
     )
     if args.use_mpi:
         initialize(
-            interface=config['interface'],
-            local_directory=config['local_directory'],
+            interface=config["interface"],
+            local_directory=config["local_directory"],
             # dashboard_address=f":{args.port}",
         )
         client = Client()
@@ -161,7 +241,7 @@ def main(args):
         cluster = SLURMCluster(
             **config,
         )
-        print('Submitted scripts will look like: \n', cluster.job_script())
+        print("Submitted scripts will look like: \n", cluster.job_script())
 
         # Request 15 nodes
         cluster.scale(jobs=15)
@@ -172,19 +252,17 @@ def main(args):
         host=args.host,
         username=args.username,
         password=args.password,
-        verbose=args.verbose
+        verbose=args.verbose,
     )
 
     args_yaml = yaml.dump(vars(args))
-    args_yaml_f = os.path.abspath(
-        f'{args.field}-config-{Time.now().fits}.yaml')
+    args_yaml_f = os.path.abspath(f"{args.field}-config-{Time.now().fits}.yaml")
     if args.verbose:
         print(f"Saving config to '{args_yaml_f}'")
-    with open(args_yaml_f, 'w') as f:
+    with open(args_yaml_f, "w") as f:
         f.write(args_yaml)
 
-    port = client.scheduler_info()['services']['dashboard']
-
+    port = client.scheduler_info()["services"]["dashboard"]
 
     # Forward ports
     if args.port_forward is not None:
@@ -192,10 +270,10 @@ def main(args):
             port_forward(port, p)
 
     # Prin out Dask client info
-    print(client.scheduler_info()['services'])
-    
+    print(client.scheduler_info()["services"])
+
     # Define flow
-    with Flow(f'SPICE-RACS: {args.field}') as flow:
+    with Flow(f"SPICE-RACS: {args.field}") as flow:
         cuts = cut_task(
             args.skip_cutout,
             field=args.field,
@@ -208,7 +286,7 @@ def main(args):
             pad=args.pad,
             stokeslist=["I", "Q", "U"],
             verbose_worker=args.verbose_worker,
-            dryrun=args.dryrun
+            dryrun=args.dryrun,
         )
         mosaics = linmos_task(
             args.skip_linmos,
@@ -224,7 +302,7 @@ def main(args):
             prefix="",
             stokeslist=["I", "Q", "U"],
             verbose=True,
-            upstream_tasks=[cuts]
+            upstream_tasks=[cuts],
         )
         tidy = cleanup_task(
             args.skip_cleanup,
@@ -232,7 +310,7 @@ def main(args):
             client=client,
             stokeslist=["I", "Q", "U"],
             verbose=True,
-            upstream_tasks=[mosaics]
+            upstream_tasks=[mosaics],
         )
         frion_run = frion_task(
             args.skip_frion,
@@ -244,7 +322,7 @@ def main(args):
             password=args.password,
             database=args.database,
             verbose=args.verbose,
-            upstream_tasks=[mosaics]
+            upstream_tasks=[mosaics],
         )
         dirty_spec = rmsynth_task(
             args.skip_rmsynth,
@@ -275,7 +353,7 @@ def main(args):
             tt0=args.tt0,
             tt1=args.tt1,
             ion=True,
-            upstream_tasks=[frion_run]
+            upstream_tasks=[frion_run],
         )
         clean_spec = rmclean_task(
             args.skip_rmclean,
@@ -295,7 +373,7 @@ def main(args):
             gain=args.gain,
             showPlots=args.showPlots,
             rm_verbose=args.rm_verbose,
-            upstream_tasks=[dirty_spec]
+            upstream_tasks=[dirty_spec],
         )
         catalogue = cat_task(
             args.skip_cat,
@@ -306,18 +384,15 @@ def main(args):
             verbose=args.verbose,
             outfile=args.outfile,
             cat_format=args.format,
-            upstream_tasks=[clean_spec]
+            upstream_tasks=[clean_spec],
         )
 
-    with performance_report(f'{args.field}-report-{Time.now().fits}.html'):
+    with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
         flow.run()
 
 
 def cli():
-    """Command-line interface
-    """
-    import configargparse
-
+    """Command-line interface"""
     # Help string to be shown using the -h option
     logostr = """
      mmm   mmm   mmm   mmm   mmm
@@ -343,35 +418,28 @@ def cli():
     """
 
     # Parse the command line options
-    parser = configargparse.ArgParser(default_config_files=['.default_config.txt'],
-                                      description=descStr,
-                                      formatter_class=configargparse.RawTextHelpFormatter
-                                      )
-    parser.add(
-        '--config',
-        required=False,
-        is_config_file=True,
-        help='Config file path'
+    parser = configargparse.ArgParser(
+        default_config_files=[".default_config.txt"],
+        description=descStr,
+        formatter_class=configargparse.RawTextHelpFormatter,
     )
+    parser.add("--config", required=False, is_config_file=True, help="Config file path")
     parser.add_argument(
-        'field',
-        metavar='field',
-        type=str,
-        help='Name of field (e.g. 2132-50A).'
+        "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
     )
 
     parser.add_argument(
-        'datadir',
-        metavar='datadir',
+        "datadir",
+        metavar="datadir",
         type=str,
-        help='Directory containing data cubes in FITS format.'
+        help="Directory containing data cubes in FITS format.",
     )
 
     parser.add_argument(
-        '--host',
+        "--host",
         default=None,
         type=str,
-        help='Host of mongodb (probably $hostname -i).'
+        help="Host of mongodb (probably $hostname -i).",
     )
 
     parser.add_argument(
@@ -389,28 +457,24 @@ def cli():
     #     help="Port to run Dask dashboard on."
     # )
     parser.add_argument(
-        '--use_mpi',
+        "--use_mpi",
         action="store_true",
-        help="Use Dask-mpi to parallelise -- must use srun/mpirun to assign resources."
+        help="Use Dask-mpi to parallelise -- must use srun/mpirun to assign resources.",
     )
     parser.add_argument(
-        '--port_forward',
+        "--port_forward",
         default=None,
         help="Platform to fowards dask port [None].",
-        nargs='+'
+        nargs="+",
     )
 
     parser.add_argument(
-        '--dask_config',
+        "--dask_config",
         type=str,
         default=None,
-        help="Config file for Dask SlurmCLUSTER."
+        help="Config file for Dask SlurmCLUSTER.",
     )
-    parser.add_argument(
-        "--holofile",
-        type=str,
-        help="Path to holography image"
-    )
+    parser.add_argument("--holofile", type=str, help="Path to holography image")
 
     parser.add_argument(
         "--yanda",
@@ -421,183 +485,159 @@ def cli():
 
     flowargs = parser.add_argument_group("pipeline flow options")
     flowargs.add_argument(
-        '--skip_cutout',
-        action="store_true",
-        help="Skip cutout stage [False]."
+        "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
     )
     flowargs.add_argument(
-        '--skip_linmos',
-        action="store_true",
-        help="Skip LINMOS stage [False]."
+        "--skip_linmos", action="store_true", help="Skip LINMOS stage [False]."
     )
     flowargs.add_argument(
-        '--skip_cleanup',
-        action="store_true",
-        help="Skip cleanup stage [False]."
+        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
     )
     flowargs.add_argument(
-        '--skip_frion',
-        action="store_true",
-        help="Skip cleanup stage [False]."
+        "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
     )
     flowargs.add_argument(
-        '--skip_rmsynth',
-        action="store_true",
-        help="Skip RM Synthesis stage [False]."
+        "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage [False]."
     )
     flowargs.add_argument(
-        '--skip_rmclean',
-        action="store_true",
-        help="Skip RM-CLEAN stage [False]."
+        "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage [False]."
     )
     flowargs.add_argument(
-        '--skip_cat',
-        action="store_true",
-        help="Skip catalogue stage [False]."
+        "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
     )
 
     options = parser.add_argument_group("output options")
     options.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Verbose output [False]."
+        "-v", "--verbose", action="store_true", help="Verbose output [False]."
     )
     options.add_argument(
         "-vw",
         "--verbose_worker",
         action="store_true",
-        help="Verbose worker output [False]."
+        help="Verbose worker output [False].",
     )
-    cutargs = parser.add_argument_group("cutout arguments"
-                                        )
+    cutargs = parser.add_argument_group("cutout arguments")
     cutargs.add_argument(
-        '-p',
-        '--pad',
+        "-p",
+        "--pad",
         type=float,
         default=5,
-        help='Number of beamwidths to pad around source [5].'
+        help="Number of beamwidths to pad around source [5].",
     )
 
-    cutargs.add_argument(
-        "--dryrun",
-        action="store_true",
-        help="Do a dry-run [False]."
-    )
+    cutargs.add_argument("--dryrun", action="store_true", help="Do a dry-run [False].")
 
     synth = parser.add_argument_group("RM-synth/CLEAN arguments")
 
     synth.add_argument(
         "--dimension",
         default="1d",
-        help="How many dimensions for RMsynth [1d] or '3d'."
+        help="How many dimensions for RMsynth [1d] or '3d'.",
     )
 
     synth.add_argument(
         "-m",
         "--database",
         action="store_true",
-        help="Add RMsynth data to MongoDB [False]."
+        help="Add RMsynth data to MongoDB [False].",
     )
 
     synth.add_argument(
         "--tt0",
         default=None,
         type=str,
-        help="TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1."
+        help="TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1.",
     )
 
     synth.add_argument(
         "--tt1",
         default=None,
         type=str,
-        help="TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0."
+        help="TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.",
     )
 
-    synth.add_argument("--validate",
-                       action="store_true",
-                       help="Run on RMsynth Stokes I [False]."
-                       )
+    synth.add_argument(
+        "--validate", action="store_true", help="Run on RMsynth Stokes I [False]."
+    )
 
-    synth.add_argument("--limit",
-                       default=None,
-                       help="Limit number of sources [All]."
-                       )
+    synth.add_argument("--limit", default=None, help="Limit number of sources [All].")
     tools = parser.add_argument_group("RM-tools arguments")
     # RM-tools args
     tools.add_argument(
-        "-sp",
-        "--savePlots",
-        action="store_true",
-        help="save the plots [False]."
+        "-sp", "--savePlots", action="store_true", help="save the plots [False]."
     )
     tools.add_argument(
         "-w",
         "--weightType",
         default="variance",
-        help="weighting [variance] (all 1s) or 'uniform'."
+        help="weighting [variance] (all 1s) or 'uniform'.",
     )
-    tools.add_argument("--fit_function", type=str, default="log",
-                       help="Stokes I fitting function: 'linear' or ['log'] polynomials.")
     tools.add_argument(
-        "-t", "--fitRMSF",
+        "--fit_function",
+        type=str,
+        default="log",
+        help="Stokes I fitting function: 'linear' or ['log'] polynomials.",
+    )
+    tools.add_argument(
+        "-t",
+        "--fitRMSF",
         action="store_true",
-        help="Fit a Gaussian to the RMSF [False]"
+        help="Fit a Gaussian to the RMSF [False]",
     )
     tools.add_argument(
         "-l",
         "--phiMax_radm2",
         type=float,
         default=None,
-        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto]."
+        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].",
     )
     tools.add_argument(
-        "-d", "--dPhi_radm2",
-        type=float, default=None,
-        help="Width of Faraday depth channel [Auto]."
+        "-d",
+        "--dPhi_radm2",
+        type=float,
+        default=None,
+        help="Width of Faraday depth channel [Auto].",
     )
     tools.add_argument(
         "-s",
         "--nSamples",
         type=float,
         default=5,
-        help="Number of samples across the FWHM RMSF."
+        help="Number of samples across the FWHM RMSF.",
     )
     tools.add_argument(
         "-o",
         "--polyOrd",
         type=int,
         default=3,
-        help="polynomial order to fit to I spectrum [3]."
+        help="polynomial order to fit to I spectrum [3].",
     )
     tools.add_argument(
         "-i",
         "--noStokesI",
         action="store_true",
-        help="ignore the Stokes I spectrum [False]."
+        help="ignore the Stokes I spectrum [False].",
     )
     tools.add_argument(
-        "--showPlots",
-        action="store_true",
-        help="show the plots [False]."
+        "--showPlots", action="store_true", help="show the plots [False]."
     )
     tools.add_argument(
         "-R",
         "--not_RMSF",
         action="store_true",
-        help="Skip calculation of RMSF? [False]"
+        help="Skip calculation of RMSF? [False]",
     )
     tools.add_argument(
         "-rmv",
         "--rm_verbose",
         action="store_true",
-        help="Verbose RMsynth/CLEAN [False]."
+        help="Verbose RMsynth/CLEAN [False].",
     )
     tools.add_argument(
         "-D",
         "--debug",
         action="store_true",
-        help="turn on debugging messages & plots [False]."
+        help="turn on debugging messages & plots [False].",
     )
     # RM-tools args
     tools.add_argument(
@@ -605,38 +645,27 @@ def cli():
         "--cutoff",
         type=float,
         default=-3,
-        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3]."
+        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].",
     )
     tools.add_argument(
         "-n",
         "--maxIter",
         type=int,
         default=10000,
-        help="maximum number of CLEAN iterations [10000]."
+        help="maximum number of CLEAN iterations [10000].",
     )
     tools.add_argument(
-        "-g",
-        "--gain",
-        type=float,
-        default=0.1,
-        help="CLEAN loop gain [0.1]."
+        "-g", "--gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
     )
 
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args
     cat.add_argument(
-        "--outfile",
-        default=None,
-        type=str,
-        help="File to save table to [None]."
+        "--outfile", default=None, type=str, help="File to save table to [None]."
     )
 
     cat.add_argument(
-        "-f",
-        "--format",
-        default=None,
-        type=str,
-        help="Format for output file [None]."
+        "-f", "--format", default=None, type=str, help="Format for output file [None]."
     )
     args = parser.parse_args()
     if not args.use_mpi:
