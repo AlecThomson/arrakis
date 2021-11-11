@@ -1,0 +1,35 @@
+Parallelisation
+---------------
+The pipeline Dask for parallelisation, and optionally for job submission. Dask be run either using either `dask-jobque <https://jobqueue.dask.org/en/latest/>`_ or `dask-mpi <http://mpi.dask.org/en/latest/>`_ for parallelisation. The latter requires a working version of the `mpi4py <https://mpi4py.readthedocs.io/en/latest/>`_ package. The pipeline is currently configured for the `galaxy` and `magnus` supercomputers at the `Pawsey Centre <https://pawsey.org.au/>`_, which uses a Slurm job manager.
+
+.. tip ::
+    Note that mpi4py needs to point to the same MPI compiler used by the MPI executable. This can be tricky to find on some systems. If in doubt, get in touch with your local sysadmin.
+
+Configuration is specicfied by a configuration file (written in YAML). These are stored in :file:`spiceracs/configs/`. Either use these as is for galaxy or magnus, or add your own configuration by editing the variable (see the dask-jobqueue `docs <https://jobqueue.dask.org/en/latest/configuration.html/>`_).
+
+.. code-block:: yaml
+
+    # Set up for Magnus
+    cores: 24
+    processes: 12
+    name: 'spice-worker'
+    memory: "60GB"
+    project: 'ja3'
+    queue: 'workq'
+    walltime: '6:00:00'
+    job_extra: ['-M magnus']
+    # interface for the workers
+    interface: "ipogif0"
+    log_directory: 'spice_logs'
+    env_extra: [
+        'export OMP_NUM_THREADS=1',
+        'source /home/$(whoami)/.bashrc',
+        'conda activate spice'
+    ]
+    python: 'srun -n 1 -c 24 python'
+    extra: [
+        "--lifetime", "11h",
+        "--lifetime-stagger", "5m",
+    ]
+    death_timeout: 300
+    local_directory: '/dev/shm'

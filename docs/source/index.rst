@@ -3,13 +3,28 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to SPICE-RACS's documentation!
-======================================
+Documentation for SPICE-RACS
+============================
 
+**S**\ pectra and **P**\ olarization **I**\ n **C**\ utouts of **E**\ xtragalactic sources from **R**\ ACS
+-----------------------------------------------------------------------------------------------------------
+
+Scripts for processing polarized RACS data products.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
-   
+
+   install
+   parallel
+   start
+   pipeline
+   acknowledge
+
+..  readme
+
+
+
 
 Indices and tables
 ==================
