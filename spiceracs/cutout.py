@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+"""Produce cutouts from RACS cubes"""
+import argparse
 import warnings
 import pymongo
 import dask
@@ -27,7 +29,15 @@ import os
 from glob import glob
 from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord, Longitude, Latitude
-from spiceracs.utils import getdata, MyEncoder, try_mkdir, tqdm_dask, get_db, test_db, fix_header
+from spiceracs.utils import (
+    getdata,
+    MyEncoder,
+    try_mkdir,
+    tqdm_dask,
+    get_db,
+    test_db,
+    fix_header,
+)
 from astropy.utils import iers
 import astropy.units as u
 from spectral_cube import SpectralCube
@@ -35,6 +45,8 @@ from pprint import pprint
 import warnings
 from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
+
+from typing import List, Dict, Tuple
 
 iers.conf.auto_download = False
 warnings.filterwarnings(
@@ -45,36 +57,42 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
 
+
 @delayed
 def cutout(
-    image,
-    src_name,
-    beam,
-    ra_hi,
-    ra_lo,
-    dec_hi,
-    dec_lo,
-    outdir,
-    stoke,
-    field,
+    image: str,
+    src_name: str,
+    beam: int,
+    ra_hi: float,
+    ra_lo: float,
+    dec_hi: float,
+    dec_lo: float,
+    outdir: str,
+    stoke: str,
+    field: str,
     pad=3,
     verbose=False,
-    dryrun=False
-):
-    """Cutout a source from a given image.
+    dryrun=False,
+) -> pymongo.UpdateOne:
+    """Perform a cutout.
 
-    Arguments:
-        image {str} -- Name of the FITS image to cutout from
-        src_name {str} -- Name of the source
-        ra {float} -- RA of source in DEG
-        dec {float} -- DEC of source in DEG
-        src_width {float} -- Width of source in DEG
-        outdir {str} -- Directory to save cutout
+    Args:
+        image (str): Name of the image file
+        src_name (str): Name of the RACS source
+        beam (int): Beam number
+        ra_hi (float): Upper RA bound
+        ra_lo (float): Lower RA bound
+        dec_hi (float): Upper DEC bound
+        dec_lo (float): Lower DEC bound
+        outdir (str): Output directgory
+        stoke (str): Stokes parameter
+        field (str): RACS field name
+        pad (int, optional): Number of beamwidths to pad. Defaults to 3.
+        verbose (bool, optional): Verbose output. Defaults to False.
+        dryrun (bool, optional): Don't save FITS files. Defaults to False.
 
-    Keyword Arguments:
-        pad {int} -- Number of beamwidth to pad cutout (default: {3})
-        verbose {bool} -- Verbose output (default: {False})
-        dryrun {bool} -- Do everything except the cutout (default: {True})
+    Returns:
+        pymongo.UpdateOne: Update query for MongoDB
     """
     outdir = os.path.abspath(outdir)
 
@@ -91,16 +109,15 @@ def cutout(
             outfile = outfile.replace("image.restored", "weights").replace(
                 ".conv.fits", ".txt"
             )
-            copyfile(image,outfile)
+            copyfile(image, outfile)
             if verbose:
                 print(f"Written to {outfile}")
-
 
         if imtype == "image":
             if verbose:
                 print(f"Reading {image}")
             with warnings.catch_warnings():
-                warnings.simplefilter('ignore', AstropyWarning)
+                warnings.simplefilter("ignore", AstropyWarning)
                 cube = SpectralCube.read(image)
             padder = cube.header["BMAJ"] * u.deg * pad
 
@@ -122,17 +139,26 @@ def cutout(
             cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
             new_header = cutout_cube.header
             with warnings.catch_warnings():
-                warnings.simplefilter('ignore', AstropyWarning)
+                warnings.simplefilter("ignore", AstropyWarning)
                 with fits.open(image, memmap=True, mode="denywrite") as hdulist:
                     data = hdulist[0].data
                     old_header = hdulist[0].header
 
                     sub_data = data[
-                        :, :, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx  # freq, Stokes, y, x
+                        :,
+                        :,
+                        yp_lo_idx:yp_hi_idx,
+                        xp_lo_idx:xp_hi_idx,  # freq, Stokes, y, x
                     ]
                 fixed_header = fix_header(new_header, old_header)
                 if not dryrun:
-                    fits.writeto(outfile, sub_data, header=fixed_header, overwrite=True, output_verify='fix')
+                    fits.writeto(
+                        outfile,
+                        sub_data,
+                        header=fixed_header,
+                        overwrite=True,
+                        output_verify="fix",
+                    )
                     if verbose:
                         print(f"Written to {outfile}")
 
@@ -153,35 +179,49 @@ def cutout(
 
 @delayed
 def get_args(
-    island, comps, beam, island_id, outdir, field, datadir, stokeslist, verbose=True
-):
-    """[summary]
+    island: Dict,
+    comps: List[Dict],
+    beam: Dict,
+    island_id: str,
+    outdir: str,
+    field: str,
+    datadir: str,
+    stokeslist: List[str],
+    verbose=True,
+) -> List[Dict]:
+    """Get arguments for cutout function
 
     Args:
-        island (bool): [description]
-        beam ([type]): [description]
-        island_id (bool): [description]
-        outdir ([type]): [description]
-        field ([type]): [description]
-        datadir ([type]): [description]
-        verbose ([type]): [description]
-        dryrun ([type]): [description]
+        island (str): Mongo entry for RACS island
+        comps (List[Dict]): List of mongo entries for RACS components in island
+        beam (Dict): Mongo entry for the RACS beam
+        island_id (str): RACS island ID
+        outdir (str): Output directory
+        field (str): RACS field name
+        datadir (str): Input directory
+        stokeslist (List[str]): List of Stokes parameters to process
+        verbose (bool, optional): Verbose output. Defaults to True.
+
+    Raises:
+        e: Exception
+        Exception: Problems with coordinates
 
     Returns:
-        [type]: [description]
+        List[Dict]: List of cutout arguments for cutout function
     """
+
     assert island["Source_ID"] == island_id
     assert beam["Source_ID"] == island_id
 
-    beam_list = list(set(beam['beams'][field]['beam_list']))
+    beam_list = list(set(beam["beams"][field]["beam_list"]))
 
     outdir = f"{outdir}/{island['Source_ID']}"
     try_mkdir(outdir, verbose=verbose)
 
     # Find image size
-    ras = []
-    decs = []
-    majs = []
+    ras = [] # type: List[float]
+    decs = [] # type: List[float]
+    majs = [] # type: List[float]
     for comp in comps:
         ras = ras + [comp["RA"]]
         decs = decs + [comp["Dec"]]
@@ -243,13 +283,30 @@ def get_args(
 
 
 @delayed
-def find_comps(island_id, comp_col):
+def find_comps(island_id: str, comp_col: pymongo.collection.Collection) -> List[Dict]:
+    """Find components for a given island
+
+    Args:
+        island_id (str): RACS island ID
+        comp_col (pymongo.collection.Collection): Component collection
+
+    Returns:
+        List[Dict]: List of mongo entries for RACS components in island
+    """
     comps = list(comp_col.find({"Source_ID": island_id}))
     return comps
 
 
 @delayed
-def unpack(list_sq):
+def unpack(list_sq: List[List[Dict]]) -> List[Dict]:
+    """Unpack list of lists
+
+    Args:
+        list_sq (List[List[Dict]]): List of lists of dicts
+
+    Returns:
+        List[Dict]: List of dicts
+    """
     list_fl = []
     for i in list_sq:
         for j in i:
@@ -258,18 +315,33 @@ def unpack(list_sq):
 
 
 def cutout_islands(
-    field,
-    directory,
-    host,
-    client,
-    username=None,
-    password=None,
+    field: str,
+    directory: str,
+    host: str,
+    client: Client,
+    username: str = None,
+    password: str = None,
     verbose=True,
     pad=3,
-    stokeslist=None,
+    stokeslist: List[str] = None,
     verbose_worker=False,
     dryrun=True,
-):
+) -> None:
+    """Perform cutouts of RACS islands in parallel.
+
+    Args:
+        field (str): RACS field name.
+        directory (str): Directory to store cutouts.
+        host (str): MongoDB host.
+        client (Client): Dask client.
+        username (str, optional): Mongo username. Defaults to None.
+        password (str, optional): Mongo password. Defaults to None.
+        verbose (bool, optional): Verbose output. Defaults to True.
+        pad (int, optional): Number of beamwidths to pad cutouts. Defaults to 3.
+        stokeslist (List[str], optional): Stokes parameters to cutout. Defaults to None.
+        verbose_worker (bool, optional): Worker function outout. Defaults to False.
+        dryrun (bool, optional): Do everything except write FITS files. Defaults to True.
+    """
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
     if verbose:
@@ -289,9 +361,11 @@ def cutout_islands(
     beams = list(beams_col.find(query).sort("Source_ID"))
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))
-    islands = list(island_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID"))
+    islands = list(
+        island_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
+    )
 
-    big_comps = list(comp_col.find({"Source_ID": {'$in': island_ids}}))
+    big_comps = list(comp_col.find({"Source_ID": {"$in": island_ids}}))
     comps = []
     for island_id in island_ids:
         _comps = []
@@ -325,7 +399,7 @@ def cutout_islands(
     flat_args = unpack(args)
     flat_args = client.compute(flat_args)
     tqdm_dask(
-        flat_args, desc="Getting args", disable=(not verbose), total=len(islands)+1
+        flat_args, desc="Getting args", disable=(not verbose), total=len(islands) + 1
     )
     flat_args = flat_args.result()
     cuts = []
@@ -362,12 +436,14 @@ def cutout_islands(
 
     print("Cutouts Done!")
 
-def main(args, verbose=True):
+
+def main(args: argparse.Namespace, verbose=True) -> None:
     """Main script
 
-    Arguments:
-        args {[type]} -- commandline args
-    """
+    Args:
+        args (argparse.Namespace): Command-line args
+        verbose (bool, optional): Verbose output. Defaults to True.
+    """    
     cluster = LocalCluster(
         n_workers=12, threads_per_worker=1, dashboard_address=":9898"
     )
@@ -390,11 +466,8 @@ def main(args, verbose=True):
     print("Done!")
 
 
-def cli():
-    """Command-line interface
-    """
-    import argparse
-
+def cli() -> None:
+    """Command-line interface"""
     # Help string to be shown using the -h option
     logostr = """
      mmm   mmm   mmm   mmm   mmm
@@ -483,12 +556,10 @@ def cli():
 
     args = parser.parse_args()
 
+
     verbose = args.verbose
     test_db(
-        host=args.host,
-        username=args.username,
-        password=args.password,
-        verbose=verbose
+        host=args.host, username=args.username, password=args.password, verbose=verbose
     )
 
     main(args, verbose=verbose)
