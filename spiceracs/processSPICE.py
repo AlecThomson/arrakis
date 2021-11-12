@@ -298,8 +298,6 @@ def main(args: configargparse.Namespace) -> None:
             username=args.username,
             password=args.password,
             yanda=args.yanda,
-            dryrun=False,
-            prefix="",
             stokeslist=["I", "Q", "U"],
             verbose=True,
             upstream_tasks=[cuts],
