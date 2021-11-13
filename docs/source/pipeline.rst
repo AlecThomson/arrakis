@@ -122,3 +122,7 @@ With an initalised database you can call the pipeline: ::
 
 
 You can optionally pass a configuration file (with the :code:`--config` argument) to set the options you prefer. An example file in contained in :file:`spiceracs/.default_config.txt`.
+
+For extra information you can refer to the API:
+
+* :py:mod:`spiceracs.processSPICE`

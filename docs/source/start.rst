@@ -56,3 +56,7 @@ Then run the initialisation script: ::
     -v, --verbose         Verbose output [False].
     -l, --load            Load catalogue into database [False].
     --field               Load field table into database [False].
+
+For extra information you can refer to the API:
+
+* :py:mod:`spiceracs.init_database`

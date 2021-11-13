@@ -5,7 +5,8 @@
 
 .. autoapi-nested-parse::
 
-   
+   Run RM-synthesis on cutouts in parallel
+
    ..
        !! processed by numpydoc !!
 
@@ -49,25 +50,28 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:function:: main(field, outdir, host, client, username=None, password=None, dimension='1d', verbose=True, database=False, savePlots=True, validate=False, limit=None, cutoff=-3, maxIter=10000, gain=0.1, showPlots=False, rm_verbose=False)
+.. py:function:: main(field: str, outdir: str, host: str, client: dask.distributed.Client, username: str = None, password: str = None, dimension='1d', verbose=True, database=False, savePlots=True, validate=False, limit: int = None, cutoff: float = -3, maxIter=10000, gain=0.1, showPlots=False, rm_verbose=False)
 
    
    Main script
 
-   :Parameters: * **field** (*str*) -- RACS field
-                * **outdir** (*str*) -- Work directory (contains 'cutouts' as subdir)
-                * **host** (*str*) -- MongoDB host
-                * **client** (*Client*) -- Dask client
-                * **dimension** (*str, optional*) -- RM-CLEAN dimension. Defaults to '1d'.
+   :Parameters: * **field** (*str*) -- RACS field name.
+                * **outdir** (*str*) -- Output directory.
+                * **host** (*str*) -- MongoDB host IP.
+                * **client** (*Client*) -- Dask client.
+                * **username** (*str, optional*) -- Mongo username. Defaults to None.
+                * **password** (*str, optional*) -- Mongo password. Defaults to None.
+                * **dimension** (*str, optional*) -- Which dimension to run RM-CLEAN. Defaults to "1d".
                 * **verbose** (*bool, optional*) -- Verbose output. Defaults to True.
-                * **database** (*bool, optional*) -- Update MongoDB. Defaults to False.
-                * **validate** (*bool, optional*) -- Run on Stokes I. Defaults to False.
-                * **limit** (*int, optional*) -- Limit number of sources to CLEAN. Defaults to None.
-                * **cutoff** (*float, optional*) -- CLEAN cutof. Defaults to -3.
-                * **maxIter** (*int, optional*) -- CLEAN max iterations. Defaults to 10000.
-                * **gain** (*float, optional*) -- CLEAN gain. Defaults to 0.1.
-                * **showPlots** (*bool, optional*) -- Show CLEAN plots. Defaults to False.
-                * **rm_verbose** (*bool, optional*) -- Verbose RM-CLEAN. Defaults to False.
+                * **database** (*bool, optional*) -- Update database. Defaults to False.
+                * **savePlots** (*bool, optional*) -- Save plots. Defaults to True.
+                * **validate** (*bool, optional*) -- Run validation. Defaults to False.
+                * **limit** (*int, optional*) -- Limit number of sources processed. Defaults to None.
+                * **cutoff** (*float, optional*) -- CLEAN cutoff (in sigma). Defaults to -3.
+                * **maxIter** (*int, optional*) -- Max CLEAN iterations. Defaults to 10000.
+                * **gain** (*float, optional*) -- Clean gain. Defaults to 0.1.
+                * **showPlots** (*bool, optional*) -- Show interactive plots. Defaults to False.
+                * **rm_verbose** (*bool, optional*) -- Verbose output from RM-CLEAN. Defaults to False.
 
 
 
@@ -86,21 +90,22 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:function:: rmclean1d(comp, outdir, cutoff=-3, maxIter=10000, gain=0.1, showPlots=False, savePlots=False, rm_verbose=True)
+.. py:function:: rmclean1d(comp: dict, outdir: str, cutoff: float = -3, maxIter=10000, gain=0.1, showPlots=False, savePlots=False, rm_verbose=True) -> pymongo.UpdateOne
 
    
    1D RM-CLEAN
 
-   :Parameters: * **comp_id** (*str*) -- RACS component ID
-                * **host** (*str*) -- MongoDB host
-                * **field** (*str*) -- RACS field
-                * **cutoff** (*int, optional*) -- CLEAN cutoff. Defaults to -3.
-                * **maxIter** (*int, optional*) -- CLEAN max iterations. Defaults to 10000.
+   :Parameters: * **comp** (*dict*) -- Mongo entry for component.
+                * **outdir** (*str*) -- Output directory.
+                * **cutoff** (*float, optional*) -- CLEAN cutouff (in sigma). Defaults to -3.
+                * **maxIter** (*int, optional*) -- Maximum CLEAN interation. Defaults to 10000.
                 * **gain** (*float, optional*) -- CLEAN gain. Defaults to 0.1.
-                * **showPlots** (*bool, optional*) -- Show plots. Defaults to False.
-                * **savePlots** (*bool, optional*) -- Save plots. Defaults to False.
-                * **database** (*bool, optional*) -- Update MongoDB. Defaults to False.
+                * **showPlots** (*bool, optional*) -- Show CLEAN plots. Defaults to False.
+                * **savePlots** (*bool, optional*) -- Save CLEAN plots. Defaults to False.
                 * **rm_verbose** (*bool, optional*) -- Verbose RM-CLEAN. Defaults to True.
+
+   :returns: MongoDB update query.
+   :rtype: pymongo.UpdateOne
 
 
 
@@ -119,18 +124,20 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:function:: rmclean3d(island, outdir, cutoff=-3, maxIter=10000, gain=0.1, rm_verbose=False)
+.. py:function:: rmclean3d(island: dict, outdir: str, cutoff: float = -3, maxIter=10000, gain=0.1, rm_verbose=False) -> pymongo.UpdateOne
 
    
-   3D RM-CLEAN
+   Run RM-CLEAN on 3D cube
 
-   :Parameters: * **island_id** (*str*) -- RACS Island ID
-                * **host** (*str*) -- MongoDB host
-                * **field** (*str*) -- RACS field
-                * **cutoff** (*int, optional*) -- CLEAN cutoff. Defaults to -3.
-                * **maxIter** (*int, optional*) -- CLEAN max iterations. Defaults to 10000.
+   :Parameters: * **island** (*dict*) -- MongoDB island entry.
+                * **outdir** (*str*) -- Output directory.
+                * **cutoff** (*float, optional*) -- CLEAN cutoff (in sigma). Defaults to -3.
+                * **maxIter** (*int, optional*) -- Max CLEAN iterations. Defaults to 10000.
                 * **gain** (*float, optional*) -- CLEAN gain. Defaults to 0.1.
-                * **rm_verbose** (*bool, optional*) -- Verbose RM-CLEAN. Defaults to False.
+                * **rm_verbose** (*bool, optional*) -- Verbose output. Defaults to False.
+
+   :returns: MongoDB update query.
+   :rtype: pymongo.UpdateOne
 
 
 
