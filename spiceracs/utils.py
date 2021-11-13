@@ -410,7 +410,7 @@ def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:
 
     Returns:
         Tuple[Table, str]: Table and it's file location.
-    """    
+    """
     if tabledir[-1] == "/":
         tabledir = tabledir[:-1]
     # Glob out the necessary files
