@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from typing import Optional, Tuple
 import numpy as np
 import os
 import stat
@@ -18,6 +19,7 @@ import subprocess
 from pathlib import Path
 from astropy.table import Table
 from astropy.wcs import WCS
+from astropy.coordinates import SkyCoord
 import astropy.units as u
 import functools
 from os import name
@@ -28,21 +30,44 @@ import warnings
 from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
 from FRion.correct import find_freq_axis
+from typing import Tuple, List, Dict, Any, Union, Optional
+import dask
+import dask.distributed as distributed
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
 
-def yes_or_no(question):
+
+def yes_or_no(question: str) -> bool:
+    """Ask a yes or no question via input()
+
+    Args:
+        question (str): Question to ask
+
+    Returns:
+        bool: True for yes, False for no
+    """
     while "Please answer 'y' or 'n'":
         reply = str(input(question + " (y/n): ")).lower().strip()
         if reply[:1] == "y":
-            return True
+            ret = True
         if reply[:1] == "n":
-            return False
+            ret = False
+    return ret
 
-def fix_header(cutout_header, original_header):
+
+def fix_header(cutout_header: fits.Header, original_header: fits.Header) -> fits.Header:
+    """Make cutout header the same as original header
+
+    Args:
+        cutout_header (fits.Header): Cutout header
+        original_header (fits.Header): Original header
+
+    Returns:
+        fits.Header: Fixed header
+    """
     axis_cut = find_freq_axis(cutout_header)
     axis_orig = find_freq_axis(original_header)
     fixed_header = cutout_header.copy()
@@ -55,7 +80,7 @@ def fix_header(cutout_header, original_header):
     return fixed_header
 
 
-def deg_to_hms(deg):
+def deg_to_hms(deg: float) -> hms_tuple:
     """Convert degree to hms without astropy.
 
     Args:
@@ -63,7 +88,7 @@ def deg_to_hms(deg):
 
     Returns:
         hms_tuple: HMS, like coord.ra.hms
-    """    
+    """
     h_per_d = 24 / 360
     hours = deg * h_per_d
     hour = float(int(hours))
@@ -72,7 +97,8 @@ def deg_to_hms(deg):
     seconds = (minutes - minute) * 60
     return hms_tuple(hour, minute, seconds)
 
-def deg_to_dms(deg):
+
+def deg_to_dms(deg: float) -> dms_tuple:
     """Convert degree to hms without astropy.
 
     Args:
@@ -80,33 +106,48 @@ def deg_to_dms(deg):
 
     Returns:
         hms_tuple: DMS, like coord.dec.dms
-    """  
+    """
     degree = float(int(deg))
     minutes = (deg - degree) * 60
     minute = float(int(minutes))
     seconds = (minutes - minute) * 60
     return dms_tuple(degree, minute, seconds)
 
-def coord_to_string(coord):
+
+def coord_to_string(coord: SkyCoord) -> Tuple[str, str]:
     """Convert coordinate to string without astropy
 
     Args:
         coord (SkyCoord): Coordinate
 
     Returns:
-        (str,str): Tuple of RA string, Dec string
-    """    
+        Tuple[str,str]: Tuple of RA string, Dec string
+    """
     ra = coord.ra
     dec = coord.dec
 
     ra_hms = deg_to_hms(ra.value)
     dec_dms = deg_to_dms(dec.value)
-    
+
     ra_str = f"{ra_hms.h:02.0f}:{ra_hms.m:02.0f}:{ra_hms.s:06.3f}"
     dec_str = f"{dec_dms.d:02.0f}:{abs(dec_dms.m):02.0f}:{abs(dec_dms.s):05.2f}"
     return ra_str, dec_str
 
-def test_db(host, username=None, password=None, verbose=True):
+
+def test_db(
+    host: str, username: str = None, password: str = None, verbose=True
+) -> None:
+    """Test connection to MongoDB
+
+    Args:
+        host (str): Mongo host IP.
+        username (str, optional): Mongo username. Defaults to None.
+        password (str, optional): Mongo password. Defaults to None.
+        verbose (bool, optional): Verbose output. Defaults to True.
+
+    Raises:
+        Exception: If connection fails.
+    """
     if verbose:
         print("Testing MongoDB connection...")
     # default connection (ie, local)
@@ -125,7 +166,10 @@ def test_db(host, username=None, password=None, verbose=True):
             if verbose:
                 print("MongoDB connection succesful!")
 
-def get_db(host, username=None, password=None):
+
+def get_db(
+    host: str, username: str = None, password: str = None
+) -> Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]:
     """Get MongoDBs
 
     Args:
@@ -134,7 +178,7 @@ def get_db(host, username=None, password=None):
         password (str, optional): Password. Defaults to None.
 
     Returns:
-        Tuple(Collection): beams_col, island_col, comp_col
+        Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]: beams_col, island_col, comp_col
     """
     with pymongo.MongoClient(
         host=host,
@@ -149,7 +193,8 @@ def get_db(host, username=None, password=None):
         beams_col = mydb["beams"]  # Create/open collection
     return beams_col, island_col, comp_col
 
-def get_field_db(host, username=None, password=None):
+
+def get_field_db(host: str, username=None, password=None) -> pymongo.Collection:
     """Get MongoDBs
 
     Args:
@@ -158,7 +203,7 @@ def get_field_db(host, username=None, password=None):
         password (str, optional): Password. Defaults to None.
 
     Returns:
-        Tuple(Collection): beams_col, island_col, comp_col
+        pymongo.Collection: beams_col, island_col, comp_col
     """
     with pymongo.MongoClient(
         host=host,
@@ -171,8 +216,11 @@ def get_field_db(host, username=None, password=None):
         field_col = mydb["fields"]  # Create/open collection
     return field_col
 
+
 # stolen from https://github.com/tqdm/tqdm/issues/278
 class TqdmProgressBar(ProgressBar):
+    """Tqdm for Dask"""
+
     def __init__(
         self,
         keys,
@@ -199,14 +247,15 @@ class TqdmProgressBar(ProgressBar):
         self.tqdm.close()
 
 
-def tqdm_dask(futures, **kwargs):
+def tqdm_dask(futures: distributed.Future, **kwargs) -> None:
+    """Tqdm for Dask futures"""
     futures = futures_of(futures)
     if not isinstance(futures, (set, list)):
         futures = [futures]
     TqdmProgressBar(futures, **kwargs)
 
 
-def port_forward(port, target):
+def port_forward(port: int, target: str) -> None:
     """Forward ports to local host
 
     Args:
@@ -219,7 +268,13 @@ def port_forward(port, target):
     output = subprocess.Popen(command)
 
 
-def try_mkdir(dir_path, verbose=True):
+def try_mkdir(dir_path: str, verbose=True):
+    """Create directory if it doesn't exist
+
+    Args:
+        dir_path (str): Path to directory
+        verbose (bool, optional): Verbose output. Defaults to True.
+    """
     # Create output dir if it doesn't exist
     try:
         os.mkdir(dir_path)
@@ -230,7 +285,7 @@ def try_mkdir(dir_path, verbose=True):
             print(f"Directory '{dir_path}' exists.")
 
 
-def head2dict(h):
+def head2dict(h: fits.Header) -> Dict[str, Any]:
     """Convert FITS header to a dict.
 
     Writes a cutout, as stored in source_dict, to disk. The file location
@@ -277,7 +332,7 @@ class MyEncoder(json.JSONEncoder):
             return super(MyEncoder, self).default(obj)
 
 
-def cpu_to_use(max_cpu, count):
+def cpu_to_use(max_cpu: int, count: int) -> int:
     """Find number of cpus to use.
 
     Find the right number of cpus to use when dividing up a task, such
@@ -285,7 +340,7 @@ def cpu_to_use(max_cpu, count):
 
     Args:
         max_cpu (int): Maximum number of cores to use for a process.
-        count (float): Number of tasks.
+        count (int): Number of tasks.
 
     Returns:
         Maximum number of cores to be used that divides into the number
@@ -295,277 +350,20 @@ def cpu_to_use(max_cpu, count):
     for i in range(1, count + 1):
         if count % i == 0:
             factors.append(i)
-    factors = np.array(factors)
-    return max(factors[factors <= max_cpu])
+    factors_arr = np.array(factors)
+    return np.max(factors_arr[factors_arr <= max_cpu])
 
 
-def tmatchtwo(
-    inN,
-    valuesN,
-    matcher="sky",
-    params=10,
-    omode="out",
-    out="tmatch.default.xml",
-    join="1or2",
-    verbose=True,
-):
-    """
-    inN = <tableN>       (StarTable)
-        The location of input table #N. This may take one of the
-        following forms:
-            A filename.
-            A URL.
-            The special value "-", meaning standard input. In this case
-            the input format must be given explicitly using the ifmtN
-            parameter. Note that not all formats can be streamed in this
-            way.
-            A system command line with either a "<" character at the
-            start, or a "|" character at the end ("<syscmd" or
-            "syscmd|"). This executes the given pipeline and reads from
-            its standard output. This will probably only work on
-            unix-like systems.
-
-    valuesN = <expr-list>       (String[])
-        Defines the values from table N which are used to determine
-        whether a match has occurred. These will typically be coordinate
-        values such as RA and Dec and perhaps some per-row error values
-        as well, though exactly what values are required is determined
-        by the kind of match as determined by matcher. Depending on the
-        kind of match, the number and type of the values required will
-        be different. Multiple values should be separated by whitespace;
-        if whitespace occurs within a single value it must be 'quoted'
-        or "quoted". Elements of the expression list are commonly just
-        column names, but may be algebraic expressions calculated from
-        zero or more columns as explained in Section 10.
-
-    matcher = <matcher-name>       (MatchEngine)
-        Defines the nature of the matching that will be performed. 
-        Depending on the name supplied, this may be positional matching
-        using celestial or Cartesian coordinates, exact matching on the
-        value of a string column, or other things. A list and
-        explanation of the available matching algorithms is given in
-        Section 7.1. The value supplied for this parameter determines
-        the meanings of the values required by the params, values* and
-        tuning parameter(s).
-        [Default: sky]
-
-    params = <match-params>       (String[])
-        Determines the parameters of this match. This is typically one
-        or more tolerances such as error radii. It may contain zero or
-        more values; the values that are required depend on the match
-        type selected by the matcher parameter. If it contains multiple 
-        alues, they must be separated by spaces; values which contain a
-        space can be 'quoted' or "quoted".    
-
-    omode = out|meta|stats|count|cgi|discard|topcat|samp|plastic
-                |tosql|gui       (ProcessingMode)
-        The mode in which the result table will be output. The default
-        mode is out, which means that the result will be written as a
-        new table to disk or elsewhere, as determined by the out and
-        ofmt parameters. However, there are other possibilities, which
-        correspond to uses to which a table can be put other than
-        outputting it, such as displaying metadata, calculating
-        statistics, or populating a table in an SQL database. For some
-        values of this parameter, additional parameters (<mode-args>)
-        are required to determine the exact behaviour.
-        [Default: out]
-
-    out = <out-table>       (TableConsumer)
-        The location of the output table. This is usually a filename to
-        write to. If it is equal to the special value "-" (the default)
-        the output table will be written to standard output.
-        This parameter must only be given if omode has its default
-        value of "out".
-        [Default: -]
-
-    join = 1and2|1or2|all1|all2|1not2|2not1|1xor2       (JoinType)
-        Determines which rows are included in the output table. The
-        matching algorithm determines which of the rows from the first
-        table correspond to which rows from the second. This parameter
-        determines what to do with that information. Perhaps the most
-        obvious thing is to write out a table containing only rows which
-        correspond to a row in both of the two input tables. However,
-        you may also want to see the unmatched rows from one or both
-        input tables, or rows present in one table but unmatched in the
-        other, or other possibilities. The options are:
-            1and2: An output row for each row represented in both input
-                tables (INNER JOIN)
-            1or2: An output row for each row represented in either or
-                both of the input tables (FULL OUTER JOIN)
-            all1: An output row for each matched or unmatched row in
-                table 1 (LEFT OUTER JOIN)
-            all2: An output row for each matched or unmatched row in
-                table 2 (RIGHT OUTER JOIN)
-            1not2: An output row only for rows which appear in the first
-                table but are not matched in the second table
-            2not1: An output row only for rows which appear in the
-                second table but are not matched in the first table
-            1xor2: An output row only for rows represented in one of the
-                input tables but not the other one
-        [Default: 1and2]
-
-    """
-    assert len(inN) == 2, "Can only match 2 tables!"
-    assert len(valuesN) == 2, "Can only match 2 tables!"
-    assert len(inN) == len(valuesN), "Need same number of inputs (2)."
-    stiltspath = (
-        Path(os.path.realpath(__file__)).parent.parent
-        / "thirdparty"
-        / "stilts"
-        / "stilts.jar"
-    )
-    # Construct command
-    if verbose:
-        progress = "log"
-    if not verbose:
-        progress = "none"
-    command = [
-        "java",
-        "-jar",
-        stiltspath,
-        "tmatch2",
-        f"matcher={matcher}",
-        f"params={params}",
-        f"omode={omode}",
-        f"out={out}",
-        f"progress={progress}",
-        f"join={join}",
-    ]
-    for i in range(len(inN)):
-        command.append(f"in{i+1}={inN[i]}")
-        command.append(f"values{i+1}={valuesN[i]}")
-    command = [str(i) for i in command]
-    # Run STILTS
-    proc = subprocess.run(
-        command, capture_output=(not verbose), encoding="utf-8", check=True
-    )
-
-
-def tmatchn(
-    nin,
-    inN,
-    valuesN,
-    matcher="sky",
-    params=10,
-    omode="out",
-    out="tmatch.default.xml",
-    verbose=True,
-):
-    """Run STILTS tmatchn
-    nin = <count>       (Integer)
-        The number of input tables for this task. For each of the input
-        tables N there will be associated parameters ifmtN, inN and
-        icmdN.
-
-    inN = <tableN>       (StarTable)
-        The location of input table #N. This may take one of the
-        following forms:
-            A filename.
-            A URL.
-            The special value "-", meaning standard input. In this case
-            the input format must be given explicitly using the ifmtN
-            parameter. Note that not all formats can be streamed in this
-            way.
-            A system command line with either a "<" character at the
-            start, or a "|" character at the end ("<syscmd" or
-            "syscmd|"). This executes the given pipeline and reads from
-            its standard output. This will probably only work on
-            unix-like systems.
-
-    valuesN = <expr-list>       (String[])
-        Defines the values from table N which are used to determine
-        whether a match has occurred. These will typically be coordinate
-        values such as RA and Dec and perhaps some per-row error values
-        as well, though exactly what values are required is determined
-        by the kind of match as determined by matcher. Depending on the
-        kind of match, the number and type of the values required will
-        be different. Multiple values should be separated by whitespace;
-        if whitespace occurs within a single value it must be 'quoted'
-        or "quoted". Elements of the expression list are commonly just
-        column names, but may be algebraic expressions calculated from
-        zero or more columns as explained in Section 10.
-
-    matcher = <matcher-name>       (MatchEngine)
-        Defines the nature of the matching that will be performed.
-        Depending on the name supplied, this may be positional matching
-        using celestial or Cartesian coordinates, exact matching on the
-        value of a string column, or other things. A list and
-        explanation of the available matching algorithms is given in
-        Section 7.1. The value supplied for this parameter determines
-        the meanings of the values required by the params, values* and
-        tuning parameter(s).
-        [Default: sky]
-
-    params = <match-params>       (String[])
-        Determines the parameters of this match. This is typically one
-        or more tolerances such as error radii. It may contain zero or
-        more values; the values that are required depend on the match
-        type selected by the matcher parameter. If it contains multiple
-        values, they must be separated by spaces; values which contain a
-        space can be 'quoted' or "quoted".
-
-    omode = out|meta|stats|count|cgi|discard|topcat|samp|plastic|tosql|gui
-            (ProcessingMode)
-        The mode in which the result table will be output. The default
-        mode is out, which means that the result will be written as a
-        new table to disk or elsewhere, as determined by the out and
-        ofmt parameters. However, there are other possibilities, which
-        correspond to uses to which a table can be put other than
-        outputting it, such as displaying metadata, calculating
-        statistics, or populating a table in an SQL database. For some
-        values of this parameter, additional parameters (<mode-args>)
-        are required to determine the exact behaviour.
-        [Default: out]
-    out = <out-table>       (TableConsumer)
-        The location of the output table. This is usually a filename to
-        write to. If it is equal to the special value "-" (the default)
-        the output table will be written to standard output.
-        This parameter must only be given if omode has its default value 
-        of "out".
-        [Default: -]
-    """
-    stiltspath = (
-        Path(os.path.realpath(__file__)).parent.parent
-        / "thirdparty"
-        / "stilts"
-        / "stilts.jar"
-    )
-    # Construct command
-    if verbose:
-        progress = "log"
-    if not verbose:
-        progress = "none"
-    command = [
-        "java",
-        "-jar",
-        stiltspath,
-        "tmatchn",
-        f"nin={nin}",
-        f"matcher={matcher}",
-        f"params={params}",
-        f"omode={omode}",
-        f"out={out}",
-        f"progress={progress}",
-    ]
-    for i in range(len(inN)):
-        command.append(f"in{i+1}={inN[i]}")
-        command.append(f"values{i+1}={valuesN[i]}")
-    command = [str(i) for i in command]
-    # Run STILTS
-    proc = subprocess.run(
-        command, capture_output=(not verbose), encoding="utf-8", check=True
-    )
-
-
-def getfreq(cube, outdir=None, filename=None, verbose=False):
+def getfreq(
+    cube: str, outdir: str = None, filename: str = None, verbose=False
+) -> Union[np.ndarray, Tuple[np.ndarray, str]]:
     """Get list of frequencies from FITS data.
 
     Gets the frequency list from a given cube. Can optionally save
     frequency list to disk.
 
     Args:
-        cube (str or SpectralCube): File or cube to get spectral
-            axis from. If a file, it will be opened using SpectralCube.
+        cube (str): File to get spectral axis from.
 
     Kwargs:
         outdir (str): Where to save the output file. If not given, data
@@ -580,24 +378,11 @@ def getfreq(cube, outdir=None, filename=None, verbose=False):
         freq (list): Frequencies of each channel in the input cube.
 
     """
-
-    # # If cube is a file, open with SpectralCube
-    # with warnings.catch_warnings():
-    #     warnings.simplefilter('ignore', AstropyWarning)
-    #     if type(cube) is str:
-    #         cube = SpectralCube.read(cube, mode="denywrite")
-
-    # # Test that cube is Spectral cube
-    # assert type(cube) is SpectralCube, "cube should be a SpectralCube!"
-
-    # # Get frequencies
-    # freq = cube.spectral_axis
-
-    with fits.open(cube, memmap=True, mode='denywrite') as hdulist:
+    with fits.open(cube, memmap=True, mode="denywrite") as hdulist:
         hdu = hdulist[0]
         data = hdu.data
     wcs = WCS(hdu)
-    freq = wcs.spectral.pixel_to_world(np.arange(data.shape[0]))
+    freq = wcs.spectral.pixel_to_world(np.arange(data.shape[0]))  # Type: np.ndarray
 
     # Write to file if outdir is specified
     if outdir is not None:
@@ -610,30 +395,22 @@ def getfreq(cube, outdir=None, filename=None, verbose=False):
         if verbose:
             print(f"Saving to {outfile}")
         np.savetxt(outfile, np.array(freq))
-    else:
-        outfile = None
-
-    if outfile is not None:
         return freq, outfile
     else:
         return freq
 
 
-def gettable(tabledir, keyword, verbose=True):
-    """Get the spectral and source-finding data.
+def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:
+    """Get a table from a directory given a keyword to glob.
 
     Args:
-        tabledir (str): Directory containing Selavy results.
-        keyword (str): Glob out files containing '*.keyword.*'.
-
-    Kwargs:
-        verbose (bool): Whether to print messages.
+        tabledir (str): Directory.
+        keyword (str): Keyword to glob for.
+        verbose (bool, optional): Verbose output. Defaults to True.
 
     Returns:
-        datadict (dict): Dictionary of necessary astropy tables and
-            Spectral cubes.
-
-    """
+        Tuple[Table, str]: Table and it's file location.
+    """    
     if tabledir[-1] == "/":
         tabledir = tabledir[:-1]
     # Glob out the necessary files
@@ -645,7 +422,7 @@ def gettable(tabledir, keyword, verbose=True):
     # Get selvay data from VOTab
     table = Table.read(filename, format="votable")
     table = table.to_pandas()
-    str_df = table.select_dtypes([np.object])
+    str_df = table.select_dtypes([object])
     str_df = str_df.stack().str.decode("utf-8").unstack()
     for col in str_df:
         table[col] = str_df[col]
