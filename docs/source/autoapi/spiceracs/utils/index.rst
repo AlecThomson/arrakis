@@ -44,8 +44,6 @@ Functions
    spiceracs.utils.head2dict
    spiceracs.utils.port_forward
    spiceracs.utils.test_db
-   spiceracs.utils.tmatchn
-   spiceracs.utils.tmatchtwo
    spiceracs.utils.tqdm_dask
    spiceracs.utils.try_mkdir
    spiceracs.utils.yes_or_no
@@ -304,6 +302,7 @@ Attributes
    Bases: :py:obj:`distributed.diagnostics.progressbar.ProgressBar`
 
    
+   Tqdm for Dask
 
 
 
@@ -389,7 +388,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: coord_to_string(coord)
+.. py:function:: coord_to_string(coord: astropy.coordinates.SkyCoord) -> Tuple[str, str]
 
    
    Convert coordinate to string without astropy
@@ -397,7 +396,7 @@ Attributes
    :Parameters: **coord** (*SkyCoord*) -- Coordinate
 
    :returns: Tuple of RA string, Dec string
-   :rtype: (str,str)
+   :rtype: Tuple[str,str]
 
 
 
@@ -463,7 +462,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: cpu_to_use(max_cpu, count)
+.. py:function:: cpu_to_use(max_cpu: int, count: int) -> int
 
    
    Find number of cpus to use.
@@ -472,7 +471,7 @@ Attributes
    that there are no remainders.
 
    :Parameters: * **max_cpu** (*int*) -- Maximum number of cores to use for a process.
-                * **count** (*float*) -- Number of tasks.
+                * **count** (*int*) -- Number of tasks.
 
    :returns: Maximum number of cores to be used that divides into the number
 
@@ -493,7 +492,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: deg_to_dms(deg)
+.. py:function:: deg_to_dms(deg: float) -> astropy.coordinates.angles.dms_tuple
 
    
    Convert degree to hms without astropy.
@@ -520,7 +519,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: deg_to_hms(deg)
+.. py:function:: deg_to_hms(deg: float) -> astropy.coordinates.angles.hms_tuple
 
    
    Convert degree to hms without astropy.
@@ -547,10 +546,16 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: fix_header(cutout_header, original_header)
+.. py:function:: fix_header(cutout_header: astropy.io.fits.Header, original_header: astropy.io.fits.Header) -> astropy.io.fits.Header
 
    
+   Make cutout header the same as original header
 
+   :Parameters: * **cutout_header** (*fits.Header*) -- Cutout header
+                * **original_header** (*fits.Header*) -- Original header
+
+   :returns: Fixed header
+   :rtype: fits.Header
 
 
 
@@ -569,7 +574,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: get_db(host, username=None, password=None)
+.. py:function:: get_db(host: str, username: str = None, password: str = None) -> Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]
 
    
    Get MongoDBs
@@ -579,7 +584,7 @@ Attributes
                 * **password** (*str, optional*) -- Password. Defaults to None.
 
    :returns: beams_col, island_col, comp_col
-   :rtype: Tuple(Collection)
+   :rtype: Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]
 
 
 
@@ -598,7 +603,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: get_field_db(host, username=None, password=None)
+.. py:function:: get_field_db(host: str, username=None, password=None) -> pymongo.Collection
 
    
    Get MongoDBs
@@ -608,7 +613,7 @@ Attributes
                 * **password** (*str, optional*) -- Password. Defaults to None.
 
    :returns: beams_col, island_col, comp_col
-   :rtype: Tuple(Collection)
+   :rtype: pymongo.Collection
 
 
 
@@ -662,7 +667,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: getfreq(cube, outdir=None, filename=None, verbose=False)
+.. py:function:: getfreq(cube: str, outdir: str = None, filename: str = None, verbose=False) -> Union[numpy.ndarray, Tuple[numpy.ndarray, str]]
 
    
    Get list of frequencies from FITS data.
@@ -670,8 +675,7 @@ Attributes
    Gets the frequency list from a given cube. Can optionally save
    frequency list to disk.
 
-   :Parameters: **cube** (*str or SpectralCube*) -- File or cube to get spectral
-                axis from. If a file, it will be opened using SpectralCube.
+   :Parameters: **cube** (*str*) -- File to get spectral axis from.
 
    Kwargs:
        outdir (str): Where to save the output file. If not given, data
@@ -702,22 +706,17 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: gettable(tabledir, keyword, verbose=True)
+.. py:function:: gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[astropy.table.Table, str]
 
    
-   Get the spectral and source-finding data.
+   Get a table from a directory given a keyword to glob.
 
-   :Parameters: * **tabledir** (*str*) -- Directory containing Selavy results.
-                * **keyword** (*str*) -- Glob out files containing '*.keyword.*'.
+   :Parameters: * **tabledir** (*str*) -- Directory.
+                * **keyword** (*str*) -- Keyword to glob for.
+                * **verbose** (*bool, optional*) -- Verbose output. Defaults to True.
 
-   Kwargs:
-       verbose (bool): Whether to print messages.
-
-   :returns:
-
-             Dictionary of necessary astropy tables and
-                 Spectral cubes.
-   :rtype: datadict (dict)
+   :returns: Table and it's file location.
+   :rtype: Tuple[Table, str]
 
 
 
@@ -736,7 +735,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: head2dict(h)
+.. py:function:: head2dict(h: astropy.io.fits.Header) -> Dict[str, Any]
 
    
    Convert FITS header to a dict.
@@ -767,7 +766,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: port_forward(port, target)
+.. py:function:: port_forward(port: int, target: str) -> None
 
    
    Forward ports to local host
@@ -792,9 +791,39 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: test_db(host, username=None, password=None, verbose=True)
+.. py:function:: test_db(host: str, username: str = None, password: str = None, verbose=True) -> None
 
    
+   Test connection to MongoDB
+
+   :Parameters: * **host** (*str*) -- Mongo host IP.
+                * **username** (*str, optional*) -- Mongo username. Defaults to None.
+                * **password** (*str, optional*) -- Mongo password. Defaults to None.
+                * **verbose** (*bool, optional*) -- Verbose output. Defaults to True.
+
+   :raises Exception: If connection fails.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: tqdm_dask(futures: dask.distributed.Future, **kwargs) -> None
+
+   
+   Tqdm for Dask futures
 
 
 
@@ -814,81 +843,13 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: tmatchn(nin, inN, valuesN, matcher='sky', params=10, omode='out', out='tmatch.default.xml', verbose=True)
+.. py:function:: try_mkdir(dir_path: str, verbose=True)
 
    
-   Run STILTS tmatchn
-   nin = <count>       (Integer)
-       The number of input tables for this task. For each of the input
-       tables N there will be associated parameters ifmtN, inN and
-       icmdN.
+   Create directory if it doesn't exist
 
-   inN = <tableN>       (StarTable)
-       The location of input table #N. This may take one of the
-       following forms:
-           A filename.
-           A URL.
-           The special value "-", meaning standard input. In this case
-           the input format must be given explicitly using the ifmtN
-           parameter. Note that not all formats can be streamed in this
-           way.
-           A system command line with either a "<" character at the
-           start, or a "|" character at the end ("<syscmd" or
-           "syscmd|"). This executes the given pipeline and reads from
-           its standard output. This will probably only work on
-           unix-like systems.
-
-   valuesN = <expr-list>       (String[])
-       Defines the values from table N which are used to determine
-       whether a match has occurred. These will typically be coordinate
-       values such as RA and Dec and perhaps some per-row error values
-       as well, though exactly what values are required is determined
-       by the kind of match as determined by matcher. Depending on the
-       kind of match, the number and type of the values required will
-       be different. Multiple values should be separated by whitespace;
-       if whitespace occurs within a single value it must be 'quoted'
-       or "quoted". Elements of the expression list are commonly just
-       column names, but may be algebraic expressions calculated from
-       zero or more columns as explained in Section 10.
-
-   matcher = <matcher-name>       (MatchEngine)
-       Defines the nature of the matching that will be performed.
-       Depending on the name supplied, this may be positional matching
-       using celestial or Cartesian coordinates, exact matching on the
-       value of a string column, or other things. A list and
-       explanation of the available matching algorithms is given in
-       Section 7.1. The value supplied for this parameter determines
-       the meanings of the values required by the params, values* and
-       tuning parameter(s).
-       [Default: sky]
-
-   params = <match-params>       (String[])
-       Determines the parameters of this match. This is typically one
-       or more tolerances such as error radii. It may contain zero or
-       more values; the values that are required depend on the match
-       type selected by the matcher parameter. If it contains multiple
-       values, they must be separated by spaces; values which contain a
-       space can be 'quoted' or "quoted".
-
-   omode = out|meta|stats|count|cgi|discard|topcat|samp|plastic|tosql|gui
-           (ProcessingMode)
-       The mode in which the result table will be output. The default
-       mode is out, which means that the result will be written as a
-       new table to disk or elsewhere, as determined by the out and
-       ofmt parameters. However, there are other possibilities, which
-       correspond to uses to which a table can be put other than
-       outputting it, such as displaying metadata, calculating
-       statistics, or populating a table in an SQL database. For some
-       values of this parameter, additional parameters (<mode-args>)
-       are required to determine the exact behaviour.
-       [Default: out]
-   out = <out-table>       (TableConsumer)
-       The location of the output table. This is usually a filename to
-       write to. If it is equal to the special value "-" (the default)
-       the output table will be written to standard output.
-       This parameter must only be given if omode has its default value
-       of "out".
-       [Default: -]
+   :Parameters: * **dir_path** (*str*) -- Path to directory
+                * **verbose** (*bool, optional*) -- Verbose output. Defaults to True.
 
 
 
@@ -907,168 +868,15 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: tmatchtwo(inN, valuesN, matcher='sky', params=10, omode='out', out='tmatch.default.xml', join='1or2', verbose=True)
+.. py:function:: yes_or_no(question: str) -> bool
 
    
-   inN = <tableN>       (StarTable)
-       The location of input table #N. This may take one of the
-       following forms:
-           A filename.
-           A URL.
-           The special value "-", meaning standard input. In this case
-           the input format must be given explicitly using the ifmtN
-           parameter. Note that not all formats can be streamed in this
-           way.
-           A system command line with either a "<" character at the
-           start, or a "|" character at the end ("<syscmd" or
-           "syscmd|"). This executes the given pipeline and reads from
-           its standard output. This will probably only work on
-           unix-like systems.
+   Ask a yes or no question via input()
 
-   valuesN = <expr-list>       (String[])
-       Defines the values from table N which are used to determine
-       whether a match has occurred. These will typically be coordinate
-       values such as RA and Dec and perhaps some per-row error values
-       as well, though exactly what values are required is determined
-       by the kind of match as determined by matcher. Depending on the
-       kind of match, the number and type of the values required will
-       be different. Multiple values should be separated by whitespace;
-       if whitespace occurs within a single value it must be 'quoted'
-       or "quoted". Elements of the expression list are commonly just
-       column names, but may be algebraic expressions calculated from
-       zero or more columns as explained in Section 10.
+   :Parameters: **question** (*str*) -- Question to ask
 
-   matcher = <matcher-name>       (MatchEngine)
-       Defines the nature of the matching that will be performed.
-       Depending on the name supplied, this may be positional matching
-       using celestial or Cartesian coordinates, exact matching on the
-       value of a string column, or other things. A list and
-       explanation of the available matching algorithms is given in
-       Section 7.1. The value supplied for this parameter determines
-       the meanings of the values required by the params, values* and
-       tuning parameter(s).
-       [Default: sky]
-
-   params = <match-params>       (String[])
-       Determines the parameters of this match. This is typically one
-       or more tolerances such as error radii. It may contain zero or
-       more values; the values that are required depend on the match
-       type selected by the matcher parameter. If it contains multiple
-       alues, they must be separated by spaces; values which contain a
-       space can be 'quoted' or "quoted".
-
-   omode = out|meta|stats|count|cgi|discard|topcat|samp|plastic
-               |tosql|gui       (ProcessingMode)
-       The mode in which the result table will be output. The default
-       mode is out, which means that the result will be written as a
-       new table to disk or elsewhere, as determined by the out and
-       ofmt parameters. However, there are other possibilities, which
-       correspond to uses to which a table can be put other than
-       outputting it, such as displaying metadata, calculating
-       statistics, or populating a table in an SQL database. For some
-       values of this parameter, additional parameters (<mode-args>)
-       are required to determine the exact behaviour.
-       [Default: out]
-
-   out = <out-table>       (TableConsumer)
-       The location of the output table. This is usually a filename to
-       write to. If it is equal to the special value "-" (the default)
-       the output table will be written to standard output.
-       This parameter must only be given if omode has its default
-       value of "out".
-       [Default: -]
-
-   join = 1and2|1or2|all1|all2|1not2|2not1|1xor2       (JoinType)
-       Determines which rows are included in the output table. The
-       matching algorithm determines which of the rows from the first
-       table correspond to which rows from the second. This parameter
-       determines what to do with that information. Perhaps the most
-       obvious thing is to write out a table containing only rows which
-       correspond to a row in both of the two input tables. However,
-       you may also want to see the unmatched rows from one or both
-       input tables, or rows present in one table but unmatched in the
-       other, or other possibilities. The options are:
-           1and2: An output row for each row represented in both input
-               tables (INNER JOIN)
-           1or2: An output row for each row represented in either or
-               both of the input tables (FULL OUTER JOIN)
-           all1: An output row for each matched or unmatched row in
-               table 1 (LEFT OUTER JOIN)
-           all2: An output row for each matched or unmatched row in
-               table 2 (RIGHT OUTER JOIN)
-           1not2: An output row only for rows which appear in the first
-               table but are not matched in the second table
-           2not1: An output row only for rows which appear in the
-               second table but are not matched in the first table
-           1xor2: An output row only for rows represented in one of the
-               input tables but not the other one
-       [Default: 1and2]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-   ..
-       !! processed by numpydoc !!
-
-.. py:function:: tqdm_dask(futures, **kwargs)
-
-   
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-   ..
-       !! processed by numpydoc !!
-
-.. py:function:: try_mkdir(dir_path, verbose=True)
-
-   
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-   ..
-       !! processed by numpydoc !!
-
-.. py:function:: yes_or_no(question)
-
-   
-
+   :returns: True for yes, False for no
+   :rtype: bool
 
 
 
