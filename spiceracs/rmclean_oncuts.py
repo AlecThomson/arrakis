@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Run RM-synthesis on cutouts in parallel"""
 from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, get_db, test_db
 import json
 import numpy as np
@@ -24,30 +25,32 @@ from glob import glob
 from shutil import copyfile
 from pprint import pprint
 
+
 @delayed
 def rmclean1d(
-    comp,
-    outdir,
-    cutoff=-3,
+    comp: dict,
+    outdir: str,
+    cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
     showPlots=False,
     savePlots=False,
     rm_verbose=True,
-):
+) -> pymongo.UpdateOne:
     """1D RM-CLEAN
 
     Args:
-        comp_id (str): RACS component ID
-        host (str): MongoDB host
-        field (str): RACS field
-        cutoff (int, optional): CLEAN cutoff. Defaults to -3.
-        maxIter (int, optional): CLEAN max iterations. Defaults to 10000.
+        comp (dict): Mongo entry for component.
+        outdir (str): Output directory.
+        cutoff (float, optional): CLEAN cutouff (in sigma). Defaults to -3.
+        maxIter (int, optional): Maximum CLEAN interation. Defaults to 10000.
         gain (float, optional): CLEAN gain. Defaults to 0.1.
-        showPlots (bool, optional): Show plots. Defaults to False.
-        savePlots (bool, optional): Save plots. Defaults to False.
-        database (bool, optional): Update MongoDB. Defaults to False.
+        showPlots (bool, optional): Show CLEAN plots. Defaults to False.
+        savePlots (bool, optional): Save CLEAN plots. Defaults to False.
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to True.
+
+    Returns:
+        pymongo.UpdateOne: MongoDB update query.
     """
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
@@ -89,13 +92,11 @@ def rmclean1d(
         )
 
         # Save output
-        do_RMclean_1D.saveOutput(
-            outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
+        do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
         if savePlots:
             plotdir = os.path.join(outdir, "plots")
             plot_files = glob(
-                os.path.join(os.path.abspath(
-                    os.path.dirname(fdfFile)), "*.pdf")
+                os.path.join(os.path.abspath(os.path.dirname(fdfFile)), "*.pdf")
             )
             for src in plot_files:
                 base = os.path.basename(src)
@@ -105,10 +106,7 @@ def rmclean1d(
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
-            "$set": {
-                "rmclean1d": True,
-                "rmclean_summary": outdict
-            },
+            "$set": {"rmclean1d": True, "rmclean_summary": outdict},
         }
     except KeyError:
         print("Failed to load data! RM-CLEAN not applied to component!")
@@ -125,13 +123,26 @@ def rmclean1d(
 
 @delayed
 def rmclean3d(
-    island,
-    outdir,
-    cutoff=-3,
+    island: dict,
+    outdir: str,
+    cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
     rm_verbose=False,
-):
+) -> pymongo.UpdateOne:
+    """Run RM-CLEAN on 3D cube
+
+    Args:
+        island (dict): MongoDB island entry.
+        outdir (str): Output directory.
+        cutoff (float, optional): CLEAN cutoff (in sigma). Defaults to -3.
+        maxIter (int, optional): Max CLEAN iterations. Defaults to 10000.
+        gain (float, optional): CLEAN gain. Defaults to 0.1.
+        rm_verbose (bool, optional): Verbose output. Defaults to False.
+
+    Returns:
+        pymongo.UpdateOne: MongoDB update query.
+    """
     """3D RM-CLEAN
 
     Args:
@@ -179,19 +190,19 @@ def rmclean3d(
 
 
 def main(
-    field,
-    outdir,
-    host,
-    client,
-    username=None,
-    password=None,
+    field: str,
+    outdir: str,
+    host: str,
+    client: Client,
+    username: str = None,
+    password: str = None,
     dimension="1d",
     verbose=True,
     database=False,
     savePlots=True,
     validate=False,
-    limit=None,
-    cutoff=-3,
+    limit: int = None,
+    cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
     showPlots=False,
@@ -200,20 +211,23 @@ def main(
     """Main script
 
     Args:
-        field (str): RACS field
-        outdir (str): Work directory (contains 'cutouts' as subdir)
-        host (str): MongoDB host
-        client (Client): Dask client
-        dimension (str, optional): RM-CLEAN dimension. Defaults to '1d'.
+        field (str): RACS field name.
+        outdir (str): Output directory.
+        host (str): MongoDB host IP.
+        client (Client): Dask client.
+        username (str, optional): Mongo username. Defaults to None.
+        password (str, optional): Mongo password. Defaults to None.
+        dimension (str, optional): Which dimension to run RM-CLEAN. Defaults to "1d".
         verbose (bool, optional): Verbose output. Defaults to True.
-        database (bool, optional): Update MongoDB. Defaults to False.
-        validate (bool, optional): Run on Stokes I. Defaults to False.
-        limit (int, optional): Limit number of sources to CLEAN. Defaults to None.
-        cutoff (float, optional): CLEAN cutof. Defaults to -3.
-        maxIter (int, optional): CLEAN max iterations. Defaults to 10000.
-        gain (float, optional): CLEAN gain. Defaults to 0.1.
-        showPlots (bool, optional): Show CLEAN plots. Defaults to False.
-        rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to False.
+        database (bool, optional): Update database. Defaults to False.
+        savePlots (bool, optional): Save plots. Defaults to True.
+        validate (bool, optional): Run validation. Defaults to False.
+        limit (int, optional): Limit number of sources processed. Defaults to None.
+        cutoff (float, optional): CLEAN cutoff (in sigma). Defaults to -3.
+        maxIter (int, optional): Max CLEAN iterations. Defaults to 10000.
+        gain (float, optional): Clean gain. Defaults to 0.1.
+        showPlots (bool, optional): Show interactive plots. Defaults to False.
+        rm_verbose (bool, optional): Verbose output from RM-CLEAN. Defaults to False.
     """
     outdir = os.path.abspath(outdir)
     outdir = os.path.join(outdir, "cutouts")
@@ -230,15 +244,13 @@ def main(
     beams = list(beams_col.find(query).sort("Source_ID"))
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
 
-    query = {
-        "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]}
+    query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]}
 
     islands = list(island_col.find(query).sort("Source_ID"))
     island_ids = [doc["Source_ID"] for doc in islands]
     n_island = island_col.count_documents(query)
 
-    query = {
-        "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
+    query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
 
     components = list(comp_col.find(query).sort("Source_ID"))
     component_ids = [doc["Gaussian_ID"] for doc in components]
@@ -319,8 +331,7 @@ def main(
 
 
 def cli():
-    """Command-line interface
-    """
+    """Command-line interface"""
     import argparse
     from astropy.utils.exceptions import AstropyWarning
 
@@ -447,10 +458,7 @@ def cli():
     verbose = args.verbose
     host = args.host
     test_db(
-        host=args.host,
-        username=args.username,
-        password=args.password,
-        verbose=verbose
+        host=args.host, username=args.username, password=args.password, verbose=verbose
     )
 
     main(
