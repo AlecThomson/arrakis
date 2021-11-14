@@ -256,7 +256,8 @@ def main(args: configargparse.Namespace) -> None:
     )
 
     args_yaml = yaml.dump(vars(args))
-    args_yaml_f = os.path.abspath(f"{args.field}-config-{Time.now().fits}.yaml")
+    args_yaml_f = os.path.abspath(
+        f"{args.field}-config-{Time.now().fits}.yaml")
     if args.verbose:
         print(f"Saving config to '{args_yaml_f}'")
     with open(args_yaml_f, "w") as f:
@@ -421,7 +422,8 @@ def cli():
         description=descStr,
         formatter_class=configargparse.RawTextHelpFormatter,
     )
-    parser.add("--config", required=False, is_config_file=True, help="Config file path")
+    parser.add("--config", required=False,
+               is_config_file=True, help="Config file path")
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
     )
@@ -472,7 +474,12 @@ def cli():
         default=None,
         help="Config file for Dask SlurmCLUSTER.",
     )
-    parser.add_argument("--holofile", type=str, help="Path to holography image")
+    parser.add_argument(
+        "--holofile",
+        type=str,
+        default=None,
+        help="Path to holography image"
+    )
 
     parser.add_argument(
         "--yanda",
@@ -523,7 +530,8 @@ def cli():
         help="Number of beamwidths to pad around source [5].",
     )
 
-    cutargs.add_argument("--dryrun", action="store_true", help="Do a dry-run [False].")
+    cutargs.add_argument("--dryrun", action="store_true",
+                         help="Do a dry-run [False].")
 
     synth = parser.add_argument_group("RM-synth/CLEAN arguments")
 
@@ -558,7 +566,8 @@ def cli():
         "--validate", action="store_true", help="Run on RMsynth Stokes I [False]."
     )
 
-    synth.add_argument("--limit", default=None, help="Limit number of sources [All].")
+    synth.add_argument("--limit", default=None,
+                       help="Limit number of sources [All].")
     tools = parser.add_argument_group("RM-tools arguments")
     # RM-tools args
     tools.add_argument(

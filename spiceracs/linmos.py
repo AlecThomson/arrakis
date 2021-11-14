@@ -28,7 +28,8 @@ import warnings
 from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
 
-warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
+warnings.filterwarnings(
+    action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -78,7 +79,8 @@ def gen_seps(field: str) -> Table:
         beam = int(beam)
 
         beam_dat = beam_cat.loc[beam]
-        beam_coord = SkyCoord(beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
+        beam_coord = SkyCoord(
+            beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
         field_coord = SkyCoord(
             master_cat["RA_DEG"] * u.deg, master_cat["DEC_DEG"] * u.deg
         )
@@ -111,7 +113,7 @@ def genparset(
     stoke: str,
     datadir: str,
     septab: Table,
-    holofile: str,
+    holofile: str = None,
 ) -> str:
     """Generate parset for LINMOS
 
@@ -142,7 +144,8 @@ def genparset(
     ims = sorted(ims)
 
     if len(ims) == 0:
-        raise Exception("No files found. Have you run imaging? Check your prefix?")
+        raise Exception(
+            "No files found. Have you run imaging? Check your prefix?")
     imlist = "[" + ",".join([im.replace(".fits", "") for im in ims]) + "]"
 
     wgts = []
@@ -162,7 +165,8 @@ def genparset(
             os.path.dirname(wt)
         ), "Image and weight are in different areas!"
 
-    weightlist = "[" + ",".join([wgt.replace(".fits", "") for wgt in wgts]) + "]"
+    weightlist = "[" + ",".join([wgt.replace(".fits", "")
+                                for wgt in wgts]) + "]"
 
     parset_dir = os.path.join(
         os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0]))
@@ -178,20 +182,17 @@ linmos.outweight        = {wgts[0][:wgts[0].find('beam')]}linmos
 linmos.useweightslog    = true
 linmos.weighttype       = Combined
 linmos.weightstate      = Inherent
+"""
+
+    if holofile is not None:
+        parset += f"""
 linmos.primarybeam      = ASKAP_PB
 linmos.primarybeam.ASKAP_PB.image = {holofile}
 linmos.removeleakage    = true
-# Reference image for offsets
-# linmos.feeds.centre     = [{septab['FOOTPRINT_RA'][0]}, {septab['FOOTPRINT_DEC'][0]}]
-# linmos.feeds.spacing    = 1deg
-# Beam offsets
 """
-    # for im in ims:
-    #     basename = im.replace(".fits", "")
-    #     idx = basename.find("beam")
-    #     beamno = int(basename[len("beam") + idx: len("beam") + idx + 2])
-    #     offset = f"linmos.feeds.{basename} = [{septab[beamno]['DELTA_RA']},{septab[beamno]['DELTA_DEC']}]\n"
-    #     parset += offset
+    else:
+        print("No holography file provided - not correcting leakage!")
+
     with open(parset_file, "w") as f:
         f.write(parset)
 
@@ -239,7 +240,8 @@ def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.Up
     if output["return_code"] != 0:
         raise Exception(f"LINMOS failed! Check '{log}'")
 
-    new_files = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
+    new_files = glob(
+        f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
     if len(new_files) != 1:
         raise Exception(f"LINMOS file not found! -- check {log}?")
@@ -277,7 +279,7 @@ def main(
     datadir: str,
     client: Client,
     host: str,
-    holofile: str,
+    holofile: str = None,
     username: str = None,
     password: str = None,
     yanda="1.3.0",
@@ -407,7 +409,12 @@ def cli():
         help="Directory containing cutouts (in subdir outdir/cutouts)..",
     )
 
-    parser.add_argument("--holofile", type=str, help="Path to holography image")
+    parser.add_argument(
+        "--holofile",
+        type=str,
+        default=None,
+        help="Path to holography image"
+    )
 
     parser.add_argument(
         "-d",
