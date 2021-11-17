@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+"""Merge multiple RACS fields"""
 import os
 from pprint import pprint
 from shutil import copyfile
@@ -65,6 +67,7 @@ def copy_singleton(
             f"beams.{merge_name}.i_file": make_short_name(i_file_new),
             f"beams.{merge_name}.q_file": make_short_name(q_file_new),
             f"beams.{merge_name}.u_file": make_short_name(u_file_new),
+            f"beams.{merge_name}.DR1": True,
         }
     }
 
@@ -113,7 +116,6 @@ def genparset(
     new_dir: str,
 
 ) -> str:
-
     imlist = "[" + ','.join([im.replace('.fits', '') for im in old_ims]) + "]"
     weightlist = f"[{','.join([im.replace('.fits', '').replace('.image.restored.','.weights.').replace('.ion','') for im in old_ims])}]"
 
@@ -282,7 +284,7 @@ def main(
         multiple_futures, desc="Running LINMOS on overlapping islands", disable=(not verbose), total=len(mutilple_updates_flat)*2+1
     )
 
-    multiple_comp = [f.compute() for f in multiple_futures]
+    multiple_comp = [f.compute()._doc.update({f"beams.{merge_name}.DR1": True}) for f in multiple_futures]
 
     db_res_single = beams_col.bulk_write(singleton_comp, ordered=False)
     if verbose:
@@ -311,6 +313,12 @@ def cli():
     )
 
     parser.add_argument(
+        "--merge_name",
+        type=str,
+        help="Name of the merged region",
+    )
+
+    parser.add_argument(
         "--fields",
         type=str,
         nargs='+',
@@ -325,15 +333,9 @@ def cli():
     )
 
     parser.add_argument(
-        "--merge_name",
-        type=str,
-        help="Name of the merged region",
-    )
-
-    parser.add_argument(
         "--output_dir",
         type=str,
-        help="Path to save merged data (in output_dir/merge_name)",
+        help="Path to save merged data (in output_dir/merge_name/cutouts)",
     )
 
     parser.add_argument(
