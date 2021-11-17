@@ -169,7 +169,7 @@ def test_db(
 
 def get_db(
     host: str, username: str = None, password: str = None
-) -> Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]:
+) -> Tuple[pymongo.collection.Collection, pymongo.collection.Collection, pymongo.collection.Collection]:
     """Get MongoDBs
 
     Args:
@@ -194,7 +194,7 @@ def get_db(
     return beams_col, island_col, comp_col
 
 
-def get_field_db(host: str, username=None, password=None) -> pymongo.Collection:
+def get_field_db(host: str, username=None, password=None) -> pymongo.collection.Collection:
     """Get MongoDBs
 
     Args:
