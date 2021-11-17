@@ -314,7 +314,9 @@ def main(
         datadir = os.path.abspath(datadir)
 
     cutdir = os.path.abspath(os.path.join(datadir, "cutouts"))
-    holofile = os.path.abspath(holofile)
+
+    if holofile is not None:
+        holofile = os.path.abspath(holofile)
 
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
@@ -417,26 +419,10 @@ def cli():
     )
 
     parser.add_argument(
-        "-d",
-        "--dryrun",
-        dest="dryrun",
-        action="store_true",
-        help="DON'T submit jobs (just make parsets) [False].",
-    )
-
-    parser.add_argument(
         "--yanda",
         type=str,
         default="1.3.0",
         help="Yandasoft version to pull from DockerHub [1.3.0].",
-    )
-
-    parser.add_argument(
-        "--prefix",
-        metavar="prefix",
-        type=str,
-        default="",
-        help="Prepend prefix to file.",
     )
 
     parser.add_argument(
@@ -486,8 +472,6 @@ def cli():
         username=args.username,
         password=args.password,
         yanda=args.yanda,
-        dryrun=args.dryrun,
-        prefix=args.prefix,
         stokeslist=args.stokeslist,
         verbose=verbose,
     )
