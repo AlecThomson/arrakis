@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
-"""SPICE-RACS pipeline script"""
+"""SPICE-RACS multi-field pipeline"""
 import os
-import pymongo
 from prefect import task, Task, Flow
 from prefect.engine.executors import DaskExecutor
 from prefect.engine import signals
-from spiceracs import cutout
-from spiceracs import linmos
-from spiceracs import cleanup
-from spiceracs import rmsynth_oncuts
-from spiceracs import rmclean_oncuts
-from spiceracs import makecat
-from spiceracs import frion
+from spiceracs import merge_fields
+from spiceracs import processSPICE
+
 from spiceracs.utils import port_forward, test_db
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
@@ -23,12 +18,11 @@ from IPython import embed
 from time import sleep
 from astropy.time import Time
 import yaml
-import socket
 import configargparse
 
 
 @task(name="Cutout")
-def cut_task(skip: bool, **kwargs) -> Task:
+def merge_task(skip: bool, **kwargs) -> Task:
     """Cutout task
 
     Kwargs passed to cutout.cutout_islands
@@ -49,157 +43,7 @@ def cut_task(skip: bool, **kwargs) -> Task:
     if check_cond:
         raise signals.SUCCESS
     else:
-        return cutout.cutout_islands(**kwargs)
-
-
-@task(name="LINMOS")
-def linmos_task(skip: bool, **kwargs) -> Task:
-    """LINOS task
-
-    Kwargs passed to linmos.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SUCCESS: If task is skipped
-
-    Returns:
-        Task: Runs linmos.main
-    """
-    if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SUCCESS
-    else:
-        return linmos.main(**kwargs)
-
-
-@task(name="FRion")
-def frion_task(skip: bool, **kwargs) -> Task:
-    """FRion task
-
-    Kwargs passed to frion.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SUCCESS: If task is skipped
-
-    Returns:
-        Task: Runs frion.main
-    """
-    if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SUCCESS
-    else:
-        return frion.main(**kwargs)
-
-
-@task(name="Clean up")
-def cleanup_task(skip: bool, **kwargs) -> Task:
-    """Cleanup task
-
-    Kwargs passed to cleanup.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SUCCESS: If task is skipped
-
-    Returns:
-        Task: Runs cleanup.main
-    """
-    if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SUCCESS
-    else:
-        return cleanup.main(**kwargs)
-
-
-@task(name="RM Synthesis")
-def rmsynth_task(skip: bool, **kwargs) -> Task:
-    """RM synth task
-
-    Kwargs passed to rmsynth_oncuts.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SUCCESS: If task is skipped
-
-    Returns:
-        Task: Runs rmsynth_oncuts.main
-    """
-    if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SUCCESS
-    else:
-        return rmsynth_oncuts.main(**kwargs)
-
-
-@task(name="RM-CLEAN")
-def rmclean_task(skip: bool, **kwargs) -> Task:
-    """RM-CLEAN task
-
-    Kwargs passed to rmclean_oncuts.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SUCCESS: If task is skipped
-
-    Returns:
-        Task: Runs rmclean_oncuts.main
-    """
-    if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SUCCESS
-    else:
-        return rmclean_oncuts.main(**kwargs)
-
-
-@task(name="Catalogue")
-def cat_task(skip: bool, **kwargs) -> Task:
-    """Catalogue task
-
-    Kwargs passed to makecat.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SUCCESS: If task is skipped
-
-    Returns:
-        Task: Runs makecat.main
-    """
-    if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SUCCESS
-    else:
-        return makecat.main(**kwargs)
+        return merge_fields.main(**kwargs)
 
 
 def main(args: configargparse.Namespace) -> None:
@@ -216,7 +60,7 @@ def main(args: configargparse.Namespace) -> None:
         args.dask_config = f"{config_dir}/default.yaml"
 
     if args.outfile is None:
-        args.outfile = f"{args.field}.pipe.test.fits"
+        args.outfile = f"{args.merge_name}.pipe.test.fits"
 
     # Following https://github.com/dask/dask-jobqueue/issues/499
     with open(args.dask_config) as f:
@@ -227,7 +71,7 @@ def main(args: configargparse.Namespace) -> None:
             # 'scheduler_options': {
             # "dashboard_address": f":{args.port}"
             # },
-            "log_directory": f"{args.field}_{Time.now().fits}_spice_logs/"
+            "log_directory": f"{args.merge_name}_{Time.now().fits}_spice_logs/"
         }
     )
     if args.use_mpi:
@@ -257,7 +101,7 @@ def main(args: configargparse.Namespace) -> None:
 
     args_yaml = yaml.dump(vars(args))
     args_yaml_f = os.path.abspath(
-        f"{args.field}-config-{Time.now().fits}.yaml")
+        f"{args.merge_name}-config-{Time.now().fits}.yaml")
     if args.verbose:
         print(f"Saving config to '{args_yaml_f}'")
     with open(args_yaml_f, "w") as f:
@@ -272,60 +116,24 @@ def main(args: configargparse.Namespace) -> None:
 
     # Prin out Dask client info
     print(client.scheduler_info()["services"])
-
     # Define flow
-    with Flow(f"SPICE-RACS: {args.field}") as flow:
-        cuts = cut_task(
-            args.skip_cutout,
-            field=args.field,
-            directory=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            client=client,
-            verbose=args.verbose,
-            pad=args.pad,
-            stokeslist=["I", "Q", "U"],
-            verbose_worker=args.verbose_worker,
-            dryrun=args.dryrun,
-        )
-        mosaics = linmos_task(
-            args.skip_linmos,
-            field=args.field,
-            datadir=args.datadir,
+    with Flow(f"SPICE-RACS: {args.merge_name}") as flow:
+        mosaics = merge_task(
+            args.skip_merge,
+            fields=args.merge_names,
+            field_dirs=args.datadirs,
+            merge_name=args.merge_name,
+            output_dir=args.output_dir,
             client=client,
             host=host,
-            holofile=args.holofile,
             username=args.username,
             password=args.password,
             yanda=args.yanda,
-            stokeslist=["I", "Q", "U"],
-            verbose=True,
-            upstream_tasks=[cuts],
-        )
-        tidy = cleanup_task(
-            args.skip_cleanup,
-            datadir=args.datadir,
-            client=client,
-            stokeslist=["I", "Q", "U"],
-            verbose=True,
-            upstream_tasks=[mosaics],
-        )
-        frion_run = frion_task(
-            args.skip_frion,
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            client=client,
-            username=args.username,
-            password=args.password,
-            database=args.database,
             verbose=args.verbose,
-            upstream_tasks=[mosaics],
         )
-        dirty_spec = rmsynth_task(
+        dirty_spec = processSPICE.rmsynth_task(
             args.skip_rmsynth,
-            field=args.field,
+            field=args.merge_name,
             outdir=args.datadir,
             host=host,
             username=args.username,
@@ -351,12 +159,12 @@ def main(args: configargparse.Namespace) -> None:
             fit_function=args.fit_function,
             tt0=args.tt0,
             tt1=args.tt1,
-            ion=True,
-            upstream_tasks=[frion_run],
+            ion=False,
+            upstream_tasks=[mosaics],
         )
-        clean_spec = rmclean_task(
+        clean_spec = processSPICE.rmclean_task(
             args.skip_rmclean,
-            field=args.field,
+            field=args.merge_name,
             outdir=args.datadir,
             host=host,
             username=args.username,
@@ -374,9 +182,9 @@ def main(args: configargparse.Namespace) -> None:
             rm_verbose=args.rm_verbose,
             upstream_tasks=[dirty_spec],
         )
-        catalogue = cat_task(
+        catalogue = mosaics.cat_task(
             args.skip_cat,
-            field=args.field,
+            field=args.merge_name,
             host=host,
             username=args.username,
             password=args.password,
@@ -386,7 +194,7 @@ def main(args: configargparse.Namespace) -> None:
             upstream_tasks=[clean_spec],
         )
 
-    with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
+    with performance_report(f"{args.merge_name}-report-{Time.now().fits}.html"):
         flow.run()
 
 
@@ -409,7 +217,7 @@ def cli():
 
     descStr = f"""
     {logostr}
-    SPICE-RACS pipeline.
+    SPICE-RACS regional pipeline.
 
     Before running make sure to start a session of mongodb e.g.
         $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
@@ -418,21 +226,37 @@ def cli():
 
     # Parse the command line options
     parser = configargparse.ArgParser(
-        default_config_files=[".default_config.txt"],
+        default_config_files=[".default_field_config.txt"],
         description=descStr,
         formatter_class=configargparse.RawTextHelpFormatter,
     )
     parser.add("--config", required=False,
                is_config_file=True, help="Config file path")
+
     parser.add_argument(
-        "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
+        "--merge_name",
+        type=str,
+        help="Name of the merged region",
     )
 
     parser.add_argument(
-        "datadir",
-        metavar="datadir",
+        "--fields",
         type=str,
-        help="Directory containing data cubes in FITS format.",
+        nargs='+',
+        help="RACS fields to mosaic - e.g. 2132-50A."
+    )
+
+    parser.add_argument(
+        "--datadirs",
+        type=str,
+        nargs='+',
+        help="Directories containing cutouts (in subdir outdir/cutouts)..",
+    )
+
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        help="Path to save merged data (in output_dir/merge_name/cutouts)",
     )
 
     parser.add_argument(
@@ -450,12 +274,6 @@ def cli():
         "--password", type=str, default=None, help="Password of mongodb."
     )
 
-    # parser.add_argument(
-    #     '--port',
-    #     type=int,
-    #     default=9999,
-    #     help="Port to run Dask dashboard on."
-    # )
     parser.add_argument(
         "--use_mpi",
         action="store_true",
@@ -474,12 +292,6 @@ def cli():
         default=None,
         help="Config file for Dask SlurmCLUSTER.",
     )
-    parser.add_argument(
-        "--holofile",
-        type=str,
-        default=None,
-        help="Path to holography image"
-    )
 
     parser.add_argument(
         "--yanda",
@@ -490,16 +302,7 @@ def cli():
 
     flowargs = parser.add_argument_group("pipeline flow options")
     flowargs.add_argument(
-        "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
-    )
-    flowargs.add_argument(
-        "--skip_linmos", action="store_true", help="Skip LINMOS stage [False]."
-    )
-    flowargs.add_argument(
-        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
-    )
-    flowargs.add_argument(
-        "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
+        "--skip_merge", action="store_true", help="Skip merge stage [False]."
     )
     flowargs.add_argument(
         "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage [False]."
@@ -521,17 +324,6 @@ def cli():
         action="store_true",
         help="Verbose worker output [False].",
     )
-    cutargs = parser.add_argument_group("cutout arguments")
-    cutargs.add_argument(
-        "-p",
-        "--pad",
-        type=float,
-        default=5,
-        help="Number of beamwidths to pad around source [5].",
-    )
-
-    cutargs.add_argument("--dryrun", action="store_true",
-                         help="Do a dry-run [False].")
 
     synth = parser.add_argument_group("RM-synth/CLEAN arguments")
 
