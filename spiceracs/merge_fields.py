@@ -284,7 +284,11 @@ def main(
         multiple_futures, desc="Running LINMOS on overlapping islands", disable=(not verbose), total=len(mutilple_updates_flat)*2+1
     )
 
-    multiple_comp = [f.compute()._doc.update({f"beams.{merge_name}.DR1": True}) for f in multiple_futures]
+    multiple_comp = [f.compute() for f in multiple_futures]
+
+    for m in multiple_comp:
+        m._doc['$set'].update({f"beams.{merge_name}.DR1": True})
+
 
     db_res_single = beams_col.bulk_write(singleton_comp, ordered=False)
     if verbose:
