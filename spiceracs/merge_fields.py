@@ -142,7 +142,7 @@ linmos.weightstate      = Corrected
     return parset_file
 
 
-@delayed
+# @delayed(nout=3)
 def merge_multiple_field(
     beam: dict,
     field_dict: dict,
@@ -216,7 +216,7 @@ def merge_multiple_fields(
     for beam in big_beams:
         update = merge_multiple_field(
             beam, field_dict, merge_name, data_dir, image)
-        updates.append(update)
+        updates.extend(update)
 
     return updates
 
@@ -234,8 +234,10 @@ def main(
     verbose: bool = True,
 ) -> None:
 
+    print(f"{fields=}")
+
     assert len(fields) == len(
-        field_dirs), f"List of fields must be the same length as length of field dirs."
+        field_dirs), f"List of fields must be the same length as length of field dirs. {len(fields)=},{len(field_dirs)=}"
 
     field_dict = {field: os.path.join(field_dir, 'cutouts')
                   for field, field_dir in zip(fields, field_dirs)}
@@ -274,17 +276,16 @@ def main(
     )
     singleton_comp = [f.compute() for f in singleton_futures]
 
-    mutilple_updates_flat = []
-    for m in tqdm(mutilple_updates, desc="Merging multiple islands", disable=(not verbose)):
-        mutilple_updates_flat.extend(m.compute())
 
-    multiple_futures = client.persist(mutilple_updates_flat)
+
+    multiple_futures = client.persist(mutilple_updates)
     time.sleep(10)
     tqdm_dask(
-        multiple_futures, desc="Running LINMOS on overlapping islands", disable=(not verbose), total=len(mutilple_updates_flat)*2+1
+        multiple_futures, desc="Running LINMOS on overlapping islands", disable=(not verbose), total=len(mutilple_updates)*2+1
     )
 
     multiple_comp = [f.compute() for f in multiple_futures]
+
 
     for m in multiple_comp:
         m._doc['$set'].update({f"beams.{merge_name}.DR1": True})
@@ -298,7 +299,9 @@ def main(
     if verbose:
         pprint(db_res_multiple.bulk_api_result)
 
+
     print("LINMOS Done!")
+    return inter_dir
 
 
 def cli():
