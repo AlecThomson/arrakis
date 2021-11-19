@@ -21,11 +21,11 @@ import yaml
 import configargparse
 
 
-@task(name="Cutout")
+@task(name="Merge fields")
 def merge_task(skip: bool, **kwargs) -> Task:
     """Cutout task
 
-    Kwargs passed to cutout.cutout_islands
+    Kwargs passed to merge_fields.main
 
     Args:
         skip (bool): Whether to skip this task
@@ -34,7 +34,7 @@ def merge_task(skip: bool, **kwargs) -> Task:
         signals.SUCCESS: If task is skipped
 
     Returns:
-        Task: Runs cutout.cutout_islands
+        Task: Runs merge_fields.main
     """
     if skip:
         check_cond = True
@@ -117,10 +117,11 @@ def main(args: configargparse.Namespace) -> None:
     # Prin out Dask client info
     print(client.scheduler_info()["services"])
     # Define flow
+    inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
     with Flow(f"SPICE-RACS: {args.merge_name}") as flow:
-        mosaics = merge_task(
+        merge = merge_task(
             args.skip_merge,
-            fields=args.merge_names,
+            fields=args.fields,
             field_dirs=args.datadirs,
             merge_name=args.merge_name,
             output_dir=args.output_dir,
@@ -134,7 +135,7 @@ def main(args: configargparse.Namespace) -> None:
         dirty_spec = processSPICE.rmsynth_task(
             args.skip_rmsynth,
             field=args.merge_name,
-            outdir=args.datadir,
+            outdir=inter_dir,
             host=host,
             username=args.username,
             password=args.password,
@@ -160,12 +161,12 @@ def main(args: configargparse.Namespace) -> None:
             tt0=args.tt0,
             tt1=args.tt1,
             ion=False,
-            upstream_tasks=[mosaics],
+            upstream_tasks=[merge]
         )
         clean_spec = processSPICE.rmclean_task(
             args.skip_rmclean,
             field=args.merge_name,
-            outdir=args.datadir,
+            outdir=inter_dir,
             host=host,
             username=args.username,
             password=args.password,
@@ -182,7 +183,7 @@ def main(args: configargparse.Namespace) -> None:
             rm_verbose=args.rm_verbose,
             upstream_tasks=[dirty_spec],
         )
-        catalogue = mosaics.cat_task(
+        catalogue = processSPICE.cat_task(
             args.skip_cat,
             field=args.merge_name,
             host=host,
