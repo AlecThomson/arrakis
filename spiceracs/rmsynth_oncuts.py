@@ -420,6 +420,7 @@ def rmsynthoncut1d(
             traceback.print_tb(err.__traceback__)
             raise err
         if savePlots:
+            plt.close('all')
             plotdir = os.path.join(outdir, 'plots')
             plot_files = glob(os.path.join(os.path.dirname(ifile), '*.pdf'))
             for src in plot_files:
