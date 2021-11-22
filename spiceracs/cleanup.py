@@ -5,9 +5,9 @@ from glob import glob
 import time
 from spiceracs.utils import tqdm_dask
 from dask import delayed
-from dask.distributed import Client, progress, LocalCluster
-from dask.diagnostics import ProgressBar
-from typing import List, Optional
+from dask.distributed import Client, LocalCluster
+from typing import List
+import logging as log
 
 
 @delayed
@@ -25,10 +25,10 @@ def cleanup(workdir: str, stoke: str) -> None:
 
     pass
 
+
 def main(
     datadir: str, client: Client, stokeslist: List[str] = None, verbose=True
 ) -> None:
-
     """Clean up beam images
 
     Args:
@@ -66,7 +66,7 @@ def main(
     time.sleep(10)
     tqdm_dask(results, desc="Running cleanup", disable=(not verbose))
 
-    print("Cleanup done!")
+    log.info("Cleanup done!")
 
 
 def cli():
@@ -112,6 +112,18 @@ def cli():
     )
     args = parser.parse_args()
     verbose = args.verbose
+
+    if verbose:
+        log.basicConfig(
+            level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    else:
+        log.basicConfig(
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
     cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
