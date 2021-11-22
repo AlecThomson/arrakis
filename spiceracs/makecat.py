@@ -10,8 +10,8 @@ from spiceracs import columns_possum
 from spiceracs.utils import get_db, test_db
 import rmtable.rmtable as RMT
 import json
-from IPython import embed
-
+import logging as log
+from pprint import pformat
 
 def main(
     field: str,
@@ -99,13 +99,12 @@ def main(
     rmtab["standard_telescope"] = "ASKAP"
 
     if outfile is None:
-        print(rmtab)
+        log.info(pformat(rmtab))
 
     if outfile is not None:
         rmtab.table.write(outfile, format=cat_format, overwrite=True)
 
-    if verbose:
-        print("Done!")
+    log.info("Done!")
 
 
 def cli():
@@ -191,6 +190,18 @@ def cli():
 
     verbose = args.verbose
 
+    if verbose:
+        log.basicConfig(
+            level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    else:
+        log.basicConfig(
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+
     host = args.host
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose
@@ -202,7 +213,6 @@ def cli():
         username=args.username,
         password=args.password,
         verbose=verbose,
-        limit=args.limit,
         outfile=args.outfile,
         cat_format=args.format,
     )
