@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
 import sys
-from pprint import pprint
+from pprint import pformat
 from logging import disable
 from typing import List, Tuple
 import os
@@ -27,6 +27,7 @@ from spython.main import Client as sclient
 import warnings
 from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
+import logging as log
 
 warnings.filterwarnings(
     action="ignore", category=SpectralCubeWarning, append=True)
@@ -191,7 +192,7 @@ linmos.primarybeam.ASKAP_PB.image = {holofile}
 linmos.removeleakage    = true
 """
     else:
-        print("No holography file provided - not correcting leakage!")
+        log.warning("No holography file provided - not correcting leakage!")
 
     with open(parset_file, "w") as f:
         f.write(parset)
@@ -251,8 +252,7 @@ def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.Up
     inner = os.path.basename(new_file)
     new_file = os.path.join(outer, inner)
 
-    if verbose:
-        print(f"Cube now in {workdir}/{inner}")
+    log.info(f"Cube now in {workdir}/{inner}")
 
     query = {"Source_ID": source}
     newvalues = {"$set": {f"beams.{fieldname}.{stoke.lower()}_file": new_file}}
@@ -321,7 +321,7 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
-    print(f"{beams_col = }")
+    log.debug(f"{beams_col = }")
     # Query the DB
     query = {
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
@@ -375,14 +375,11 @@ def main(
     )
 
     updates = [f.compute() for f in futures]
-    if verbose:
-        print("Updating database...")
+    log.info("Updating database...")
     db_res = beams_col.bulk_write(updates, ordered=False)
-    if verbose:
-        pprint(db_res.bulk_api_result)
+    log.info(pformat(db_res.bulk_api_result))
 
-    print("LINMOS Done!")
-    # os.remove(image)
+    log.info("LINMOS Done!")
 
 
 def cli():
