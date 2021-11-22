@@ -23,7 +23,8 @@ from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
 from glob import glob
 from shutil import copyfile
-from pprint import pprint
+from pprint import pformat
+import logging as log
 
 
 @delayed
@@ -55,8 +56,7 @@ def rmclean1d(
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
 
-    if rm_verbose:
-        print(f"Working on {comp}")
+    log.debug(f"Working on {comp}")
     try:
 
         rm1dfiles = comp["rm1dfiles"]
@@ -70,7 +70,7 @@ def rmclean1d(
         # Sanity checks
         for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
             if not os.path.exists(f):
-                print("File does not exist: '{:}'.".format(f), end=" ")
+                log.fatal("File does not exist: '{:}'.".format(f))
                 sys.exit()
         nBits = 32
         mDict, aDict = do_RMclean_1D.readFiles(
@@ -110,8 +110,8 @@ def rmclean1d(
             "$set": {"rmclean1d": True, "rmclean_summary": outdict},
         }
     except KeyError:
-        print("Failed to load data! RM-CLEAN not applied to component!")
-        print(f"Island is {iname}, component is {cname}")
+        log.critical("Failed to load data! RM-CLEAN not applied to component!")
+        log.critical(f"Island is {iname}, component is {cname}")
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
@@ -274,8 +274,7 @@ def main(
 
     outputs = []
     if dimension == "1d":
-        if verbose:
-            print(f"Running RM-CLEAN on {n_comp} components")
+        log.info(f"Running RM-CLEAN on {n_comp} components")
         for i, comp in enumerate(components):
             if i > n_comp + 1:
                 break
@@ -293,8 +292,7 @@ def main(
                 outputs.append(output)
 
     elif dimension == "3d":
-        if verbose:
-            print(f"Running RM-CLEAN on {n_island} islands")
+        log.info(f"Running RM-CLEAN on {n_island} islands")
 
         for i, island in enumerate(islands):
             if i > n_island + 1:
@@ -316,19 +314,15 @@ def main(
     tqdm_dask(futures, desc="Running RM-CLEAN", disable=(not verbose))
 
     if database:
-        if verbose:
-            print("Updating database...")
+        log.info("Updating database...")
         updates = [f.compute() for f in futures]
         if dimension == "1d":
             db_res = comp_col.bulk_write(updates, ordered=False)
-            if verbose:
-                pprint(db_res.bulk_api_result)
+            log.info(pformat(db_res.bulk_api_result))
         elif dimension == "3d":
             db_res = island_col.bulk_write(updates, ordered=False)
-            if verbose:
-                pprint(db_res.bulk_api_result)
-    if verbose:
-        print("RM-CLEAN done!")
+            log.info(pformat(db_res.bulk_api_result)())
+    log.info("RM-CLEAN done!")
 
 
 def cli():
@@ -457,10 +451,29 @@ def cli():
     client = Client(cluster)
 
     verbose = args.verbose
+    rmv = args.rm_verbose
     host = args.host
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose
     )
+
+    if rmv:
+        log.basicConfig(
+            level=log.DEBUG,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    elif verbose:
+        log.basicConfig(
+            level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    else:
+        log.basicConfig(
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
     main(
         field=args.field,
