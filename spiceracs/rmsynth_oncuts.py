@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pprint import pprint
+from pprint import pformat, pprint
 from spiceracs.utils import getfreq, MyEncoder, test_db, tqdm_dask, try_mkdir, get_db
 import json
 import numpy as np
@@ -33,6 +33,7 @@ from dask import delayed
 from dask.distributed import Client, progress, LocalCluster, wait
 from dask.diagnostics import ProgressBar
 import traceback
+import logging as log
 
 
 @delayed
@@ -376,8 +377,7 @@ def rmsynthoncut1d(
         tt1_p = mfs_i_1[yp, xp]
         tt0_p = mfs_i_0[yp, xp]
         alpha = tt1_p / tt0_p
-        if rm_verbose:
-            print(f'alpha is {alpha}')
+        log.debug(f'alpha is {alpha}')
         model_I = models.PowerLaw1D(tt0_p, mfs_head['RESTFREQ'], alpha=-alpha)
         modStokesI = model_I(freq)
 
@@ -385,13 +385,13 @@ def rmsynthoncut1d(
         modStokesI = None
 
     if np.sum(np.isfinite(qarr)) < 2 or np.sum(np.isfinite(uarr)) < 2:
-        print(f'{cname} QU data is all NaNs.')
+        log.critical(f'{cname} QU data is all NaNs.')
         return
     if noStokesI:
         data = [np.array(freq), qarr, uarr, rmsq, rmsu]
     else:
         if np.isnan(iarr).all():
-            print(f'{cname} I data is all NaNs.')
+            log.critical(f'{cname} I data is all NaNs.')
             return
 
         data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
@@ -681,8 +681,7 @@ def main(
     outputs = []
 
     if validate:
-        if verbose:
-            print(f"Running RMsynth on {n_comp} components")
+        log.info(f"Running RMsynth on {n_comp} components")
         # We don't run this in parallel!
         for i, comp_id in enumerate(component_ids):
             output = rmsynthoncut_i(
@@ -701,8 +700,7 @@ def main(
             output.compute()
 
     elif dimension == "1d":
-        if verbose:
-            print(f"Running RMsynth on {n_comp} components")
+        log.info(f"Running RMsynth on {n_comp} components")
         for i, comp in enumerate(components):
             if i > n_comp + 1:
                 break
@@ -735,8 +733,7 @@ def main(
                 outputs.append(output)
 
     elif dimension == "3d":
-        if verbose:
-            print(f"Running RMsynth on {n_island} islands")
+        log.info(f"Running RMsynth on {n_island} islands")
 
         for i, island_id in enumerate(island_ids):
             if i > n_island + 1:
@@ -769,19 +766,15 @@ def main(
     # progress(futures)
 
     if database:
-        if verbose:
-            print("Updating database...")
+        log.info("Updating database...")
         updates = [f.compute() for f in futures if f.compute() is not None]
         if dimension == "1d":
             db_res = comp_col.bulk_write(updates, ordered=False)
-            if verbose:
-                pprint(db_res.bulk_api_result)
+            log.info(pformat(db_res.bulk_api_result))
         elif dimension == "3d":
             db_res = island_col.bulk_write(updates, ordered=False)
-            if verbose:
-                pprint(db_res.bulk_api_result)
-    if verbose:
-        print("RMsynth done!")
+            log.info(pformat(db_res.bulk_api_result))
+    log.info("RMsynth done!")
 
 
 def cli():
@@ -981,12 +974,30 @@ def cli():
         parser.error("the following arguments are required: tt0")
 
     verbose = args.verbose
+    rmv = args.rm_verbose
+    if rmv:
+        log.basicConfig(
+            level=log.DEBUG,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    elif verbose:
+        log.basicConfig(
+            level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    else:
+        log.basicConfig(
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
     cluster = LocalCluster(
         n_workers=12, processes=True, threads_per_worker=1, local_directory="/dev/shm"
     )
     client = Client(cluster)
-    print(client)
+    log.debug(client)
 
     test_db(host=args.host, username=args.username,
             password=args.password, verbose=verbose)
