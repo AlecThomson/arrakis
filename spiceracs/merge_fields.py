@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
 import os
-from pprint import pprint
+from pprint import pformat, pprint
 from shutil import copyfile
 from dask import distributed
 import pymongo
@@ -13,7 +13,7 @@ from dask.distributed import Client, LocalCluster
 from spiceracs.linmos import linmos, get_yanda
 import time
 from pprint import pprint
-from IPython import embed
+import logging as log
 
 
 def make_short_name(name: str) -> str:
@@ -234,7 +234,7 @@ def main(
     verbose: bool = True,
 ) -> None:
 
-    print(f"{fields=}")
+    log.debug(f"{fields=}")
 
     assert len(fields) == len(
         field_dirs), f"List of fields must be the same length as length of field dirs. {len(fields)=},{len(field_dirs)=}"
@@ -292,15 +292,13 @@ def main(
 
 
     db_res_single = beams_col.bulk_write(singleton_comp, ordered=False)
-    if verbose:
-        pprint(db_res_single.bulk_api_result)
+    log.info(pformat(db_res_single.bulk_api_result))
 
     db_res_multiple = beams_col.bulk_write(multiple_comp, ordered=False)
-    if verbose:
-        pprint(db_res_multiple.bulk_api_result)
+    log.info(pformat(db_res_multiple.bulk_api_result))
 
 
-    print("LINMOS Done!")
+    log.info("LINMOS Done!")
     return inter_dir
 
 
