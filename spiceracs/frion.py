@@ -10,11 +10,11 @@ from dask import delayed
 from dask.distributed import Client, progress, LocalCluster, wait
 import pymongo
 import time
-from pprint import pprint
+from pprint import pformat
 from shutil import copyfile
 from glob import glob
 from typing import Dict, List, Tuple
-
+import logging as log
 
 @delayed
 def correct_worker(
@@ -164,8 +164,7 @@ def main(
         field_datas = list(field_col.find({"FIELD_NAME": f"RACS_{field}"}))
         sbids = [f["CAL_SBID"] for f in field_datas]
         max_idx = np.argmax(sbids)
-        if verbose:
-            print(f"Using CAL_SBID {sbids[max_idx]}")
+        log.info(f"Using CAL_SBID {sbids[max_idx]}")
         field_data = field_datas[max_idx]
     else:
         field_data = field_col.find_one({"FIELD_NAME": f"RACS_{field}"})
@@ -216,12 +215,10 @@ def main(
         futures, desc="Running FRion", disable=(not verbose), total=len(islands) * 2
     )
     if database:
-        if verbose:
-            print("Updating database...")
+        log.info("Updating database...")
         updates = [f.compute() for f in futures]
         db_res = beams_col.bulk_write(updates, ordered=False)
-        if verbose:
-            pprint(db_res.bulk_api_result)
+        log.info(pformat(db_res.bulk_api_result))
 
 
 def cli():
@@ -298,12 +295,23 @@ def cli():
     args = parser.parse_args()
 
     verbose = args.verbose
+    if verbose:
+        log.basicConfig(
+            level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    else:
+        log.basicConfig(
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
     cluster = LocalCluster(
         n_workers=12, processes=True, threads_per_worker=1, local_directory="/dev/shm"
     )
     client = Client(cluster)
-    print(client)
+    log.info(client)
 
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose
