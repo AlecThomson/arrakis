@@ -25,7 +25,7 @@ from astropy.time import Time
 import yaml
 import socket
 import configargparse
-
+import logging as log
 
 @task(name="Cutout")
 def cut_task(skip: bool, **kwargs) -> Task:
@@ -241,7 +241,7 @@ def main(args: configargparse.Namespace) -> None:
         cluster = SLURMCluster(
             **config,
         )
-        print("Submitted scripts will look like: \n", cluster.job_script())
+        log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes
         cluster.scale(jobs=15)
@@ -258,8 +258,7 @@ def main(args: configargparse.Namespace) -> None:
     args_yaml = yaml.dump(vars(args))
     args_yaml_f = os.path.abspath(
         f"{args.field}-config-{Time.now().fits}.yaml")
-    if args.verbose:
-        print(f"Saving config to '{args_yaml_f}'")
+    log.info(f"Saving config to '{args_yaml_f}'")
     with open(args_yaml_f, "w") as f:
         f.write(args_yaml)
 
@@ -271,7 +270,7 @@ def main(args: configargparse.Namespace) -> None:
             port_forward(port, p)
 
     # Prin out Dask client info
-    print(client.scheduler_info()["services"])
+    log.info(client.scheduler_info()["services"])
 
     # Define flow
     with Flow(f"SPICE-RACS: {args.field}") as flow:
@@ -677,6 +676,19 @@ def cli():
     args = parser.parse_args()
     if not args.use_mpi:
         parser.print_values()
+
+    verbose = args.verbose
+    if verbose:
+        log.basicConfig(
+            level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    else:
+        log.basicConfig(
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
     main(args)
 
