@@ -21,6 +21,7 @@ from glob import glob
 from astropy.table import Table, vstack
 from spiceracs.utils import getdata, MyEncoder, yes_or_no
 from typing import Tuple
+import logging as log
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep=1) -> Table:
@@ -77,8 +78,7 @@ def cat2beams(
     Returns:
         Tuple[np.ndarray, np.ndarray, Angle]: Output of astropy.coordinates.search_around_sky
     """
-    if verbose:
-        print("Getting separations from beam centres...")
+    log.info("Getting separations from beam centres...")
     c1 = SkyCoord(database["RA_DEG"] * u.deg, database["DEC_DEG"] * u.deg, frame="icrs")
 
     m_ra = mastercat["RA"]
@@ -118,28 +118,26 @@ def source_database(
     # https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
     df_i = islandcat.to_pandas()
     if type(df_i["Source_ID"][0]) is bytes:
-        print("Decoding strings!")
+        log.info("Decoding strings!")
         str_df = df_i.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
         for col in str_df:
             df_i[col] = str_df[col]
 
     source_dict_list = df_i.to_dict("records")
-    if verbose:
-        print("Loading islands into mongo...")
+    log.info("Loading islands into mongo...")
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
     island_col.delete_many({})  # Delete previous database
     island_col.insert_many(source_dict_list)
     count = island_col.count_documents({})
-    if verbose:
-        print("Done loading")
-        print("Total documents:", count)
+    log.info("Done loading")
+    log.info(f"Total documents: {count}")
 
     df_c = compcat.to_pandas()
     if type(df_c["Source_ID"][0]) is bytes:
-        print("Decoding strings!")
+        log.info("Decoding strings!")
         str_df = df_c.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
         for col in str_df:
@@ -147,17 +145,15 @@ def source_database(
 
     source_dict_list = df_c.to_dict("records")
 
-    if verbose:
-        print("Loading components into mongo...")
+    log.info("Loading components into mongo...")
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
     comp_col.delete_many({})  # Delete previous database
     comp_col.insert_many(source_dict_list)
     count = comp_col.count_documents({})
-    if verbose:
-        print("Done loading")
-        print("Total documents:", count)
+    log.info("Done loading")
+    log.info(f"Total documents: {count}")
 
 
 def beam_database(islandcat, host, username=None, password=None, verbose=True):
@@ -166,8 +162,7 @@ def beam_database(islandcat, host, username=None, password=None, verbose=True):
 
     # Get beams
     beam_list = get_beams(islandcat, racs_fields, verbose=verbose)
-    if verbose:
-        print("Loading into mongo...")
+    log.info("Loading into mongo...")
     json_data = json.loads(json.dumps(beam_list, cls=MyEncoder))
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
@@ -175,9 +170,8 @@ def beam_database(islandcat, host, username=None, password=None, verbose=True):
     beams_col.delete_many({})  # Delete previous databas
     beams_col.insert_many(json_data)
     count = beams_col.count_documents({})
-    if verbose:
-        print("Done loading")
-        print("Total documents:", count)
+    log.info("Done loading")
+    log.info(f"Total documents: {count}")
 
 
 def get_catalogue(verbose=True):
@@ -210,7 +204,7 @@ def get_catalogue(verbose=True):
                 tab.add_column(int(SBID), name="SBID", index=0)
                 racs_fields = vstack([racs_fields, tab])
             except TypeError:
-                print(f"{SBID} failed...")
+                log.warning(f"{SBID} failed...")
                 continue
     return racs_fields
 
@@ -272,15 +266,13 @@ def field_database(host, username, password, verbose=True):
     database = Table.read(data_file)
     df = database.to_pandas()
     field_list_dict = df.to_dict("records")
-    if verbose:
-        print("Loading fields into mongo...")
+    log.info("Loading fields into mongo...")
     field_col = get_field_db(host, username=username, password=password)
     field_col.delete_many({})
     field_col.insert_many(field_list_dict)
     count = field_col.count_documents({})
-    if verbose:
-        print("Done loading")
-        print("Total documents:", count)
+    log.info("Done loading")
+    log.info(f"Total documents: {count}")
 
 
 def main(args, verbose=True):
@@ -293,24 +285,24 @@ def main(args, verbose=True):
     if args.load:
         # Get database from master cat
         if args.islandcat is None:
-            print("Island catalogue is required!")
+            log.critical("Island catalogue is required!")
             islandcat = input("Enter catalogue file:")
         else:
             islandcat = args.islandcat
         if args.compcat is None:
-            print("Component catalogue is required!")
+            log.critical("Component catalogue is required!")
             compcat = input("Enter catalogue file:")
         else:
             compcat = args.compcat
 
         # Get the master cat
-        print(f"Reading {islandcat}")
+        log.info(f"Reading {islandcat}")
         island_cat = Table.read(islandcat)
-        print(f"Reading {compcat}")
+        log.info(f"Reading {compcat}")
         comp_cat = Table.read(compcat)
-        print("This will overwrite the source database!")
+        log.critical("This will overwrite the source database!")
         check_source = yes_or_no("Are you sure you wish to proceed?")
-        print("This will overwrite the beams database!")
+        log.critical("This will overwrite the beams database!")
         check_beam = yes_or_no("Are you sure you wish to proceed?")
         if check_source:
             source_database(
@@ -330,7 +322,7 @@ def main(args, verbose=True):
                 verbose=verbose,
             )
     if args.field:
-        print("This will overwrite the field database!")
+        log.critical("This will overwrite the field database!")
         check_field = yes_or_no("Are you sure you wish to proceed?")
         if check_field:
             field_database(
@@ -341,7 +333,7 @@ def main(args, verbose=True):
             )
 
     else:
-        print("Nothing to do!")
+        log.info("Nothing to do!")
 
 
 def cli():
@@ -419,6 +411,17 @@ def cli():
     args = parser.parse_args()
 
     verbose = args.verbose
+    if verbose:
+        log.basicConfig(
+            level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    else:
+        log.basicConfig(
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose
     )
