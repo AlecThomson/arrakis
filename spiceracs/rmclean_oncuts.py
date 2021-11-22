@@ -94,6 +94,7 @@ def rmclean1d(
         # Save output
         do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
         if savePlots:
+            plt.close("all")
             plotdir = os.path.join(outdir, "plots")
             plot_files = glob(
                 os.path.join(os.path.abspath(os.path.dirname(fdfFile)), "*.pdf")
