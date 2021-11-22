@@ -33,6 +33,7 @@ from FRion.correct import find_freq_axis
 from typing import Tuple, List, Dict, Any, Union, Optional
 import dask
 import dask.distributed as distributed
+import logging as log
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -148,8 +149,7 @@ def test_db(
     Raises:
         Exception: If connection fails.
     """
-    if verbose:
-        print("Testing MongoDB connection...")
+    log.info("Testing MongoDB connection...")
     # default connection (ie, local)
     with pymongo.MongoClient(
         host=host,
@@ -163,8 +163,7 @@ def test_db(
         except pymongo.errors.ServerSelectionTimeoutError:
             raise Exception("Please ensure 'mongod' is running")
         else:
-            if verbose:
-                print("MongoDB connection succesful!")
+            log.info("MongoDB connection succesful!")
 
 
 def get_db(
@@ -262,7 +261,7 @@ def port_forward(port: int, target: str) -> None:
         port (int): port to forward
         target (str): Target host
     """
-    print(f"Forwarding {port} from {target}")
+    log.info(f"Forwarding {port} from {target}")
     cmd = f"ssh -N -f -R {port}:localhost:{port} {target}"
     command = shlex.split(cmd)
     output = subprocess.Popen(command)
@@ -278,11 +277,9 @@ def try_mkdir(dir_path: str, verbose=True):
     # Create output dir if it doesn't exist
     try:
         os.mkdir(dir_path)
-        if verbose:
-            print(f"Made directory '{dir_path}'.")
+        log.info(f"Made directory '{dir_path}'.")
     except FileExistsError:
-        if verbose:
-            print(f"Directory '{dir_path}' exists.")
+        log.info(f"Directory '{dir_path}' exists.")
 
 
 def head2dict(h: fits.Header) -> Dict[str, Any]:
@@ -392,8 +389,7 @@ def getfreq(
             outfile = f"{outdir}/frequencies.txt"
         else:
             outfile = f"{outdir}/{filename}"
-        if verbose:
-            print(f"Saving to {outfile}")
+        log.info(f"Saving to {outfile}")
         np.savetxt(outfile, np.array(freq))
         return freq, outfile
     else:
@@ -416,8 +412,7 @@ def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:
     # Glob out the necessary files
     files = glob(f"{tabledir}/*.{keyword}*.xml")  # Selvay VOTab
     filename = files[0]
-    if verbose:
-        print(f"Getting table data from {filename}...")
+    log.info(f"Getting table data from {filename}...")
 
     # Get selvay data from VOTab
     table = Table.read(filename, format="votable")
@@ -464,9 +459,8 @@ def getdata(cubedir="./", tabledir="./", mapdata=None, verbose=True):
     i_tab, voisle = gettable(tabledir, "islands", verbose=verbose)  # Selvay VOTab
     components, tablename = gettable(tabledir, "components", verbose=verbose)
 
-    if verbose:
-        print(f"Getting spectral data from: {cubes}", "\n")
-        print(f"Getting source location data from:", selavyfits, "\n")
+    log.info(f"Getting spectral data from: {cubes}\n")
+    log.info(f"Getting source location data from: {selavyfits}\n")
 
     # Read data using Spectral cube
     i_taylor = SpectralCube.read(selavyfits, mode="denywrite")
