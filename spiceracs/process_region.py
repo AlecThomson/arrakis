@@ -19,6 +19,7 @@ from time import sleep
 from astropy.time import Time
 import yaml
 import configargparse
+import logging as log
 
 
 @task(name="Merge fields")
@@ -85,7 +86,7 @@ def main(args: configargparse.Namespace) -> None:
         cluster = SLURMCluster(
             **config,
         )
-        print("Submitted scripts will look like: \n", cluster.job_script())
+        log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes
         cluster.scale(jobs=15)
@@ -102,8 +103,7 @@ def main(args: configargparse.Namespace) -> None:
     args_yaml = yaml.dump(vars(args))
     args_yaml_f = os.path.abspath(
         f"{args.merge_name}-config-{Time.now().fits}.yaml")
-    if args.verbose:
-        print(f"Saving config to '{args_yaml_f}'")
+    log.info(f"Saving config to '{args_yaml_f}'")
     with open(args_yaml_f, "w") as f:
         f.write(args_yaml)
 
@@ -115,7 +115,7 @@ def main(args: configargparse.Namespace) -> None:
             port_forward(port, p)
 
     # Prin out Dask client info
-    print(client.scheduler_info()["services"])
+    log.info(client.scheduler_info()["services"])
     # Define flow
     inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
     with Flow(f"SPICE-RACS: {args.merge_name}") as flow:
@@ -470,6 +470,19 @@ def cli():
     args = parser.parse_args()
     if not args.use_mpi:
         parser.print_values()
+
+    verbose = args.verbose
+    if verbose:
+        log.basicConfig(
+            level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    else:
+        log.basicConfig(
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
     main(args)
 
