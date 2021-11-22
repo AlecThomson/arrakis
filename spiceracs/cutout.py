@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Produce cutouts from RACS cubes"""
+import logging as log
 import argparse
 import warnings
 import pymongo
@@ -41,7 +42,7 @@ from spiceracs.utils import (
 from astropy.utils import iers
 import astropy.units as u
 from spectral_cube import SpectralCube
-from pprint import pprint
+from pprint import pformat
 import warnings
 from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
@@ -110,12 +111,10 @@ def cutout(
                 ".conv.fits", ".txt"
             )
             copyfile(image, outfile)
-            if verbose:
-                print(f"Written to {outfile}")
+            log.info(f"Written to {outfile}")
 
         if imtype == "image":
-            if verbose:
-                print(f"Reading {image}")
+            log.info(f"Reading {image}")
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", AstropyWarning)
                 cube = SpectralCube.read(image)
@@ -159,8 +158,7 @@ def cutout(
                         overwrite=True,
                         output_verify="fix",
                     )
-                    if verbose:
-                        print(f"Written to {outfile}")
+                    log.info(f"Written to {outfile}")
 
         # Update database
         myquery = {"Source_ID": src_name}
@@ -252,8 +250,8 @@ def get_args(
         dec_off = Longitude(majs[dec_i_min])
         dec_lo = dec_min - dec_off
     except Exception as e:
-        print("coords are", coords)
-        print("comps are", comps)
+        log.debug(f"coords are {coords=}" )
+        log.debug(f"comps are {comps=}")
         raise e
 
     args = []
@@ -344,8 +342,7 @@ def cutout_islands(
     """
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
-    if verbose:
-        print(f"Client is {client}")
+    log.debug(f"Client is {client}")
     directory = os.path.abspath(directory)
     outdir = os.path.join(directory, "cutouts")
 
@@ -428,13 +425,11 @@ def cutout_islands(
     if not dryrun:
         _updates = [f.compute() for f in futures]
         updates = [val for sublist in _updates for val in sublist]
-        if verbose:
-            print("Updating database...")
+        log.info("Updating database...")
         db_res = beams_col.bulk_write(updates, ordered=False)
-        if verbose:
-            pprint(db_res.bulk_api_result)
+        log.info(pformat(db_res.bulk_api_result))
 
-    print("Cutouts Done!")
+    log.info("Cutouts Done!")
 
 
 def main(args: argparse.Namespace, verbose=True) -> None:
@@ -448,7 +443,7 @@ def main(args: argparse.Namespace, verbose=True) -> None:
         n_workers=12, threads_per_worker=1, dashboard_address=":9898"
     )
     client = Client(cluster)
-    print(client)
+    log.info(client)
     cutout_islands(
         field=args.field,
         directory=args.datadir,
@@ -463,7 +458,7 @@ def main(args: argparse.Namespace, verbose=True) -> None:
         dryrun=args.dryrun,
     )
 
-    print("Done!")
+    log.info("Done!")
 
 
 def cli() -> None:
@@ -558,6 +553,18 @@ def cli() -> None:
 
 
     verbose = args.verbose
+    if verbose:
+        log.basicConfig(
+            level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    else:
+        log.basicConfig(
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose
     )
