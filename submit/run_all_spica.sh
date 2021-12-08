@@ -60,6 +60,7 @@ export SINGULARITY_BINDPATH=$(pwd),/group
 
 SPICA=(
     1213-18A
+    1213-25A
     1305-18A
     1307-25A
     1331-18A
@@ -100,8 +101,8 @@ for field in ${SPICA[*]}
         slurmdir="/group/askap/athomson/projects/spiceracs/spica/slurmFiles"
         currentdir="/group/askap/athomson/repos/spiceracs/submit"
         sedstr2="s+${currentdir}+${slurmdir}+g"
-        thisfile="/group/askap/athomson/repos/spiceracs/submit/processSPICE.sbatch"
-        cp "$thisfile" "$(echo "$thisfile" | sed -e "$sedstr" | sed -e "$sedstr2")"
+        # thisfile="/group/askap/athomson/repos/spiceracs/submit/processSPICE.sbatch"
+        # cp "$thisfile" "$(echo "$thisfile" | sed -e "$sedstr" | sed -e "$sedstr2")"
 
         srun -n 480 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits --use_mpi --skip_cutout
     done
