@@ -224,7 +224,7 @@ def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.Up
     parset_name = os.path.basename(parset)
     source = os.path.basename(workdir)
     stoke = parset_name[parset_name.find(".in") - 1]
-    log = parset.replace(".in", ".log")
+    log_file = parset.replace(".in", ".log")
     linmos_command = shlex.split(f"linmos -c {parset}")
     output = sclient.execute(
         image=image,
@@ -234,18 +234,18 @@ def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.Up
     )
 
     outstr = "\n".join(output["message"])
-    with open(log, "w") as f:
+    with open(log_file, "w") as f:
         f.write(outstr)
         # f.write(output['message'])
 
     if output["return_code"] != 0:
-        raise Exception(f"LINMOS failed! Check '{log}'")
+        raise Exception(f"LINMOS failed! Check '{log_file}'")
 
     new_files = glob(
         f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
     if len(new_files) != 1:
-        raise Exception(f"LINMOS file not found! -- check {log}?")
+        raise Exception(f"LINMOS file not found! -- check {log_file}?")
 
     new_file = os.path.abspath(new_files[0])
     outer = os.path.basename(os.path.dirname(new_file))
