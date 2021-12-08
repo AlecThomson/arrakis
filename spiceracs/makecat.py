@@ -92,11 +92,12 @@ def main(
         tab.add_column(new_col)
     rmtab = RMT.from_table(tab)
     # Get Galatic coords
-    rmtab["l"], rmtab["b"] = RMT.calculate_missing_coordinates_column(
-        rmtab["ra"], rmtab["dec"], to_galactic=True
+    rmtab["Gal_lon"], rmtab["Gal_lat"] = RMT.calculate_missing_coordinates_column(
+        rmtab["RA"], rmtab["Dec"], to_galactic=True
     )
     rmtab["rm_method"] = "RM Synthesis"
     rmtab["standard_telescope"] = "ASKAP"
+
 
     if outfile is None:
         log.info(pformat(rmtab))
