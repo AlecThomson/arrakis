@@ -10,9 +10,10 @@ import spica
 from spiceracs.utils import try_mkdir
 import argparse
 
-racs_area = os.path.abspath('/askapbuffer/processing/len067/spiceracs')
+# racs_area = os.path.abspath('/askapbuffer/processing/len067/spiceracs')
 # spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')
-spice_area = os.path.abspath('/scratch/ja3/athomson/spica')
+spice_area = os.path.abspath('/askapbuffer/processing/len067/spiceracs')
+# spice_area = os.path.abspath('/scratch/ja3/athomson/spica')
 group_area = os.path.abspath('/group/ja3/athomson/spica')
 
 def main(field, dry_run=False, ncores=10):
@@ -26,11 +27,20 @@ def main(field, dry_run=False, ncores=10):
     else:
         print(f"Copying '{cut_dir}'")
 
-    store_dir = os.path.join(group_area, f"{row['CAL SBID']}", f"RACS_test4_1.05_{field}", "cutouts")
+    
+    field_dir =  os.path.join(group_area, f"{row['CAL SBID']}", f"RACS_test4_1.05_{field}")
+
+    try_mkdir(field_dir)
+    test_field = os.path.isdir(field_dir)
+    if not test_field:
+        raise FileNotFoundError(test_field)
+
+    store_dir = os.path.join(field_dir, "cutouts")
+
     try_mkdir(store_dir)
     test_store = os.path.isdir(store_dir)
-    if not test_cut:
-        raise FileNotFoundError(test_store)
+    if not test_store:
+        raise FileNotFoundError(store_dir)
     else:
         print(f"Storing in '{store_dir}'")
     
