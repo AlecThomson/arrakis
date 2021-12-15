@@ -416,11 +416,13 @@ def cli():
             level=log.INFO,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
+            force=True
         )
     else:
         log.basicConfig(
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
+            force=True
         )
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose
