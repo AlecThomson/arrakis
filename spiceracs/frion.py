@@ -118,9 +118,10 @@ def predict_worker(
     newvalues = {
         "$set": {
             "frion": {
-                "times": times,
-                "RMs": RMs,
-                "theta": theta
+                "times": times.tolist(),
+                "RMs": RMs.tolist(),
+                "theta_real": theta.real.tolist(),
+                "theta_imag": theta.imag.tolist(),
             }
         }
     }
@@ -233,7 +234,7 @@ def main(
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(10)
     tqdm_dask(
-        futures, desc="Running FRion", disable=(not verbose), total=len(islands) * 2
+        futures, desc="Running FRion", disable=(not verbose), total=len(islands) * 3
     )
     if database:
         log.info("Updating beams database...")
@@ -243,8 +244,9 @@ def main(
 
         log.info("Updating island database...")
         updates_arrays_cmp = [f.compute() for f in future_arrays]
-        # db_res = island_col.bulk_write(updates_arrays_cmp, ordered=False)
-        # log.info(pformat(db_res.bulk_api_result))
+        
+        db_res = island_col.bulk_write(updates_arrays_cmp, ordered=False)
+        log.info(pformat(db_res.bulk_api_result))
 
 
 def cli():
