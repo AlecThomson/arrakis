@@ -122,7 +122,8 @@ setup(
         'scripts/spica.py',
         'scripts/copy_cutouts.py',
         'scripts/compute_leakage.py',
-        'scripts/compare_leakage.py'
+        'scripts/compare_leakage.py',
+        'scripts/copy_cutouts_askap.py',
     ],
     install_requires=REQUIRED,
     extras_require=EXTRAS,
