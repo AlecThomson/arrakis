@@ -25,7 +25,7 @@ conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group,/askapbuffer
 
-field=1326-06A
+field=1335-25A
 sbid=`find_sbid.py $field --science`
 tt0_dir=/group/askap/athomson/projects/RACS/CI0_mosaic_1.0
 tt1_dir=/group/askap/athomson/projects/RACS/CI1_mosaic_1.0

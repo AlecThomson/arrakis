@@ -27,4 +27,4 @@ module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
 
-srun -n 500 --export=ALL python /group/askap/athomson/repos/spiceracs/spiceracs/process_region.py --config /group/askap/athomson/projects/spiceracs/spica/test_region_config.txt --use_mpi
+srun -n 500 --export=ALL python /group/askap/athomson/repos/spiceracs/spiceracs/process_region.py --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi
