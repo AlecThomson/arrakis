@@ -25,6 +25,10 @@ conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
+# SPICA=(
+#     '1416+00A'
+# )
+
 SPICA=(
     '1416+00A'
     '1351+00A'
