@@ -449,9 +449,19 @@ def rmsynthoncut1d(
                     "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
                     "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
                 },
-                f"rmsynth1d": True,
+                "rmsynth1d": True,
                 "header": head_dict,
-                f"rmsynth_summary": mDict
+                "rmsynth_summary": mDict,
+                "spectra": {
+                    "freq": np.array(freq).tolist(),
+                    "I": iarr.tolist(),
+                    "Q": qarr.tolist(),
+                    "U": uarr.tolist(),
+                    "I_err": rmsi.tolist(),
+                    "Q_err": rmsq.tolist(),
+                    "U_err": rmsu.tolist(),
+
+                },
             }
         }
         return pymongo.UpdateOne(myquery, newvalues)
