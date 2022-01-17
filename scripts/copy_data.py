@@ -93,11 +93,11 @@ def main(name: str,
             pass
         print(os.path.basename(newpath))
 
-
-    if yes:
-        files = glob(f"{check}/CONTCUBE*")
-        for f in files:
-            os.remove(f)
+    if clean:
+        if yes:
+            files = glob(f"{check}/CONTCUBE*")
+            for f in files:
+                os.remove(f)
 
 
 if __name__ == "__main__":
