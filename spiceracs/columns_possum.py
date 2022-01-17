@@ -24,11 +24,11 @@ columns = [
     ('E_RA', float, 'cat', 'E_RA', u.arcsec),
     ('Dec', float, 'cat', 'Dec', u.deg),
     ('E_Dec', float, 'cat', 'E_Dec', u.arcsec),
-    ('Total_I_flux_Gaussian', float, 'cat', 'Total_flux_Gaussian', 1e-3*u.Jy),
+    ('Total_I_flux_Gaussian', float, 'cat', 'Total_flux_Gaussian', u.mJy),
     ('E_Total_I_flux_Gaussian', float, 'cat',
-     'E_Total_flux_Gaussian', 1e-3*u.Jy),
-    ('Peak_I_flux_Gaussian', float, 'cat', 'Peak_flux', 1e-3*u.Jy/u.beam),
-    ('E_Peak_I_flux_Gaussian', float, 'cat', 'E_Peak_flux', 1e-3*u.Jy/u.beam),
+     'E_Total_flux_Gaussian', u.mJy),
+    ('Peak_I_flux_Gaussian', float, 'cat', 'Peak_flux', u.mJy/u.beam),
+    ('E_Peak_I_flux_Gaussian', float, 'cat', 'E_Peak_flux', u.mJy/u.beam),
     # ('Gaussian_ID', str, 'cat', 'Gaussian_ID', None),
     ('Maj', float, 'cat', 'Maj', u.arcsec),
     ('E_Maj', float, 'cat', 'E_Maj', u.arcsec),
@@ -48,7 +48,7 @@ columns = [
      float, 'cat', 'DC_PA', u.deg),
     ('E_DC_PA',
      float, 'cat', 'E_DC_PA', u.deg),
-    ('Noise_I', float, 'cat', 'Noise', 1e-3*u.Jy/u.beam),
+    ('Noise_I', float, 'cat', 'Noise', u.mJy/u.beam),
     ('Separation_Tile_Centre', float, 'cat', 'Separation_Tile_Centre', u.deg),
 
     # Important quantities from the RMsynthesis
@@ -76,6 +76,7 @@ columns = [
     ('Channel_width', float, 'synth', 'median_channel_width', u.Hz),
     ('Number_of_channels', int, 'synth',
      'N_channels', u.dimensionless_unscaled),
+    ('M2_CC', float, 'synth', 'mom2CCFDF', u.rad/u.m**2),
 
     # Less important quantities from the RMsynthesis (can be removed or modified after prototype verification?)
     ('Typical_channel_noise', float, 'synth', 'dQU', u.Jy/u.beam),
