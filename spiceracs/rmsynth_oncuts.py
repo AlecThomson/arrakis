@@ -376,12 +376,25 @@ def rmsynthoncut1d(
             coord)).round().astype(int)
         tt1_p = mfs_i_1[yp, xp]
         tt0_p = mfs_i_0[yp, xp]
-        alpha = tt1_p / tt0_p
+
+        alpha = -1 * tt1_p / tt0_p
+        amplitude = tt0_p
+        x_0 = mfs_head['RESTFREQ']
+
         log.debug(f'alpha is {alpha}')
-        model_I = models.PowerLaw1D(tt0_p, mfs_head['RESTFREQ'], alpha=-alpha)
+        model_I = models.PowerLaw1D(
+            amplitude=amplitude, 
+            x_0=x_0,
+            alpha=alpha
+        )
         modStokesI = model_I(freq)
+        model_repr = model_I.__repr__()
 
     else:
+        alpha = None
+        amplitude = None
+        x_0 = None
+        model_repr = None
         modStokesI = None
 
     if np.sum(np.isfinite(qarr)) < 2 or np.sum(np.isfinite(uarr)) < 2:
@@ -440,6 +453,23 @@ def rmsynthoncut1d(
 
         outer_dir = os.path.basename(os.path.dirname(ifile))
 
+        # Fix for json encoding
+        aDict_fix = {}
+        for key, val in aDict.items():
+            if val.dtype == np.complex64 or val.dtype == np.complex128:
+                aDict_fix[f"{key}_real"] = val.real.tolist()
+                aDict_fix[f"{key}_imag"] = val.imag.tolist()
+            else:
+                aDict_fix[key] = val.tolist()
+
+
+        # for key, val in aDict.items():
+        #     fix = int(val) if isinstance(val, np.integer) \
+        #         else float(val) if isinstance(val, np.floating) \
+        #             else val.tolist() if isinstance(val, np.ndarray) \
+        #                 else val
+        #     aDict_fix[key] = fix
+
         newvalues = {
             "$set": {
                 f"rm1dfiles": {
@@ -454,14 +484,21 @@ def rmsynthoncut1d(
                 "rmsynth_summary": mDict,
                 "spectra": {
                     "freq": np.array(freq).tolist(),
+                    "I_model": modStokesI.tolist() if modStokesI is not None else None,
+                    "I_model_params": {
+                        "alpha": float(alpha) if alpha is not None else None,
+                        "amplitude": float(amplitude) if amplitude is not None else None,
+                        "x_0": float(x_0) if x_0 is not None else None,
+                        "model_repr": model_repr
+                    },
                     "I": iarr.tolist(),
                     "Q": qarr.tolist(),
                     "U": uarr.tolist(),
                     "I_err": rmsi.tolist(),
                     "Q_err": rmsq.tolist(),
                     "U_err": rmsu.tolist(),
-
                 },
+                "rm_spectra": aDict_fix,
             }
         }
         return pymongo.UpdateOne(myquery, newvalues)
@@ -646,15 +683,17 @@ def main(
     island_ids = sorted(beams_col.distinct("Source_ID", query))
 
     query = {"Source_ID": {"$in": island_ids}}
-    components = list(comp_col.find(query).sort("Source_ID"))
+    components = list(comp_col.find(
+        query,
+        # Only get required values
+        {
+            "Source_ID": 1,
+            "Gaussian_ID": 1,
+            "RA": 1,
+            "Dec": 1,            
+        }
+    ).sort("Source_ID"))
     component_ids = [doc["Gaussian_ID"] for doc in components]
-    comps = []
-    for i in island_ids:
-        _comp = []
-        for c in components:
-            if c["Source_ID"] == i:
-                _comp.append(c)
-        comps.append(_comp)
 
     n_comp = comp_col.count_documents(query)
     n_island = island_col.count_documents(query)
@@ -1004,7 +1043,8 @@ def cli():
         )
 
     cluster = LocalCluster(
-        n_workers=12, processes=True, threads_per_worker=1, local_directory="/dev/shm"
+        # n_workers=12, processes=True, threads_per_worker=1, 
+        local_directory="/dev/shm"
     )
     client = Client(cluster)
     log.debug(client)
