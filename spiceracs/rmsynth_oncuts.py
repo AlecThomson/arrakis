@@ -454,21 +454,6 @@ def rmsynthoncut1d(
         outer_dir = os.path.basename(os.path.dirname(ifile))
 
         # Fix for json encoding
-        aDict_fix = {}
-        for key, val in aDict.items():
-            if val.dtype == np.complex64 or val.dtype == np.complex128:
-                aDict_fix[f"{key}_real"] = val.real.tolist()
-                aDict_fix[f"{key}_imag"] = val.imag.tolist()
-            else:
-                aDict_fix[key] = val.tolist()
-
-
-        # for key, val in aDict.items():
-        #     fix = int(val) if isinstance(val, np.integer) \
-        #         else float(val) if isinstance(val, np.floating) \
-        #             else val.tolist() if isinstance(val, np.ndarray) \
-        #                 else val
-        #     aDict_fix[key] = fix
 
         newvalues = {
             "$set": {
@@ -497,8 +482,7 @@ def rmsynthoncut1d(
                     "I_err": rmsi.tolist(),
                     "Q_err": rmsq.tolist(),
                     "U_err": rmsu.tolist(),
-                },
-                "rm_spectra": aDict_fix,
+                }
             }
         }
         return pymongo.UpdateOne(myquery, newvalues)

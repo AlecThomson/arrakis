@@ -109,20 +109,11 @@ def rmclean1d(
         # Load into Mongo
         myquery = {"Gaussian_ID": cname}
 
-        # Fix for json encoding
-        arrdict_fix = {}
-        for key, val in arrdict.items():
-            if val.dtype == np.complex64 or val.dtype == np.complex128:
-                arrdict_fix[f"{key}_real"] = val.real.tolist()
-                arrdict_fix[f"{key}_imag"] = val.imag.tolist()
-            else:
-                arrdict_fix[key] = val.tolist()
 
         newvalues = {
             "$set": {
                 "rmclean1d": True,
                 "rmclean_summary": outdict,
-                "rm_clean_spectra": arrdict_fix,
             },
         }
     except KeyError:
