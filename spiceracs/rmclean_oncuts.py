@@ -25,6 +25,7 @@ from glob import glob
 from shutil import copyfile
 from pprint import pformat
 import logging as log
+from IPython import embed
 
 
 @delayed
@@ -92,12 +93,14 @@ def rmclean1d(
         )
 
         # Save output
-        do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
+        do_RMclean_1D.saveOutput(
+            outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
         if savePlots:
             plt.close("all")
             plotdir = os.path.join(outdir, "plots")
             plot_files = glob(
-                os.path.join(os.path.abspath(os.path.dirname(fdfFile)), "*.pdf")
+                os.path.join(os.path.abspath(
+                    os.path.dirname(fdfFile)), "*.pdf")
             )
             for src in plot_files:
                 base = os.path.basename(src)
@@ -106,8 +109,21 @@ def rmclean1d(
         # Load into Mongo
         myquery = {"Gaussian_ID": cname}
 
+        # Fix for json encoding
+        arrdict_fix = {}
+        for key, val in arrdict.items():
+            if val.dtype == np.complex64 or val.dtype == np.complex128:
+                arrdict_fix[f"{key}_real"] = val.real.tolist()
+                arrdict_fix[f"{key}_imag"] = val.imag.tolist()
+            else:
+                arrdict_fix[key] = val.tolist()
+
         newvalues = {
-            "$set": {"rmclean1d": True, "rmclean_summary": outdict},
+            "$set": {
+                "rmclean1d": True,
+                "rmclean_summary": outdict,
+                "rm_clean_spectra": arrdict_fix,
+            },
         }
     except KeyError:
         log.critical("Failed to load data! RM-CLEAN not applied to component!")
@@ -245,37 +261,47 @@ def main(
     beams = list(beams_col.find(query).sort("Source_ID"))
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
 
-    query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]}
+    if dimension == "3d":
+        query = {
+            "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]
+        }
 
-    islands = list(island_col.find(query).sort("Source_ID"))
-    island_ids = [doc["Source_ID"] for doc in islands]
-    n_island = island_col.count_documents(query)
+        islands = list(island_col.find(
+            query,
+            # Only get required values
+            {
+                "Source_ID": 1,
+                "rm3dfiles": 1,
+            }
+        ).sort("Source_ID"))
+        island_ids = [doc["Source_ID"] for doc in islands]
+        n_island = island_col.count_documents(query)
 
-    query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
-
-    components = list(comp_col.find(query).sort("Source_ID"))
-    component_ids = [doc["Gaussian_ID"] for doc in components]
-    comps = []
-    for i in island_ids:
-        _comp = []
-        for c in components:
-            if c["Source_ID"] == i:
-                _comp.append(c)
-        comps.append(_comp)
-
-    n_comp = comp_col.count_documents(query)
+    elif dimension == "1d":
+        query = {
+            "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
+        
+        components = list(comp_col.find(
+            query,
+            # Only get required values
+            {
+                "Source_ID": 1,
+                "Gaussian_ID": 1,
+                "rm1dfiles": 1,
+            }
+        ).sort("Source_ID"))
+        n_comp = comp_col.count_documents(query)
 
     if limit is not None:
         count = limit
         n_comp = count
         n_island = count
-        island_ids = island_ids[:count]
-        component_ids = component_ids[:count]
+        # component_ids = component_ids[:count]
 
     outputs = []
     if dimension == "1d":
         log.info(f"Running RM-CLEAN on {n_comp} components")
-        for i, comp in enumerate(components):
+        for i, comp in enumerate(tqdm(components, total=n_comp)):
             if i > n_comp + 1:
                 break
             else:
