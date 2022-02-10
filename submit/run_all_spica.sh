@@ -6,10 +6,10 @@
 #SBATCH --mail-type=ALL
 #SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.err
 #SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.out
-#SBATCH --ntasks=480
+#SBATCH --ntasks=600
 
 #SBATCH --ntasks-per-node=20
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 #SBATCH --cluster=galaxy
 #SBATCH --account=askap
 
@@ -108,5 +108,5 @@ for field in ${SPICA[*]}
         # thisfile="/group/askap/athomson/repos/spiceracs/submit/processSPICE.sbatch"
         # cp "$thisfile" "$(echo "$thisfile" | sed -e "$sedstr" | sed -e "$sedstr2")"
 
-        srun -n 480 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits --use_mpi --skip_cutout
+        srun -n 600 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits --use_mpi --skip_cutout
     done
