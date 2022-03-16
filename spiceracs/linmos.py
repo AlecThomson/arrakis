@@ -186,6 +186,8 @@ linmos.weightstate      = Inherent
 """
 
     if holofile is not None:
+        log.info(f"Using holography file {holofile} -- setting removeleakge to true")
+
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
 linmos.primarybeam.ASKAP_PB.image = {holofile}
