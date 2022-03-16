@@ -8,7 +8,7 @@
 #SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.out
 #SBATCH --ntasks=500
 
-#SBATCH --ntasks-per-node=20
+#SBATCH --ntasks-per-node=10
 #SBATCH --time=12:00:00
 #SBATCH --cluster=galaxy
 #SBATCH --account=askap
@@ -27,4 +27,4 @@ module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
 
-srun -n 500 --export=ALL python /group/askap/athomson/repos/spiceracs/spiceracs/process_region.py --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi
+srun --export=ALL python /group/askap/athomson/repos/spiceracs/spiceracs/process_region.py --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi --skip_merge --skip_rmsynth --debugger

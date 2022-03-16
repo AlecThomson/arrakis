@@ -8,15 +8,15 @@
 #SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.out
 #SBATCH --ntasks=480
 
-#SBATCH --ntasks-per-node=24
-#SBATCH --time=06:00:00
-#SBATCH --cluster=magnus
-#SBATCH --account=ja3
+##SBATCH --ntasks-per-node=24
+##SBATCH --time=06:00:00
+##SBATCH --cluster=magnus
+##SBATCH --account=ja3
 
-##SBATCH --ntasks-per-node=20
-##SBATCH --time=01:00:00
-##SBATCH --cluster=galaxy
-##SBATCH --account=askap
+#SBATCH --ntasks-per-node=20
+#SBATCH --time=01:00:00
+#SBATCH --cluster=galaxy
+#SBATCH --account=askap
 
 
 export OMP_NUM_THREADS=1
