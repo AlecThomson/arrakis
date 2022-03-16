@@ -25,7 +25,6 @@ from glob import glob
 from shutil import copyfile
 from pprint import pformat
 import logging as log
-from IPython import embed
 
 
 @delayed
@@ -38,6 +37,7 @@ def rmclean1d(
     showPlots=False,
     savePlots=False,
     rm_verbose=True,
+    window=False,
 ) -> pymongo.UpdateOne:
     """1D RM-CLEAN
 
@@ -70,6 +70,7 @@ def rmclean1d(
 
         # Sanity checks
         for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
+            log.debug(f"Checking {os.path.abspath(f)}")
             if not os.path.exists(f):
                 log.fatal("File does not exist: '{:}'.".format(f))
                 sys.exit()
@@ -90,6 +91,7 @@ def rmclean1d(
             verbose=rm_verbose,
             prefixOut=prefix,
             saveFigures=savePlots,
+            window=window,
         )
 
         # Save output
@@ -108,7 +110,6 @@ def rmclean1d(
                 copyfile(src, dst)
         # Load into Mongo
         myquery = {"Gaussian_ID": cname}
-
 
         newvalues = {
             "$set": {
@@ -213,6 +214,7 @@ def main(
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
+    window=False,
     showPlots=False,
     rm_verbose=False,
 ):
@@ -271,7 +273,7 @@ def main(
     elif dimension == "1d":
         query = {
             "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
-        
+
         components = list(comp_col.find(
             query,
             # Only get required values
@@ -305,6 +307,7 @@ def main(
                     showPlots=showPlots,
                     savePlots=savePlots,
                     rm_verbose=rm_verbose,
+                    window=window,
                 )
                 outputs.append(output)
 
@@ -324,7 +327,6 @@ def main(
                     rm_verbose=rm_verbose,
                 )
                 outputs.append(output)
-
     futures = client.persist(outputs)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(10)
@@ -455,6 +457,8 @@ def cli():
     parser.add_argument(
         "-g", dest="gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
     )
+    parser.add_argument("-w", dest="window", action="store_true",
+                        help="CLEAN in window around first peak [False].")
     parser.add_argument(
         "-p", dest="showPlots", action="store_true", help="show the plots [False]."
     )
@@ -511,6 +515,7 @@ def cli():
         cutoff=args.cutoff,
         maxIter=args.maxIter,
         gain=args.gain,
+        window=args.window,
         showPlots=args.showPlots,
         rm_verbose=args.rm_verbose,
     )
