@@ -36,4 +36,5 @@ dependencies:
   - dask_mpi
   - git+https://github.com/CIRADA-Tools/FRion.git
   - pytest
+  - RMTable
   - -rrequirements.txt

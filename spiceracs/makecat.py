@@ -8,8 +8,7 @@ import pymongo
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
 from spiceracs.utils import get_db, test_db
-import rmtable.rmtable as RMT
-import json
+import rmtable as RMT
 import logging as log
 from pprint import pformat
 
