@@ -150,6 +150,8 @@ def cutout(
                         xp_lo_idx:xp_hi_idx,  # freq, Stokes, y, x
                     ]
                 fixed_header = fix_header(new_header, old_header)
+                # Add source name to header for CASDA
+                fixed_header["OBJECT"] = src_name
                 if not dryrun:
                     fits.writeto(
                         outfile,
