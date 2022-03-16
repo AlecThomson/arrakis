@@ -383,7 +383,7 @@ def rmsynthoncut1d(
 
         log.debug(f'alpha is {alpha}')
         model_I = models.PowerLaw1D(
-            amplitude=amplitude, 
+            amplitude=amplitude,
             x_0=x_0,
             alpha=alpha
         )
@@ -412,6 +412,7 @@ def rmsynthoncut1d(
         # Run 1D RM-synthesis on the spectra
         np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
         try:
+            log.debug(f"Using {fit_function} to fit Stokes I")
             mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
                                                      polyOrd=polyOrd,
                                                      phiMax_radm2=phiMax_radm2,
@@ -674,7 +675,7 @@ def main(
             "Source_ID": 1,
             "Gaussian_ID": 1,
             "RA": 1,
-            "Dec": 1,            
+            "Dec": 1,
         }
     ).sort("Source_ID"))
     component_ids = [doc["Gaussian_ID"] for doc in components]
@@ -1027,7 +1028,7 @@ def cli():
         )
 
     cluster = LocalCluster(
-        # n_workers=12, processes=True, threads_per_worker=1, 
+        # n_workers=12, processes=True, threads_per_worker=1,
         local_directory="/dev/shm"
     )
     client = Client(cluster)
