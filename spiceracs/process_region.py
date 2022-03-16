@@ -179,6 +179,7 @@ def main(args: configargparse.Namespace) -> None:
             cutoff=args.cutoff,
             maxIter=args.maxIter,
             gain=args.gain,
+            window=args.window,
             showPlots=args.showPlots,
             rm_verbose=args.rm_verbose,
             upstream_tasks=[dirty_spec],
@@ -319,6 +320,7 @@ def cli():
     options.add_argument(
         "-v", "--verbose", action="store_true", help="Verbose output [False]."
     )
+    options.add_argument("--debugger", action="store_true", help="Debug output [False].")
     options.add_argument(
         "-vw",
         "--verbose_worker",
@@ -457,6 +459,9 @@ def cli():
     tools.add_argument(
         "-g", "--gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
     )
+    tools.add_argument(
+        "--window", action="store_true", help="CLEAN in window around first peak [False]."
+    )
 
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args
@@ -475,6 +480,13 @@ def cli():
     if verbose:
         log.basicConfig(
             level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+            force=True
+        )
+    if args.debugger:
+        log.basicConfig(
+            level=log.DEBUG,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
             force=True
