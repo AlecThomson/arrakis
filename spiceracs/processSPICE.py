@@ -27,6 +27,7 @@ import socket
 import configargparse
 import logging as log
 
+
 @task(name="Cutout")
 def cut_task(skip: bool, **kwargs) -> Task:
     """Cutout task
@@ -241,7 +242,8 @@ def main(args: configargparse.Namespace) -> None:
         cluster = SLURMCluster(
             **config,
         )
-        log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
+        log.debug(
+            f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes
         cluster.scale(jobs=15)
@@ -369,6 +371,7 @@ def main(args: configargparse.Namespace) -> None:
             cutoff=args.cutoff,
             maxIter=args.maxIter,
             gain=args.gain,
+            window=args.window,
             showPlots=args.showPlots,
             rm_verbose=args.rm_verbose,
             upstream_tasks=[dirty_spec],
@@ -384,7 +387,6 @@ def main(args: configargparse.Namespace) -> None:
             cat_format=args.format,
             upstream_tasks=[clean_spec],
         )
-
 
     with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
         flow.run()
@@ -664,7 +666,9 @@ def cli():
     tools.add_argument(
         "-g", "--gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
     )
-
+    tools.add_argument(
+        "--window", action="store_true", help="CLEAN in window around first peak [False]."
+    )
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args
     cat.add_argument(
