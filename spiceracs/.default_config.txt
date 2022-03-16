@@ -50,6 +50,7 @@ debug: False # turn on debugging messages & plots
 cutoff: -3 # CLEAN cutoff (+ve = absolute, -ve = sigma)
 maxIter: 10000 # maximum number of CLEAN iterations
 gain: 0.1 # CLEAN loop gain
+window: False # use a windowed CLEAN
 
 [Catalogue options]
 # outfile: # File to save table to
