@@ -13,6 +13,7 @@ import json
 import logging as log
 from pprint import pformat
 
+
 def main(
     field: str,
     host: str,
@@ -43,7 +44,24 @@ def main(
 
     beams = beams_col.find(query).sort("Source_ID")
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
-    query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmclean1d": True}]}
+    query = {
+        "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmclean1d": True}]}
+
+    fields = {}
+    for n in columns_possum.input_names:
+        fields.update({n: 1})
+    for n in columns_possum.sourcefinder_columns:
+        fields.update({n: 1})
+    fields.update({"rmsynth_summary": 1})
+    fields.update({"rmclean_summary": 1})
+    fields.update({"header": 1})
+
+    comps = list(
+        comp_col.find(
+            query,
+            fields
+        )
+    )
 
     # tab = RMT.RMTable()
     tab = QTable()
@@ -64,29 +82,29 @@ def main(
     ):
         data = []
         if src == "cat":
-            for comp in comp_col.find(query):
+            for comp in comps:
                 data += [comp[col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             tab.add_column(new_col)
 
         if src == "synth":
-            for comp in comp_col.find(query):
+            for comp in comps:
                 try:
-                    data += [comp["rmsynth_summary"][col]]
-                except KeyError:
                     data += [comp["rmclean_summary"][col]]
+                except KeyError:
+                    data += [comp["rmsynth_summary"][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             tab.add_column(new_col)
 
         if src == "header":
-            for comp in comp_col.find(query):
+            for comp in comps:
                 data += [comp["header"][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             tab.add_column(new_col)
 
     for selcol in tqdm(columns_possum.sourcefinder_columns, desc="Adding BDSF data"):
         data = []
-        for comp in comp_col.find(query):
+        for comp in comps:
             data += [comp[selcol]]
         new_col = Column(data=data, name=selcol)
         tab.add_column(new_col)
@@ -98,12 +116,12 @@ def main(
     rmtab["rm_method"] = "RM Synthesis"
     rmtab["standard_telescope"] = "ASKAP"
 
-
     if outfile is None:
         log.info(pformat(rmtab))
 
     if outfile is not None:
         rmtab.table.write(outfile, format=cat_format, overwrite=True)
+        log.info(f"{outfile} written to disk")
 
     log.info("Done!")
 
