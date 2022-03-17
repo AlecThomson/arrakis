@@ -6,12 +6,12 @@
 #SBATCH --mail-type=ALL
 #SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.err
 #SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.out
-#SBATCH --ntasks=400
+#SBATCH --ntasks=500
 #SBATCH --array=0-29
 ##SBATCH --array=0
 
 #SBATCH --ntasks-per-node=20
-#SBATCH --time=06:00:00
+#SBATCH --time=08:00:00
 #SBATCH --cluster=galaxy
 #SBATCH --account=askap
 
@@ -109,4 +109,4 @@ sedstr2="s+${currentdir}+${slurmdir}+g"
 # cp "$thisfile" "$(echo "$thisfile" | sed -e "$sedstr" | sed -e "$sedstr2")"
 
 # srun --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits --use_mpi --skip_cutout
-srun --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --window
+srun -n 500 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --window
