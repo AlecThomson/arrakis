@@ -192,7 +192,6 @@ def main(args: configargparse.Namespace) -> None:
             password=args.password,
             verbose=args.verbose,
             outfile=args.outfile,
-            cat_format=args.format,
             upstream_tasks=[clean_spec],
         )
 
@@ -468,10 +467,7 @@ def cli():
     cat.add_argument(
         "--outfile", default=None, type=str, help="File to save table to [None]."
     )
-
-    cat.add_argument(
-        "-f", "--format", default=None, type=str, help="Format for output file [None]."
-    )
+    
     args = parser.parse_args()
     if not args.use_mpi:
         parser.print_values()
