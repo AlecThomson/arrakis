@@ -9,9 +9,9 @@
 #SBATCH --ntasks=500
 #SBATCH --array=0-29
 ##SBATCH --array=0
-
+#SBATCH --requeue
 #SBATCH --ntasks-per-node=20
-#SBATCH --time=08:00:00
+#SBATCH --time=12:00:00
 #SBATCH --cluster=galaxy
 #SBATCH --account=askap
 
@@ -91,6 +91,9 @@ field=${SPICA[$SLURM_ARRAY_TASK_ID]}
 
 echo Running pipeline on $field
 cal_sbid=`find_sbid.py $field --cal`
+weight=`find_sbid.py $field --weight`
+weight_pad=`printf "%05d\n" $weight`
+zernike=/group/askap/athomson/projects/spiceracs/leakages/${weight_pad}_zernike_holo_cube.fits
 # tt0_dir=/group/askap/athomson/projects/RACS/CI0_mosaic_1.0
 # tt1_dir=/group/askap/athomson/projects/RACS/CI1_mosaic_1.0
 # data_dir=/scratch/ja3/athomson/spica
@@ -109,4 +112,16 @@ sedstr2="s+${currentdir}+${slurmdir}+g"
 # cp "$thisfile" "$(echo "$thisfile" | sed -e "$sedstr" | sed -e "$sedstr2")"
 
 # srun --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits --use_mpi --skip_cutout
-srun -n 500 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --window
+# if [ $weight_pad == 08669 ]; then
+#     # Don't correct for leakage
+#     echo "Not correcting for leakage"
+#     srun -n 500 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --window
+# else
+#     # Correct for leakage with Zernike file
+#     echo "Correcting for leakage"
+#     srun -n 500 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --window --holofile $zernike
+# fi
+
+# Correct for leakage with Zernike file
+echo "Correcting for leakage"
+srun -n 500 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --window --holofile $zernike

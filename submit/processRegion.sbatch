@@ -1,17 +1,18 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=testSPICE
+#SBATCH --job-name=SPICE-MERGE
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
 #SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.err
 #SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.out
 #SBATCH --ntasks=500
-
+#SBATCH --requeue
 #SBATCH --ntasks-per-node=10
 #SBATCH --time=12:00:00
 #SBATCH --cluster=galaxy
 #SBATCH --account=askap
+##SBATCH --dependency=afterok:13676803
 
 
 export OMP_NUM_THREADS=1
@@ -27,4 +28,4 @@ module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
 
-srun --export=ALL python /group/askap/athomson/repos/spiceracs/spiceracs/process_region.py --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi --skip_merge --skip_rmsynth --debugger
+srun --export=ALL python /group/askap/athomson/repos/spiceracs/spiceracs/process_region.py --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi
