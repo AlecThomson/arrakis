@@ -3,8 +3,89 @@ from astropy.table import Table, Row
 import argparse
 import os
 
+sorted_sbids = [
+    8570,
+    8574,
+    8576,
+    8584,
+    8589,
+    8593,
+    8674,
+    12420,
+    12422,
+    12423,
+    12425,
+    12426,
+    12427,
+    12428,
+    12429,
+    12430,
+    12431,
+    12435,
+    12493,
+    12494,
+    12496,
+    12497,
+    12500,
+    12502,
+    13587,
+    13588,
+    13589,
+    13591,
+    13595,
+    13671,
+    13672,
+    13673,
+    13678,
+    13743,
+    13746,
+    13747,
+    13749,
+]
 
-def main(name: str, cal=False, science=False):
+# Just the list of fields used in DR1
+sorted_weights = [
+    8247,
+    8247,
+    8247,
+    8247,
+    8247,
+    8247,
+    8669,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    11371,
+    13624,
+    13624,
+    13624,
+    13624,
+    13624,
+    13624,
+    13624,
+    13624,
+]
+
+
+def main(name: str, cal=False, science=False, weight=False):
     scriptdir = os.path.dirname(os.path.realpath(__file__))
     basedir = f"{scriptdir}/../askap_surveys/racs/db/epoch_0"
     tab = Table.read(f'{basedir}/field_data.csv')
@@ -17,7 +98,10 @@ def main(name: str, cal=False, science=False):
 
     if science:
         print(int(sub_tab['SBID']))
-    if not cal and not science:
+    if weight:
+        sbid = int(sub_tab['SBID'])
+        print(int(sorted_weights[sorted_sbids.index(sbid)]))
+    if not cal and not science and not weight:
         print(f'DB info for RACS_{name}:\n')
         for i, row in enumerate(sub_tab):
             print(f"{space}CAL SBID {i+1}: {row['CAL_SBID']}")
@@ -48,9 +132,15 @@ if __name__ == "__main__":
         action='store_true',
         help="Return Science SBID only"
     )
+    parser.add_argument(
+        "--weight",
+        action='store_true',
+        help="Return weight SBID only"
+    )
     args = parser.parse_args()
     main(
         args.field,
         cal=args.cal,
-        science=args.science
+        science=args.science,
+        weight=args.weight,
     )
