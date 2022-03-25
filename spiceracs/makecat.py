@@ -11,6 +11,168 @@ from spiceracs.utils import get_db, test_db
 import rmtable as RMT
 import logging as log
 from pprint import pformat
+from scipy.stats import lognorm, norm
+
+
+def lognorm_from_percentiles(x1, p1, x2, p2):
+    """ Return a log-normal distribuion X parametrized by:
+
+            P(X < p1) = x1
+            P(X < p2) = x2
+    """
+    x1 = np.log(x1)
+    x2 = np.log(x2)
+    p1ppf = norm.ppf(p1)
+    p2ppf = norm.ppf(p2)
+
+    scale = (x2 - x1) / (p2ppf - p1ppf)
+    mean = ((x1 * p2ppf) - (x2 * p1ppf)) / (p2ppf - p1ppf)
+
+#     return lognorm(s=scale, scale=np.exp(mean))
+    return scale, np.exp(mean)
+
+
+def sigma_add_fix(tab):
+    sigma_Q_low = np.array(tab['Sigma_add_Q'] - tab['E_Sigma_add_minus_Q'])
+    sigma_Q_high = np.array(tab['Sigma_add_Q'] + tab['E_Sigma_add_plus_Q'])
+
+    sigma_U_low = np.array(tab['Sigma_add_U'] - tab['E_Sigma_add_minus_U'])
+    sigma_U_high = np.array(tab['Sigma_add_U'] + tab['E_Sigma_add_plus_U'])
+
+    s_Q, scale_Q = lognorm_from_percentiles(
+        sigma_Q_low,
+        15.72/100,
+        sigma_Q_high,
+        84.27/100
+    )
+
+    s_U, scale_U = lognorm_from_percentiles(
+        sigma_U_low,
+        15.72/100,
+        sigma_U_high,
+        84.27/100
+    )
+
+    med, std = np.zeros_like(s_Q), np.zeros_like(s_Q)
+    for i, (_s_Q, _scale_Q, _s_U, _scale_U) in tqdm(
+        enumerate(zip(s_Q, scale_Q, s_U, scale_U)),
+        total=len(s_Q)
+    ):
+        try:
+            Q_dist = lognorm.rvs(s=_s_Q, scale=_scale_Q, size=(1000))
+            U_dist = lognorm.rvs(s=_s_U, scale=_scale_U, size=(1000))
+            P_dist = np.hypot(Q_dist, U_dist)
+            med[i] = np.median(P_dist)
+            std[i] = np.std(P_dist)
+        except ValueError:
+            med[i] = np.nan
+            std[i] = np.nan
+
+    tab.add_column(Column(data=med, name='Sigma_add_P'))
+    tab.add_column(Column(data=std, name='E_Sigma_add_P'))
+    tab.remove_columns(
+        [
+            'Sigma_add_Q',
+            'Sigma_add_U',
+            'E_Sigma_add_minus_Q',
+            'E_Sigma_add_plus_Q',
+            'E_Sigma_add_minus_U',
+            'E_Sigma_add_plus_U'
+        ]
+    )
+
+    return tab
+
+
+def is_leakage(frac, sep, fit):
+    """Determine if a source is leakage
+
+    Args:
+        frac (float): Polarised fraction
+        sep (float): Separation from tile centre
+        fit (function): Fitting function
+
+    Returns:
+        bool: True if source is leakage
+    """
+    fit_frac = fit(sep)
+    return frac < fit_frac
+
+
+def get_fit_func(tab, nbins=21, offset=0.002):
+    """Fit an envelope to define leakage sources
+
+    Args:
+        tab (Table): Catalogue to fit
+        nbins (int, optional): Number of bins along seperation axis. Defaults to 21.
+
+    Returns:
+        np.polynomial.Polynomial.fit: 3rd order polynomial fit.
+    """
+    # Select high SNR sources
+    hi_snr = (tab['Peak_I_flux_Gaussian'] / tab['Noise_I']) > 100
+    hi_i_tab = tab[hi_snr]
+    # Get fractional pol
+    frac_P = np.array(hi_i_tab['Fractional_polarisation']) * \
+        hi_i_tab['Fractional_polarisation'].unit
+    # Bin sources by separation from tile centre
+    bins = np.histogram_bin_edges(
+        hi_i_tab['Separation_Tile_Centre'], bins=nbins)
+    bins_c = np.median(np.vstack([bins[0:-1], bins[1:]]), axis=0)
+    # Compute the median and standard deviation of the fractional pol
+    meds = np.zeros_like(bins_c)
+    s1_ups = np.zeros_like(bins_c)
+    s1_los = np.zeros_like(bins_c)
+    s2_ups = np.zeros_like(bins_c)
+    s2_los = np.zeros_like(bins_c)
+    for i in range(len(bins)-1):
+        idx = ((hi_i_tab['Separation_Tile_Centre'] < bins[i+1])
+               & (hi_i_tab['Separation_Tile_Centre'] >= bins[i]))
+        s2_los[i], s1_los[i], meds[i], s1_ups[i], s2_ups[i] = np.nanpercentile(
+            frac_P[idx], [2.3, 16, 50, 84, 97.6]
+        )
+    # Fit to median with small offset
+    fit = np.polynomial.Polynomial.fit(bins_c, meds+offset, deg=3, full=False)
+    return fit
+
+
+def cuts_and_flags(cat):
+    """Cut out bad sources, and add flag columns
+
+    A flag of 'True' means the source is bad.
+
+    Args:
+        cat (RMT): Catalogue to cut and flag
+    """
+    # SNR cut
+    snr_cut = cat['SNR_Polarised_intensity'] > 5
+    cat = cat[snr_cut]
+    # SNR flag
+    snr_flag = cat['SNR_Polarised_intensity'] < 8
+    cat.add_column(Column(data=snr_flag, name='SNR_flag'))
+    # Leakage flag
+    fit = get_fit_func(cat)
+    leakage_flag = is_leakage(
+        cat['Fractional_polarisation'],
+        cat['Separation_Tile_Centre'],
+        fit
+    )
+    cat.add_column(Column(data=leakage_flag, name='Leakage_flag'))
+    # Channel flag
+    chan_flag = cat['Number_of_channels'] < 144
+    cat.add_column(Column(data=chan_flag, name='Channel_flag'))
+    # Fitting flag
+    fit_flag = cat['Stokes_I_fit_flag'] >= 64
+    cat.remove_column('Stokes_I_fit_flag')
+    cat.add_column(Column(data=fit_flag, name='Stokes_I_fit_flag'))
+    # Sigma_add flag
+    sigma_flag = cat['Sigma_add_P'] > 1
+    cat.add_column(Column(data=sigma_flag, name='Complex_sigma_add_flag'))
+    # M2_CC flag
+    m2_flag = cat['M2_CC'] > cat['RMSF_FWHM']
+    cat.add_column(Column(data=m2_flag, name='Complex_M2_CC_flag'))
+
+    return cat
 
 
 def main(
@@ -112,8 +274,23 @@ def main(
     rmtab["Gal_lon"], rmtab["Gal_lat"] = RMT.calculate_missing_coordinates_column(
         rmtab["RA"], rmtab["Dec"], to_galactic=True
     )
+
+    # Add common columns
     rmtab["rm_method"] = "RM Synthesis"
-    rmtab["standard_telescope"] = "ASKAP"
+    rmtab["telescope"] = "ASKAP"
+    rmtab["pol_bias"] = "2012PASA...29..214G"
+
+    # Verify table
+    rmtab.verify_columns()
+    # rmtab.verify_standard_strings()
+    rmtab.verify_limits()
+    rmtab.add_missing_columns()
+
+    # Fix sigma_add
+    rmtab = sigma_add_fix(rmtab)
+
+    # Add flags
+    rmtab = cuts_and_flags(rmtab)
 
     if outfile is None:
         log.info(pformat(rmtab))
