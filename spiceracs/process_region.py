@@ -5,7 +5,7 @@ from prefect import task, Task, Flow
 from prefect.engine.executors import DaskExecutor
 from prefect.engine import signals
 from spiceracs import merge_fields
-from spiceracs import processSPICE
+from spiceracs import process_spice
 
 from spiceracs.utils import port_forward, test_db
 from dask_jobqueue import SLURMCluster
@@ -132,7 +132,7 @@ def main(args: configargparse.Namespace) -> None:
             yanda=args.yanda,
             verbose=args.verbose,
         )
-        dirty_spec = processSPICE.rmsynth_task(
+        dirty_spec = process_spice.rmsynth_task(
             args.skip_rmsynth,
             field=args.merge_name,
             outdir=inter_dir,
@@ -163,7 +163,7 @@ def main(args: configargparse.Namespace) -> None:
             ion=False,
             upstream_tasks=[merge]
         )
-        clean_spec = processSPICE.rmclean_task(
+        clean_spec = process_spice.rmclean_task(
             args.skip_rmclean,
             field=args.merge_name,
             outdir=inter_dir,
@@ -184,7 +184,7 @@ def main(args: configargparse.Namespace) -> None:
             rm_verbose=args.rm_verbose,
             upstream_tasks=[dirty_spec],
         )
-        catalogue = processSPICE.cat_task(
+        catalogue = process_spice.cat_task(
             args.skip_cat,
             field=args.merge_name,
             host=host,
