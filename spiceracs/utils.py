@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import numpy as np
 import os
 import stat
@@ -32,6 +32,8 @@ from spectral_cube.utils import SpectralCubeWarning
 from FRion.correct import find_freq_axis
 from typing import Tuple, List, Dict, Any, Union, Optional
 import dask
+from dask import delayed
+import dask.array as da
 import dask.distributed as distributed
 import logging as log
 
@@ -40,6 +42,29 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
 
+def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array:
+    """Convert list of delayed arrays to a dask array
+
+    Args:
+        list_of_delayed (List[delayed]): List of delayed objects
+        chunk (int, optional): Chunksize to use. Defaults to None.
+
+    Returns:
+        da.Array: Dask array
+    """
+    sample = list_of_delayed[0].compute()
+    dim = (len(list_of_delayed),)  + sample.shape
+    if chunk is None:
+        c_dim = dim
+    else:
+        c_dim = (chunk,)  + sample.shape
+    darray = [
+        da.from_delayed(lazy, dtype=sample.dtype, shape=sample.shape)
+        for lazy in list_of_delayed
+    ]
+    darray = da.stack(darray, axis=0).reshape(dim).rechunk(c_dim)
+
+    return darray
 
 def yes_or_no(question: str) -> bool:
     """Ask a yes or no question via input()
@@ -168,7 +193,11 @@ def test_db(
 
 def get_db(
     host: str, username: str = None, password: str = None
-) -> Tuple[pymongo.collection.Collection, pymongo.collection.Collection, pymongo.collection.Collection]:
+) -> Tuple[
+    pymongo.collection.Collection,
+    pymongo.collection.Collection,
+    pymongo.collection.Collection,
+]:
     """Get MongoDBs
 
     Args:
@@ -179,21 +208,23 @@ def get_db(
     Returns:
         Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]: beams_col, island_col, comp_col
     """
-    with pymongo.MongoClient(
+    dbclient = pymongo.MongoClient(
         host=host,
         connect=False,
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    ) as dbclient:
-        mydb = dbclient["spiceracs"]  # Create/open database
-        comp_col = mydb["components"]  # Create/open collection
-        island_col = mydb["islands"]  # Create/open collection
-        beams_col = mydb["beams"]  # Create/open collection
+    )
+    mydb = dbclient["spiceracs"]  # Create/open database
+    comp_col = mydb["components"]  # Create/open collection
+    island_col = mydb["islands"]  # Create/open collection
+    beams_col = mydb["beams"]  # Create/open collection
     return beams_col, island_col, comp_col
 
 
-def get_field_db(host: str, username=None, password=None) -> pymongo.collection.Collection:
+def get_field_db(
+    host: str, username=None, password=None
+) -> pymongo.collection.Collection:
     """Get MongoDBs
 
     Args:
@@ -204,15 +235,15 @@ def get_field_db(host: str, username=None, password=None) -> pymongo.collection.
     Returns:
         pymongo.Collection: beams_col, island_col, comp_col
     """
-    with pymongo.MongoClient(
+    dbclient = pymongo.MongoClient(
         host=host,
         connect=False,
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    ) as dbclient:
-        mydb = dbclient["spiceracs"]  # Create/open database
-        field_col = mydb["fields"]  # Create/open collection
+    )
+    mydb = dbclient["spiceracs"]  # Create/open database
+    field_col = mydb["fields"]  # Create/open collection
     return field_col
 
 
@@ -261,7 +292,7 @@ def port_forward(port: int, target: str) -> None:
         port (int): port to forward
         target (str): Target host
     """
-    log.info(f"Forwarding {port} from {target}")
+    log.info(f"Forwarding {port} from localhost to {target}")
     cmd = f"ssh -N -f -R {port}:localhost:{port} {target}"
     command = shlex.split(cmd)
     output = subprocess.Popen(command)
@@ -280,6 +311,22 @@ def try_mkdir(dir_path: str, verbose=True):
         log.info(f"Made directory '{dir_path}'.")
     except FileExistsError:
         log.info(f"Directory '{dir_path}' exists.")
+
+
+def try_symlink(src: str, dst: str, verbose=True):
+    """Create symlink if it doesn't exist
+
+    Args:
+        src (str): Source path
+        dst (str): Destination path
+        verbose (bool, optional): Verbose output. Defaults to True.
+    """
+    # Create output dir if it doesn't exist
+    try:
+        os.symlink(src, dst)
+        log.info(f"Made symlink '{dst}'.")
+    except FileExistsError:
+        log.info(f"Symlink '{dst}' exists.")
 
 
 def head2dict(h: fits.Header) -> Dict[str, Any]:
