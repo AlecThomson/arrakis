@@ -29,12 +29,13 @@ dependencies:
   - tqdm
   - configargparse
   - spectral_cube
-  - RM-Tools
   - RMextract
   - spython
   - mpi4py
   - dask_mpi
-  - git+https://github.com/CIRADA-Tools/FRion.git
+  - FRion
+  - Polspectra
   - pytest
   - RMTable
-  - -rrequirements.txt
+  - ./RM-tools
+  - ./

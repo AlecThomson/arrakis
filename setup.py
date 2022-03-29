@@ -106,7 +106,7 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=['spiceracs', 'rmtable'],
+    packages=['spiceracs'],
     entry_points={
         'console_scripts': [
             'initSPICE=spiceracs.init_database:cli',
@@ -124,6 +124,7 @@ setup(
         'scripts/compute_leakage.py',
         'scripts/compare_leakage.py',
         'scripts/copy_cutouts_askap.py',
+        'scripts/casda_prepare.py',
     ],
     install_requires=REQUIRED,
     extras_require=EXTRAS,
@@ -135,7 +136,7 @@ setup(
         'License :: OSI Approved :: BSD License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.8',
         'Intended Audience :: Science/Research',
         'Topic :: Scientific/Engineering :: Astronomy',
         'Development Status :: 3 - Alpha',
