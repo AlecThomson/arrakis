@@ -149,9 +149,6 @@ def cuts_and_flags(cat):
     Args:
         cat (RMT): Catalogue to cut and flag
     """
-    # SNR cut
-    snr_cut = cat['snr_polint'] > 5
-    cat = cat[snr_cut]
     # SNR flag
     snr_flag = cat['snr_polint'] < 8
     cat.add_column(Column(data=snr_flag, name='snr_flag'))
@@ -236,17 +233,19 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
-    field_col = get_field_db(
-        host=host, username=username, password=password
-    )
     query = {
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    beams = beams_col.find(query).sort("Source_ID")
+    # beams = beams_col.find(query).sort("Source_ID")
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
     query = {
-        "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmclean1d": True}]}
+        "$and": [
+            {"Source_ID": {"$in": all_island_ids}}, 
+            {"rmsynth1d": True},
+            {"rmclean1d": True},
+        ]
+    }
 
     fields = {}
     for n in columns_possum.input_names:
@@ -321,6 +320,9 @@ def main(
     tab.add_column(Column(data=alphas, name='spectral_index'))
 
     # Add integration time
+    field_col = get_field_db(
+        host=host, username=username, password=password
+    )
     tints = get_integration_time(tab, field_col)
     tab.add_column(Column(data=tints, name='int_time'))
     # Add epoch
