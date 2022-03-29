@@ -109,8 +109,10 @@ setup(
     packages=['spiceracs'],
     entry_points={
         'console_scripts': [
-            'initSPICE=spiceracs.init_database:cli',
-            'processSPICE=spiceracs.processSPICE:cli',
+            'spice_init=spiceracs.init_database:cli',
+            'spice_process=spiceracs.process_spice:cli',
+            'spice_region=spiceracs.process_region:cli',
+            'spice_cat=spiceracs.make_cat:cli'
         ],
     },
     scripts=[
