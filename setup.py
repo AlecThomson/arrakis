@@ -112,7 +112,7 @@ setup(
             'spice_init=spiceracs.init_database:cli',
             'spice_process=spiceracs.process_spice:cli',
             'spice_region=spiceracs.process_region:cli',
-            'spice_cat=spiceracs.make_cat:cli'
+            'spice_cat=spiceracs.makecat:cli'
         ],
     },
     scripts=[
