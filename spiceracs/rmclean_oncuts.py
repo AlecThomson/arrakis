@@ -269,6 +269,7 @@ def main(
         ).sort("Source_ID"))
         island_ids = [doc["Source_ID"] for doc in islands]
         n_island = island_col.count_documents(query)
+        island_col.update(query, {"$set": {"rmclean3d": False}})
 
     elif dimension == "1d":
         query = {
@@ -284,6 +285,7 @@ def main(
             }
         ).sort("Source_ID"))
         n_comp = comp_col.count_documents(query)
+        comp_col.update_many(query, {"$set": {"rmclean1d": False}})
 
     if limit is not None:
         count = limit
