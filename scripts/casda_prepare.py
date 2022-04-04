@@ -18,6 +18,7 @@ from dask.distributed import Client, LocalCluster
 import dask.bag as db
 import dask.array as da
 import subprocess as sp
+from dask_mpi import initialize
 import matplotlib.pyplot as plt
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
@@ -554,6 +555,9 @@ def cli():
     parser.add_argument(
         "--test", action="store_true", help="Test mode",
     )
+    parser.add_argument(
+        "--mpi", action="store_true", help="Use MPI",
+    )
     args = parser.parse_args()
 
     if args.verbose:
@@ -568,10 +572,14 @@ def cli():
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
-    cluster = LocalCluster(
-        n_workers=12, processes=True, threads_per_worker=1, local_directory="/dev/shm"
-    )
-    client = Client(cluster)
+    if args.mpi:
+        initialize(local_directory="/dev/shm")
+        client = Client()
+    else:
+        cluster = LocalCluster(
+            n_workers=12, processes=True, threads_per_worker=1, local_directory="/dev/shm"
+        )
+        client = Client(cluster)
     log.debug(client)
 
     main(
