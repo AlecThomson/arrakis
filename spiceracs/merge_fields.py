@@ -120,9 +120,9 @@ def genparset(
     weightlist = f"[{','.join([im.replace('.fits', '').replace('.image.restored.','.weights.').replace('.ion','') for im in old_ims])}]"
 
     im_outname = os.path.join(new_dir, os.path.basename(
-        old_ims[0])).replace('.fits', '.egde.linmos')
+        old_ims[0])).replace('.fits', '.edge.linmos')
     wt_outname = os.path.join(new_dir, os.path.basename(
-        old_ims[0])).replace('.fits', '.egde.linmos').replace('.image.restored.', '.weights.')
+        old_ims[0])).replace('.fits', '.edge.linmos').replace('.image.restored.', '.weights.')
 
     parset_file = os.path.join(new_dir, f"edge_linmos_{stokes}.in")
     parset = f"""# LINMOS parset
