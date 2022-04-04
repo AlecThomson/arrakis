@@ -81,7 +81,11 @@ def find_spectra(data_dir: str = ".") -> list:
 
 
 @delayed
-def convert_spectra(spectrum: str, polcat: Table, spec_dir: str = ".") -> Tuple[np.ndarray]:
+def convert_spectra(
+    spectrum: str, 
+    polcat: Table, 
+    spec_dir: str = "."
+    ) -> Tuple[u.Quantity, u.Quantity, u.Quantity, np.ndarray]:
     """Convert a ascii spectrum to FITS
 
     Args:
@@ -254,20 +258,20 @@ def find_cubes(data_dir: str = ".") -> list:
 def make_polspec(
     casda_dir: str,
     polcat: Table,
-    freqs: list,
-    data: list,
-    noises: list,
-    gauss_ids: list,
+    freqs: np.ndarray,
+    data: np.ndarray,
+    noises: np.ndarray,
+    gauss_ids: np.ndarray,
 ) -> None:
     """Make a PolSpectra table
 
     Args:
         casda_dir (str): CASDA directory
         polcat (Table): Polarisation catalogue
-        freqs (list): list of frequency arrays
-        data (list): list of data arrays
-        noises (list): list of noise arrays
-        gauss_ids (list): list of Gaussian IDs
+        freqs (np.ndarray): Array of frequency arrays
+        data (np.ndarray): Array of data arrays
+        noises (np.ndarray): Array of noise arrays
+        gauss_ids (np.ndarray): Array of Gaussian IDs
     """
     freq = freqs[0]
 

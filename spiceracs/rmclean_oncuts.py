@@ -342,7 +342,7 @@ def main(
             log.info(pformat(db_res.bulk_api_result))
         elif dimension == "3d":
             db_res = island_col.bulk_write(updates, ordered=False)
-            log.info(pformat(db_res.bulk_api_result)())
+            log.info(pformat(db_res.bulk_api_result))
     log.info("RM-CLEAN done!")
 
 

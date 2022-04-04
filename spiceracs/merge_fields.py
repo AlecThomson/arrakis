@@ -227,12 +227,12 @@ def main(
     merge_name: str,
     output_dir: str,
     client: Client,
-    host: str = None,
+    host: str,
     username: str = None,
     password: str = None,
     yanda="1.3.0",
     verbose: bool = True,
-) -> None:
+) -> str:
 
     log.debug(f"{fields=}")
 

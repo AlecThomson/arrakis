@@ -20,7 +20,7 @@ import os
 from glob import glob
 from astropy.table import Table, vstack
 from spiceracs.utils import getdata, MyEncoder, yes_or_no
-from typing import Tuple
+from typing import Tuple, List
 import logging as log
 
 
@@ -43,7 +43,7 @@ def source2beams(ra: float, dec: float, database: Table, max_sep=1) -> Table:
     return beams
 
 
-def ndix_unique(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def ndix_unique(x: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
     """Find the N-dimensional array of indices of the unique values in x
     From https://stackoverflow.com/questions/54734545/indices-of-unique-values-in-array
 

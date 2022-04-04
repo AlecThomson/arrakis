@@ -399,8 +399,7 @@ def cpu_to_use(max_cpu: int, count: int) -> int:
 
 
 def getfreq(
-    cube: str, outdir: str = None, filename: str = None, verbose=False
-) -> Union[np.ndarray, Tuple[np.ndarray, str]]:
+    cube: str, outdir: str = None, filename: str = None):
     """Get list of frequencies from FITS data.
 
     Gets the frequency list from a given cube. Can optionally save
@@ -426,10 +425,12 @@ def getfreq(
         hdu = hdulist[0]
         data = hdu.data
     wcs = WCS(hdu)
-    freq = wcs.spectral.pixel_to_world(np.arange(data.shape[0]))  # Type: np.ndarray
+    freq = wcs.spectral.pixel_to_world(np.arange(data.shape[0]))  # Type: u.Quantity
 
     # Write to file if outdir is specified
-    if outdir is not None:
+    if outdir is None:
+        return freq # Type: u.Quantity
+    else:
         if outdir[-1] == "/":
             outdir = outdir[:-1]
         if filename is None:
@@ -438,9 +439,7 @@ def getfreq(
             outfile = f"{outdir}/{filename}"
         log.info(f"Saving to {outfile}")
         np.savetxt(outfile, np.array(freq))
-        return freq, outfile
-    else:
-        return freq
+        return freq, outfile # Type: Tuple[u.Quantity, str]
 
 
 def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:

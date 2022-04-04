@@ -67,7 +67,7 @@ def predict_worker(
     freq: np.ndarray,
     cutdir: str,
     plotdir: str,
-) -> str:
+) -> Tuple[str, pymongo.UpdateOne]:
     """Make FRion prediction for a single island
 
     Args:
@@ -192,8 +192,7 @@ def main(
 
     freq = getfreq(
         os.path.join(cutdir, f"{beams[0]['beams'][f'{field}']['q_file']}"),
-        verbose=verbose,
-    )
+    ) # Type: u.Quantity
 
     # Loop over islands in parallel
     outputs = []
