@@ -5,14 +5,16 @@ import numpy as np
 import warnings
 from astropy.table import QTable, Column
 from astropy.io import fits
+from astropy.io import votable as vot
 import astropy.units as u
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
 from spiceracs.utils import get_db, test_db, get_field_db
-import rmtable as RMT
+import rmtable as rmt
 import logging as log
 from pprint import pformat
 from scipy.stats import lognorm, norm
+
 
 
 def lognorm_from_percentiles(x1, p1, x2, p2):
@@ -147,7 +149,7 @@ def cuts_and_flags(cat):
     A flag of 'True' means the source is bad.
 
     Args:
-        cat (RMT): Catalogue to cut and flag
+        cat (rmt): Catalogue to cut and flag
     """
     # SNR flag
     snr_flag = cat['snr_polint'] < 8
@@ -181,7 +183,7 @@ def get_alpha(cat):
     alphas = []
     for c in coefs_str:
         coefs = c.split(",")
-        alpha = float(coefs[-1])
+        alpha = float(coefs[-2]) # alpha is the 2nd last coefficient
         alphas.append(alpha)
     return np.array(alphas)
 
@@ -208,6 +210,57 @@ def get_integration_time(cat, field_col):
     
     return np.array(tints) * u.s
 
+# Stolen from GASKAP pipeline
+# Credit to J. Dempsey
+# https://github.com/GASKAP/GASKAP-HI-Absorption-Pipeline/
+# https://github.com/GASKAP/GASKAP-HI-Absorption-Pipeline/blob/
+# def add_col_metadata(vo_table, col_name, description, units=None, ucd=None, datatype=None):
+#     """Add metadata to a VO table column.
+
+#     Args:
+#         vo_table (vot.): VO Table
+#         col_name (str): Column name
+#         description (str): Long description of the column
+#         units (u.Unit, optional): Unit of column. Defaults to None.
+#         ucd (str, optional): UCD string. Defaults to None.
+#         datatype (_type_, optional): _description_. Defaults to None.
+#     """    
+#     col = vo_table.get_first_table().get_field_by_id(col_name)
+#     col.description = description
+#     if units:
+#         col.unit = units
+#     if ucd:
+#         col.ucd = ucd
+#     if datatype:
+#         col.datatype = datatype
+
+def add_metadata(vo_table):
+    """Add metadata to VO Table for CASDA
+
+    Args:
+        vo_table (vot): VO Table object
+
+    Returns:
+        vot: VO Table object with metadata
+    """    
+    # Add RMtable metadata
+    for col_name, desc in columns_possum.rmtab_column_descriptions.items():
+        col = vo_table.get_first_table().get_field_by_id(col_name)
+        col.description = desc
+        if col_name == "ra":
+            col.ucd = "pos.eq.ra;meta.main"
+        elif col_name == "dec":
+            col.ucd = "pos.eq.dec;meta.main"
+        elif col_name == "cat_id":
+            col.ucd = "meta.id;meta.main"
+        elif col_name == "source_id":
+            col.ucd = "meta.id"
+    # Add extra metadata
+    for col_name, desc in columns_possum.extra_column_descriptions.items():
+        col = vo_table.get_first_table().get_field_by_id(col_name)
+        col.description = desc
+
+    return vo_table
 
 
 def main(
@@ -263,7 +316,7 @@ def main(
         )
     )
 
-    # tab = RMT.RMTable()
+    # tab = rmt.rmtable()
     tab = QTable()
     # Add items to main cat using RMtable standard
     for j, [name, typ, src, col, unit] in enumerate(
@@ -329,9 +382,9 @@ def main(
     tab.add_column(Column(data=tab['start_time'] + (tints / 2), name='epoch'))
 
     # Convert to rmtab
-    rmtab = RMT.from_table(tab)
+    rmtab = rmt.from_table(tab)
     # Get Galatic coords
-    glon, glat = RMT.calculate_missing_coordinates_column(
+    glon, glat = rmt.calculate_missing_coordinates_column(
         rmtab["ra"], rmtab["dec"], to_galactic=True
     )
     rmtab.add_column(data=glon, name="l")
@@ -349,7 +402,7 @@ def main(
 
     rmtab.add_column(
         data=fit(
-            rmtab["distance_from_beam_center"].to(u.deg).value,
+            rmtab["separation_tile_centre"].to(u.deg).value,
         ),
         name="leakage"
     )
@@ -377,7 +430,13 @@ def main(
         _ , ext = os.path.splitext(outfile)
         if ext == ".xml" or ext == ".vot":
             fmt = "votable"
-        rmtab.table.write(outfile, overwrite=True, format=fmt)
+            # CASDA needs v1.3
+            vo_table = vot.from_table(rmtab.table)
+            vo_table.version = "1.3"
+            vo_table = add_metadata(vo_table)
+            vot.writeto(vo_table, outfile)
+        else:
+            rmtab.table.write(outfile, overwrite=True, format=fmt)
         log.info(f"{outfile} written to disk")
 
     log.info("Done!")
