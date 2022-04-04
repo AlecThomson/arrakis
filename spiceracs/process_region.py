@@ -6,7 +6,6 @@ from prefect.engine.executors import DaskExecutor
 from prefect.engine import signals
 from spiceracs import merge_fields
 from spiceracs import process_spice
-
 from spiceracs.utils import port_forward, test_db
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
