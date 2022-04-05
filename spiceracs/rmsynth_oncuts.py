@@ -708,7 +708,6 @@ def main(
         os.path.join(outdir, f"{beams[0]['beams'][f'{field}']['q_file']}"),
         outdir=outdir,
         filename="frequencies.txt",
-        verbose=verbose,
     )
     freq = np.array(freq)
 
