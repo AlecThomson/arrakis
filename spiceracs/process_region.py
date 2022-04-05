@@ -21,7 +21,7 @@ import configargparse
 import logging as log
 
 
-@task(name="Merge fields")
+@task(name="Merge fields", skip_on_upstream_skip=False)
 def merge_task(skip: bool, **kwargs) -> Task:
     """Cutout task
 
@@ -31,7 +31,7 @@ def merge_task(skip: bool, **kwargs) -> Task:
         skip (bool): Whether to skip this task
 
     Raises:
-        signals.SUCCESS: If task is skipped
+        signals.SKIP: If task is skipped
 
     Returns:
         Task: Runs merge_fields.main
@@ -41,7 +41,7 @@ def merge_task(skip: bool, **kwargs) -> Task:
     else:
         check_cond = False
     if check_cond:
-        raise signals.SUCCESS
+        raise signals.SKIP
     else:
         return merge_fields.main(**kwargs)
 

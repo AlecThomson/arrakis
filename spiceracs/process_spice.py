@@ -28,7 +28,7 @@ import configargparse
 import logging as log
 
 
-@task(name="Cutout")
+@task(name="Cutout", skip_on_upstream_skip=False)
 def cut_task(skip: bool, **kwargs) -> Task:
     """Cutout task
 
@@ -38,7 +38,7 @@ def cut_task(skip: bool, **kwargs) -> Task:
         skip (bool): Whether to skip this task
 
     Raises:
-        signals.SUCCESS: If task is skipped
+        signals.SKIP: If task is skipped
 
     Returns:
         Task: Runs cutout.cutout_islands
@@ -48,12 +48,12 @@ def cut_task(skip: bool, **kwargs) -> Task:
     else:
         check_cond = False
     if check_cond:
-        raise signals.SUCCESS
+        raise signals.SKIP
     else:
         return cutout.cutout_islands(**kwargs)
 
 
-@task(name="LINMOS")
+@task(name="LINMOS", skip_on_upstream_skip=False)
 def linmos_task(skip: bool, **kwargs) -> Task:
     """LINOS task
 
@@ -63,7 +63,7 @@ def linmos_task(skip: bool, **kwargs) -> Task:
         skip (bool): Whether to skip this task
 
     Raises:
-        signals.SUCCESS: If task is skipped
+        signals.SKIP: If task is skipped
 
     Returns:
         Task: Runs linmos.main
@@ -73,12 +73,12 @@ def linmos_task(skip: bool, **kwargs) -> Task:
     else:
         check_cond = False
     if check_cond:
-        raise signals.SUCCESS
+        raise signals.SKIP
     else:
         return linmos.main(**kwargs)
 
 
-@task(name="FRion")
+@task(name="FRion", skip_on_upstream_skip=False)
 def frion_task(skip: bool, **kwargs) -> Task:
     """FRion task
 
@@ -88,7 +88,7 @@ def frion_task(skip: bool, **kwargs) -> Task:
         skip (bool): Whether to skip this task
 
     Raises:
-        signals.SUCCESS: If task is skipped
+        signals.SKIP: If task is skipped
 
     Returns:
         Task: Runs frion.main
@@ -98,12 +98,12 @@ def frion_task(skip: bool, **kwargs) -> Task:
     else:
         check_cond = False
     if check_cond:
-        raise signals.SUCCESS
+        raise signals.SKIP
     else:
         return frion.main(**kwargs)
 
 
-@task(name="Clean up")
+@task(name="Clean up", skip_on_upstream_skip=False)
 def cleanup_task(skip: bool, **kwargs) -> Task:
     """Cleanup task
 
@@ -113,7 +113,7 @@ def cleanup_task(skip: bool, **kwargs) -> Task:
         skip (bool): Whether to skip this task
 
     Raises:
-        signals.SUCCESS: If task is skipped
+        signals.SKIP: If task is skipped
 
     Returns:
         Task: Runs cleanup.main
@@ -123,12 +123,12 @@ def cleanup_task(skip: bool, **kwargs) -> Task:
     else:
         check_cond = False
     if check_cond:
-        raise signals.SUCCESS
+        raise signals.SKIP
     else:
         return cleanup.main(**kwargs)
 
 
-@task(name="RM Synthesis")
+@task(name="RM Synthesis", skip_on_upstream_skip=False)
 def rmsynth_task(skip: bool, **kwargs) -> Task:
     """RM synth task
 
@@ -138,7 +138,7 @@ def rmsynth_task(skip: bool, **kwargs) -> Task:
         skip (bool): Whether to skip this task
 
     Raises:
-        signals.SUCCESS: If task is skipped
+        signals.SKIP: If task is skipped
 
     Returns:
         Task: Runs rmsynth_oncuts.main
@@ -148,12 +148,12 @@ def rmsynth_task(skip: bool, **kwargs) -> Task:
     else:
         check_cond = False
     if check_cond:
-        raise signals.SUCCESS
+        raise signals.SKIP
     else:
         return rmsynth_oncuts.main(**kwargs)
 
 
-@task(name="RM-CLEAN")
+@task(name="RM-CLEAN", skip_on_upstream_skip=False)
 def rmclean_task(skip: bool, **kwargs) -> Task:
     """RM-CLEAN task
 
@@ -163,7 +163,7 @@ def rmclean_task(skip: bool, **kwargs) -> Task:
         skip (bool): Whether to skip this task
 
     Raises:
-        signals.SUCCESS: If task is skipped
+        signals.SKIP: If task is skipped
 
     Returns:
         Task: Runs rmclean_oncuts.main
@@ -173,12 +173,12 @@ def rmclean_task(skip: bool, **kwargs) -> Task:
     else:
         check_cond = False
     if check_cond:
-        raise signals.SUCCESS
+        raise signals.SKIP
     else:
         return rmclean_oncuts.main(**kwargs)
 
 
-@task(name="Catalogue")
+@task(name="Catalogue", skip_on_upstream_skip=False)
 def cat_task(skip: bool, **kwargs) -> Task:
     """Catalogue task
 
@@ -188,7 +188,7 @@ def cat_task(skip: bool, **kwargs) -> Task:
         skip (bool): Whether to skip this task
 
     Raises:
-        signals.SUCCESS: If task is skipped
+        signals.SKIP: If task is skipped
 
     Returns:
         Task: Runs makecat.main
@@ -198,7 +198,7 @@ def cat_task(skip: bool, **kwargs) -> Task:
     else:
         check_cond = False
     if check_cond:
-        raise signals.SUCCESS
+        raise signals.SKIP
     else:
         return makecat.main(**kwargs)
 
