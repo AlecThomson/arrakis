@@ -4,7 +4,7 @@ So you're ready to run the pipeline? The SPICE-RACS pipeline picks up from whate
 
     working_directory/image.restored.{i,q,u}*contcube*beam{00..36}.conv.fits
 
-:code:`processSPICE` orchestrates the pipeline flow using `Prefect <https://prefect.io>`_ and `Dask <https://dask.org>`_. This script calls the other :code:`spiceracs` modules to do the work. You can control which modules run in the configuration of :code:`processSPICE`, or run the modules individually. :code:`processSPICE` operates on the level of a single RACS fields, currently.
+:code:`spice_process` orchestrates the pipeline flow using `Prefect <https://prefect.io>`_ and `Dask <https://dask.org>`_. This script calls the other :code:`spiceracs` modules to do the work. You can control which modules run in the configuration of :code:`processSPICE`, or run the modules individually. :code:`processSPICE` operates on the level of a single RACS fields, currently.
 
 .. image:: flow.png
    :alt: Left floating image

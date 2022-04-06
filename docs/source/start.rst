@@ -16,7 +16,7 @@ For example, you can start mongo using (for NUMA systems like Pawsey): ::
 
 Then run the initialisation script: ::
 
-    (spice) $ initSPICE -h
+    (spice) $ spice_init -h
     usage: init_database.py [-h] [--username USERNAME] [--password PASSWORD] [-i ISLANDCAT] 
     [-c COMPCAT] [-v] [-l] [--field] host
 
