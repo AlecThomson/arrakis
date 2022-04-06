@@ -37,13 +37,8 @@ def merge_task(skip: bool, **kwargs) -> Task:
         Task: Runs merge_fields.main
     """
     if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SKIP
-    else:
-        return merge_fields.main(**kwargs)
+        raise signals.SKIP("Skipping merge task")
+    return merge_fields.main(**kwargs)
 
 
 def main(args: configargparse.Namespace) -> None:

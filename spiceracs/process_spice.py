@@ -44,13 +44,8 @@ def cut_task(skip: bool, **kwargs) -> Task:
         Task: Runs cutout.cutout_islands
     """
     if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SKIP
-    else:
-        return cutout.cutout_islands(**kwargs)
+        raise signals.SKIP("Skipping cutout task")
+    return cutout.cutout_islands(**kwargs)
 
 
 @task(name="LINMOS", skip_on_upstream_skip=False)
@@ -69,13 +64,8 @@ def linmos_task(skip: bool, **kwargs) -> Task:
         Task: Runs linmos.main
     """
     if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SKIP
-    else:
-        return linmos.main(**kwargs)
+        raise signals.SKIP("Skipping LINMOS task")
+    return linmos.main(**kwargs)
 
 
 @task(name="FRion", skip_on_upstream_skip=False)
@@ -94,13 +84,8 @@ def frion_task(skip: bool, **kwargs) -> Task:
         Task: Runs frion.main
     """
     if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SKIP
-    else:
-        return frion.main(**kwargs)
+        raise signals.SKIP("Skipping FRion task")
+    return frion.main(**kwargs)
 
 
 @task(name="Clean up", skip_on_upstream_skip=False)
@@ -119,13 +104,8 @@ def cleanup_task(skip: bool, **kwargs) -> Task:
         Task: Runs cleanup.main
     """
     if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SKIP
-    else:
-        return cleanup.main(**kwargs)
+        raise signals.SKIP("Skipping cleanup task")
+    return cleanup.main(**kwargs)
 
 
 @task(name="RM Synthesis", skip_on_upstream_skip=False)
@@ -144,13 +124,8 @@ def rmsynth_task(skip: bool, **kwargs) -> Task:
         Task: Runs rmsynth_oncuts.main
     """
     if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SKIP
-    else:
-        return rmsynth_oncuts.main(**kwargs)
+        raise signals.SKIP("Skipping RM Synthesis task")
+    return rmsynth_oncuts.main(**kwargs)
 
 
 @task(name="RM-CLEAN", skip_on_upstream_skip=False)
@@ -169,13 +144,8 @@ def rmclean_task(skip: bool, **kwargs) -> Task:
         Task: Runs rmclean_oncuts.main
     """
     if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SKIP
-    else:
-        return rmclean_oncuts.main(**kwargs)
+        raise signals.SKIP("Skipping RM-CLEAN task")
+    return rmclean_oncuts.main(**kwargs)
 
 
 @task(name="Catalogue", skip_on_upstream_skip=False)
@@ -194,13 +164,8 @@ def cat_task(skip: bool, **kwargs) -> Task:
         Task: Runs makecat.main
     """
     if skip:
-        check_cond = True
-    else:
-        check_cond = False
-    if check_cond:
-        raise signals.SKIP
-    else:
-        return makecat.main(**kwargs)
+        raise signals.SKIP("Skipping catalogue task")
+    return makecat.main(**kwargs)
 
 
 def main(args: configargparse.Namespace) -> None:
