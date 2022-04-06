@@ -125,4 +125,4 @@ You can optionally pass a configuration file (with the :code:`--config` argument
 
 For extra information you can refer to the API:
 
-* :py:mod:`spiceracs.processSPICE`
+* :py:mod:`spiceracs.process_spice`

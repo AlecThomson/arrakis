@@ -29,6 +29,8 @@ Attributes
 .. autoapisummary::
 
    find_sbid.descStr
+   find_sbid.sorted_sbids
+   find_sbid.sorted_weights
 
 
 .. py:data:: descStr
@@ -69,7 +71,53 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: main(name: str)
+.. py:data:: sorted_sbids
+   :annotation: = [8570, 8574, 8576, 8584, 8589, 8593, 8674, 12420, 12422, 12423, 12425, 12426, 12427, 12428,...
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:data:: sorted_weights
+   :annotation: = [8247, 8247, 8247, 8247, 8247, 8247, 8669, 11371, 11371, 11371, 11371, 11371, 11371, 11371,...
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main(name: str, cal=False, science=False, weight=False)
 
    
 

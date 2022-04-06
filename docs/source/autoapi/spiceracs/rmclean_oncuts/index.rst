@@ -50,7 +50,7 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:function:: main(field: str, outdir: str, host: str, client: dask.distributed.Client, username: str = None, password: str = None, dimension='1d', verbose=True, database=False, savePlots=True, validate=False, limit: int = None, cutoff: float = -3, maxIter=10000, gain=0.1, showPlots=False, rm_verbose=False)
+.. py:function:: main(field: str, outdir: str, host: str, client: dask.distributed.Client, username: str = None, password: str = None, dimension='1d', verbose=True, database=False, savePlots=True, validate=False, limit: int = None, cutoff: float = -3, maxIter=10000, gain=0.1, window=False, showPlots=False, rm_verbose=False)
 
    
    Main script
@@ -90,7 +90,7 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:function:: rmclean1d(comp: dict, outdir: str, cutoff: float = -3, maxIter=10000, gain=0.1, showPlots=False, savePlots=False, rm_verbose=True) -> pymongo.UpdateOne
+.. py:function:: rmclean1d(comp: dict, outdir: str, cutoff: float = -3, maxIter=10000, gain=0.1, showPlots=False, savePlots=False, rm_verbose=True, window=False) -> pymongo.UpdateOne
 
    
    1D RM-CLEAN

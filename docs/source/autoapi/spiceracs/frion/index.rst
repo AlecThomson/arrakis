@@ -112,7 +112,7 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:function:: predict_worker(island: Dict, field: str, beam: Dict, start_time: astropy.time.Time, end_time: astropy.time.Time, freq: numpy.ndarray, cutdir: str, plotdir: str) -> str
+.. py:function:: predict_worker(island: Dict, field: str, beam: Dict, start_time: astropy.time.Time, end_time: astropy.time.Time, freq: numpy.ndarray, cutdir: str, plotdir: str) -> Tuple[str, pymongo.UpdateOne]
 
    
    Make FRion prediction for a single island

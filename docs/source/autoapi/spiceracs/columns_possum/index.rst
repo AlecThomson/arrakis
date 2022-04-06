@@ -39,6 +39,29 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
+.. py:data:: extra_column_descriptions
+   
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:data:: input_names
    
 
@@ -154,8 +177,31 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
+.. py:data:: rmtab_column_descriptions
+   
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:data:: sourcefinder_columns
-   :annotation: = ['Gaussian_ID', 'Source_ID', 'Tile_ID', 'SBID', 'Obs_Start_Time', 'N_Gaus', 'Total_flux_Source',...
+   :annotation: = []
 
    
 

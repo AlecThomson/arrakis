@@ -41,7 +41,9 @@ Submodules
    init_database/index.rst
    linmos/index.rst
    makecat/index.rst
-   processSPICE/index.rst
+   merge_fields/index.rst
+   process_region/index.rst
+   process_spice/index.rst
    rmclean_oncuts/index.rst
    rmsynth_oncuts/index.rst
    utils/index.rst

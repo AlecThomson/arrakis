@@ -79,7 +79,7 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:function:: genparset(field: str, src_name: str, beams: dict, stoke: str, datadir: str, septab: astropy.table.Table, holofile: str) -> str
+.. py:function:: genparset(field: str, src_name: str, beams: dict, stoke: str, datadir: str, septab: astropy.table.Table, holofile: str = None) -> str
 
    
    Generate parset for LINMOS
@@ -174,7 +174,7 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:function:: main(field: str, datadir: str, client: dask.distributed.Client, host: str, holofile: str, username: str = None, password: str = None, yanda='1.3.0', stokeslist: List[str] = None, verbose=True) -> None
+.. py:function:: main(field: str, datadir: str, client: dask.distributed.Client, host: str, holofile: str = None, username: str = None, password: str = None, yanda='1.3.0', stokeslist: List[str] = None, verbose=True) -> None
 
    
    Main script

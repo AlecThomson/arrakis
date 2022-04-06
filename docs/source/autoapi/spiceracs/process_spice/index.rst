@@ -1,7 +1,7 @@
-:py:mod:`spiceracs.processSPICE`
-================================
+:py:mod:`spiceracs.process_spice`
+=================================
 
-.. py:module:: spiceracs.processSPICE
+.. py:module:: spiceracs.process_spice
 
 .. autoapi-nested-parse::
 
@@ -20,15 +20,15 @@ Functions
 
 .. autoapisummary::
 
-   spiceracs.processSPICE.cat_task
-   spiceracs.processSPICE.cleanup_task
-   spiceracs.processSPICE.cli
-   spiceracs.processSPICE.cut_task
-   spiceracs.processSPICE.frion_task
-   spiceracs.processSPICE.linmos_task
-   spiceracs.processSPICE.main
-   spiceracs.processSPICE.rmclean_task
-   spiceracs.processSPICE.rmsynth_task
+   spiceracs.process_spice.cat_task
+   spiceracs.process_spice.cleanup_task
+   spiceracs.process_spice.cli
+   spiceracs.process_spice.cut_task
+   spiceracs.process_spice.frion_task
+   spiceracs.process_spice.linmos_task
+   spiceracs.process_spice.main
+   spiceracs.process_spice.rmclean_task
+   spiceracs.process_spice.rmsynth_task
 
 
 
@@ -41,7 +41,7 @@ Functions
 
    :Parameters: **skip** (*bool*) -- Whether to skip this task
 
-   :raises signals.SUCCESS: If task is skipped
+   :raises signals.SKIP: If task is skipped
 
    :returns: Runs makecat.main
    :rtype: Task
@@ -72,7 +72,7 @@ Functions
 
    :Parameters: **skip** (*bool*) -- Whether to skip this task
 
-   :raises signals.SUCCESS: If task is skipped
+   :raises signals.SKIP: If task is skipped
 
    :returns: Runs cleanup.main
    :rtype: Task
@@ -126,7 +126,7 @@ Functions
 
    :Parameters: **skip** (*bool*) -- Whether to skip this task
 
-   :raises signals.SUCCESS: If task is skipped
+   :raises signals.SKIP: If task is skipped
 
    :returns: Runs cutout.cutout_islands
    :rtype: Task
@@ -157,7 +157,7 @@ Functions
 
    :Parameters: **skip** (*bool*) -- Whether to skip this task
 
-   :raises signals.SUCCESS: If task is skipped
+   :raises signals.SKIP: If task is skipped
 
    :returns: Runs frion.main
    :rtype: Task
@@ -188,7 +188,7 @@ Functions
 
    :Parameters: **skip** (*bool*) -- Whether to skip this task
 
-   :raises signals.SUCCESS: If task is skipped
+   :raises signals.SKIP: If task is skipped
 
    :returns: Runs linmos.main
    :rtype: Task
@@ -243,7 +243,7 @@ Functions
 
    :Parameters: **skip** (*bool*) -- Whether to skip this task
 
-   :raises signals.SUCCESS: If task is skipped
+   :raises signals.SKIP: If task is skipped
 
    :returns: Runs rmclean_oncuts.main
    :rtype: Task
@@ -274,7 +274,7 @@ Functions
 
    :Parameters: **skip** (*bool*) -- Whether to skip this task
 
-   :raises signals.SUCCESS: If task is skipped
+   :raises signals.SKIP: If task is skipped
 
    :returns: Runs rmsynth_oncuts.main
    :rtype: Task

@@ -35,6 +35,7 @@ Functions
    spiceracs.utils.cpu_to_use
    spiceracs.utils.deg_to_dms
    spiceracs.utils.deg_to_hms
+   spiceracs.utils.delayed_to_da
    spiceracs.utils.fix_header
    spiceracs.utils.get_db
    spiceracs.utils.get_field_db
@@ -46,6 +47,7 @@ Functions
    spiceracs.utils.test_db
    spiceracs.utils.tqdm_dask
    spiceracs.utils.try_mkdir
+   spiceracs.utils.try_symlink
    spiceracs.utils.yes_or_no
 
 
@@ -546,6 +548,34 @@ Attributes
    ..
        !! processed by numpydoc !!
 
+.. py:function:: delayed_to_da(list_of_delayed: List[dask.delayed], chunk: int = None) -> dask.array.Array
+
+   
+   Convert list of delayed arrays to a dask array
+
+   :Parameters: * **list_of_delayed** (*List[delayed]*) -- List of delayed objects
+                * **chunk** (*int, optional*) -- Chunksize to use. Defaults to None.
+
+   :returns: Dask array
+   :rtype: da.Array
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:function:: fix_header(cutout_header: astropy.io.fits.Header, original_header: astropy.io.fits.Header) -> astropy.io.fits.Header
 
    
@@ -574,7 +604,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: get_db(host: str, username: str = None, password: str = None) -> Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]
+.. py:function:: get_db(host: str, username: str = None, password: str = None) -> Tuple[pymongo.collection.Collection, pymongo.collection.Collection, pymongo.collection.Collection]
 
    
    Get MongoDBs
@@ -603,7 +633,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: get_field_db(host: str, username=None, password=None) -> pymongo.Collection
+.. py:function:: get_field_db(host: str, username=None, password=None) -> pymongo.collection.Collection
 
    
    Get MongoDBs
@@ -667,7 +697,7 @@ Attributes
    ..
        !! processed by numpydoc !!
 
-.. py:function:: getfreq(cube: str, outdir: str = None, filename: str = None, verbose=False) -> Union[numpy.ndarray, Tuple[numpy.ndarray, str]]
+.. py:function:: getfreq(cube: str, outdir: str = None, filename: str = None)
 
    
    Get list of frequencies from FITS data.
@@ -849,6 +879,32 @@ Attributes
    Create directory if it doesn't exist
 
    :Parameters: * **dir_path** (*str*) -- Path to directory
+                * **verbose** (*bool, optional*) -- Verbose output. Defaults to True.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: try_symlink(src: str, dst: str, verbose=True)
+
+   
+   Create symlink if it doesn't exist
+
+   :Parameters: * **src** (*str*) -- Source path
+                * **dst** (*str*) -- Destination path
                 * **verbose** (*bool, optional*) -- Verbose output. Defaults to True.
 
 

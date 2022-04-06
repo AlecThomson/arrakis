@@ -198,7 +198,7 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:function:: ndix_unique(x: numpy.ndarray) -> Tuple[numpy.ndarray, numpy.ndarray]
+.. py:function:: ndix_unique(x: numpy.ndarray) -> Tuple[numpy.ndarray, List[numpy.ndarray]]
 
    
    Find the N-dimensional array of indices of the unique values in x
