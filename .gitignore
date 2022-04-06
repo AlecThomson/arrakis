@@ -130,7 +130,6 @@ logs/
 dask-worker-space/
 
 # Outputs
-*.png
 *.html
 *.fits
 *.csv
