@@ -25,6 +25,10 @@ dependencies:
 - fitsio
 - casacore
 - casa-data
+- sphinx
+- numpydoc
+- sphinx-autoapi
+- m2r2
 - pip:
   - tqdm
   - configargparse
@@ -37,5 +41,6 @@ dependencies:
   - Polspectra
   - pytest
   - RMTable
+  - sphinx-book-theme
   - ./RM-tools
   - ./
