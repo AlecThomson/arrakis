@@ -89,7 +89,14 @@ def rmsynthoncut3d(
     dataI = np.squeeze(dataI)
 
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
-        return
+        log.critical(f"Cubelet {iname} is entirely NaN")
+        myquery = {"Source_ID": iname}
+        badvalues = {
+            "$set": {
+                "rmsynth3d": False,
+            }
+        }
+        return pymongo.UpdateOne(myquery, badvalues)
     rmsi = estimate_noise_annulus(
         dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
     rmsi[rmsi == 0] = np.nan
@@ -167,8 +174,6 @@ def rmsynthoncut3d(
             "header": dict(header),
         }
     }
-
-    # island_col.update_one(myquery, newvalues)
     return pymongo.UpdateOne(myquery, newvalues)
 
 
@@ -242,27 +247,27 @@ def estimate_noise_annulus(x_center, y_center, cube):
 
 @delayed
 def rmsynthoncut1d(
-    comp,
-    beam,
-    outdir,
-    freq,
-    field,
-    polyOrd=3,
-    phiMax_radm2=None,
-    dPhi_radm2=None,
-    nSamples=5,
-    weightType="variance",
-    fitRMSF=True,
-    noStokesI=False,
-    showPlots=False,
-    savePlots=False,
-    debug=False,
-    rm_verbose=False,
-    fit_function="log",
-    tt0=None,
-    tt1=None,
-    ion=False
-):
+    comp: dict,
+    beam: dict,
+    outdir: str,
+    freq: np.ndarray,
+    field: str,
+    polyOrd:int=3,
+    phiMax_radm2:float=None,
+    dPhi_radm2:float=None,
+    nSamples:int=5,
+    weightType:str="variance",
+    fitRMSF:bool=True,
+    noStokesI:bool=False,
+    showPlots:bool=False,
+    savePlots:bool=False,
+    debug:bool=False,
+    rm_verbose:bool=False,
+    fit_function:str="log",
+    tt0:str=None,
+    tt1:str=None,
+    ion:bool=False
+) -> pymongo.UpdateOne:
     """1D RM synthesis
 
     Args:
@@ -303,7 +308,17 @@ def rmsynthoncut1d(
     dataI = np.squeeze(dataI)
 
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
-        return
+        log.critical(f"Entire data is NaN for {iname}")
+        myquery = {
+            "Gaussian_ID": cname
+        }
+        badvalues = {
+            "$set":
+                {
+                    "rmsynth1d": False
+                }
+        }
+        return pymongo.UpdateOne(myquery, badvalues)
 
     rmsi = estimate_noise_annulus(
         dataI.shape[2]//2,
@@ -399,13 +414,31 @@ def rmsynthoncut1d(
 
     if np.sum(np.isfinite(qarr)) < 2 or np.sum(np.isfinite(uarr)) < 2:
         log.critical(f'{cname} QU data is all NaNs.')
-        return
+        myquery = {
+            "Gaussian_ID": cname
+        }
+        badvalues = {
+            "$set":
+                {
+                    "rmsynth1d": False
+                }
+        }
+        return pymongo.UpdateOne(myquery, badvalues)
     if noStokesI:
         data = [np.array(freq), qarr, uarr, rmsq, rmsu]
     else:
         if np.isnan(iarr).all():
             log.critical(f'{cname} I data is all NaNs.')
-            return
+            myquery = {
+                "Gaussian_ID": cname
+            }
+            badvalues = {
+                "$set":
+                    {
+                        "rmsynth1d": False
+                    }
+            }
+            return pymongo.UpdateOne(myquery, badvalues)
 
         data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
 
@@ -458,7 +491,7 @@ def rmsynthoncut1d(
 
         newvalues = {
             "$set": {
-                f"rm1dfiles": {
+                "rm1dfiles": {
                     "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
                     "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
                     "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
@@ -620,34 +653,34 @@ def rmsynthoncut_i(
 
 
 def main(
-    field,
-    outdir,
-    host,
-    client,
-    username=None,
-    password=None,
-    dimension="1d",
-    verbose=True,
-    database=False,
-    validate=False,
-    limit=None,
-    savePlots=False,
-    weightType="variance",
-    fitRMSF=True,
-    phiMax_radm2=None,
-    dPhi_radm2=None,
-    nSamples=5,
-    polyOrd=3,
-    noStokesI=False,
-    showPlots=False,
-    not_RMSF=False,
-    rm_verbose=False,
-    debug=False,
-    fit_function="log",
-    tt0=None,
-    tt1=None,
-    ion=False
-):
+    field: str,
+    outdir: str,
+    host: str,
+    client: Client,
+    username:str=None,
+    password:str=None,
+    dimension:str="1d",
+    verbose:bool=True,
+    database:bool=False,
+    validate:bool=False,
+    limit:int=None,
+    savePlots:bool=False,
+    weightType:str="variance",
+    fitRMSF:bool=True,
+    phiMax_radm2:float=None,
+    dPhi_radm2:float=None,
+    nSamples:int=5,
+    polyOrd:int=3,
+    noStokesI:bool=False,
+    showPlots:bool=False,
+    not_RMSF:bool=False,
+    rm_verbose:bool=False,
+    debug:bool=False,
+    fit_function:str="log",
+    tt0:str=None,
+    tt1:str=None,
+    ion:bool=False
+) -> None:
 
     outdir = os.path.abspath(outdir)
     outdir = os.path.join(outdir, "cutouts")
@@ -660,16 +693,16 @@ def main(
         host=host, username=username, password=password
     )
 
-    query = {
+    beam_query = {
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    beams = list(beams_col.find(query).sort("Source_ID"))
-    island_ids = sorted(beams_col.distinct("Source_ID", query))
+    beams = list(beams_col.find(beam_query).sort("Source_ID"))
+    island_ids = sorted(beams_col.distinct("Source_ID", beam_query))
 
-    query = {"Source_ID": {"$in": island_ids}}
+    isl_query = {"Source_ID": {"$in": island_ids}}
     components = list(comp_col.find(
-        query,
+        isl_query,
         # Only get required values
         {
             "Source_ID": 1,
@@ -680,21 +713,21 @@ def main(
     ).sort("Source_ID"))
     component_ids = [doc["Gaussian_ID"] for doc in components]
 
-    n_comp = comp_col.count_documents(query)
-    n_island = island_col.count_documents(query)
+    n_comp = comp_col.count_documents(isl_query)
+    n_island = island_col.count_documents(isl_query)
 
     # Unset rmsynth in db
     if dimension == "1d":
-        query = {
+        query_1d = {
             "$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth1d": True}]}
 
-        comp_col.update_many(query, {"$set": {"rmsynth1d": False}})
+        comp_col.update_many(query_1d, {"$set": {"rmsynth1d": False}})
 
     elif dimension == "3d":
-        query = {
+        query_3d = {
             "$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth3d": True}]}
 
-        island_col.update(query, {"$set": {"rmsynth3d": False}})
+        island_col.update(query_3d, {"$set": {"rmsynth3d": False}})
 
     if limit is not None:
         count = limit
