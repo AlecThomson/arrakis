@@ -195,7 +195,7 @@ def rmclean3d(
     # Load into Mongo
     myquery = {"Source_ID": iname}
     newvalues = {"$set": {f"rmclean3d": True}}
-    pymongo.UpdateOne(myquery, newvalues)
+    return pymongo.UpdateOne(myquery, newvalues)
 
 
 def main(
