@@ -192,6 +192,7 @@ def main(args: configargparse.Namespace) -> None:
     with performance_report(f"{args.merge_name}-report-{Time.now().fits}.html"):
         flow.run()
 
+    client.close()
 
 def cli():
     """Command-line interface"""
