@@ -262,6 +262,18 @@ def add_metadata(vo_table):
 
     return vo_table
 
+def replace_nans(filename:str):
+    """Replace NaNs in a XML table with a string
+
+    Args:
+        filename (str): File name
+    """    
+    with open(filename, "r") as f:
+        xml = f.read()
+    xml = xml.replace("NaN", "null")
+    with open(filename, "w") as f:
+        f.write(xml)
+
 
 def main(
     field: str,
@@ -435,6 +447,8 @@ def main(
             vo_table.version = "1.3"
             vo_table = add_metadata(vo_table)
             vot.writeto(vo_table, outfile)
+            # Fix NaNs for CASDA
+            replace_nans(outfile)
         else:
             rmtab.table.write(outfile, overwrite=True, format=fmt)
         log.info(f"{outfile} written to disk")
