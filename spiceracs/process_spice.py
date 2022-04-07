@@ -354,7 +354,7 @@ def main(args: configargparse.Namespace) -> None:
 
     with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
         flow.run()
-
+    client.close()
 
 def cli():
     """Command-line interface"""
