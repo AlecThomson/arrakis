@@ -446,23 +446,24 @@ def rmsynthoncut1d(
         np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
         try:
             log.debug(f"Using {fit_function} to fit Stokes I")
-            mDict, aDict = do_RMsynth_1D.run_rmsynth(data=data,
-                                                     polyOrd=polyOrd,
-                                                     phiMax_radm2=phiMax_radm2,
-                                                     dPhi_radm2=dPhi_radm2,
-                                                     nSamples=nSamples,
-                                                     weightType=weightType,
-                                                     fitRMSF=fitRMSF,
-                                                     noStokesI=noStokesI,
-                                                     modStokesI=modStokesI,
-                                                     nBits=32,
-                                                     saveFigures=savePlots,
-                                                     showPlots=showPlots,
-                                                     verbose=rm_verbose,
-                                                     debug=debug,
-                                                     fit_function=fit_function,
-                                                     prefixOut=prefix,
-                                                     )
+            mDict, aDict = do_RMsynth_1D.run_rmsynth(
+                data=data,
+                polyOrd=polyOrd,
+                phiMax_radm2=phiMax_radm2,
+                dPhi_radm2=dPhi_radm2,
+                nSamples=nSamples,
+                weightType=weightType,
+                fitRMSF=fitRMSF,
+                noStokesI=noStokesI,
+                modStokesI=modStokesI,
+                nBits=32,
+                saveFigures=savePlots,
+                showPlots=showPlots,
+                verbose=rm_verbose,
+                debug=debug,
+                fit_function=fit_function,
+                prefixOut=prefix,
+        )
         except Exception as err:
             traceback.print_tb(err.__traceback__)
             raise err
@@ -476,7 +477,8 @@ def rmsynthoncut1d(
                 copyfile(src, dst)
 
         do_RMsynth_1D.saveOutput(
-            mDict, aDict, prefix, rm_verbose)
+            mDict, aDict, prefix, rm_verbose
+        )
 
         myquery = {"Gaussian_ID": cname}
 
