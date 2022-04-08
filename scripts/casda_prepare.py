@@ -28,13 +28,6 @@ import astropy.units as u
 from radio_beam import Beam
 
 def make_thumbnail(cube_f: str, cube_dir: str):
-    if ".weights." in cube_f:
-        cmap = "gray"
-    else:
-        if ".i." in cube_f:
-            cmap = "viridis"
-        else:
-            cmap = "coolwarm"
     cube = np.squeeze(fits.getdata(cube_f))
     head = fits.getheader(cube_f)
     wcs = WCS(head)
@@ -49,7 +42,17 @@ def make_thumbnail(cube_f: str, cube_dir: str):
         
     )
     fig = plt.figure(facecolor='w')
-    norm = ImageNormalize(med, interval=ZScaleInterval())
+    if ".weights." in cube_f:
+        cmap = "gray"
+        norm = ImageNormalize(med, interval=MinMaxInterval())
+    else:
+        if ".i." in cube_f:
+            cmap = "viridis"
+            norm = ImageNormalize(med, interval=MinMaxInterval())
+        else:
+            cmap = "coolwarm"
+            absmax = np.max(np.abs(med))
+            norm = ImageNormalize(med, vmin=-absmax, vmax=absmax)
     ax = fig.add_subplot(111, projection=med_wcs)
     im = ax.imshow(med, origin='lower', cmap=cmap, norm=norm)
     ax.add_patch(ellipse)
