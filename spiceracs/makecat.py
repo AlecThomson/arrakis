@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Make a SPICE-RACS catalogue"""
 import os
+import time
 import numpy as np
 import warnings
 from astropy.table import QTable, Column
@@ -14,6 +15,7 @@ import rmtable as rmt
 import logging as log
 from pprint import pformat
 from scipy.stats import lognorm, norm
+from IPython import embed
 
 
 
@@ -113,7 +115,7 @@ def get_fit_func(tab, nbins=21, offset=0.002):
         np.polynomial.Polynomial.fit: 3rd order polynomial fit.
     """
     # Select high SNR sources
-    hi_snr = (tab['stokesI'] / tab['stokesI_err']) > 100
+    hi_snr = (tab['stokesI'].to(u.Jy/u.beam) / tab['stokesI_err'].to(u.Jy/u.beam)) > 100
     hi_i_tab = tab[hi_snr]
     # Get fractional pol
     frac_P = np.array(hi_i_tab['fracpol'].value)
@@ -234,7 +236,7 @@ def get_integration_time(cat, field_col):
 #     if datatype:
 #         col.datatype = datatype
 
-def add_metadata(vo_table):
+def add_metadata(vo_table: vot.tree.Table, filename: str):
     """Add metadata to VO Table for CASDA
 
     Args:
@@ -260,6 +262,36 @@ def add_metadata(vo_table):
         col = vo_table.get_first_table().get_field_by_id(col_name)
         col.description = desc
 
+    # Add params for CASDA
+    if len(vo_table.params) > 0:
+        log.warning(f"{filename} already has params - not adding")
+        return vo_table
+    _ , ext = os.path.splitext(filename)
+    cat_name = os.path.basename(filename).replace(ext, "")
+    idx_fields = "ra,dec,cat_id,source_id"
+    pri_fields = "ra,dec,cat_id,source_id,rm,polint,snr_polint,fracpol,stokesI,sigma_add"
+    params = [
+        vot.tree.Param(
+            vo_table,
+            ID="Catalogue_Name", 
+            name="Catalogue Name", 
+            value=cat_name
+        ),
+        vot.tree.Param(
+            vo_table,
+            ID="Indexed_Fields", 
+            name="Indexed Fields", 
+            value=idx_fields
+        ),
+        vot.tree.Param(
+            vo_table,
+            ID="Principal_Fields", 
+            name="Principal Fields", 
+            value=pri_fields
+        ),
+    ]
+    vo_table.params.extend(params)
+
     return vo_table
 
 def replace_nans(filename:str):
@@ -274,6 +306,14 @@ def replace_nans(filename:str):
     with open(filename, "w") as f:
         f.write(xml)
 
+def write_votable(rmtab:rmt.RMTable,outfile:str) -> None:
+    # CASDA needs v1.3
+    vo_table = vot.from_table(rmtab.table)
+    vo_table.version = "1.3"
+    vo_table = add_metadata(vo_table, outfile)
+    vot.writeto(vo_table, outfile)
+    # Fix NaNs for CASDA
+    replace_nans(outfile)
 
 def main(
     field: str,
@@ -298,12 +338,17 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
+    log.info("Starting beams collection query")
+    tick = time.time()
     query = {
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
-
-    # beams = beams_col.find(query).sort("Source_ID")
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
+    tock = time.time()
+    log.info(f"Finished beams collection query - {tock-tick:.2f}s")
+
+    log.info("Starting component collection query")
+    tick = time.time()
     query = {
         "$and": [
             {"Source_ID": {"$in": all_island_ids}}, 
@@ -327,6 +372,8 @@ def main(
             fields
         )
     )
+    tock = time.time()
+    log.info(f"Finished component collection query - {tock-tick:.2f}s")
 
     # tab = rmt.rmtable()
     tab = QTable()
@@ -438,19 +485,11 @@ def main(
         log.info(pformat(rmtab))
 
     if outfile is not None:
-        fmt = None
         _ , ext = os.path.splitext(outfile)
         if ext == ".xml" or ext == ".vot":
-            fmt = "votable"
-            # CASDA needs v1.3
-            vo_table = vot.from_table(rmtab.table)
-            vo_table.version = "1.3"
-            vo_table = add_metadata(vo_table)
-            vot.writeto(vo_table, outfile)
-            # Fix NaNs for CASDA
-            replace_nans(outfile)
+            write_votable(rmtab, outfile)
         else:
-            rmtab.table.write(outfile, overwrite=True, format=fmt)
+            rmtab.table.write(outfile, overwrite=True)
         log.info(f"{outfile} written to disk")
 
     log.info("Done!")
