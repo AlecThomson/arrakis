@@ -9,6 +9,7 @@ from spiceracs.makecat import is_leakage, get_fit_func, write_votable
 from spica import SPICA, basedir
 import logging as log
 import rmtable as rmt
+import pickle
 from IPython import embed
 
 def fix_fields(tab:Table) -> Table:
@@ -83,7 +84,7 @@ def main(cat:str):
     log.debug(f"Fixing {cat}")
     tab = fix_fields(tab)
     tab = rmt.from_table(tab)
-    fit = get_fit_func(tab)
+    fit = get_fit_func(tab, degree=4, do_plot=False)
     leakage_flag = is_leakage(
         tab['fracpol'].value,
         tab['beamdist'].to(u.deg).value,
@@ -94,6 +95,18 @@ def main(cat:str):
     tab['leakage'] = leakage
     _ , ext = os.path.splitext(cat)
     outfile = cat.replace(ext, f'.corrected{ext}')
+
+
+    outfit = cat.replace(ext, f'.corrected.leakage.pkl')
+    with open(outfit, 'wb') as f:
+        pickle.dump(fit, f)
+        log.info(f"Wrote leakage fit to {outfit}")
+
+    # outplot = cat.replace(ext, f'.corrected.leakage.pdf')
+    # log.info(f"Writing leakage plot to {outplot}")
+    # fig.savefig(outplot, dpi=300, bbox_inches='tight')
+
+    log.info(f"Writing corrected catalogue to {outfile}")
     if ext == ".xml" or ext == ".vot":
         write_votable(tab, outfile)
     else:
