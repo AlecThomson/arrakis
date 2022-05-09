@@ -10,11 +10,12 @@ from astropy.io import votable as vot
 import astropy.units as u
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
-from spiceracs.utils import get_db, test_db, get_field_db
+from spiceracs.utils import get_db, test_db, get_field_db, latexify
 import rmtable as rmt
 import logging as log
 from pprint import pformat
 from scipy.stats import lognorm, norm
+import matplotlib.pyplot as plt
 from IPython import embed
 
 
@@ -104,7 +105,7 @@ def is_leakage(frac, sep, fit):
     return frac < fit_frac
 
 
-def get_fit_func(tab, nbins=21, offset=0.002):
+def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     """Fit an envelope to define leakage sources
 
     Args:
@@ -139,10 +140,58 @@ def get_fit_func(tab, nbins=21, offset=0.002):
     fit = np.polynomial.Polynomial.fit(
         bins_c, 
         meds+offset, 
-        deg=3, 
+        deg=degree, 
         full=False
     )
-    return fit
+    if not do_plot: 
+        return fit
+    
+    # Plot the fit
+    latexify(columns=1)
+    figure = plt.figure(facecolor='w')
+    fig = plt.figure(facecolor='w')
+    color = 'tab:green'
+    stoke = {
+        "s2_los": s2_los,
+        "s1_los": s1_los,
+        "meds": meds,
+        "s1_ups": s1_ups,
+        "s2_ups" :s2_ups,
+    }
+    plt.scatter(
+        hi_i_tab['beamdist'].to(u.deg).value,
+        frac_P, 
+        s=1, 
+        alpha=0.2,
+        marker='.',
+        c='k',
+        zorder=0,
+    )
+    plt.plot(
+        bins_c,
+        meds,
+        alpha=1,
+        c=color,
+        label="Median"
+    )
+    for s, ls in zip((1,2), ("--",":")):
+        for r in ("ups", "los"):
+            plt.plot(
+                bins_c,
+                stoke[f"s{s}_{r}"],
+                alpha=1,
+                c=color,
+                linestyle=ls,
+                label=f"${s}\sigma$" if r=="ups" else ""
+            )
+    xx = np.linspace(0, 4.5, 100)
+    plt.plot(xx, fit(xx), 'tab:orange', label="Leakage envelope")
+    plt.legend(loc='upper left')
+    plt.xlabel('Separation from tile centre [deg]')
+    plt.ylabel(f'$P/I$ fraction')
+    plt.ylim(0,+0.05)
+    plt.grid()
+    return fit, fig
 
 
 def cuts_and_flags(cat):
@@ -299,12 +348,13 @@ def replace_nans(filename:str):
 
     Args:
         filename (str): File name
-    """    
-    with open(filename, "r") as f:
-        xml = f.read()
-    xml = xml.replace("NaN", "null")
-    with open(filename, "w") as f:
-        f.write(xml)
+    """  
+    pass
+    # with open(filename, "r") as f:
+    #     xml = f.read()
+    # xml = xml.replace("NaN", "null")
+    # with open(filename, "w") as f:
+    #     f.write(xml)
 
 def write_votable(rmtab:rmt.RMTable,outfile:str) -> None:
     # CASDA needs v1.3
