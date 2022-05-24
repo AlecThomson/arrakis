@@ -11,7 +11,7 @@ import astropy.units as u
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
 from spiceracs.utils import get_db, test_db, get_field_db, latexify
-import rmtable as rmt
+from rmtable import RMTable, calculate_missing_coordinates_column
 import logging as log
 from pprint import pformat
 from scipy.stats import lognorm, norm
@@ -294,22 +294,11 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
     Returns:
         vot: VO Table object with metadata
     """    
-    # Add RMtable metadata
-    for col_name, desc in columns_possum.rmtab_column_descriptions.items():
-        col = vo_table.get_first_table().get_field_by_id(col_name)
-        col.description = desc
-        if col_name == "ra":
-            col.ucd = "pos.eq.ra;meta.main"
-        elif col_name == "dec":
-            col.ucd = "pos.eq.dec;meta.main"
-        elif col_name == "cat_id":
-            col.ucd = "meta.id;meta.main"
-        elif col_name == "source_id":
-            col.ucd = "meta.id"
     # Add extra metadata
-    for col_name, desc in columns_possum.extra_column_descriptions.items():
+    for col_name, meta in columns_possum.extra_column_descriptions.items():
         col = vo_table.get_first_table().get_field_by_id(col_name)
-        col.description = desc
+        col.description = meta["description"]
+        col.ucd = meta["ucd"]
 
     # Add params for CASDA
     if len(vo_table.params) > 0:
@@ -356,9 +345,9 @@ def replace_nans(filename:str):
     # with open(filename, "w") as f:
     #     f.write(xml)
 
-def write_votable(rmtab:rmt.RMTable,outfile:str) -> None:
+def write_votable(rmtab:RMTable,outfile:str) -> None:
     # CASDA needs v1.3
-    vo_table = vot.from_table(rmtab.table)
+    vo_table = vot.from_table(rmtab)
     vo_table.version = "1.3"
     vo_table = add_metadata(vo_table, outfile)
     vot.writeto(vo_table, outfile)
@@ -425,8 +414,7 @@ def main(
     tock = time.time()
     log.info(f"Finished component collection query - {tock-tick:.2f}s")
 
-    # tab = rmt.rmtable()
-    tab = QTable()
+    rmtab = RMTable() # type: RMTable
     # Add items to main cat using RMtable standard
     for j, [name, typ, src, col, unit] in enumerate(
         tqdm(
@@ -447,7 +435,7 @@ def main(
             for comp in comps:
                 data += [comp[col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
-            tab.add_column(new_col)
+            rmtab.add_column(new_col)
 
         if src == "synth":
             for comp in comps:
@@ -456,49 +444,47 @@ def main(
                 except KeyError:
                     data += [comp["rmsynth_summary"][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
-            tab.add_column(new_col)
+            rmtab.add_column(new_col)
 
         if src == "header":
             for comp in comps:
                 data += [comp["header"][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
-            tab.add_column(new_col)
+            rmtab.add_column(new_col)
 
     for selcol in tqdm(columns_possum.sourcefinder_columns, desc="Adding BDSF data"):
         data = []
         for comp in comps:
             data += [comp[selcol]]
         new_col = Column(data=data, name=selcol)
-        tab.add_column(new_col)
+        rmtab.add_column(new_col)
     
     # Fix sigma_add
-    tab = sigma_add_fix(tab)
+    rmtab = sigma_add_fix(rmtab)
 
     # Add flags
-    tab, fit = cuts_and_flags(tab)
+    rmtab, fit = cuts_and_flags(rmtab)
 
     # Add spectral index from fitted model
-    alphas = get_alpha(tab)
-    tab.add_column(Column(data=alphas, name='spectral_index'))
+    alphas = get_alpha(rmtab)
+    rmtab.add_column(Column(data=alphas, name='spectral_index'))
 
     # Add integration time
     field_col = get_field_db(
         host=host, username=username, password=password
     )
-    tints = get_integration_time(tab, field_col)
-    tab.add_column(Column(data=tints, name='int_time'))
+    tints = get_integration_time(rmtab, field_col)
+    rmtab.add_column(Column(data=tints, name='int_time'))
     # Add epoch
-    tab.add_column(Column(data=tab['start_time'] + (tints / 2), name='epoch'))
+    rmtab.add_column(Column(data=rmtab['start_time'] + (tints / 2), name='epoch'))
 
-    # Convert to rmtab
-    rmtab = rmt.from_table(tab)
     # Get Galatic coords
-    glon, glat = rmt.calculate_missing_coordinates_column(
+    glon, glat = calculate_missing_coordinates_column(
         rmtab["ra"], rmtab["dec"], to_galactic=True
     )
-    rmtab.add_column(data=glon, name="l")
-    rmtab.add_column(data=glat, name="b")
-    rmtab.add_column(data=np.max([rmtab['ra_err'], rmtab['dec_err']]), name="pos_err")
+    rmtab.add_column(col=glon, name="l")
+    rmtab.add_column(col=glat, name="b")
+    rmtab.add_column(col=np.max([rmtab['ra_err'], rmtab['dec_err']]), name="pos_err")
 
     # Add common columns
     rmtab["rm_method"] = "RM Synthesis - Fractional polarization"
@@ -510,14 +496,14 @@ def main(
     rmtab["aperture"] = 0*u.deg
 
     rmtab.add_column(
-        data=fit(
+        col=fit(
             rmtab["separation_tile_centre"].to(u.deg).value,
         ),
         name="leakage"
     )
 
     rmtab.add_column(
-        data=np.logical_or(
+        col=np.logical_or(
             rmtab['complex_sigma_add_flag'], 
             rmtab['complex_M2_CC_flag']
         ), 
@@ -525,11 +511,11 @@ def main(
     )
 
     # Verify table
-    rmtab.verify_columns()
     rmtab.add_missing_columns()
+    rmtab.verify_standard_strings()
+    rmtab.verify_limits()
     # Readd complex test
     rmtab["complex_test"]  = "sigma_add OR Second moment"
-
 
     if outfile is None:
         log.info(pformat(rmtab))
@@ -539,7 +525,7 @@ def main(
         if ext == ".xml" or ext == ".vot":
             write_votable(rmtab, outfile)
         else:
-            rmtab.table.write(outfile, overwrite=True)
+            rmtab.write(outfile, overwrite=True)
         log.info(f"{outfile} written to disk")
 
     log.info("Done!")
