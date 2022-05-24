@@ -8,6 +8,7 @@ import io
 import os
 import sys
 from shutil import rmtree
+from glob import glob
 
 from setuptools import find_packages, setup, Command
 
@@ -115,19 +116,9 @@ setup(
             'spice_cat=spiceracs.makecat:cli'
         ],
     },
-    scripts=[
-        'scripts/check_cutout.py',
-        'scripts/make_links.py',
-        'scripts/find_sbid.py',
-        'scripts/find_row.py',
-        'scripts/copy_data.py',
-        'scripts/spica.py',
-        'scripts/copy_cutouts.py',
-        'scripts/compute_leakage.py',
-        'scripts/compare_leakage.py',
-        'scripts/copy_cutouts_askap.py',
-        'scripts/casda_prepare.py',
-    ],
+    scripts=glob(
+        'scripts/*.py',
+    ),
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
