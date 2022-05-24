@@ -339,7 +339,7 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
             value=pri_fields
         ),
     ]
-    vo_table.params.extend(params)
+    vo_table.resources[0].params.extend(params)
 
     return vo_table
 
