@@ -43,4 +43,5 @@ dependencies:
   - RMTable
   - sphinx-book-theme
   - ./RM-tools
+  - ./RMTable
   - ./
