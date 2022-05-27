@@ -2,13 +2,13 @@
 """Post process DR1 catalog"""
 import os
 import numpy as np
-from astropy.table import Table, MaskedColumn
+from astropy.table import Table, Column
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 from spiceracs.makecat import is_leakage, get_fit_func, write_votable
 from spica import SPICA, basedir
 import logging as log
-import rmtable as rmt
+from rmtable import RMTable
 import pickle
 from IPython import embed
 
@@ -58,13 +58,11 @@ def fix_fields(tab:Table) -> Table:
 
     all_seps = new_tab['separation_tile_centre'].value * new_tab['separation_tile_centre'].unit
     all_seps[idx] = min_seps
-    new_tab['separation_tile_centre'] = MaskedColumn(
+    new_tab['separation_tile_centre'] = Column(
         data=all_seps,
-        mask=new_tab['separation_tile_centre'].mask
     ) 
-    new_tab['beamdist'] = MaskedColumn(
+    new_tab['beamdist'] = Column(
         data=all_seps,
-        mask=new_tab['beamdist'].mask
     )
 
     # Fix the units - Why does VOTable do this?? Thanks I hate it
@@ -80,15 +78,14 @@ def fix_fields(tab:Table) -> Table:
 
 def main(cat:str):
     log.debug(f"Reading {cat}")
-    tab = Table.read(cat)
+    tab = RMTable.read(cat)
     log.debug(f"Fixing {cat}")
     tab = fix_fields(tab)
-    tab = rmt.from_table(tab)
     fit = get_fit_func(tab, degree=4, do_plot=False)
     leakage_flag = is_leakage(
         tab['fracpol'].value,
         tab['beamdist'].to(u.deg).value,
-            fit
+        fit
     )
     tab['leakage_flag'] = leakage_flag
     leakage = fit(tab["separation_tile_centre"].to(u.deg).value)
