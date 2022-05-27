@@ -382,121 +382,67 @@ def make_polspec(
     unit = u.Jy / u.beam / rmsf_unit
     radms = u.radian / u.m**2
 
-    # Following same approach in polspectra
-    phi_column = Column(
-        name="faraday_depth",
-        unit=radms,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Faraday depth",
-    )
-    phi_column[:] = [x for x in phis]
+    for name, unit, description, data in zip(
+        (
+            "faraday_depth", 
+            "faraday_depth_long", 
+            "FDF_Q_dirty", 
+            "FDF_U_dirty",
+            "FDF_Q_clean",
+            "FDF_U_clean",
+            "FDF_Q_model",
+            "FDF_U_model",
+            "RMSF_Q",
+            "RMSF_U",
+        ),
+        (
+            radms,
+            radms,
+            unit,
+            unit,
+            unit,
+            unit,
+            unit,
+            unit,
+            unit,
+            unit,
+        ),
+        (
+            "Faraday depth",
+            "Faraday depth (long)",
+            "Dirty Stokes Q FDF",
+            "Dirty Stokes U FDF",
+            "Clean Stokes Q FDF",
+            "Clean Stokes U FDF",
+            "Model Stokes Q FDF",
+            "Model Stokes U FDF",
+            "Stokes Q RMSF",
+            "Stokes U RMSF",
+        ),
+        (
+            phis,
+            phis_long,
+            fdf_dirty[:, 0],
+            fdf_dirty[:, 1],
+            fdf_clean[:, 0],
+            fdf_clean[:, 1],
+            fdf_model[:, 0],
+            fdf_model[:, 1],
+            rmsf[:, 0],
+            rmsf[:, 1],
+        ),
+    ):
+        new_col = Column(
+            name=name,
+            unit=unit,
+            dtype='object',
+            shape=(),
+            length=spectrum_table.Nrows,
+            description=description,
+        )
+        new_col[:] = [x for x in data]
+        spectrum_table.table.add_column(new_col)
 
-    phi_long_column = Column(
-        name="faraday_depth_long",
-        unit=radms,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Faraday depth",
-    )
-    phi_long_column[:] = [x for x in phis_long]
-
-    fdf_q_dirty_column = Column(
-        name="FDF_Q_dirty",
-        unit=unit,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Dirty Stokes Q FDF",
-    )
-    fdf_q_dirty_column[:] = [x for x in fdf_dirty[:, 0]]
-
-    fdf_u_dirty_column = Column(
-        name="FDF_U_dirty",
-        unit=unit,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Dirty Stokes U FDF",
-    )
-    fdf_u_dirty_column[:] = [x for x in fdf_dirty[:, 1]]
-
-    fdf_q_clean_column = Column(
-        name="FDF_Q_clean",
-        unit=unit,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Clean Stokes Q FDF",
-    )
-    fdf_q_clean_column[:] = [x for x in fdf_clean[:, 0]]
-
-    fdf_u_clean_column = Column(
-        name="FDF_U_clean",
-        unit=unit,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Clean Stokes U FDF",
-    )
-    fdf_u_clean_column[:] = [x for x in fdf_clean[:, 1]]
-
-    fdf_q_model_column = Column(
-        name="FDF_Q_model",
-        unit=unit,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Model Stokes Q FDF",
-    )
-    fdf_q_model_column[:] = [x for x in fdf_model[:, 0]]
-
-    fdf_u_model_column = Column(
-        name="FDF_U_model",
-        unit=unit,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Model Stokes U FDF",
-    )
-    fdf_u_model_column[:] = [x for x in fdf_model[:, 1]]
-
-    rmsf_q_column = Column(
-        name="RMSF_Q",
-        unit=rmsf_unit,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Stokes Q RMSF",
-    )
-    rmsf_q_column[:] = [x for x in rmsf[:, 0]]
-
-    rmsf_u_column = Column(
-        name="RMSF_U",
-        unit=rmsf_unit,
-        dtype='object',
-        shape=(),
-        length=spectrum_table.Nrows,
-        description="Stokes U RMSF",
-    )
-    rmsf_u_column[:] = [x for x in rmsf[:, 1]]
-
-    spectrum_table.table.add_columns(
-        [
-            phi_column,
-            phi_long_column,
-            fdf_q_dirty_column,
-            fdf_u_dirty_column,
-            fdf_q_clean_column,
-            fdf_u_clean_column,
-            fdf_q_model_column,
-            fdf_u_model_column,
-            rmsf_q_column,
-            rmsf_u_column,
-        ]
-    )
     outf = os.path.join(casda_dir, "spice_racs_dr1_polspec.fits",)
     log.info(f"Writing {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)
