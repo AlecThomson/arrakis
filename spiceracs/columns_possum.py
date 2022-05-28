@@ -66,7 +66,7 @@ columns = [
     ('fracpol', float, 'synth', 'fracPol', u.dimensionless_unscaled),
     ('reffreq_pol', float, 'synth', 'freq0_Hz', u.Hz),
     ('reffreq_beam', float, 'synth', 'freq0_Hz', u.Hz),
-    ('reffreq_I', float, 'synth', 'freq0_Hz', u.Hz),
+    ('reffreq_I', float, 'synth', 'poly_reffreq', u.Hz),
     ('fdf_noise_th', float, 'synth', 'dFDFth', u.Jy/u.beam),
     ('rmsf_fwhm', float, 'synth', 'fwhmRMSF', u.rad/u.m**2),
     ('refwave_sq_pol', float, 'synth', 'lam0Sq_m2', u.m**2),
@@ -79,6 +79,7 @@ columns = [
     ('Nchan', int, 'synth', 'N_channels', u.dimensionless_unscaled),
     ('rm_width', float, 'synth', 'mom2CCFDF', u.rad/u.m**2),
     ('stokesI_model_coef', str, 'synth', 'polyCoeffs',None),
+    ('stokesI_model_coef_err', str, 'synth', 'polyCoefferr', None),
 
     # Less important quantities from the RMsynthesis (can be removed or modified after prototype verification?)
     ('noise_chan', float, 'synth', 'dQU', u.Jy/u.beam),
