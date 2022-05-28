@@ -231,12 +231,17 @@ def cuts_and_flags(cat):
 
 def get_alpha(cat):
     coefs_str = cat["stokesI_model_coef"]
+    coefs_err_str = cat["stokesI_model_coef_err"]
     alphas = []
-    for c in coefs_str:
+    alphas_err = []
+    for c, c_err in zip(coefs_str, coefs_err_str):
         coefs = c.split(",")
+        coefs_err = c_err.split(",")
         alpha = float(coefs[-2]) # alpha is the 2nd last coefficient
+        alpha_err = float(coefs_err[-2])
         alphas.append(alpha)
-    return np.array(alphas)
+        alphas_err.append(alpha_err)
+    return np.array(alphas), np.array(alphas_err)
 
 def get_integration_time(cat, field_col):
     field_names = list(cat['tile_id'])
@@ -466,8 +471,9 @@ def main(
     rmtab, fit = cuts_and_flags(rmtab)
 
     # Add spectral index from fitted model
-    alphas = get_alpha(rmtab)
+    alphas, alphas_err = get_alpha(rmtab)
     rmtab.add_column(Column(data=alphas, name='spectral_index'))
+    rmtab.add_column(Column(data=alphas_err, name='spectral_index_err'))
 
     # Add integration time
     field_col = get_field_db(
