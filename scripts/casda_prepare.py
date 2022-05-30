@@ -26,7 +26,7 @@ from astropy.visualization import (MinMaxInterval, SqrtStretch,
                                    ImageNormalize, ZScaleInterval, LogStretch)
 import astropy.units as u
 from radio_beam import Beam
-from tqdm.auto import tqdm
+from tqdm.auto import tqdm, trange
 
 def make_thumbnail(cube_f: str, cube_dir: str):
     cube = np.squeeze(fits.getdata(cube_f))
@@ -520,6 +520,7 @@ def main(
     do_convert_plots: bool = False,
     verbose: bool = False,
     test: bool = False,
+    batch_size: int = 10,
 ):
     """Main function"""
 
@@ -664,21 +665,28 @@ def main(
         else:
             log.info(f"Starting work on {len(outputs)} {name}")
 
-        futures = client.persist(outputs)
-        # dumb solution for https://github.com/dask/distributed/issues/4831
-        log.debug("I sleep!")
-        time.sleep(10)
-        log.debug("I awake!")
-        tqdm_dask(futures, desc=f"Preparing {name} for CASDA", disable=(not verbose))
+
+        # Split outputs into chunks
+        chunk_outputs = []
+        for i in trange(0, len(outputs), batch_size, desc=f"Chunking {name}", disable=(not verbose)):
+            outputs_chunk = outputs[i:i+batch_size]
+            futures = client.persist(outputs_chunk)
+            # dumb solution for https://github.com/dask/distributed/issues/4831
+            log.debug("I sleep!")
+            time.sleep(10)
+            log.debug("I awake!")
+            tqdm_dask(futures, desc=f"Preparing {name} for CASDA", disable=(not verbose), leave=False)
+            chunk_outputs.extend(futures)
+
         # For spectra, we also want to make a polspec catalogue
         if name == "spectra" and len(outputs) > 0:
             log.info("Making polspec catalogue")
-            keys = futures[0].compute().keys()
+            keys = chunk_outputs[0].compute().keys()
             out_data_lists = {
                 key: [] for key in keys
             } # type: Dict[str, list]
 
-            for future in futures:
+            for future in chunk_outputs:
                 result = future.compute()
                 for key in keys:
                     out_data_lists[key].append(result[key])
@@ -730,6 +738,12 @@ def cli():
     parser.add_argument(
         "--mpi", action="store_true", help="Use MPI",
     )
+    parser.add_argument(
+        "--batch_size",
+        help="Number parallel jobs to run",
+        type=int,
+        default=10,
+    )
     args = parser.parse_args()
 
     if args.verbose:
@@ -745,7 +759,10 @@ def cli():
         )
 
     if args.mpi:
-        initialize(local_directory="/dev/shm")
+        initialize(
+            interface="ipogif0",
+            local_directory="/dev/shm",
+        )
         client = Client()
     else:
         cluster = LocalCluster(
@@ -763,6 +780,7 @@ def cli():
         do_convert_plots=args.convert_plots,
         verbose=args.verbose,
         test=args.test,
+        batch_size=args.batch_size,
     )
 
 
