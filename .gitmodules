@@ -4,6 +4,3 @@
 [submodule "RM-Tools"]
 	path = RM-Tools
 	url = https://github.com/AlecThomson/RM-Tools
-[submodule "RMTable"]
-	path = RMTable
-	url = https://github.com/CIRADA-Tools/RMTable
