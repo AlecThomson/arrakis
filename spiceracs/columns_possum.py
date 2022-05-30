@@ -80,6 +80,7 @@ columns = [
     ('rm_width', float, 'synth', 'mom2CCFDF', u.rad/u.m**2),
     ('stokesI_model_coef', str, 'synth', 'polyCoeffs',None),
     ('stokesI_model_coef_err', str, 'synth', 'polyCoefferr', None),
+    ('stokesI_model_order', int, 'synth', 'polyOrd', u.dimensionless_unscaled),
 
     # Less important quantities from the RMsynthesis (can be removed or modified after prototype verification?)
     ('noise_chan', float, 'synth', 'dQU', u.Jy/u.beam),
