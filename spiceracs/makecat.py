@@ -11,7 +11,7 @@ import astropy.units as u
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
 from spiceracs.utils import get_db, test_db, get_field_db, latexify
-from rmtable import RMTable, calculate_missing_coordinates_column
+from rmtable import RMTable
 import logging as log
 from pprint import pformat
 from scipy.stats import lognorm, norm
@@ -485,12 +485,20 @@ def main(
     rmtab.add_column(Column(data=rmtab['start_time'] + (tints / 2), name='epoch'))
 
     # Get Galatic coords
-    glon, glat = calculate_missing_coordinates_column(
-        rmtab["ra"], rmtab["dec"], to_galactic=True
+    glon, glat = RMTable.calculate_missing_coordinates_column(
+        rmtab["ra"].to(u.deg), rmtab["dec"].to(u.deg), to_galactic=True
     )
-    rmtab.add_column(col=glon, name="l")
-    rmtab.add_column(col=glat, name="b")
-    rmtab.add_column(col=np.max([rmtab['ra_err'], rmtab['dec_err']]), name="pos_err")
+    rmtab.add_column(col=glon*u.deg, name="l")
+    rmtab.add_column(col=glat*u.deg, name="b")
+    rmtab.add_column(
+        col=np.max(
+            [
+                rmtab['ra_err'].to(u.arcsec), 
+                rmtab['dec_err'].to(u.arcsec)
+            ]
+        ) * u.arcsec, 
+        name="pos_err"
+    )
 
     # Add common columns
     rmtab["rm_method"] = "RM Synthesis - Fractional polarization"
