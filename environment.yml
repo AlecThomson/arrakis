@@ -40,8 +40,7 @@ dependencies:
   - FRion
   - Polspectra
   - pytest
-  - RMTable
+  - git+https://github.com/CIRADA-Tools/RMTable
   - sphinx-book-theme
   - ./RM-tools
-  - ./RMTable
   - ./
