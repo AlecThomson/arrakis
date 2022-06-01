@@ -67,6 +67,7 @@ def make_thumbnail(cube_f: str, cube_dir: str):
     outf = os.path.join(cube_dir, os.path.basename(cube_f).replace(".fits", ".png"))
     log.info(f"Saving thumbnail to {outf}")
     fig.savefig(outf, dpi=300)
+    plt.close(fig)
     
 def find_spectra(data_dir: str = ".") -> list:
     """Find spectra in from cutouts directory
@@ -87,8 +88,10 @@ def find_spectra(data_dir: str = ".") -> list:
 @delayed
 def convert_spectra(
     spectrum: str, 
-    polcat: Table, 
-    spec_dir: str = "."
+    ra: float,
+    dec: float,
+    gauss_id: str,
+    spec_dir: str = ".",
     ) -> dict:
     """Convert a ascii spectrum to FITS
 
@@ -97,10 +100,6 @@ def convert_spectra(
         spec_dir (str, optional): Directory to save FITS spectrum. Defaults to '.'.
     """
     rmsf = u.def_unit("RMSF")
-    gauss_id = os.path.basename(spectrum).replace(".dat", "")
-    log.debug(f"{gauss_id=}")
-    # row = polcat.loc[gauss_id]
-    row = polcat[polcat["cat_id"] == gauss_id]
 
     # First deal with the frequency data
     full_data = np.loadtxt(spectrum).T
@@ -118,22 +117,22 @@ def convert_spectra(
     data = data[:, :, np.newaxis, np.newaxis]
     noise = noise[:, :, np.newaxis, np.newaxis]
 
+    # Free up memory
+    del i_data, q_data, u_data, i_noise, q_noise, u_noise, full_data
     # Create the data FITS files
-    data_hdu = fits.PrimaryHDU(data=data.value)
-    noise_hdu = fits.PrimaryHDU(data=noise.value)
-    # TODO: Add location of source
-    for hdu in [data_hdu, noise_hdu]:
-        hdu.header["NAXIS"] = len(data.shape)
+    for d, n in zip((data, noise), ("spectra", "noise")):
+        hdu = fits.PrimaryHDU(data=data.value)
+        hdu.header["NAXIS"] = len(d.shape)
         hdu.header["NAXIS1"] = 1
         hdu.header["NAXIS2"] = 1
         hdu.header["NAXIS3"] = len(freq)
-        hdu.header["NAXIS4"] = len(data)
+        hdu.header["NAXIS4"] = len(d)
         hdu.header["CTYPE1"] = "RA---SIN"
         hdu.header["CTYPE2"] = "DEC--SIN"
         hdu.header["CTYPE3"] = "FREQ"
         hdu.header["CTYPE4"] = "STOKES"
-        hdu.header["CRVAL1"] = float(row["ra"].to(u.deg).value)
-        hdu.header["CRVAL2"] = float(row["dec"].to(u.deg).value)
+        hdu.header["CRVAL1"] = ra
+        hdu.header["CRVAL2"] = dec
         hdu.header["CRVAL3"] = freq[0].value
         hdu.header["CRVAL4"] = 1
         hdu.header["CRPIX1"] = 1
@@ -148,16 +147,12 @@ def convert_spectra(
         hdu.header["CUNIT2"] = u.deg.to_string(format="fits")
         hdu.header["CUNIT3"] = freq.unit.to_string(format="fits")
         hdu.header["CUNIT4"] = "STOKES"
-        hdu.header["BUNIT"] = data.unit.to_string(format="fits")
+        hdu.header["BUNIT"] = d.unit.to_string(format="fits")
         hdu.header["OBJECT"] = (gauss_id, "Gaussian ID")
 
-    data_f = os.path.join(
-        spec_dir, os.path.basename(spectrum).replace(".dat", "_spectra.fits")
-    )
-    noise_f = os.path.join(
-        spec_dir, os.path.basename(spectrum).replace(".dat", "_noise.fits")
-    )
-    for hdu, f in zip((data_hdu, noise_hdu), (data_f, noise_f)):
+        f = os.path.join(
+            spec_dir, os.path.basename(spectrum).replace(".dat", f"_{n}.fits")
+        )
         log.info(f"Writing {f} from {spectrum}")
         hdu.writeto(f, overwrite=True)
 
@@ -175,6 +170,7 @@ def convert_spectra(
     phis_list = []
     phis_long_list = []
 
+    names = {} # type: Dict[str, str]
     for suffix in suffixes:
         unit = u.Jy / u.beam / rmsf
 
@@ -218,8 +214,8 @@ def convert_spectra(
         hdu.header["CTYPE2"] = "DEC--SIN"
         hdu.header["CTYPE3"] = "FDEP"
         hdu.header["CTYPE4"] = "STOKES"
-        hdu.header["CRVAL1"] = float(row["ra"].to(u.deg).value)
-        hdu.header["CRVAL2"] = float(row["dec"].to(u.deg).value)
+        hdu.header["CRVAL1"] = ra
+        hdu.header["CRVAL2"] = dec
         hdu.header["CRVAL3"] = phis[0].value
         hdu.header["CRVAL4"] = 2  # Stokes Q
         hdu.header["CRPIX1"] = 1
@@ -241,6 +237,7 @@ def convert_spectra(
         )
         log.info(f"Writing {rm_f} from {rm_file}")
         hdu.writeto(rm_f, overwrite=True)
+        names[suffix.replace("_","").replace(".dat","")] = rm_f
 
     return dict(
             freq=freq, 
@@ -617,11 +614,16 @@ def main(
             sorted_spectra = sorted(spectra, key=my_sorter)
 
         # Loop over spectra and convert to FITS
-        for spectrum in sorted_spectra:
-            # freq, datum, noise, gauss_id = convert_spectra(spectrum, spec_dir=spec_dir)
+        gauss_ids = [os.path.basename(spectrum).replace(".dat", "") for spectrum in sorted_spectra]
+        sorted_polcat = polcat.loc[gauss_ids]
+        for spectrum, gauss_id, row in zip(
+                sorted_spectra, gauss_ids, sorted_polcat
+        ):
             out = convert_spectra(
                 spectrum=spectrum, 
-                polcat=polcat, 
+                ra=row["ra"],
+                dec=row["dec"],
+                gauss_id=gauss_id,
                 spec_dir=spec_dir
             )
             spectra_outputs.append(out)
@@ -675,7 +677,7 @@ def main(
             log.debug("I sleep!")
             time.sleep(10)
             log.debug("I awake!")
-            tqdm_dask(futures, desc=f"Preparing {name} for CASDA", disable=(not verbose), leave=False)
+            tqdm_dask(futures, desc=f"Preparing {name} for CASDA", disable=(not verbose))
             chunk_outputs.extend(futures)
 
         # For spectra, we also want to make a polspec catalogue
@@ -733,6 +735,9 @@ def cli():
         "-v", "--verbose", action="store_true", help="Verbose output",
     )
     parser.add_argument(
+        "--debug", action="store_true", help="Debug output",
+    )
+    parser.add_argument(
         "--test", action="store_true", help="Test mode",
     )
     parser.add_argument(
@@ -744,11 +749,23 @@ def cli():
         type=int,
         default=10,
     )
+    parser.add_argument(
+        "--interface",
+        help="Interface to use",
+        type=str,
+        default="ipogif0",
+    )
     args = parser.parse_args()
 
     if args.verbose:
         log.basicConfig(
             level=log.INFO,
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    elif args.debug:
+        log.basicConfig(
+            level=log.DEBUG,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
@@ -760,7 +777,7 @@ def cli():
 
     if args.mpi:
         initialize(
-            interface="ipogif0",
+            interface=args.interface,
             local_directory="/dev/shm",
         )
         client = Client()
@@ -770,7 +787,6 @@ def cli():
         )
         client = Client(cluster)
     log.debug(client)
-
     main(
         polcatf=args.polcat,
         client=client,
@@ -782,7 +798,7 @@ def cli():
         test=args.test,
         batch_size=args.batch_size,
     )
-
+    client.close()
 
 if __name__ == "__main__":
     cli()
