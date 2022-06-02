@@ -28,16 +28,16 @@ columns = [
     ('total_I_flux_err', float, 'cat', 'E_Total_flux_Gaussian', u.mJy),
     ('peak_I_flux', float, 'cat', 'Peak_flux', u.mJy/u.beam),
     ('peak_I_flux_err', float, 'cat', 'E_Peak_flux', u.mJy/u.beam),
-    ('maj', float, 'cat', 'Maj', u.arcsec),
-    ('maj_err', float, 'cat', 'E_Maj', u.arcsec),
-    ('min', float, 'cat', 'Min', u.arcsec),
-    ('min_err', float, 'cat', 'E_Min', u.arcsec),
+    ('maj_axis', float, 'cat', 'Maj', u.arcsec),
+    ('maj_axis_err', float, 'cat', 'E_Maj', u.arcsec),
+    ('min_axis', float, 'cat', 'Min', u.arcsec),
+    ('min_axis_err', float, 'cat', 'E_Min', u.arcsec),
     ('pa', float, 'cat', 'PA', u.deg),
     ('pa_err', float, 'cat', 'E_PA', u.deg),
-    ('dc_maj', float, 'cat', 'DC_Maj', u.arcsec),
-    ('dc_maj_err', float, 'cat', 'E_DC_Maj', u.arcsec),
-    ('dc_min', float, 'cat', 'DC_Min', u.arcsec),
-    ('dc_min_err', float, 'cat', 'E_DC_Min', u.arcsec),
+    ('dc_maj_axis', float, 'cat', 'DC_Maj', u.arcsec),
+    ('dc_maj_axis_err', float, 'cat', 'E_DC_Maj', u.arcsec),
+    ('dc_min_axis', float, 'cat', 'DC_Min', u.arcsec),
+    ('dc_min_axis_err', float, 'cat', 'E_DC_Min', u.arcsec),
     ('dc_pa', float, 'cat', 'DC_PA', u.deg),
     ('dc_pa_err', float, 'cat', 'E_DC_PA', u.deg),
     ('stokesI_err', float, 'cat', 'Noise', u.mJy/u.beam),
@@ -189,19 +189,19 @@ extra_column_descriptions = {
         "description":"Error in peak flux density in Stokes I",
         "ucd": "stat.error;phot.flux.density;stat.max;phys.polarization.stokes.I",
     },
-    'maj': {
+    'maj_axis': {
         "description":"Major axis of Gaussian fit",
         "ucd": "phys.angSize.smajAxis",
     },
-    'maj_err': {
+    'maj_axis_err': {
         "description":"Error in major axis of Gaussian fit",
         "ucd": "stat.error;phys.angSize.smajAxis",
     },
-    'min': {
+    'min_axis': {
         "description":"Minor axis of Gaussian fit",
         "ucd": "phys.angSize.sminAxis",
     },
-    'min_err': {
+    'min_axis_err': {
         "description":"Error in minor axis of Gaussian fit",
         "ucd": "stat.error;phys.angSize.sminAxis",
     },
@@ -213,19 +213,19 @@ extra_column_descriptions = {
         "description":"Error in position angle of Gaussian fit",
         "ucd": "stat.error;phys.angSize;pos.posAng",
     },
-    'dc_maj': {
+    'dc_maj_axis': {
         "description":"Major axis of deconvolved Gaussian fit",
         "ucd": "phys.angSize.smajAxis",
     },
-    'dc_maj_err': {
+    'dc_maj_axis_err': {
         "description":"Error in major axis of deconvolved Gaussian fit",
         "ucd": "stat.error;phys.angSize.smajAxis",
     },
-    'dc_min': {
+    'dc_min_axis': {
         "description":"Minor axis of deconvolved Gaussian fit",
         "ucd": "phys.angSize.sminAxis",
     },
-    'dc_min_err': {
+    'dc_min_axis_err': {
         "description":"Error in minor axis of deconvolved Gaussian fit",
         "ucd": "stat.error;phys.angSize.sminAxis",
     },
