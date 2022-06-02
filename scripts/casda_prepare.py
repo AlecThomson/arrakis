@@ -305,6 +305,7 @@ def make_polspec(
     fdf_model_arr: np.ndarray,
     rmsf_arr: np.ndarray,
     gauss_id_arr: np.ndarray,
+    outdir: str=None,
 ) -> None:
     """Make a PolSpectra table
 
@@ -440,7 +441,10 @@ def make_polspec(
         new_col[:] = [x for x in data]
         spectrum_table.table.add_column(new_col)
 
-    outf = os.path.join(casda_dir, "spice_racs_dr1_polspec.fits",)
+    if outdir is None:
+        outdir = casda_dir
+
+    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits",)
     log.info(f"Writing {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)
 
@@ -518,6 +522,7 @@ def main(
     verbose: bool = False,
     test: bool = False,
     batch_size: int = 10,
+    outdir=None,
 ):
     """Main function"""
 
@@ -701,6 +706,7 @@ def main(
                 casda_dir=casda_dir,
                 polcat=polcat,
                 **out_data_arrs,
+                outdir=outdir,
             )
 
     log.info("Done")
@@ -755,6 +761,12 @@ def cli():
         type=str,
         default="ipogif0",
     )
+    parser.add_argument(
+        "--outdir",
+        help="Output directory",
+        type=str,
+        default=None,
+    )
     args = parser.parse_args()
 
     if args.verbose:
@@ -797,6 +809,7 @@ def cli():
         verbose=args.verbose,
         test=args.test,
         batch_size=args.batch_size,
+        outdir=args.outdir,
     )
     client.close()
 
