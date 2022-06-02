@@ -310,7 +310,7 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
         log.warning(f"{filename} already has params - not adding")
         return vo_table
     _ , ext = os.path.splitext(filename)
-    cat_name = os.path.basename(filename).replace(ext, "")
+    cat_name = os.path.basename(filename).replace(ext, "").replace(".","_").replace("-","_")
     idx_fields = "ra,dec,cat_id,source_id"
     pri_fields = "ra,dec,cat_id,source_id,rm,polint,snr_polint,fracpol,stokesI,sigma_add"
     params = [
@@ -318,22 +318,25 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
             vo_table,
             ID="Catalogue_Name", 
             name="Catalogue Name", 
-            value=cat_name
+            value=cat_name,
+            arraysize=str(len(cat_name))
         ),
         vot.tree.Param(
             vo_table,
             ID="Indexed_Fields", 
             name="Indexed Fields", 
-            value=idx_fields
+            value=idx_fields,
+            arraysize=str(len(idx_fields))
         ),
         vot.tree.Param(
             vo_table,
             ID="Principal_Fields", 
             name="Principal Fields", 
-            value=pri_fields
+            value=pri_fields,
+            arraysize=str(len(pri_fields))
         ),
     ]
-    vo_table.resources[0].params.extend(params)
+    vo_table.get_first_table().params.extend(params)
 
     return vo_table
 
@@ -530,6 +533,15 @@ def main(
     rmtab.verify_limits()
     # Readd complex test
     rmtab["complex_test"]  = "sigma_add OR Second moment"
+    # Add main ID
+    rmtab['cat_id'].meta['ucd'] = 'meta.id;meta.main'
+    rmtab.ucds['cat_id'] = 'meta.id;meta.main'
+    rmtab["cat_id"].description = "Gaussian ID"
+    # Check ucds
+    for colname, ucd in rmtab.ucds.items():
+        check = vot.ucd.check_ucd(ucd)
+        if not check:
+            log.warning(f"{colname} has invalid ucd '{ucd}'")
 
     if outfile is None:
         log.info(pformat(rmtab))
