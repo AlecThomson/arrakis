@@ -279,7 +279,15 @@ def cuts_and_flags(cat):
     df['bin_number'] = bin_number
     # Use sigma clipping to find outliers
     def masker(x):
-        return pd.Series(sigma_clip(x['rm'], sigma=3, maxiters=None, cenfunc=np.median).mask, index=x.index)
+        return pd.Series(
+            sigma_clip(
+                x['rm'], 
+                sigma=3, 
+                maxiters=None, 
+                cenfunc=np.median
+            ).mask, 
+            index=x.index
+        )
     perc_g = df.groupby("bin_number").apply(
         masker,
     )
@@ -288,8 +296,9 @@ def cuts_and_flags(cat):
     df.drop(columns=["bin_number"], inplace=True)
     df_out = cat.to_pandas()
     df_out.set_index("cat_id", inplace=True)
-    df_out["local_rm_flag"] = [False] * len(df_out)
-    df_out.update(df[["local_rm_flag"]])
+    df_out["local_rm_flag"] = False
+    df_out.update(df["local_rm_flag"])
+    df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
     cat_out = RMTable.from_pandas(df_out.reset_index())
     cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
     cat_out["local_rm_flag"].description = "RM is statistically different from nearby RMs"
