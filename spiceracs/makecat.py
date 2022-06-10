@@ -16,7 +16,7 @@ import logging as log
 from pprint import pformat
 from scipy.stats import lognorm, norm
 import matplotlib.pyplot as plt
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 from IPython import embed
 
 
@@ -112,7 +112,7 @@ def get_fit_func(
     offset:float=0.002, 
     degree:int=2, 
     do_plot:bool=False
-) -> Union[np.polynomial.Polynomial.fit, Optional[plt.Figure]]:
+) -> Union[Callable, Optional[plt.Figure]]:
     """Fit an envelope to define leakage sources
 
     Args:
