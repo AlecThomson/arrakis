@@ -291,12 +291,14 @@ def cuts_and_flags(cat):
     df_out["local_rm_flag"] = [False] * len(df_out)
     df_out.update(df[["local_rm_flag"]])
     cat_out = RMTable.from_pandas(df_out.reset_index())
+    cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
+    cat_out["local_rm_flag"].description = "RM is statistically different from nearby RMs"
     # Restre units and metadata
     for col in cat.colnames:
         cat_out[col].unit = cat[col].unit
         cat_out[col].meta = cat[col].meta
         cat_out.units = cat.units
-    return cat, fit
+    return cat_out, fit
 
 def get_alpha(cat):
     coefs_str = cat["stokesI_model_coef"]
