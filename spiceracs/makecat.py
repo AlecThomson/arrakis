@@ -290,7 +290,12 @@ def cuts_and_flags(cat):
     df_out.set_index("cat_id", inplace=True)
     df_out["local_rm_flag"] = [False] * len(df_out)
     df_out.update(df[["local_rm_flag"]])
-    cat = RMTable.from_pandas(df_out)
+    cat_out = RMTable.from_pandas(df_out.reset_index())
+    # Restre units and metadata
+    for col in cat.colnames:
+        cat_out[col].unit = cat[col].unit
+        cat_out[col].meta = cat[col].meta
+        cat_out.units = cat.units
     return cat, fit
 
 def get_alpha(cat):
@@ -602,15 +607,13 @@ def main(
     rmtab.ucds['cat_id'] = 'meta.id;meta.main'
     rmtab["cat_id"].description = "Gaussian ID"
     # Check ucds
-    for colname, ucd in rmtab.ucds.items():
-        check = vot.ucd.check_ucd(ucd)
-        if not check:
-            log.warning(f"{colname} has invalid ucd '{ucd}'")
+    rmtab.verify_ucds()
 
     if outfile is None:
         log.info(pformat(rmtab))
 
     if outfile is not None:
+        log.info(f"Writing {outfile} to disk")
         _ , ext = os.path.splitext(outfile)
         if ext == ".xml" or ext == ".vot":
             write_votable(rmtab, outfile)
