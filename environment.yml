@@ -10,6 +10,7 @@ dependencies:
 - future
 - numpy
 - scipy
+- pandas
 - matplotlib
 - setuptools
 - ipython
@@ -42,4 +43,5 @@ dependencies:
   - pytest
   - git+https://github.com/CIRADA-Tools/RMTable
   - sphinx-book-theme
+  - vorbin
   - ./
