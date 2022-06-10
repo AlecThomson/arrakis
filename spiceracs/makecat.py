@@ -7,6 +7,7 @@ import warnings
 from astropy.table import Table, Column
 from astropy.io import fits
 from astropy.io import votable as vot
+from astropy.stats import sigma_clip, mad_std
 import astropy.units as u
 from tqdm import tqdm, trange
 from spiceracs import columns_possum
@@ -17,6 +18,8 @@ from pprint import pformat
 from scipy.stats import lognorm, norm
 import matplotlib.pyplot as plt
 from typing import Optional, Union, Callable
+from vorbin.voronoi_2d_binning import voronoi_2d_binning
+import pandas as pd
 from IPython import embed
 
 
@@ -247,6 +250,47 @@ def cuts_and_flags(cat):
     m2_flag = cat['rm_width'] > cat['rmsf_fwhm']
     cat.add_column(Column(data=m2_flag, name='complex_M2_CC_flag'))
 
+    # Flag RMs which are very diffent from RMs nearby
+    # Set up voronoi bins, trying to obtain 50 sources per bin
+    good_cat = cat[~snr_flag & ~leakage_flag & ~chan_flag & ~fit_flag]
+    log.info("Computing voronoi bins and finding bad RMs")
+    def sn_func(index, signal=None, noise=None):
+        try:
+            sn = len(np.array(index))  
+        except TypeError:
+            sn = 1
+        return sn
+    bin_number, x_gen, y_gen, x_bar, y_bar, sn, nPixels, scale = voronoi_2d_binning(
+        x=good_cat['ra'], 
+        y=good_cat['dec'], 
+        signal=np.ones_like(good_cat['polint']),
+        noise=np.ones_like(good_cat['polint_err']),
+        target_sn=50, 
+        sn_func=sn_func,
+        cvt=False, 
+        pixelsize=10, 
+        plot=False,
+        quiet=True, 
+        wvt=False
+    )
+    log.info(f"Found {len(bin_number)} bins")
+    df = good_cat.to_pandas()
+    df.set_index("cat_id", inplace=True)
+    df['bin_number'] = bin_number
+    # Use sigma clipping to find outliers
+    def masker(x):
+        return pd.Series(sigma_clip(x['rm'], sigma=3, maxiters=None, cenfunc=np.median).mask, index=x.index)
+    perc_g = df.groupby("bin_number").apply(
+        masker,
+    )
+    # Put flag into the catalogue
+    df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
+    df.drop(columns=["bin_number"], inplace=True)
+    df_out = cat.to_pandas()
+    df_out.set_index("cat_id", inplace=True)
+    df_out["local_rm_flag"] = [False] * len(df_out)
+    df_out.update(df[["local_rm_flag"]])
+    cat = RMTable.from_pandas(df_out)
     return cat, fit
 
 def get_alpha(cat):
