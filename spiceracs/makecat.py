@@ -4,7 +4,7 @@ import os
 import time
 import numpy as np
 import warnings
-from astropy.table import QTable, Column
+from astropy.table import Table, Column
 from astropy.io import fits
 from astropy.io import votable as vot
 import astropy.units as u
@@ -16,6 +16,7 @@ import logging as log
 from pprint import pformat
 from scipy.stats import lognorm, norm
 import matplotlib.pyplot as plt
+from typing import Optional, Union
 from IPython import embed
 
 
@@ -105,16 +106,27 @@ def is_leakage(frac, sep, fit):
     return frac < fit_frac
 
 
-def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
+def get_fit_func(
+    tab: Union[RMTable, Table], 
+    nbins:int=21, 
+    offset:float=0.002, 
+    degree:int=2, 
+    do_plot:bool=False
+) -> Union[np.polynomial.Polynomial.fit, Optional[plt.Figure]]:
     """Fit an envelope to define leakage sources
 
     Args:
-        tab (Table): Catalogue to fit
+        tab (Union[RMTable, Table]): Catalogue to fit
         nbins (int, optional): Number of bins along seperation axis. Defaults to 21.
+        offset (float, optional): Offset to fit envelope. Defaults to 0.002.
+        degree (int, optional): Polynomial order of fit. Defaults to 2.
+        do_plot (bool, optional): Make a plot of the leakage. Defaults to False.
 
     Returns:
-        np.polynomial.Polynomial.fit: 3rd order polynomial fit.
-    """
+        Union[np.polynomial.Polynomial.fit, Optional[plt.Figure]]: Polynomial 
+        fit to the leakage and optional plot
+    """    
+
     # Select high SNR sources
     hi_snr = (tab['stokesI'].to(u.Jy/u.beam) / tab['stokesI_err'].to(u.Jy/u.beam)) > 100
     hi_i_tab = tab[hi_snr]
@@ -217,7 +229,15 @@ def cuts_and_flags(cat):
     chan_flag = cat['Nchan'] < 144
     cat.add_column(Column(data=chan_flag, name='channel_flag'))
     # Fitting flag
-    fit_flag = cat['stokes_I_fit_flag'] >= 64
+    # 0: Improper input parameters (not sure what would trigger this in RM-Tools?) 
+    # 1-4: One or more of the convergence criteria was met. 
+    # 5: Reached maximum number of iterations before converging. 
+    # 6-8: User defined limits for convergence are too small (should not occur, since RM-Tools uses default values) 
+    # 9: fit failed, reason unknown
+    # 16: a fit parameter has become infinite/numerical overflow
+    # +64 (can be added to other flags): model gives Stokes I values with S:N < 1 for at least one channel
+    # +128 (can be added to other flags): model gives Stokes I values < 0 for at least one channel
+    fit_flag = cat['stokes_I_fit_flag'] > 5
     cat.remove_column('stokes_I_fit_flag')
     cat.add_column(Column(data=fit_flag, name='stokes_I_fit_flag'))
     # sigma_add flag
