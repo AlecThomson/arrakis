@@ -679,6 +679,7 @@ def main(
             task_name=name,
             progress_text=f"Preparing {name} for CASDA",
             verbose=verbose,
+            batch_size=batch_size,
         )
 
         # For spectra, we also want to make a polspec catalogue
