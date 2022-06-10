@@ -37,7 +37,7 @@ def rmclean1d(
     showPlots=False,
     savePlots=False,
     rm_verbose=True,
-    window=False,
+    window=None,
 ) -> pymongo.UpdateOne:
     """1D RM-CLEAN
 
@@ -214,7 +214,7 @@ def main(
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
-    window=False,
+    window=None,
     showPlots=False,
     rm_verbose=False,
 ):
@@ -459,8 +459,9 @@ def cli():
     parser.add_argument(
         "-g", dest="gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
     )
-    parser.add_argument("-w", dest="window", action="store_true",
-                        help="CLEAN in window around first peak [False].")
+    parser.add_argument("-w", dest="window", type=float, default=None, 
+        help="Further CLEAN in mask to this threshold [False]."
+    )
     parser.add_argument(
         "-p", dest="showPlots", action="store_true", help="show the plots [False]."
     )

@@ -454,7 +454,8 @@ def cli():
         "-g", "--gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
     )
     tools.add_argument(
-        "--window", action="store_true", help="CLEAN in window around first peak [False]."
+        "--window", type=float, default=None, 
+        help="Further CLEAN in mask to this threshold [False]."
     )
 
     cat = parser.add_argument_group("catalogue arguments")
