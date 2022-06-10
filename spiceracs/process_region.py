@@ -355,7 +355,7 @@ def cli():
         "--validate", action="store_true", help="Run on RMsynth Stokes I [False]."
     )
 
-    synth.add_argument("--limit", default=None,
+    synth.add_argument("--limit", default=None, type=int,
                        help="Limit number of sources [All].")
     tools = parser.add_argument_group("RM-tools arguments")
     # RM-tools args
