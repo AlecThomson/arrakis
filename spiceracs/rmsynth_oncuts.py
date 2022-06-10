@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from pprint import pformat, pprint
-from spiceracs.utils import getfreq, MyEncoder, test_db, tqdm_dask, try_mkdir, get_db
+from spiceracs.utils import (
+    getfreq, MyEncoder, test_db, tqdm_dask, try_mkdir, get_db, chunk_dask
+)
 import json
 import numpy as np
 import os
@@ -34,6 +36,7 @@ from dask.distributed import Client, progress, LocalCluster, wait
 from dask.diagnostics import ProgressBar
 import traceback
 import logging as log
+import pandas as pd
 
 
 @delayed
@@ -699,11 +702,12 @@ def main(
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
 
-    beams = list(beams_col.find(beam_query).sort("Source_ID"))
+    beams = pd.DataFrame(list(beams_col.find(beam_query).sort("Source_ID")))
+    beams.set_index("Source_ID", drop=False, inplace=True)
     island_ids = sorted(beams_col.distinct("Source_ID", beam_query))
 
     isl_query = {"Source_ID": {"$in": island_ids}}
-    components = list(comp_col.find(
+    components = pd.DataFrame(list(comp_col.find(
         isl_query,
         # Only get required values
         {
@@ -712,8 +716,9 @@ def main(
             "RA": 1,
             "Dec": 1,
         }
-    ).sort("Source_ID"))
-    component_ids = [doc["Gaussian_ID"] for doc in components]
+    ).sort("Source_ID")))
+    components.set_index("Source_ID", drop=False, inplace=True)
+    component_ids = list(components["Gaussian_ID"])
 
     n_comp = comp_col.count_documents(isl_query)
     n_island = island_col.count_documents(isl_query)
@@ -732,15 +737,14 @@ def main(
         island_col.update(query_3d, {"$set": {"rmsynth3d": False}})
 
     if limit is not None:
-        count = limit
-        n_comp = count
-        n_island = count
-        island_ids = island_ids[:count]
-        component_ids = component_ids[:count]
+        n_comp = limit
+        n_island = limit
+        island_ids = island_ids[:limit]
+        component_ids = component_ids[:limit]
 
     # Make frequency file
     freq, freqfile = getfreq(
-        os.path.join(outdir, f"{beams[0]['beams'][f'{field}']['q_file']}"),
+        os.path.join(outdir, f"{beams.iloc[0]['beams'][f'{field}']['q_file']}"),
         outdir=outdir,
         filename="frequencies.txt",
     )
@@ -769,13 +773,16 @@ def main(
 
     elif dimension == "1d":
         log.info(f"Running RMsynth on {n_comp} components")
-        for i, comp in enumerate(components):
+        for i, (_, comp) in tqdm(
+            enumerate(components.iterrows()), 
+            total=n_comp, 
+            disable=(not verbose),
+            desc="Constructing 1D RMsynth jobs",
+        ):
             if i > n_comp + 1:
                 break
             else:
-                beam_idx = [i for i, b in enumerate(
-                    beams) if b["Source_ID"] == comp["Source_ID"]][0]
-                beam = beams[beam_idx]
+                beam = dict(beams.loc[comp["Source_ID"]])
                 output = rmsynthoncut1d(
                     comp=comp,
                     beam=beam,
@@ -807,9 +814,7 @@ def main(
             if i > n_island + 1:
                 break
             else:
-                beam_idx = [i for i, b in enumerate(
-                    beams) if b['Source_ID'] == island_id][0]
-                beam = beams[beam_idx]
+                beam = dict(beams.loc[island_id])
                 output = rmsynthoncut3d(
                     island_id=island_id,
                     beam=beam,
@@ -827,11 +832,13 @@ def main(
                 )
                 outputs.append(output)
 
-    futures = client.persist(outputs)
-    # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(10)
-    tqdm_dask(futures, desc="Running RMsynth", disable=(not verbose))
-    # progress(futures)
+    futures = chunk_dask(
+        outputs=outputs,
+        client=client,
+        task_name="RMsynth",
+        progress_text="Running RMsynth",
+        verbose=verbose,
+    )
 
     if database:
         log.info("Updating database...")
