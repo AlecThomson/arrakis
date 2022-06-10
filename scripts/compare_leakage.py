@@ -22,7 +22,7 @@ import astropy
 from astropy.io import fits
 from astropy.wcs import WCS
 from spiceracs.linmos import gen_seps
-from spiceracs.utils import tqdm_dask, get_db, test_db, coord_to_string, getfreq
+from spiceracs.utils import tqdm_dask, get_db, test_db, coord_to_string, getfreq, chunk_dask
 from dask import delayed
 from dask.distributed import LocalCluster, Client
 import matplotlib.pyplot as plt
@@ -181,10 +181,13 @@ def main(
             )
             outputs.append(out)
 
-    futures = client.persist(outputs)
-    # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(10)
-    tqdm_dask(futures, desc="Making leakage plots", disable=(not verbose))
+    futures = chunk_dask(
+        outputs=outputs,
+        client=client,
+        task_name="leakage plots",
+        progress_text="Making leakage plots",
+        verbose=verbose,
+    )
 
     print("Comparing leakge done!")
 

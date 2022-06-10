@@ -14,7 +14,7 @@ from astropy.table import Table
 from glob import glob
 from astropy.coordinates import SkyCoord
 import astropy.units as u
-from spiceracs.utils import tqdm_dask, get_db, test_db, coord_to_string
+from spiceracs.utils import tqdm_dask, get_db, test_db, coord_to_string, chunk_dask
 from IPython import embed
 import astropy
 import time
@@ -369,11 +369,13 @@ def main(
     results = []
     for parset in parfiles:
         results.append(linmos(parset, field, image, verbose=True))
-    futures = client.persist(results)
-    # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(10)
-    tqdm_dask(
-        futures, desc="Runing LINMOS", disable=(not verbose), total=len(results) * 2 + 1
+
+    futures = chunk_dask(
+        outputs=results,
+        client=client,
+        task_name="LINMOS",
+        progress_text="Runing LINMOS",
+        verbose=verbose,
     )
 
     updates = [f.compute() for f in futures]

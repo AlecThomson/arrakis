@@ -38,6 +38,7 @@ from spiceracs.utils import (
     get_db,
     test_db,
     fix_header,
+    chunk_dask,
 )
 from astropy.utils import iers
 import astropy.units as u
@@ -420,10 +421,13 @@ def cutout_islands(
         )
         cuts.append(cut)
 
-    futures = client.persist(cuts)
-    # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(10)
-    tqdm_dask(futures, desc="Cutting out", disable=(not verbose))
+    futures = chunk_dask(
+        outputs=cuts,
+        client=client,
+        task_name="cutouts",
+        progress_text="Cutting out",
+        verbose=verbose,
+    )
     if not dryrun:
         _updates = [f.compute() for f in futures]
         updates = [val for sublist in _updates for val in sublist]

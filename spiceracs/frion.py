@@ -228,8 +228,6 @@ def main(
     time.sleep(10)
     # Execute
     futures,future_arrays = dask.persist(outputs,updates_arrays)
-    # futures = client.persist(outputs)
-    # future_arrays = client.persist(updates_arrays)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(10)
     tqdm_dask(

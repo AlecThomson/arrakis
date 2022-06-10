@@ -3,7 +3,6 @@ from typing import Optional, Tuple, List
 import numpy as np
 import os
 import stat
-from tqdm.auto import tqdm
 from tornado.ioloop import IOLoop
 from distributed.utils import LoopRunner, is_kernel
 from distributed.client import futures_of
@@ -36,11 +35,34 @@ from dask import delayed
 import dask.array as da
 import dask.distributed as distributed
 import logging as log
+from tqdm.auto import tqdm, trange
+import time
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
+
+def chunk_dask(
+    outputs:list, 
+    client:distributed.Client, 
+    batch_size:int=1000, 
+    task_name="", 
+    progress_text="", 
+    verbose=True
+) -> list:
+    chunk_outputs = []
+    for i in trange(0, len(outputs), batch_size, desc=f"Chunking {task_name}", disable=(not verbose)):
+        outputs_chunk = outputs[i:i+batch_size]
+        futures = client.persist(outputs_chunk)
+        # dumb solution for https://github.com/dask/distributed/issues/4831
+        if i == 0:
+            log.debug("I sleep!")
+            time.sleep(10)
+            log.debug("I awake!")
+        tqdm_dask(futures, desc=progress_text, disable=(not verbose))
+        chunk_outputs.extend(futures)
+    return chunk_outputs
 
 
 def latexify(fig_width=None, fig_height=None, columns=1):

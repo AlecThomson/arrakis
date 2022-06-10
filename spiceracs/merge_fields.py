@@ -5,7 +5,7 @@ from pprint import pformat, pprint
 from shutil import copyfile
 from dask import distributed
 import pymongo
-from spiceracs.utils import test_db, tqdm_dask, try_mkdir, get_db
+from spiceracs.utils import test_db, tqdm_dask, try_mkdir, get_db, chunk_dask
 from tqdm import tqdm
 from typing import List, Tuple, Dict
 from dask import delayed
@@ -269,21 +269,23 @@ def main(
         image=image,
     )
 
-    singleton_futures = client.persist(singleton_updates)
-    time.sleep(10)
-    tqdm_dask(
-        singleton_futures, desc="Copying singleton islands", disable=(not verbose), total=len(singleton_updates)
+    singleton_futures = chunk_dask(
+        outputs=singleton_updates,
+        client=client,
+        task_name="singleton islands",
+        progress_text="Copying singleton islands",
+        verbose=verbose,
     )
     singleton_comp = [f.compute() for f in singleton_futures]
 
 
-
-    multiple_futures = client.persist(mutilple_updates)
-    time.sleep(10)
-    tqdm_dask(
-        multiple_futures, desc="Running LINMOS on overlapping islands", disable=(not verbose), total=len(mutilple_updates)*2+1
+    multiple_futures = chunk_dask(
+        outputs=mutilple_updates,
+        client=client,
+        task_name="overlapping islands",
+        progress_text="Running LINMOS on overlapping islands",
+        verbose=verbose,
     )
-
     multiple_comp = [f.compute() for f in multiple_futures]
 
 

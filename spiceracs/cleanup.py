@@ -3,7 +3,7 @@
 import os
 from glob import glob
 import time
-from spiceracs.utils import tqdm_dask
+from spiceracs.utils import chunk_dask
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 from typing import List
@@ -61,10 +61,13 @@ def main(
             output = cleanup(file, stoke)
             outputs.append(output)
 
-    results = client.persist(outputs)
-    # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(10)
-    tqdm_dask(results, desc="Running cleanup", disable=(not verbose))
+    futures = chunk_dask(
+        outputs=outputs,
+        client=client,
+        task_name="cleanup",
+        progress_text="Running cleanup",
+        verbose=verbose,
+    )
 
     log.info("Cleanup done!")
 

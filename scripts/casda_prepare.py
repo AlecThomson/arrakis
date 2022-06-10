@@ -3,7 +3,7 @@
 import os
 import time
 from typing import Tuple, List, Dict
-from spiceracs.utils import try_mkdir, tqdm_dask, try_symlink
+from spiceracs.utils import try_mkdir, tqdm_dask, try_symlink, chunk_dask
 import polspectra
 from glob import glob
 from astropy.io import fits
@@ -673,27 +673,23 @@ def main(
             log.info(f"Starting work on {len(outputs)} {name}")
 
 
-        # Split outputs into chunks
-        chunk_outputs = []
-        for i in trange(0, len(outputs), batch_size, desc=f"Chunking {name}", disable=(not verbose)):
-            outputs_chunk = outputs[i:i+batch_size]
-            futures = client.persist(outputs_chunk)
-            # dumb solution for https://github.com/dask/distributed/issues/4831
-            log.debug("I sleep!")
-            time.sleep(10)
-            log.debug("I awake!")
-            tqdm_dask(futures, desc=f"Preparing {name} for CASDA", disable=(not verbose))
-            chunk_outputs.extend(futures)
+        futures = chunk_dask(
+            outputs=outputs,
+            client=client,
+            task_name=name,
+            progress_text=f"Preparing {name} for CASDA",
+            verbose=verbose,
+        )
 
         # For spectra, we also want to make a polspec catalogue
         if name == "spectra" and len(outputs) > 0:
             log.info("Making polspec catalogue")
-            keys = chunk_outputs[0].compute().keys()
+            keys = futures[0].compute().keys()
             out_data_lists = {
                 key: [] for key in keys
             } # type: Dict[str, list]
 
-            for future in chunk_outputs:
+            for future in futures:
                 result = future.compute()
                 for key in keys:
                     out_data_lists[key].append(result[key])

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
-from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, get_db, test_db
+from spiceracs.utils import (
+    getfreq, MyEncoder, tqdm_dask, get_db, test_db, chunk_dask
+)
 import json
 import numpy as np
 import os
@@ -25,6 +27,7 @@ from glob import glob
 from shutil import copyfile
 from pprint import pformat
 import logging as log
+import pandas as pd
 
 
 @delayed
@@ -329,10 +332,13 @@ def main(
                     rm_verbose=rm_verbose,
                 )
                 outputs.append(output)
-    futures = client.persist(outputs)
-    # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(10)
-    tqdm_dask(futures, desc="Running RM-CLEAN", disable=(not verbose))
+    futures = chunk_dask(
+        outputs=outputs,
+        client=client,
+        task_name="RM-CLEAN",
+        progress_text="Running RM-CLEAN",
+        verbose=verbose,
+    )
 
     if database:
         log.info("Updating database...")
