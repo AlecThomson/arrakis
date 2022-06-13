@@ -27,6 +27,8 @@ from astropy.visualization import (MinMaxInterval, SqrtStretch,
 import astropy.units as u
 from radio_beam import Beam
 from tqdm.auto import tqdm, trange
+import pandas as pd
+from IPython import embed
 
 def make_thumbnail(cube_f: str, cube_dir: str):
     cube = np.squeeze(fits.getdata(cube_f))
@@ -239,17 +241,36 @@ def convert_spectra(
         hdu.writeto(rm_f, overwrite=True)
         names[suffix.replace("_","").replace(".dat","")] = rm_f
 
+    freq = np.squeeze(freq)
+    data = np.squeeze(data)
+    noise = np.squeeze(noise)
+    phis = np.squeeze(phis_list)
+    phis_long = np.squeeze(phis_long_list)
+    fdf_clean_data = np.squeeze(fdf_clean_data)
+    fdf_dirty_data = np.squeeze(fdf_dirty_data)
+    fdf_model_data = np.squeeze(fdf_model_data)
+    rmsf_data = np.squeeze(rmsf_data)
+    gauss_id = np.squeeze(gauss_id)
+
     return dict(
-            freq=freq, 
-            data=data, 
-            noise=noise, 
-            phis=phis_list, 
-            phis_long=phis_long_list,
-            fdf_clean=fdf_clean_data,
-            fdf_dirty=fdf_dirty_data,
-            fdf_model=fdf_model_data,
-            rmsf=rmsf_data,
-            gauss_id=np.array(gauss_id)
+            freq_array=freq, 
+            StokesI=data[0],
+            StokesQ=data[1],
+            StokesU=data[2],
+            StokesI_error=noise[0],
+            StokesQ_error=noise[1],
+            StokesU_error=noise[2],
+            faraday_depth=phis, 
+            faraday_depth_long=phis_long,
+            FDF_Q_clean=fdf_clean_data[0],
+            FDF_U_clean=fdf_clean_data[1],
+            FDF_Q_dirty=fdf_dirty_data[0],
+            FDF_U_dirty=fdf_dirty_data[1],
+            FDF_Q_model=fdf_model_data[0],
+            FDF_U_model=fdf_model_data[1],
+            RMSF_Q=rmsf_data[0],
+            RMSF_U=rmsf_data[1],
+            cat_id=np.array(gauss_id)
         )
 
 
@@ -295,16 +316,7 @@ def find_cubes(data_dir: str = ".") -> list:
 def make_polspec(
     casda_dir: str,
     polcat: Table,
-    freq_arr: np.ndarray,
-    data_arr: np.ndarray,
-    noise_arr: np.ndarray,
-    phis_arr: np.ndarray,
-    phis_long_arr: np.ndarray,
-    fdf_clean_arr: np.ndarray,
-    fdf_dirty_arr: np.ndarray,
-    fdf_model_arr: np.ndarray,
-    rmsf_arr: np.ndarray,
-    gauss_id_arr: np.ndarray,
+    pol_df: pd.DataFrame,
     outdir: str=None,
 ) -> None:
     """Make a PolSpectra table
@@ -317,52 +329,24 @@ def make_polspec(
         noises (np.ndarray): Array of noise arrays
         gauss_ids (np.ndarray): Array of Gaussian IDs
     """
-    freq = freq_arr[0]
+    polcat.add_index("cat_id")
+    freq = pol_df["freq_array"][0]
 
     # Sort everying by gauss_ids
-    sort_idx = np.argsort(gauss_id_arr)
-    data = data_arr[sort_idx]
-    noises = noise_arr[sort_idx]
-    gauss_ids = gauss_id_arr[sort_idx]
-    phis = phis_arr[sort_idx]
-    phis_long = phis_long_arr[sort_idx]
-    fdf_clean = fdf_clean_arr[sort_idx]
-    fdf_dirty = fdf_dirty_arr[sort_idx]
-    fdf_model = fdf_model_arr[sort_idx]
-    rmsf = rmsf_arr[sort_idx]
-
-    cat_idxs = []
-    for gauss_id in gauss_ids:
-        # Find the row
-        cat_idx = np.where(polcat["cat_id"] == gauss_id)[0][0]
-        cat_idxs.append(cat_idx)
-    polcat = polcat[cat_idxs]
-
-    # Tim's method
-    # polcat_df = polcat.to_pandas()
-    # gauss_ids_idx = polcat_df.apply(
-    #     lambda row: list(gauss_ids).index(row['cat_id']) if row['cat_id'] in gauss_ids else None,
-    #     axis=1
-    # )
-    # polcat = polcat_df[np.isfinite(gauss_ids_idx)]
-    # gauss_ids_idx = np.array(gauss_ids_idx[np.isfinite(gauss_ids_idx)]).astype(int)
-    # data = data[gauss_ids_idx]
-    # noises = noises[gauss_ids_idx]
-    # gauss_ids = gauss_ids[gauss_ids_idx]
-
-    assert np.array_equal(polcat["cat_id"], gauss_ids)
+    polcat = polcat.loc[pol_df["cat_id"].values]
+    assert np.array_equal(polcat["cat_id"], pol_df["cat_id"].values)
 
     spectrum_table = polspectra.from_arrays(
         long_array=polcat["ra"],
         lat_array=polcat["dec"],
         freq_array=freq,
-        StokesI=np.array(data)[:, 0],
-        StokesI_error=np.array(noises)[:, 0],
-        StokesQ=np.array(data)[:, 1],
-        StokesQ_error=np.array(noises)[:, 1],
-        StokesU=np.array(data)[:, 2],
-        StokesU_error=np.array(noises)[:, 2],
-        source_number_array=range(len(data)),
+        StokesI=pol_df["StokesI"],
+        StokesI_error=pol_df["StokesI_error"],
+        StokesQ=pol_df["StokesQ"],
+        StokesQ_error=pol_df["StokesQ_error"],
+        StokesU=pol_df["StokesU"],
+        StokesU_error=pol_df["StokesU_error"],
+        source_number_array=range(len(pol_df)),
         cat_id=polcat["cat_id"],
         beam_major=polcat["beam_maj"],
         beam_minor=polcat["beam_min"],
@@ -380,7 +364,7 @@ def make_polspec(
     unit = u.Jy / u.beam / rmsf_unit
     radms = u.radian / u.m**2
 
-    for name, unit, description, data in zip(
+    for name, unit, description in zip(
         (
             "faraday_depth", 
             "faraday_depth_long", 
@@ -416,20 +400,9 @@ def make_polspec(
             "Model Stokes U FDF",
             "Stokes Q RMSF",
             "Stokes U RMSF",
-        ),
-        (
-            phis,
-            phis_long,
-            fdf_dirty[:, 0],
-            fdf_dirty[:, 1],
-            fdf_clean[:, 0],
-            fdf_clean[:, 1],
-            fdf_model[:, 0],
-            fdf_model[:, 1],
-            rmsf[:, 0],
-            rmsf[:, 1],
-        ),
+        )
     ):
+        data = pol_df[name]
         new_col = Column(
             name=name,
             unit=unit,
@@ -672,7 +645,6 @@ def main(
         else:
             log.info(f"Starting work on {len(outputs)} {name}")
 
-
         futures = chunk_dask(
             outputs=outputs,
             client=client,
@@ -685,24 +657,28 @@ def main(
         # For spectra, we also want to make a polspec catalogue
         if name == "spectra" and len(outputs) > 0:
             log.info("Making polspec catalogue")
-            keys = futures[0].compute().keys()
-            out_data_lists = {
-                key: [] for key in keys
-            } # type: Dict[str, list]
+            results = [f.compute() for f in futures]
+            pol_df = pd.DataFrame(results)
+            pol_df.set_index("cat_id", inplace=True, drop=False)
 
-            for future in futures:
-                result = future.compute()
-                for key in keys:
-                    out_data_lists[key].append(result[key])
+            # keys = futures[0].compute().keys()
+            # out_data_lists = {
+            #     key: [] for key in keys
+            # } # type: Dict[str, list]
+
+            # for future in futures:
+            #     result = future.compute()
+            #     for key in keys:
+            #         out_data_lists[key].append(result[key])
             
-            out_data_arrs = {} # type: Dict[str, np.ndarray]
-            for key in keys:
-                out_data_arrs[f"{key}_arr"] = np.squeeze(np.array(out_data_lists[key]))
+            # out_data_arrs = {} # type: Dict[str, np.ndarray]
+            # for key in keys:
+            #     out_data_arrs[f"{key}_arr"] = np.squeeze(np.array(out_data_lists[key]))
             # Make polspec catalogue
             make_polspec(
                 casda_dir=casda_dir,
                 polcat=polcat,
-                **out_data_arrs,
+                pol_df=pol_df,
                 outdir=outdir,
             )
 
