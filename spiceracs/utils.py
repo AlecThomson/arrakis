@@ -37,11 +37,21 @@ import dask.distributed as distributed
 import logging as log
 from tqdm.auto import tqdm, trange
 import time
+from itertools import zip_longest
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
+
+
+# stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
+def zip_equal(*iterables):
+    sentinel = object()
+    for combo in zip_longest(*iterables, fillvalue=sentinel):
+        if sentinel in combo:
+            raise ValueError('Iterables have different lengths')
+        yield combo
 
 def chunk_dask(
     outputs:list, 
