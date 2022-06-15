@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Run RM-CLEAN on cutouts in parallel"""
 from pprint import pformat, pprint
 from spiceracs.utils import (
     getfreq, MyEncoder, test_db, tqdm_dask, try_mkdir, get_db, chunk_dask

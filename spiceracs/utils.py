@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+"""Utility functions"""
 from typing import Optional, Tuple, List
 import numpy as np
 import os
