@@ -35,6 +35,8 @@ polcat=/group/ja3/athomson/spice-racs.dr1.corrected.xml
 cd $data_dir
 # srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat --update-cubes --convert-spectra --convert-plots -v --mpi --batch_size 10_000
 # srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat --convert-plots -v --mpi --batch_size 10_000
+# srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat --convert-plots --update-cubes --convert-spectra -v --mpi --batch_size 10_000 --interface ib0 --outdir /scratch/ja3/athomson/spica
+# srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat --convert-plots --convert-spectra -v --mpi --batch_size 10_000 --interface ib0 --outdir /scratch/ja3/athomson/spica
 srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat --convert-spectra -v --mpi --batch_size 10_000 --interface ib0 --outdir /scratch/ja3/athomson/spica
 # srun -n 20 casda_prepare.py $data_dir $polcat --convert-spectra --convert-plots -v --mpi --batch_size 1000
 # srun -n 20 casda_prepare.py $data_dir $polcat --convert-spectra -v --mpi --batch_size 10_000
