@@ -3,7 +3,7 @@
 import os
 import time
 from typing import Tuple, List, Dict
-from spiceracs.utils import try_mkdir, tqdm_dask, try_symlink, chunk_dask
+from spiceracs.utils import try_mkdir, tqdm_dask, try_symlink, chunk_dask, zip_equal
 import polspectra
 from glob import glob
 from astropy.io import fits
@@ -104,23 +104,25 @@ def convert_spectra(
     rmsf = u.def_unit("RMSF")
 
     # First deal with the frequency data
-    full_data = np.loadtxt(spectrum).T
-    freq, i_data, q_data, u_data, i_noise, q_noise, u_noise = full_data
+    full_data = pd.read_csv(
+        spectrum,
+        names=("freq", "I", "Q", "U", "dI", "dQ", "dU"),
+        delim_whitespace=True,
+    )
+    
 
-    freq = freq * u.Hz
+    freq = full_data["freq"].values * u.Hz
 
     # Hard code the pixel size for now
     pix_size = 2.5 * u.arcsec
-    log.warning(f"Using a pixel size of {pix_size}")
+    log.debug(f"Using a pixel size of {pix_size}")
 
-    data = np.array([i_data, q_data, u_data]) * u.Jy / u.beam
-    noise = np.array([i_noise, q_noise, u_noise]) * u.Jy / u.beam
+    data = np.array([full_data["I"], full_data["Q"], full_data["U"]]) * u.Jy / u.beam
+    noise = np.array([full_data["dI"], full_data["dQ"], full_data["dU"]]) * u.Jy / u.beam
     # Add dummy axes for RA/DEC
     data = data[:, :, np.newaxis, np.newaxis]
     noise = noise[:, :, np.newaxis, np.newaxis]
 
-    # Free up memory
-    del i_data, q_data, u_data, i_noise, q_noise, u_noise, full_data
     # Create the data FITS files
     for d, n in zip((data, noise), ("spectra", "noise")):
         hdu = fits.PrimaryHDU(data=data.value)
@@ -155,7 +157,7 @@ def convert_spectra(
         f = os.path.join(
             spec_dir, os.path.basename(spectrum).replace(".dat", f"_{n}.fits")
         )
-        log.info(f"Writing {f} from {spectrum}")
+        log.debug(f"Writing {f} from {spectrum}")
         hdu.writeto(f, overwrite=True)
 
     # Now deal with the RM data
@@ -165,45 +167,27 @@ def convert_spectra(
         "_FDFmodel.dat",
         "_RMSF.dat",
     )
-    fdf_clean_data = []
-    fdf_dirty_data = []
-    fdf_model_data = []
-    rmsf_data = []
-    phis_list = []
-    phis_long_list = []
 
-    names = {} # type: Dict[str, str]
+    rmtables = {} # type: Dict[str, Table]
     for suffix in suffixes:
+        name = suffix.replace(".dat", "").replace("_", "").replace("FDF", "")
         unit = u.Jy / u.beam / rmsf
 
         is_rmsf = "RMSF" in suffix
-        is_clean = "clean" in suffix
-        is_dirty = "dirty" in suffix
-        is_model = "model" in suffix
-        if suffix == "_RMSF.dat":
-            unit = u.dimensionless_unscaled
-
-
-        rm_file = spectrum.replace(".dat", suffix)
-        full_rm_data = np.loadtxt(rm_file).T
-        phis = full_rm_data[0] * u.rad / u.m ** 2
         if is_rmsf:
-            phis_long_list.append(phis)
-        elif is_clean:
-            phis_list.append(phis)
-        rm_q_data = full_rm_data[1]
-        rm_u_data = full_rm_data[2]
+            unit = u.dimensionless_unscaled
+        else:
+            unit = u.Jy / u.beam / rmsf
+        rm_file = spectrum.replace(".dat", suffix)
+        # full_rm_data = Table.read(rm_file, format="ascii", names=("phi","Q","U"))
+        full_rm_data = pd.read_csv(rm_file, names=("phi", "Q", "U"), delim_whitespace=True)
+        rmtables[name] = full_rm_data
+        phis = full_rm_data["phi"].values * u.rad / u.m ** 2
+        rm_q_data = full_rm_data["Q"].values
+        rm_u_data = full_rm_data["U"].values
         rm_data = np.array([rm_q_data, rm_u_data]) * unit
         # Add dummy axis for RA/DEC
         rm_data = rm_data[:, :, np.newaxis, np.newaxis]
-        if is_rmsf:
-            rmsf_data.append(rm_data)
-        elif is_clean:
-            fdf_clean_data.append(rm_data)
-        elif is_dirty:
-            fdf_dirty_data.append(rm_data)
-        elif is_model:
-            fdf_model_data.append(rm_data)
 
         # Create HDU
         hdu = fits.PrimaryHDU(data=rm_data.value)
@@ -237,42 +221,30 @@ def convert_spectra(
         rm_f = os.path.join(
             spec_dir, os.path.basename(rm_file).replace(".dat", ".fits")
         )
-        log.info(f"Writing {rm_f} from {rm_file}")
+        log.debug(f"Writing {rm_f} from {rm_file}")
         hdu.writeto(rm_f, overwrite=True)
-        names[suffix.replace("_","").replace(".dat","")] = rm_f
 
-    freq = np.squeeze(freq)
-    data = np.squeeze(data)
-    noise = np.squeeze(noise)
-    phis = np.squeeze(phis_list)
-    phis_long = np.squeeze(phis_long_list)
-    fdf_clean_data = np.squeeze(fdf_clean_data)
-    fdf_dirty_data = np.squeeze(fdf_dirty_data)
-    fdf_model_data = np.squeeze(fdf_model_data)
-    rmsf_data = np.squeeze(rmsf_data)
-    gauss_id = np.squeeze(gauss_id)
 
     return dict(
-            freq_array=freq, 
-            StokesI=data[0],
-            StokesQ=data[1],
-            StokesU=data[2],
-            StokesI_error=noise[0],
-            StokesQ_error=noise[1],
-            StokesU_error=noise[2],
-            faraday_depth=phis, 
-            faraday_depth_long=phis_long,
-            FDF_Q_clean=fdf_clean_data[0],
-            FDF_U_clean=fdf_clean_data[1],
-            FDF_Q_dirty=fdf_dirty_data[0],
-            FDF_U_dirty=fdf_dirty_data[1],
-            FDF_Q_model=fdf_model_data[0],
-            FDF_U_model=fdf_model_data[1],
-            RMSF_Q=rmsf_data[0],
-            RMSF_U=rmsf_data[1],
-            cat_id=np.array(gauss_id)
+            freq_array=full_data["freq"], 
+            StokesI=full_data["I"],
+            StokesQ=full_data["Q"],
+            StokesU=full_data["U"],
+            StokesI_error=full_data["dI"],
+            StokesQ_error=full_data["dQ"],
+            StokesU_error=full_data["dU"],
+            faraday_depth=rmtables["clean"]["phi"], 
+            faraday_depth_long=rmtables["RMSF"]["phi"],
+            FDF_Q_clean=rmtables["clean"]["Q"],
+            FDF_U_clean=rmtables["clean"]["U"],
+            FDF_Q_dirty=rmtables["dirty"]["Q"],
+            FDF_U_dirty=rmtables["dirty"]["U"],
+            FDF_Q_model=rmtables["model"]["Q"],
+            FDF_U_model=rmtables["model"]["U"],
+            RMSF_Q=rmtables["RMSF"]["Q"],
+            RMSF_U=rmtables["RMSF"]["U"],
+            cat_id=gauss_id
         )
-
 
 @delayed
 def update_cube(cube: str, cube_dir: str) -> None:
@@ -364,7 +336,7 @@ def make_polspec(
     unit = u.Jy / u.beam / rmsf_unit
     radms = u.radian / u.m**2
 
-    for name, unit, description in zip(
+    for name, unit, description in zip_equal(
         (
             "faraday_depth", 
             "faraday_depth_long", 
@@ -411,8 +383,9 @@ def make_polspec(
             length=spectrum_table.Nrows,
             description=description,
         )
-        new_col[:] = [x for x in data]
+        new_col[:] = [x.values for x in data]
         spectrum_table.table.add_column(new_col)
+
 
     if outdir is None:
         outdir = casda_dir
@@ -660,20 +633,6 @@ def main(
             results = [f.compute() for f in futures]
             pol_df = pd.DataFrame(results)
             pol_df.set_index("cat_id", inplace=True, drop=False)
-
-            # keys = futures[0].compute().keys()
-            # out_data_lists = {
-            #     key: [] for key in keys
-            # } # type: Dict[str, list]
-
-            # for future in futures:
-            #     result = future.compute()
-            #     for key in keys:
-            #         out_data_lists[key].append(result[key])
-            
-            # out_data_arrs = {} # type: Dict[str, np.ndarray]
-            # for key in keys:
-            #     out_data_arrs[f"{key}_arr"] = np.squeeze(np.array(out_data_lists[key]))
             # Make polspec catalogue
             make_polspec(
                 casda_dir=casda_dir,
