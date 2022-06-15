@@ -391,7 +391,7 @@ def make_polspec(
     for col, desc in tqdm(pol_df_cols.items(), desc="Adding spectrum columns"):
         spectrum_table[col] = [x.values * desc["unit"] for x in pol_df[col]]
         spectrum_table[col].description = desc["description"]
-    
+    spectrum_table["source_number"] = range(len(spectrum_table))
 
     if outdir is None:
         outdir = casda_dir
