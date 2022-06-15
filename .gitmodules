@@ -4,3 +4,6 @@
 [submodule "RM-Tools"]
 	path = RM-Tools
 	url = https://github.com/AlecThomson/RM-Tools
+[submodule "PolSpectra"]
+	path = PolSpectra
+	url = https://github.com/AlecThomson/PolSpectra

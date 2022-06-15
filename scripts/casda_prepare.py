@@ -226,13 +226,13 @@ def convert_spectra(
 
 
     return dict(
-            freq_array=full_data["freq"], 
-            StokesI=full_data["I"],
-            StokesQ=full_data["Q"],
-            StokesU=full_data["U"],
-            StokesI_error=full_data["dI"],
-            StokesQ_error=full_data["dQ"],
-            StokesU_error=full_data["dU"],
+            freq=full_data["freq"], 
+            stokesI=full_data["I"],
+            stokesQ=full_data["Q"],
+            stokesU=full_data["U"],
+            stokesI_error=full_data["dI"],
+            stokesQ_error=full_data["dQ"],
+            stokesU_error=full_data["dU"],
             faraday_depth=rmtables["clean"]["phi"], 
             faraday_depth_long=rmtables["RMSF"]["phi"],
             FDF_Q_clean=rmtables["clean"]["Q"],
@@ -302,97 +302,103 @@ def make_polspec(
         gauss_ids (np.ndarray): Array of Gaussian IDs
     """
     polcat.add_index("cat_id")
-    freq = pol_df["freq_array"][0]
 
     # Sort everying by gauss_ids
     polcat = polcat.loc[pol_df["cat_id"].values]
     assert np.array_equal(polcat["cat_id"], pol_df["cat_id"].values)
 
-    spectrum_table = polspectra.from_arrays(
-        long_array=polcat["ra"],
-        lat_array=polcat["dec"],
-        freq_array=freq,
-        StokesI=pol_df["StokesI"],
-        StokesI_error=pol_df["StokesI_error"],
-        StokesQ=pol_df["StokesQ"],
-        StokesQ_error=pol_df["StokesQ_error"],
-        StokesU=pol_df["StokesU"],
-        StokesU_error=pol_df["StokesU_error"],
-        source_number_array=range(len(pol_df)),
-        cat_id=polcat["cat_id"],
-        beam_major=polcat["beam_maj"],
-        beam_minor=polcat["beam_min"],
-        beam_pa=polcat["beam_pa"],
-        coordinate_system="icrs",
-        channel_width=np.diff(freq)[0],
-        telescope=polcat["telescope"],
-        epoch=polcat["epoch"],
-        integration_time=polcat["int_time"],
-        leakage=polcat["leakage"],
-        flux_type=polcat["flux_type"],
+    spectrum_table = polspectra.polarizationspectra()
+    polcat_cols = (
+        "ra", "dec", "l", "b", "cat_id", "source_id", "beam_maj", "beam_min", 
+        "beam_pa", "telescope", "epoch", "int_time", "leakage", "flux_type"
     )
-
     rmsf_unit = u.def_unit("RMSF")
-    unit = u.Jy / u.beam / rmsf_unit
+    unit = u.Jy / u.beam
+    unit_fdf = unit / rmsf_unit
     radms = u.radian / u.m**2
-
-    for name, unit, description in zip_equal(
-        (
-            "faraday_depth", 
-            "faraday_depth_long", 
-            "FDF_Q_dirty", 
-            "FDF_U_dirty",
-            "FDF_Q_clean",
-            "FDF_U_clean",
-            "FDF_Q_model",
-            "FDF_U_model",
-            "RMSF_Q",
-            "RMSF_U",
-        ),
-        (
-            radms,
-            radms,
-            unit,
-            unit,
-            unit,
-            unit,
-            unit,
-            unit,
-            unit,
-            unit,
-        ),
-        (
-            "Faraday depth",
-            "Faraday depth (long)",
-            "Dirty Stokes Q FDF",
-            "Dirty Stokes U FDF",
-            "Clean Stokes Q FDF",
-            "Clean Stokes U FDF",
-            "Model Stokes Q FDF",
-            "Model Stokes U FDF",
-            "Stokes Q RMSF",
-            "Stokes U RMSF",
-        )
-    ):
-        data = pol_df[name]
-        new_col = Column(
-            name=name,
-            unit=unit,
-            dtype='object',
-            shape=(),
-            length=spectrum_table.Nrows,
-            description=description,
-        )
-        new_col[:] = [x.values for x in data]
-        spectrum_table.table.add_column(new_col)
-
+    pol_df_cols = {
+        "freq": {
+            "unit": u.Hz,
+            "description": "Channel Frequency",
+        },
+        "stokesI": {
+            "unit": unit,
+            "description": "Stokes I per channel",
+        },
+        "stokesQ": {
+            "unit": unit,
+            "description": "Stokes Q per channel",
+        },
+        "stokesU": {
+            "unit": unit,
+            "description": "Stokes U per channel",
+        }, 
+        "stokesI_error": {
+            "unit": unit,
+            "description": "StokesI error per channel",
+        }, 
+        "stokesQ_error": {
+            "unit": unit,
+            "description": "StokesQ error per channel",
+        },
+        "stokesU_error": {
+            "unit": unit,
+            "description": "StokesU error per channel",
+        },
+        "faraday_depth": {
+            "unit": radms,
+            "description": "Faraday depth",
+        }, 
+        "faraday_depth_long": {
+            "unit": radms,
+            "description": "Faraday depth (long)",
+        }, 
+        "FDF_Q_dirty": {
+            "unit": unit_fdf,
+            "description": "Dirty Stokes Q per Faraday depth",
+        }, 
+        "FDF_U_dirty": {
+            "unit": unit_fdf,
+            "description": "Dirty Stokes U per Faraday depth",
+        },
+        "FDF_Q_clean": {
+            "unit": unit_fdf,
+            "description": "Clean Stokes Q per Faraday depth",
+        },
+        "FDF_U_clean": {
+            "unit": unit_fdf,
+            "description": "Clean Stokes U per Faraday depth",
+        },
+        "FDF_Q_model": {
+            "unit": unit_fdf,
+            "description": "Model Stokes Q per Faraday depth",
+        },
+        "FDF_U_model": {
+            "unit": unit_fdf,
+            "description": "Model Stokes U per Faraday depth",
+        },
+        "RMSF_Q": {
+            "unit": unit_fdf,
+            "description": "Stokes Q RMSF per Faraday depth",
+        },
+        "RMSF_U": {
+            "unit": unit_fdf,
+            "description": "Stokes U RMSF per Faraday depth",
+        },
+    }
+    for col in polcat_cols:
+        spectrum_table[col] = polcat[col]
+    for col, desc in tqdm(pol_df_cols.items(), desc="Adding spectrum columns"):
+        spectrum_table[col] = [x.values * desc["unit"] for x in pol_df[col]]
+        spectrum_table[col].description = desc["description"]
+    
 
     if outdir is None:
         outdir = casda_dir
 
     outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits",)
     log.info(f"Writing {outf}")
-    spectrum_table.write_FITS(outf, overwrite=True)
+    spectrum_table.table.write(outf, overwrite=True)
 
 @delayed
 def convert_pdf(pdf_file: str, plots_dir:str, spec_dir: str) -> None:
