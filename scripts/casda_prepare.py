@@ -307,44 +307,39 @@ def make_polspec(
     polcat = polcat.loc[pol_df["cat_id"].values]
     assert np.array_equal(polcat["cat_id"], pol_df["cat_id"].values)
 
-    spectrum_table = polspectra.polarizationspectra()
-    polcat_cols = (
-        "ra", "dec", "l", "b", "cat_id", "source_id", "beam_maj", "beam_min", 
-        "beam_pa", "telescope", "epoch", "int_time", "leakage", "flux_type"
-    )
     rmsf_unit = u.def_unit("RMSF")
     unit = u.Jy / u.beam
     unit_fdf = unit / rmsf_unit
     radms = u.radian / u.m**2
+    freq = pol_df["freq"][0].values
+    spectrum_table = polspectra.from_arrays(
+        long_array=polcat["ra"],
+        lat_array=polcat["dec"],
+        freq_array=freq,
+        StokesI=[x.values for x in pol_df["stokesI"].values],
+        StokesI_error=[x.values for x in pol_df["stokesI_error"].values],
+        StokesQ=[x.values for x in pol_df["stokesQ"].values],
+        StokesQ_error=[x.values for x in pol_df["stokesQ_error"].values],
+        StokesU=[x.values for x in pol_df["stokesU"].values],
+        StokesU_error=[x.values for x in pol_df["stokesU_error"].values],
+        source_number_array=range(len(pol_df)),
+        cat_id=polcat["cat_id"],
+        beam_major=polcat["beam_maj"],
+        beam_minor=polcat["beam_min"],
+        beam_pa=polcat["beam_pa"],
+        coordinate_system="icrs",
+        channel_width=np.diff(freq)[0],
+        telescope=polcat["telescope"],
+        epoch=polcat["epoch"],
+        integration_time=polcat["int_time"],
+        leakage=polcat["leakage"],
+        flux_type=polcat["flux_type"],
+    )
+    # Fix units
+    for col in ("stokesI", "stokesI_error", "stokesQ", "stokesQ_error", "stokesU", "stokesU_error"):
+        spectrum_table[col].unit = unit
+
     pol_df_cols = {
-        "freq": {
-            "unit": u.Hz,
-            "description": "Channel Frequency",
-        },
-        "stokesI": {
-            "unit": unit,
-            "description": "Stokes I per channel",
-        },
-        "stokesQ": {
-            "unit": unit,
-            "description": "Stokes Q per channel",
-        },
-        "stokesU": {
-            "unit": unit,
-            "description": "Stokes U per channel",
-        }, 
-        "stokesI_error": {
-            "unit": unit,
-            "description": "StokesI error per channel",
-        }, 
-        "stokesQ_error": {
-            "unit": unit,
-            "description": "StokesQ error per channel",
-        },
-        "stokesU_error": {
-            "unit": unit,
-            "description": "StokesU error per channel",
-        },
         "faraday_depth": {
             "unit": radms,
             "description": "Faraday depth",
@@ -386,19 +381,28 @@ def make_polspec(
             "description": "Stokes U RMSF per Faraday depth",
         },
     }
-    for col in polcat_cols:
-        spectrum_table[col] = polcat[col]
     for col, desc in tqdm(pol_df_cols.items(), desc="Adding spectrum columns"):
-        spectrum_table[col] = [x.values * desc["unit"] for x in pol_df[col]]
-        spectrum_table[col].description = desc["description"]
-    spectrum_table["source_number"] = range(len(spectrum_table))
+        data = pol_df[col]
+        new_col = Column(
+            name=col,
+            unit=desc["unit"],
+            dtype='object',
+            shape=(),
+            length=spectrum_table.Nrows,
+            description=desc["description"],
+        )
+        new_col[:] = [x.values for x in data]
+        spectrum_table.table.add_column(new_col)
 
     if outdir is None:
         outdir = casda_dir
 
     outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits",)
     log.info(f"Writing {outf}")
-    spectrum_table.table.write(outf, overwrite=True)
+    spectrum_table.write_FITS(outf, overwrite=True)
+    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.xml",)
+    log.info(f"Writing {outf}")
+    spectrum_table.write_VOTable(outf, overwrite=True)
 
 @delayed
 def convert_pdf(pdf_file: str, plots_dir:str, spec_dir: str) -> None:
