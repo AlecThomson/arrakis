@@ -400,9 +400,15 @@ def make_polspec(
     outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits",)
     log.info(f"Writing {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)
+
+    spectrum_df = spectrum_table.to_pandas()
     outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.parquet",)
     log.info(f"Writing {outf}")
-    spectrum_table.table.to_pandas().to_parquet(outf)
+    spectrum_df.to_parquet(outf)
+
+    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.hdf",)
+    log.info(f"Writing {outf}")
+    spectrum_df.to_hdf(outf)
 
 @delayed
 def convert_pdf(pdf_file: str, plots_dir:str, spec_dir: str) -> None:
