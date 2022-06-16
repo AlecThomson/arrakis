@@ -316,16 +316,16 @@ def make_polspec(
         long_array=polcat["ra"],
         lat_array=polcat["dec"],
         freq_array=freq,
-        StokesI=[x.values for x in pol_df["stokesI"].values],
-        StokesI_error=[x.values for x in pol_df["stokesI_error"].values],
-        StokesQ=[x.values for x in pol_df["stokesQ"].values],
-        StokesQ_error=[x.values for x in pol_df["stokesQ_error"].values],
-        StokesU=[x.values for x in pol_df["stokesU"].values],
-        StokesU_error=[x.values for x in pol_df["stokesU_error"].values],
+        stokesI=[x.values for x in pol_df["stokesI"].values],
+        stokesI_error=[x.values for x in pol_df["stokesI_error"].values],
+        stokesQ=[x.values for x in pol_df["stokesQ"].values],
+        stokesQ_error=[x.values for x in pol_df["stokesQ_error"].values],
+        stokesU=[x.values for x in pol_df["stokesU"].values],
+        stokesU_error=[x.values for x in pol_df["stokesU_error"].values],
         source_number_array=range(len(pol_df)),
         cat_id=polcat["cat_id"],
-        beam_major=polcat["beam_maj"],
-        beam_minor=polcat["beam_min"],
+        beam_maj=polcat["beam_maj"],
+        beam_min=polcat["beam_min"],
         beam_pa=polcat["beam_pa"],
         coordinate_system="icrs",
         channel_width=np.diff(freq)[0],
@@ -400,9 +400,9 @@ def make_polspec(
     outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits",)
     log.info(f"Writing {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)
-    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.xml",)
+    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.parquet",)
     log.info(f"Writing {outf}")
-    spectrum_table.write_VOTable(outf, overwrite=True)
+    spectrum_table.table.to_pandas().to_parquet(outf)
 
 @delayed
 def convert_pdf(pdf_file: str, plots_dir:str, spec_dir: str) -> None:
