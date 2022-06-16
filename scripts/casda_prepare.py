@@ -401,7 +401,7 @@ def make_polspec(
     log.info(f"Writing {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)
 
-    spectrum_df = spectrum_table.to_pandas()
+    spectrum_df = spectrum_table.table.to_pandas()
     outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.parquet",)
     log.info(f"Writing {outf}")
     spectrum_df.to_parquet(outf)
