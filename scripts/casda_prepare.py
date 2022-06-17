@@ -7,7 +7,7 @@ from spiceracs.utils import try_mkdir, tqdm_dask, try_symlink, chunk_dask, zip_e
 import polspectra
 from glob import glob
 from astropy.io import fits
-from astropy.table import Table, Column
+from astropy.table import Table, Column, Row
 import astropy.units as u
 import numpy as np
 import logging as log
@@ -28,6 +28,7 @@ import astropy.units as u
 from radio_beam import Beam
 from tqdm.auto import tqdm, trange
 import pandas as pd
+import h5py
 from IPython import embed
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -396,19 +397,35 @@ def make_polspec(
 
     if outdir is None:
         outdir = casda_dir
+    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.hdf5")
+    log.info(f"Saving to {outf}")
+    data_cols = list(spectrum_table.table.columns)
+    data_cols.remove("cat_id")
+    data_cols.remove("source_number")
+    with h5py.File(outf, "w") as f:
+        grp = f.create_group("polspectra")
+        for row in tqdm(spectrum_table.table, desc="Writing hdf5"):
+            sub_grp = grp.create_group(str(row["cat_id"]))
+            for col in data_cols:
+                data = row[col]
+                if type(data) == np.str_:
+                    data = str(data)
+                # Enable compression if data is ndarray
+                if type(data) == np.ndarray:
+                    compression="lzf"
+                    shuffle=True
+                else:
+                    compression=None
+                    shuffle=False
+                dset = sub_grp.create_dataset(
+                    col, 
+                    data=data, 
+                    compression=compression,
+                    shuffle=shuffle,
 
-    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits",)
-    log.info(f"Writing {outf}")
-    spectrum_table.write_FITS(outf, overwrite=True)
-
-    spectrum_df = spectrum_table.table.to_pandas()
-    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.parquet",)
-    log.info(f"Writing {outf}")
-    spectrum_df.to_parquet(outf)
-
-    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.hdf",)
-    log.info(f"Writing {outf}")
-    spectrum_df.to_hdf(outf)
+                )
+                dset.attrs["unit"] = str(spectrum_table[col].unit)
+                dset.attrs["description"] = spectrum_table[col].description
 
 @delayed
 def convert_pdf(pdf_file: str, plots_dir:str, spec_dir: str) -> None:
