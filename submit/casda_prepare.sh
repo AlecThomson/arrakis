@@ -22,7 +22,7 @@
 #SBATCH --cluster=zeus
 #SBATCH --account=askap
 #SBATCH --ntasks=48
-#SBATCH --time=0-06:00:00
+#SBATCH --time=0-12:00:00
 #SBATCH --partition=highmemq
 
 # conda activate spice
