@@ -397,35 +397,13 @@ def make_polspec(
 
     if outdir is None:
         outdir = casda_dir
+    outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits")
+    log.info(f"Saving to {outf}")
+    spectrum_table.write_FITS(outf, overwrite=True)
+    
     outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.hdf5")
     log.info(f"Saving to {outf}")
-    data_cols = list(spectrum_table.table.columns)
-    data_cols.remove("cat_id")
-    data_cols.remove("source_number")
-    with h5py.File(outf, "w") as f:
-        grp = f.create_group("polspectra")
-        for row in tqdm(spectrum_table.table, desc="Writing hdf5"):
-            sub_grp = grp.create_group(str(row["cat_id"]))
-            for col in data_cols:
-                data = row[col]
-                if type(data) == np.str_:
-                    data = str(data)
-                # Enable compression if data is ndarray
-                if type(data) == np.ndarray:
-                    compression="lzf"
-                    shuffle=True
-                else:
-                    compression=None
-                    shuffle=False
-                dset = sub_grp.create_dataset(
-                    col, 
-                    data=data, 
-                    compression=compression,
-                    shuffle=shuffle,
-
-                )
-                dset.attrs["unit"] = str(spectrum_table[col].unit)
-                dset.attrs["description"] = spectrum_table[col].description
+    spectrum_table.write_HDF5(outf, overwrite=True, compress=True)
 
 @delayed
 def convert_pdf(pdf_file: str, plots_dir:str, spec_dir: str) -> None:
