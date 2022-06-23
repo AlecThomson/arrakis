@@ -36,8 +36,8 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
             try:
                 freq, iarr, qarr, uarr, rmsi, rmsq, rmsu = np.loadtxt(spectra).T
                 specs.append([freq, iarr, qarr, uarr, rmsi, rmsq, rmsu])
-            except OSError:
-                print(f"Could not find '{spectra}'")
+            except Exception as e:
+                print(f"Could not find '{spectra}': {e}")
                 continue
         else:
             try:
@@ -164,14 +164,14 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
         d, np.nanmean(num_points_in_aperture_list)))
 
     # plot results
-    plt.figure(figsize=(10, 10))
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111,)
     #q_leakage_map = np.rot90(q_estimates_arr.reshape((len(xnew),len(ynew))).astype(float),k=3)
     q_leakage_map = np.rot90(q_estimates_arr.reshape(
         (len(xnew), len(ynew))).astype(float), k=3)
-    im = plt.imshow(q_leakage_map, origin='lower', vmin=-
+    im = ax.imshow(q_leakage_map, origin='lower', vmin=-
                     0.05, vmax=0.05, cmap='coolwarm')
-    plt.colorbar(im)
-    ax = plt.gca()
+    fig.colorbar(im, label="Q/I")
     ax.set_aspect('equal', 'box')
     ax.invert_xaxis()
     if save_plots:
@@ -179,20 +179,20 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     # plt.xlim(-10,60)
     # plt.ylim(-10,40)
 
-    plt.figure(figsize=(10, 10))
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111,)
     u_leakage_map = np.rot90(u_estimates_arr.reshape(
         (len(xnew), len(ynew))).astype(float), k=3)
-    im = plt.imshow(u_leakage_map, origin='lower', vmin=-
+    im = ax.imshow(u_leakage_map, origin='lower', vmin=-
                     0.05, vmax=0.05, cmap='coolwarm')
-    plt.colorbar(im)
-    ax = plt.gca()
+    fig.colorbar(im, label="U/I")
     ax.set_aspect('equal', 'box')
     ax.invert_xaxis()
     if save_plots:
         plt.savefig(f'u_leakage_{field}.png')
     # plt.xlim(-10,60)
     # plt.ylim(-10,40)
-    return freqs, q_leakage_map, u_leakage_map, specs
+    return freqs, q_leakage_map, u_leakage_map, specs, wcs
 
 
 def main(field, datadir, username='admin', password=None):
@@ -205,7 +205,7 @@ def main(field, datadir, username='admin', password=None):
 
     start = 0
     stop = -1
-    freqs, q_leakage_map, u_leakage_map, data = makesurf(
+    freqs, q_leakage_map, u_leakage_map, data, wcs = makesurf(
         start, stop, field, datadir, save_plots=True
         )
 
@@ -213,7 +213,7 @@ def main(field, datadir, username='admin', password=None):
     f_big, q_big, u_big = [], [], []
     for i in trange(6):
         stop = start+(288//6)-1
-        f, q, u, _ = makesurf(start, stop, field, datadir, save_plots=False, data=data)
+        f, q, u, _, _ = makesurf(start, stop, field, datadir, save_plots=False, data=data)
         f_big.append(f)
         q_big.append(q)
         u_big.append(u)
@@ -222,7 +222,7 @@ def main(field, datadir, username='admin', password=None):
     q_big = np.array(q_big)
     u_big = np.array(u_big)
 
-    fig, ax = plt.subplots(2, 6, figsize=(18, 6))
+    fig, ax = plt.subplots(2, 6, figsize=(18, 6),)
     lim = 0.1
     for i, (f, q, u) in enumerate(zip(f_big, q_big, u_big)):
         ax[0, i].imshow(q, origin='lower',
@@ -241,7 +241,7 @@ def main(field, datadir, username='admin', password=None):
 
     ax[0, 0].text(-20, 50, 'Q')
     ax[1, 0].text(-20, 50, 'U')
-    plt.subplots_adjust(hspace=0)
+    # plt.subplots_adjust(hspace=0)
     plt.savefig(f'{field}_leakages.png')
 
 def cli():
