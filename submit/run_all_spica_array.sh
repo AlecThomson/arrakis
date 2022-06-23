@@ -63,30 +63,6 @@ SPICA=(
     '1213-25A'
 )
 
-# SPICA=(
-#     1213-18A
-#     1213-25A
-#     1305-18A
-#     1307-25A
-#     1331-18A
-#     1357-18A
-#     1402-25A
-#     1424-18A
-#     1302-06A
-#     1351+00A
-#     1418-12A
-#     1212-06A
-#     1237-06A
-#     1328-12A
-#     1351-06A
-#     1416-06A
-#     1212-12A
-#     1237-12A
-#     1303-12A
-#     1353-12A
-#     1326+00A
-#     1416+00A
-# )
 field=${SPICA[$SLURM_ARRAY_TASK_ID]}
 
 echo Running pipeline on $field
@@ -108,19 +84,6 @@ sedstr="s/sbatch/${field}.${SLURM_JOB_ID}\.sbatch/g"
 slurmdir="/group/askap/athomson/projects/spiceracs/spica/slurmFiles"
 currentdir="/group/askap/athomson/repos/spiceracs/submit"
 sedstr2="s+${currentdir}+${slurmdir}+g"
-# thisfile="/group/askap/athomson/repos/spiceracs/submit/processSPICE.sbatch"
-# cp "$thisfile" "$(echo "$thisfile" | sed -e "$sedstr" | sed -e "$sedstr2")"
-
-# srun --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits --use_mpi --skip_cutout
-# if [ $weight_pad == 08669 ]; then
-#     # Don't correct for leakage
-#     echo "Not correcting for leakage"
-#     srun -n 500 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --window
-# else
-#     # Correct for leakage with Zernike file
-#     echo "Correcting for leakage"
-#     srun -n 500 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --window --holofile $zernike
-# fi
 
 # Correct for leakage with Zernike file
 echo "Correcting for leakage"
