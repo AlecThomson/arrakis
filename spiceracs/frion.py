@@ -118,7 +118,7 @@ def predict_worker(
     newvalues = {
         "$set": {
             "frion": {
-                "times": times.tolist(),
+                "times": (times.mjd * 86400.0).tolist(), # Turn back into MJD seconds for backwards compatibility
                 "RMs": RMs.tolist(),
                 "theta_real": theta.real.tolist(),
                 "theta_imag": theta.imag.tolist(),
