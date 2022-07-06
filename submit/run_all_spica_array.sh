@@ -4,11 +4,10 @@
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
-#SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.err
-#SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.out
+#SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/run_all_spica-%j.err
+#SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/run_all_spica-%j.out
 #SBATCH --ntasks=500
 #SBATCH --array=0-29
-##SBATCH --array=0
 #SBATCH --requeue
 #SBATCH --ntasks-per-node=20
 #SBATCH --time=12:00:00
@@ -25,10 +24,6 @@ export OMP_NUM_THREADS=1
 conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
-
-# SPICA=(
-#     '1305-18A'
-# )
 
 SPICA=(
     '1416+00A'
@@ -70,9 +65,6 @@ cal_sbid=`find_sbid.py $field --cal`
 weight=`find_sbid.py $field --weight`
 weight_pad=`printf "%05d\n" $weight`
 zernike=/group/askap/athomson/projects/spiceracs/leakages/${weight_pad}_zernike_holo_cube.fits
-# tt0_dir=/group/askap/athomson/projects/RACS/CI0_mosaic_1.0
-# tt1_dir=/group/askap/athomson/projects/RACS/CI1_mosaic_1.0
-# data_dir=/scratch/ja3/athomson/spica
 data_dir=/group/ja3/athomson/spica
 config=/group/askap/athomson/projects/spiceracs/spica/spica_config.txt
 
@@ -87,4 +79,4 @@ sedstr2="s+${currentdir}+${slurmdir}+g"
 
 # Correct for leakage with Zernike file
 echo "Correcting for leakage"
-srun -n 500 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --window --holofile $zernike
+srun -n $SLURM_NTASKS --export=ALL spice_process $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --use_mpi --skip_cutout --holofile $zernike
