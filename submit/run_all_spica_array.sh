@@ -64,7 +64,7 @@ echo Running pipeline on $field
 cal_sbid=`find_sbid.py $field --cal`
 weight=`find_sbid.py $field --weight`
 weight_pad=`printf "%05d\n" $weight`
-zernike=/group/askap/athomson/projects/spiceracs/leakages/${weight_pad}_zernike_holo_cube.fits
+zernike=/group/askap/athomson/projects/spiceracs/leakages_bak/${weight_pad}_zernike_holo_cube.fits
 data_dir=/group/ja3/athomson/spica
 config=/group/askap/athomson/projects/spiceracs/spica/spica_config.txt
 
