@@ -55,11 +55,11 @@ def zip_equal(*iterables):
         yield combo
 
 def chunk_dask(
-    outputs:list, 
-    client:distributed.Client, 
-    batch_size:int=1000, 
-    task_name="", 
-    progress_text="", 
+    outputs:list,
+    client:distributed.Client,
+    batch_size:int=1000,
+    task_name="",
+    progress_text="",
     verbose=True
 ) -> list:
     chunk_outputs = []
@@ -108,7 +108,7 @@ def latexify(fig_width=None, fig_height=None, columns=1):
 
     MAX_HEIGHT_INCHES = 8.0
     if fig_height > MAX_HEIGHT_INCHES:
-        print("WARNING: fig_height too large:" + fig_height + 
+        print("WARNING: fig_height too large:" + fig_height +
               "so will reduce to" + MAX_HEIGHT_INCHES + "inches.")
         fig_height = MAX_HEIGHT_INCHES
 
@@ -120,7 +120,7 @@ def latexify(fig_width=None, fig_height=None, columns=1):
         'legend.fontsize': 8, # was 10
         'xtick.labelsize': 8,
         'ytick.labelsize': 8,
-        'text.usetex': True,
+        'text.usetex': False,
         'figure.figsize': [fig_width,fig_height],
         'font.family': 'serif'
     }

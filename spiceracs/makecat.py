@@ -110,10 +110,10 @@ def is_leakage(frac, sep, fit):
 
 
 def get_fit_func(
-    tab: Union[RMTable, Table], 
-    nbins:int=21, 
-    offset:float=0.002, 
-    degree:int=2, 
+    tab: Union[RMTable, Table],
+    nbins:int=21,
+    offset:float=0.002,
+    degree:int=2,
     do_plot:bool=False
 ) -> Union[Callable, Optional[plt.Figure]]:
     """Fit an envelope to define leakage sources
@@ -126,9 +126,9 @@ def get_fit_func(
         do_plot (bool, optional): Make a plot of the leakage. Defaults to False.
 
     Returns:
-        Union[np.polynomial.Polynomial.fit, Optional[plt.Figure]]: Polynomial 
+        Union[np.polynomial.Polynomial.fit, Optional[plt.Figure]]: Polynomial
         fit to the leakage and optional plot
-    """    
+    """
 
     # Select high SNR sources
     hi_snr = (tab['stokesI'].to(u.Jy/u.beam) / tab['stokesI_err'].to(u.Jy/u.beam)) > 100
@@ -153,14 +153,14 @@ def get_fit_func(
         )
     # Fit to median with small offset
     fit = np.polynomial.Polynomial.fit(
-        bins_c, 
-        meds+offset, 
-        deg=degree, 
+        bins_c,
+        meds+offset,
+        deg=degree,
         full=False
     )
-    if not do_plot: 
+    if not do_plot:
         return fit
-    
+
     # Plot the fit
     latexify(columns=1)
     figure = plt.figure(facecolor='w')
@@ -175,8 +175,8 @@ def get_fit_func(
     }
     plt.scatter(
         hi_i_tab['beamdist'].to(u.deg).value,
-        frac_P, 
-        s=1, 
+        frac_P,
+        s=1,
         alpha=0.2,
         marker='.',
         c='k',
@@ -221,7 +221,8 @@ def cuts_and_flags(cat):
     snr_flag = cat['snr_polint'] < 8
     cat.add_column(Column(data=snr_flag, name='snr_flag'))
     # Leakage flag
-    fit = get_fit_func(cat)
+    fit, fig = get_fit_func(cat, do_plot=True)
+    fig.savefig('leakage_fit.pdf')
     leakage_flag = is_leakage(
         cat['fracpol'].value,
         cat['beamdist'].to(u.deg).value,
@@ -232,10 +233,10 @@ def cuts_and_flags(cat):
     chan_flag = cat['Nchan'] < 144
     cat.add_column(Column(data=chan_flag, name='channel_flag'))
     # Fitting flag
-    # 0: Improper input parameters (not sure what would trigger this in RM-Tools?) 
-    # 1-4: One or more of the convergence criteria was met. 
-    # 5: Reached maximum number of iterations before converging. 
-    # 6-8: User defined limits for convergence are too small (should not occur, since RM-Tools uses default values) 
+    # 0: Improper input parameters (not sure what would trigger this in RM-Tools?)
+    # 1-4: One or more of the convergence criteria was met.
+    # 5: Reached maximum number of iterations before converging.
+    # 6-8: User defined limits for convergence are too small (should not occur, since RM-Tools uses default values)
     # 9: fit failed, reason unknown
     # 16: a fit parameter has become infinite/numerical overflow
     # +64 (can be added to other flags): model gives Stokes I values with S:N < 1 for at least one channel
@@ -256,21 +257,21 @@ def cuts_and_flags(cat):
     log.info("Computing voronoi bins and finding bad RMs")
     def sn_func(index, signal=None, noise=None):
         try:
-            sn = len(np.array(index))  
+            sn = len(np.array(index))
         except TypeError:
             sn = 1
         return sn
     bin_number, x_gen, y_gen, x_bar, y_bar, sn, nPixels, scale = voronoi_2d_binning(
-        x=good_cat['ra'], 
-        y=good_cat['dec'], 
+        x=good_cat['ra'],
+        y=good_cat['dec'],
         signal=np.ones_like(good_cat['polint']),
         noise=np.ones_like(good_cat['polint_err']),
-        target_sn=50, 
+        target_sn=50,
         sn_func=sn_func,
-        cvt=False, 
-        pixelsize=10, 
+        cvt=False,
+        pixelsize=10,
         plot=False,
-        quiet=True, 
+        quiet=True,
         wvt=False
     )
     log.info(f"Found {len(bin_number)} bins")
@@ -281,11 +282,11 @@ def cuts_and_flags(cat):
     def masker(x):
         return pd.Series(
             sigma_clip(
-                x['rm'], 
-                sigma=3, 
-                maxiters=None, 
+                x['rm'],
+                sigma=3,
+                maxiters=None,
                 cenfunc=np.median
-            ).mask, 
+            ).mask,
             index=x.index
         )
     perc_g = df.groupby("bin_number").apply(
@@ -343,7 +344,7 @@ def get_integration_time(cat, field_col):
     tints = []
     for name in field_names:
         tints.append(tint_dict[name])
-    
+
     return np.array(tints) * u.s
 
 # Stolen from GASKAP pipeline
@@ -360,7 +361,7 @@ def get_integration_time(cat, field_col):
 #         units (u.Unit, optional): Unit of column. Defaults to None.
 #         ucd (str, optional): UCD string. Defaults to None.
 #         datatype (_type_, optional): _description_. Defaults to None.
-#     """    
+#     """
 #     col = vo_table.get_first_table().get_field_by_id(col_name)
 #     col.description = description
 #     if units:
@@ -378,7 +379,7 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
 
     Returns:
         vot: VO Table object with metadata
-    """    
+    """
     # Add extra metadata
     for col_name, meta in columns_possum.extra_column_descriptions.items():
         col = vo_table.get_first_table().get_field_by_id(col_name)
@@ -396,22 +397,22 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
     params = [
         vot.tree.Param(
             vo_table,
-            ID="Catalogue_Name", 
-            name="Catalogue Name", 
+            ID="Catalogue_Name",
+            name="Catalogue Name",
             value=cat_name,
             arraysize=str(len(cat_name))
         ),
         vot.tree.Param(
             vo_table,
-            ID="Indexed_Fields", 
-            name="Indexed Fields", 
+            ID="Indexed_Fields",
+            name="Indexed Fields",
             value=idx_fields,
             arraysize=str(len(idx_fields))
         ),
         vot.tree.Param(
             vo_table,
-            ID="Principal_Fields", 
-            name="Principal Fields", 
+            ID="Principal_Fields",
+            name="Principal Fields",
             value=pri_fields,
             arraysize=str(len(pri_fields))
         ),
@@ -425,7 +426,7 @@ def replace_nans(filename:str):
 
     Args:
         filename (str): File name
-    """  
+    """
     pass
     # with open(filename, "r") as f:
     #     xml = f.read()
@@ -478,7 +479,7 @@ def main(
     tick = time.time()
     query = {
         "$and": [
-            {"Source_ID": {"$in": all_island_ids}}, 
+            {"Source_ID": {"$in": all_island_ids}},
             {"rmsynth1d": True},
             {"rmclean1d": True},
         ]
@@ -546,7 +547,7 @@ def main(
             data += [comp[selcol]]
         new_col = Column(data=data, name=selcol)
         rmtab.add_column(new_col)
-    
+
     # Fix sigma_add
     rmtab = sigma_add_fix(rmtab)
 
@@ -576,10 +577,10 @@ def main(
     rmtab.add_column(
         col=np.max(
             [
-                rmtab['ra_err'].to(u.arcsec), 
+                rmtab['ra_err'].to(u.arcsec),
                 rmtab['dec_err'].to(u.arcsec)
             ]
-        ) * u.arcsec, 
+        ) * u.arcsec,
         name="pos_err"
     )
 
@@ -601,9 +602,9 @@ def main(
 
     rmtab.add_column(
         col=np.logical_or(
-            rmtab['complex_sigma_add_flag'], 
+            rmtab['complex_sigma_add_flag'],
             rmtab['complex_M2_CC_flag']
-        ), 
+        ),
         name='complex_flag'
     )
 
