@@ -29,8 +29,7 @@ from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
 import logging as log
 
-warnings.filterwarnings(
-    action="ignore", category=SpectralCubeWarning, append=True)
+warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -80,8 +79,7 @@ def gen_seps(field: str) -> Table:
         beam = int(beam)
 
         beam_dat = beam_cat.loc[beam]
-        beam_coord = SkyCoord(
-            beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
+        beam_coord = SkyCoord(beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
         field_coord = SkyCoord(
             master_cat["RA_DEG"] * u.deg, master_cat["DEC_DEG"] * u.deg
         )
@@ -145,8 +143,7 @@ def genparset(
     ims = sorted(ims)
 
     if len(ims) == 0:
-        raise Exception(
-            "No files found. Have you run imaging? Check your prefix?")
+        raise Exception("No files found. Have you run imaging? Check your prefix?")
     imlist = "[" + ",".join([im.replace(".fits", "") for im in ims]) + "]"
 
     wgts = []
@@ -166,8 +163,7 @@ def genparset(
             os.path.dirname(wt)
         ), "Image and weight are in different areas!"
 
-    weightlist = "[" + ",".join([wgt.replace(".fits", "")
-                                for wgt in wgts]) + "]"
+    weightlist = "[" + ",".join([wgt.replace(".fits", "") for wgt in wgts]) + "]"
 
     parset_dir = os.path.join(
         os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0]))
@@ -243,8 +239,7 @@ def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.Up
     if output["return_code"] != 0:
         raise Exception(f"LINMOS failed! Check '{log_file}'")
 
-    new_files = glob(
-        f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
+    new_files = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
     if len(new_files) != 1:
         raise Exception(f"LINMOS file not found! -- check {log_file}?")
@@ -413,10 +408,7 @@ def cli():
     )
 
     parser.add_argument(
-        "--holofile",
-        type=str,
-        default=None,
-        help="Path to holography image"
+        "--holofile", type=str, default=None, help="Path to holography image"
     )
 
     parser.add_argument(

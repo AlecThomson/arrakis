@@ -220,9 +220,9 @@ def get_args(
     try_mkdir(outdir, verbose=verbose)
 
     # Find image size
-    ras = [] # type: List[float]
-    decs = [] # type: List[float]
-    majs = [] # type: List[float]
+    ras = []  # type: List[float]
+    decs = []  # type: List[float]
+    majs = []  # type: List[float]
     for comp in comps:
         ras = ras + [comp["RA"]]
         decs = decs + [comp["Dec"]]
@@ -253,7 +253,7 @@ def get_args(
         dec_off = Longitude(majs[dec_i_min])
         dec_lo = dec_min - dec_off
     except Exception as e:
-        log.debug(f"coords are {coords=}" )
+        log.debug(f"coords are {coords=}")
         log.debug(f"comps are {comps=}")
         raise e
 
@@ -444,7 +444,7 @@ def main(args: argparse.Namespace, verbose=True) -> None:
     Args:
         args (argparse.Namespace): Command-line args
         verbose (bool, optional): Verbose output. Defaults to True.
-    """    
+    """
     cluster = LocalCluster(
         n_workers=12, threads_per_worker=1, dashboard_address=":9898"
     )
@@ -557,7 +557,6 @@ def cli() -> None:
 
     args = parser.parse_args()
 
-
     verbose = args.verbose
     if verbose:
         log.basicConfig(
@@ -570,7 +569,7 @@ def cli() -> None:
         log.basicConfig(
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
 
     test_db(
