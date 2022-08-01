@@ -22,7 +22,14 @@ import astropy
 from astropy.io import fits
 from astropy.wcs import WCS
 from spiceracs.linmos import gen_seps
-from spiceracs.utils import tqdm_dask, get_db, test_db, coord_to_string, getfreq, chunk_dask
+from spiceracs.utils import (
+    tqdm_dask,
+    get_db,
+    test_db,
+    coord_to_string,
+    getfreq,
+    chunk_dask,
+)
 from dask import delayed
 from dask.distributed import LocalCluster, Client
 import matplotlib.pyplot as plt
@@ -33,56 +40,56 @@ from IPython import embed
 import pandas as pd
 from glob import glob
 
+
 def make_plot(data, comp, imfile):
 
-    fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(10,10))
+    fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(10, 10))
     fig.suptitle(f"{comp['Gaussian_ID']} leakage")
-    for i, s in enumerate(['q', 'u']):
+    for i, s in enumerate(["q", "u"]):
         ax = axs[i]
         for beam, dat in data.items():
-            freq = dat['freq']
-            frac = dat[f'{s}_image'] / dat['i_image']
+            freq = dat["freq"]
+            frac = dat[f"{s}_image"] / dat["i_image"]
             filt = sigma_clip(frac, sigma=5, stdfunc=mad_std)
             frac[filt.mask] = np.nan
-            line, = ax.step(freq, frac, label = f"beam {beam} -- off={dat['offset']:0.3f}, ang={dat['angle']:0.3f}")
-            ax.plot(freq, dat[f'{s}_holo'], ':', color = line.get_color())
-        ax.set_ylabel(f'Stokes {s} [fractional]')
-        
+            (line,) = ax.step(
+                freq,
+                frac,
+                label=f"beam {beam} -- off={dat['offset']:0.3f}, ang={dat['angle']:0.3f}",
+            )
+            ax.plot(freq, dat[f"{s}_holo"], ":", color=line.get_color())
+        ax.set_ylabel(f"Stokes {s} [fractional]")
+
     plt.legend()
-    plt.xlabel('Frequency [Hz]')
-    
-    outname = os.path.join("./",f"{comp['Gaussian_ID']}_leakage.pdf")
+    plt.xlabel("Frequency [Hz]")
+
+    outname = os.path.join("./", f"{comp['Gaussian_ID']}_leakage.pdf")
     plt.savefig(outname)
     plt.close()
     return outname
 
+
 @delayed
-def interpolate(
-    field,
-    comp,
-    beams,
-    cutdir,
-    septab,
-    holofile,
-    verbose=True
-):
+def interpolate(field, comp, beams, cutdir, septab, holofile, verbose=True):
     beam = beams["beams"][field]
 
-    ra = comp['RA']
-    dec = comp['Dec']
-    coord = SkyCoord(ra*u.deg, dec*u.deg)
+    ra = comp["RA"]
+    dec = comp["Dec"]
+    coord = SkyCoord(ra * u.deg, dec * u.deg)
 
     wcs_holo = WCS(holofile)
     incx, incy = astropy.wcs.utils.proj_plane_pixel_scales(wcs_holo.celestial)
-    refx = int(wcs_holo.celestial.to_header()['CRPIX1'] - 1)
-    refy = int(wcs_holo.celestial.to_header()['CRPIX2'] - 1)
+    refx = int(wcs_holo.celestial.to_header()["CRPIX1"] - 1)
+    refy = int(wcs_holo.celestial.to_header()["CRPIX2"] - 1)
     holo_data = fits.getdata(holofile)
     data = {}
-    for bm in list(set(beam['beam_list'])):  # Ensure list of beams is unique!
+    for bm in list(set(beam["beam_list"])):  # Ensure list of beams is unique!
         data.update({bm: {}})
         # imfile = beam[f'i_beam{bm}_image_file']
         try:
-            imfile = glob(os.path.join(cutdir, f"{comp['Source_ID']}*beam{bm:02d}.conv.fits"))[0]
+            imfile = glob(
+                os.path.join(cutdir, f"{comp['Source_ID']}*beam{bm:02d}.conv.fits")
+            )[0]
         except:
             print(f"No image file for source {comp['Source_ID']} beam {bm}")
             return
@@ -90,27 +97,27 @@ def interpolate(
         freq = getfreq(imfile)
         wcs = WCS(imfile)
         sep = septab[bm]
-        beamcoord = SkyCoord(sep['BEAM_RA'], sep['BEAM_DEC'], unit=(u.hourangle, u.deg))
-        
-        x, y = np.array(
-            wcs.celestial.world_to_pixel(coord)
-        ).round().astype(int)
+        beamcoord = SkyCoord(sep["BEAM_RA"], sep["BEAM_DEC"], unit=(u.hourangle, u.deg))
+
+        x, y = np.array(wcs.celestial.world_to_pixel(coord)).round().astype(int)
 
         offset = beamcoord.separation(coord).to(u.deg)
         angle = beamcoord.position_angle(coord).to(u.deg)
 
         data[bm].update({"offset": offset})
         data[bm].update({"angle": angle})
-        
+
         x_holo = int(np.round(np.sin(offset) * np.sin(angle) / incx + refx))
         y_holo = int(np.round(np.sin(offset) * np.cos(angle) / incy + refy))
         # ell = offset * np.sin(angle)
         # emm = offset * np.cos(angle)
         # x_holo, y_holo = wcs_holo.celestial.world_to_array_index(SkyCoord(ell, emm))
-        for i, s in enumerate(['i','q','u']):
+        for i, s in enumerate(["i", "q", "u"]):
             # imfile = beam[f'{s}_beam{bm}_image_file']
             # imfile = os.path.join(os.path.abspath(cutdir), imfile)
-            imfile = glob(f"{cutdir}/{comp['Source_ID']}*.{s}.*beam{bm:02d}.conv.fits")[0]
+            imfile = glob(f"{cutdir}/{comp['Source_ID']}*.{s}.*beam{bm:02d}.conv.fits")[
+                0
+            ]
             imdata = np.squeeze(fits.getdata(imfile))
             im_spec = imdata[:, y, x]
             filt = sigma_clip(im_spec, sigma=5, stdfunc=mad_std)
@@ -128,6 +135,8 @@ def interpolate(
     except Exception as e:
         print(f"No plot made : {e}")
         return
+
+
 def main(
     field,
     datadir,
@@ -160,18 +169,22 @@ def main(
     isl_query = {"Source_ID": {"$in": island_ids}}
     beams = pd.DataFrame(list(beams_col.find(isl_query).sort("Source_ID")))
     beams.set_index("Source_ID", drop=False, inplace=True)
-    components = pd.DataFrame(list(comp_col.find(
-        isl_query,
-        # Only get required values
-        {
-            "Source_ID": 1,
-            "Gaussian_ID": 1,
-            "RA": 1,
-            "Dec": 1,
-            "Noise": 1,
-            "Total_flux_Gaussian": 1,
-        }
-    ).sort("Source_ID")))
+    components = pd.DataFrame(
+        list(
+            comp_col.find(
+                isl_query,
+                # Only get required values
+                {
+                    "Source_ID": 1,
+                    "Gaussian_ID": 1,
+                    "RA": 1,
+                    "Dec": 1,
+                    "Noise": 1,
+                    "Total_flux_Gaussian": 1,
+                },
+            ).sort("Source_ID")
+        )
+    )
     components.set_index("Source_ID", drop=False, inplace=True)
     component_ids = list(components["Gaussian_ID"])
     assert len(set(beams.index)) == len(set(components.index))
@@ -190,7 +203,7 @@ def main(
             beams=beams.loc[c.Source_ID],
             cutdir=cutdir,
             septab=beamseps,
-            holofile=holofile
+            holofile=holofile,
         )
         outputs.append(out)
     futures = chunk_dask(
@@ -202,6 +215,7 @@ def main(
     )
 
     print("Comparing leakge done!")
+
 
 def cli():
     """Command-line interface
@@ -252,16 +266,10 @@ def cli():
         help="Directory containing data cutout direcory (in datadir/cutouts).",
     )
 
-    parser.add_argument(
-        "--holofile",
-        type=str,
-        help="Path to holography image"
-    )
+    parser.add_argument("--holofile", type=str, help="Path to holography image")
 
     parser.add_argument(
-        "--host",
-        type=str,
-        help="Host of mongodb.",
+        "--host", type=str, help="Host of mongodb.",
     )
 
     parser.add_argument(
@@ -276,15 +284,11 @@ def cli():
         "-v", "--verbose", action="store_true", help="Verbose output [False]."
     )
 
-    parser.add_argument(
-        "--snr", type=float, default=None, help="SNR cut (full band)."
-    )
+    parser.add_argument("--snr", type=float, default=None, help="SNR cut (full band).")
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(
-        n_workers=10, threads_per_worker=1,
-    )
+    cluster = LocalCluster(n_workers=10, threads_per_worker=1,)
     client = Client(cluster)
 
     main(
@@ -299,6 +303,7 @@ def cli():
         snr_cut=args.snr,
     )
     client.close()
+
 
 if __name__ == "__main__":
     cli()

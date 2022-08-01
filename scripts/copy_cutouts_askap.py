@@ -12,23 +12,27 @@ import argparse
 
 # racs_area = os.path.abspath('/askapbuffer/processing/len067/spiceracs')
 # spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')
-spice_area = os.path.abspath('/askapbuffer/processing/len067/spiceracs')
+spice_area = os.path.abspath("/askapbuffer/processing/len067/spiceracs")
 # spice_area = os.path.abspath('/scratch/ja3/athomson/spica')
-group_area = os.path.abspath('/group/ja3/athomson/spica')
+group_area = os.path.abspath("/group/ja3/athomson/spica")
+
 
 def main(field, dry_run=False, ncores=10):
     spica_tab = spica.main()
-    spica_tab.add_index('Field name')
-    row = spica_tab.loc['Field name', f"RACS_{field}"]
-    cut_dir = os.path.join(spice_area, f"{row['SBID']}", f"RACS_test4_1.05_{field}", "cutouts")
+    spica_tab.add_index("Field name")
+    row = spica_tab.loc["Field name", f"RACS_{field}"]
+    cut_dir = os.path.join(
+        spice_area, f"{row['SBID']}", f"RACS_test4_1.05_{field}", "cutouts"
+    )
     test_cut = os.path.isdir(cut_dir)
     if not test_cut:
         raise FileNotFoundError(cut_dir)
     else:
         print(f"Copying '{cut_dir}'")
 
-    
-    field_dir =  os.path.join(group_area, f"{row['CAL SBID']}", f"RACS_test4_1.05_{field}")
+    field_dir = os.path.join(
+        group_area, f"{row['CAL SBID']}", f"RACS_test4_1.05_{field}"
+    )
 
     try_mkdir(field_dir)
     test_field = os.path.isdir(field_dir)
@@ -43,45 +47,31 @@ def main(field, dry_run=False, ncores=10):
         raise FileNotFoundError(store_dir)
     else:
         print(f"Storing in '{store_dir}'")
-    
+
     if not dry_run:
-        copy_data.prsync(
-            f"{cut_dir}/*",
-            store_dir,
-            ncores=ncores
-        )
+        copy_data.prsync(f"{cut_dir}/*", store_dir, ncores=ncores)
+
 
 if __name__ == "__main__":
     descStr = f"""
     Copy data from RACS area to SPICE area'
     """
     parser = argparse.ArgumentParser(
-        description=descStr,
-        formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "field",
-        metavar="field",
-        type=str,
-        help="RACS field to find e.g. 2132-50A"
+        "field", metavar="field", type=str, help="RACS field to find e.g. 2132-50A"
     )
 
     parser.add_argument(
-        "--dry_run",
-        action='store_true',
-        help="Don't launch rsync",
+        "--dry_run", action="store_true", help="Don't launch rsync",
     )
 
     parser.add_argument(
-        "--ncores",
-        type=int,
-        default=1,
-        help="Ncores for parallel rsync",
+        "--ncores", type=int, default=1, help="Ncores for parallel rsync",
     )
 
     args = parser.parse_args()
     main(
-        field=args.field,
-        dry_run=args.dry_run,
-        ncores=args.ncores,
+        field=args.field, dry_run=args.dry_run, ncores=args.ncores,
     )

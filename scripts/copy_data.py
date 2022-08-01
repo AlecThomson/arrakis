@@ -9,10 +9,10 @@ from shutil import copyfile, SameFileError
 
 def yes_or_no(question):
     while "Please answer 'y' or 'n'":
-        reply = str(input(question+' (y/n): ')).lower().strip()
-        if reply[:1] == 'y':
+        reply = str(input(question + " (y/n): ")).lower().strip()
+        if reply[:1] == "y":
             return True
-        if reply[:1] == 'n':
+        if reply[:1] == "n":
             return False
 
 
@@ -21,26 +21,24 @@ def rsync(src, tgt):
 
 
 def prsync(wild_src: str, tgt: str, ncores: int):
-    os.system(
-        f"ls -d {wild_src} | xargs -n 1 -P {ncores} -I% rsync -rvh % {tgt}")
+    os.system(f"ls -d {wild_src} | xargs -n 1 -P {ncores} -I% rsync -rvh % {tgt}")
 
 
-def main(name: str,
-         sbid: int,
-         racs_area: str,
-         spice_area: str,
-         ncores=1,
-         clean=False,
-         force=False
-         ):
+def main(
+    name: str,
+    sbid: int,
+    racs_area: str,
+    spice_area: str,
+    ncores=1,
+    clean=False,
+    force=False,
+):
     tab = Table.read(
-        '/group/askap/athomson/repos/spiceracs/askap_surveys/racs/db/epoch_0/field_data.csv'
+        "/group/askap/athomson/repos/spiceracs/askap_surveys/racs/db/epoch_0/field_data.csv"
     )
-    tab.add_index('FIELD_NAME')
-    tab.add_index('CAL_SBID')
-    row = Table(
-        tab.loc['FIELD_NAME', f"RACS_{name}"]
-    ).loc['CAL_SBID', sbid]['INDEX']
+    tab.add_index("FIELD_NAME")
+    tab.add_index("CAL_SBID")
+    row = Table(tab.loc["FIELD_NAME", f"RACS_{name}"]).loc["CAL_SBID", sbid]["INDEX"]
     sb_dir = os.path.abspath(f"{spice_area}/{sbid}")
     field_dir = os.path.abspath(f"{sb_dir}/RACS_test4_1.05_{name}")
     bpcal = os.path.abspath(f"{sb_dir}/BPCAL")
@@ -50,15 +48,12 @@ def main(name: str,
             yes = True
         else:
             yes = yes_or_no(
-                f"This will delete the CONTCUBE checkfiles in {check}. Are you sure?")
+                f"This will delete the CONTCUBE checkfiles in {check}. Are you sure?"
+            )
     for idir in [sb_dir, field_dir, bpcal, check]:
         try_mkdir(idir)
 
-    prsync(
-        f"{racs_area}/{sbid}/BPCAL/calparameters_1934_bp_*.tab",
-        f"{bpcal}/",
-        ncores
-    )
+    prsync(f"{racs_area}/{sbid}/BPCAL/calparameters_1934_bp_*.tab", f"{bpcal}/", ncores)
     # Needed until pipeline update
     # prsync(
     #     f"{racs_area}/{sbid}/RACS_test4_1.05_{name}/*_averaged_cal.ms",
@@ -73,20 +68,17 @@ def main(name: str,
     prsync(
         f"{racs_area}/{sbid}/RACS_test4_1.05_{name}/*_averaged_cal.leakage.ms",
         f"{field_dir}/",
-        ncores
+        ncores,
     )
 
-    rsync(
-        f"{racs_area}/{sbid}/RACS_test4_1.05_{name}/Checkfiles/",
-        f"{check}/"
-    )
+    rsync(f"{racs_area}/{sbid}/RACS_test4_1.05_{name}/Checkfiles/", f"{check}/")
 
     # Fix for multiple fields
-    for f in sorted(glob(f'{check}/*')):
+    for f in sorted(glob(f"{check}/*")):
         abspath = os.path.abspath(f)
-        idx = abspath.find('_F')
-        f_no = abspath[idx+1:idx+4]
-        newpath = abspath.replace(f_no, 'F00')
+        idx = abspath.find("_F")
+        f_no = abspath[idx + 1 : idx + 4]
+        newpath = abspath.replace(f_no, "F00")
         try:
             copyfile(abspath, newpath)
         except SameFileError:
@@ -105,50 +97,35 @@ if __name__ == "__main__":
     Copy data from RACS area to SPICE area'
     """
     parser = argparse.ArgumentParser(
-        description=descStr,
-        formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "field",
-        metavar="field",
-        type=str,
-        help="RACS field to find e.g. 2132-50A"
+        "field", metavar="field", type=str, help="RACS field to find e.g. 2132-50A"
     )
 
     parser.add_argument(
-        "cal_sbid",
-        metavar="cal_sbid",
-        type=int,
-        help="Calibrator SBID for field",
+        "cal_sbid", metavar="cal_sbid", type=int, help="Calibrator SBID for field",
     )
     parser.add_argument(
-        "--clean",
-        action='store_true',
-        help="Cleanup Checkfiles",
+        "--clean", action="store_true", help="Cleanup Checkfiles",
     )
     parser.add_argument(
-        "--force",
-        action='store_true',
-        help="Force cleanup of Checkfiles",
+        "--force", action="store_true", help="Force cleanup of Checkfiles",
     )
     parser.add_argument(
-        "--ncores",
-        type=int,
-        default=1,
-        help="Ncores for parallel rsync",
+        "--ncores", type=int, default=1, help="Ncores for parallel rsync",
     )
 
     parser.add_argument(
         "--RACS",
         type=str,
-        default=os.path.abspath('/askapbuffer/payne/mcc381/RACS'),
+        default=os.path.abspath("/askapbuffer/payne/mcc381/RACS"),
         help="RACS area",
     )
     parser.add_argument(
         "--spice",
         type=str,
-        default=os.path.abspath(
-            '/scratch/ja3/athomson/spica'),
+        default=os.path.abspath("/scratch/ja3/athomson/spica"),
         help="SPICE area",
     )
 
