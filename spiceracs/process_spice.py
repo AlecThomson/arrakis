@@ -204,11 +204,8 @@ def main(args: configargparse.Namespace) -> None:
         )
         client = Client()
     else:
-        cluster = SLURMCluster(
-            **config,
-        )
-        log.debug(
-            f"Submitted scripts will look like: \n {cluster.job_script()}")
+        cluster = SLURMCluster(**config,)
+        log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes
         cluster.scale(jobs=15)
@@ -223,8 +220,7 @@ def main(args: configargparse.Namespace) -> None:
     )
 
     args_yaml = yaml.dump(vars(args))
-    args_yaml_f = os.path.abspath(
-        f"{args.field}-config-{Time.now().fits}.yaml")
+    args_yaml_f = os.path.abspath(f"{args.field}-config-{Time.now().fits}.yaml")
     log.info(f"Saving config to '{args_yaml_f}'")
     with open(args_yaml_f, "w") as f:
         f.write(args_yaml)
@@ -356,6 +352,7 @@ def main(args: configargparse.Namespace) -> None:
         flow.run()
     client.close()
 
+
 def cli():
     """Command-line interface"""
     # Help string to be shown using the -h option
@@ -388,8 +385,7 @@ def cli():
         description=descStr,
         formatter_class=configargparse.RawTextHelpFormatter,
     )
-    parser.add("--config", required=False,
-               is_config_file=True, help="Config file path")
+    parser.add("--config", required=False, is_config_file=True, help="Config file path")
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
     )
@@ -441,10 +437,7 @@ def cli():
         help="Config file for Dask SlurmCLUSTER.",
     )
     parser.add_argument(
-        "--holofile",
-        type=str,
-        default=None,
-        help="Path to holography image"
+        "--holofile", type=str, default=None, help="Path to holography image"
     )
 
     parser.add_argument(
@@ -496,8 +489,7 @@ def cli():
         help="Number of beamwidths to pad around source [5].",
     )
 
-    cutargs.add_argument("--dryrun", action="store_true",
-                         help="Do a dry-run [False].")
+    cutargs.add_argument("--dryrun", action="store_true", help="Do a dry-run [False].")
 
     synth = parser.add_argument_group("RM-synth/CLEAN arguments")
 
@@ -532,8 +524,9 @@ def cli():
         "--validate", action="store_true", help="Run on RMsynth Stokes I [False]."
     )
 
-    synth.add_argument("--limit", default=None, type=int,
-                       help="Limit number of sources [All].")
+    synth.add_argument(
+        "--limit", default=None, type=int, help="Limit number of sources [All]."
+    )
     tools = parser.add_argument_group("RM-tools arguments")
     # RM-tools args
     tools.add_argument(
@@ -631,8 +624,10 @@ def cli():
         "-g", "--gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
     )
     tools.add_argument(
-        "--window", type=float, default=None, 
-        help="Further CLEAN in mask to this threshold [False]."
+        "--window",
+        type=float,
+        default=None,
+        help="Further CLEAN in mask to this threshold [False].",
     )
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args
@@ -649,13 +644,13 @@ def cli():
             level=log.INFO,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
     else:
         log.basicConfig(
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
 
     main(args)

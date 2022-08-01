@@ -2,7 +2,13 @@
 """Run RM-CLEAN on cutouts in parallel"""
 from pprint import pformat, pprint
 from spiceracs.utils import (
-    getfreq, MyEncoder, test_db, tqdm_dask, try_mkdir, get_db, chunk_dask
+    getfreq,
+    MyEncoder,
+    test_db,
+    tqdm_dask,
+    try_mkdir,
+    get_db,
+    chunk_dask,
 )
 import json
 import numpy as np
@@ -54,7 +60,7 @@ def rmsynthoncut3d(
     fitRMSF=True,
     not_RMSF=False,
     rm_verbose=False,
-    ion=False
+    ion=False,
 ):
     """3D RM-synthesis
 
@@ -95,26 +101,19 @@ def rmsynthoncut3d(
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         log.critical(f"Cubelet {iname} is entirely NaN")
         myquery = {"Source_ID": iname}
-        badvalues = {
-            "$set": {
-                "rmsynth3d": False,
-            }
-        }
+        badvalues = {"$set": {"rmsynth3d": False,}}
         return pymongo.UpdateOne(myquery, badvalues)
-    rmsi = estimate_noise_annulus(
-        dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
+    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
     rmsi[rmsi == 0] = np.nan
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
 
     # rmsq = rms_1d(dataQ)
-    rmsq = estimate_noise_annulus(
-        dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
+    rmsq = estimate_noise_annulus(dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
     rmsq[rmsq == 0] = np.nan
     rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
 
     # rmsu = rms_1d(dataU)
-    rmsu = estimate_noise_annulus(
-        dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
+    rmsu = estimate_noise_annulus(dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
     rmsu[rmsu == 0] = np.nan
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
     rmsArr = np.max([rmsq, rmsu], axis=0)
@@ -164,12 +163,8 @@ def rmsynthoncut3d(
                 "FDF_real_dirty": os.path.join(
                     outer_dir, f"{prefix}FDF_real_dirty.fits"
                 ),
-                "FDF_im_dirty": os.path.join(
-                    outer_dir, f"{prefix}FDF_im_dirty.fits"
-                ),
-                "FDF_tot_dirty": os.path.join(
-                    outer_dir, f"{prefix}FDF_tot_dirty.fits"
-                ),
+                "FDF_im_dirty": os.path.join(outer_dir, f"{prefix}FDF_im_dirty.fits"),
+                "FDF_tot_dirty": os.path.join(outer_dir, f"{prefix}FDF_tot_dirty.fits"),
                 "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
                 "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
                 "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
@@ -219,7 +214,7 @@ def estimate_noise_annulus(x_center, y_center, cube):
     err = np.zeros(lenfreq)
     # try:
     y, x = np.ogrid[
-        -1 * outer_radius: outer_radius + 1, -1 * outer_radius: outer_radius + 1
+        -1 * outer_radius : outer_radius + 1, -1 * outer_radius : outer_radius + 1
     ]
     grid_mask = np.logical_or(
         x ** 2 + y ** 2 < inner_radius ** 2, x ** 2 + y ** 2 > outer_radius ** 2
@@ -229,22 +224,21 @@ def estimate_noise_annulus(x_center, y_center, cube):
             grid = cube[
                 i,
                 0,
-                y_center - outer_radius: y_center + outer_radius + 1,
-                x_center - outer_radius: x_center + outer_radius + 1,
+                y_center - outer_radius : y_center + outer_radius + 1,
+                x_center - outer_radius : x_center + outer_radius + 1,
             ]
         else:  # naxis ==3
             grid = cube[
                 i,
-                y_center - outer_radius: y_center + outer_radius + 1,
-                x_center - outer_radius: x_center + outer_radius + 1,
+                y_center - outer_radius : y_center + outer_radius + 1,
+                x_center - outer_radius : x_center + outer_radius + 1,
             ]
 
         # Calculate the MADFM, and convert to standard sigma:
         noisepix = np.ma.masked_array(grid, grid_mask)
         # if (noisepix == np.nan).any():
         #    embed
-        err[i] = np.ma.median(np.ma.fabs(
-            noisepix - np.ma.median(noisepix))) / 0.6745
+        err[i] = np.ma.median(np.ma.fabs(noisepix - np.ma.median(noisepix))) / 0.6745
     err[err == 0] = np.nan
     return err
 
@@ -256,21 +250,21 @@ def rmsynthoncut1d(
     outdir: str,
     freq: np.ndarray,
     field: str,
-    polyOrd:int=3,
-    phiMax_radm2:float=None,
-    dPhi_radm2:float=None,
-    nSamples:int=5,
-    weightType:str="variance",
-    fitRMSF:bool=True,
-    noStokesI:bool=False,
-    showPlots:bool=False,
-    savePlots:bool=False,
-    debug:bool=False,
-    rm_verbose:bool=False,
-    fit_function:str="log",
-    tt0:str=None,
-    tt1:str=None,
-    ion:bool=False
+    polyOrd: int = 3,
+    phiMax_radm2: float = None,
+    dPhi_radm2: float = None,
+    nSamples: int = 5,
+    weightType: str = "variance",
+    fitRMSF: bool = True,
+    noStokesI: bool = False,
+    showPlots: bool = False,
+    savePlots: bool = False,
+    debug: bool = False,
+    rm_verbose: bool = False,
+    fit_function: str = "log",
+    tt0: str = None,
+    tt1: str = None,
+    ion: bool = False,
 ) -> pymongo.UpdateOne:
     """1D RM synthesis
 
@@ -293,15 +287,15 @@ def rmsynthoncut1d(
         debug (bool, optional): Turn on debug plots. Defaults to False.
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
-    iname = comp['Source_ID']
-    cname = comp['Gaussian_ID']
-    ifile = os.path.join(outdir, beam['beams'][field]['i_file'])
+    iname = comp["Source_ID"]
+    cname = comp["Gaussian_ID"]
+    ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
     if ion:
-        qfile = os.path.join(outdir, beam['beams'][field]['q_file_ion'])
-        ufile = os.path.join(outdir, beam['beams'][field]['u_file_ion'])
+        qfile = os.path.join(outdir, beam["beams"][field]["q_file_ion"])
+        ufile = os.path.join(outdir, beam["beams"][field]["u_file_ion"])
     else:
-        qfile = os.path.join(outdir, beam['beams'][field]['q_file'])
-        ufile = os.path.join(outdir, beam['beams'][field]['u_file'])
+        qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
+        ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
 
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
@@ -313,57 +307,36 @@ def rmsynthoncut1d(
 
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         log.critical(f"Entire data is NaN for {iname}")
-        myquery = {
-            "Gaussian_ID": cname
-        }
-        badvalues = {
-            "$set":
-                {
-                    "rmsynth1d": False
-                }
-        }
+        myquery = {"Gaussian_ID": cname}
+        badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
 
-    rmsi = estimate_noise_annulus(
-        dataI.shape[2]//2,
-        dataI.shape[1]//2,
-        dataI
-    )
+    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
     rmsi[rmsi == 0] = np.nan
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
 
-    #rmsq = rms_1d(dataQ)
-    rmsq = estimate_noise_annulus(
-        dataQ.shape[2]//2,
-        dataQ.shape[1]//2,
-        dataQ
-    )
+    # rmsq = rms_1d(dataQ)
+    rmsq = estimate_noise_annulus(dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
     rmsq[rmsq == 0] = np.nan
     rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
 
-    #rmsu = rms_1d(dataU)
-    rmsu = estimate_noise_annulus(
-        dataU.shape[2]//2,
-        dataU.shape[1]//2,
-        dataU
-    )
+    # rmsu = rms_1d(dataU)
+    rmsu = estimate_noise_annulus(dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
     rmsu[rmsu == 0] = np.nan
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
 
     prefix = f"{os.path.dirname(ifile)}/{cname}"
 
-    ra = comp['RA']
-    dec = comp['Dec']
-    coord = SkyCoord(ra*u.deg, dec*u.deg)
+    ra = comp["RA"]
+    dec = comp["Dec"]
+    coord = SkyCoord(ra * u.deg, dec * u.deg)
     if len(dataI.shape) == 4:
         # drop Stokes axis
         wcs = WCS(header).dropaxis(2)
     else:
         wcs = WCS(header)
 
-    x, y = np.array(
-        wcs.celestial.world_to_pixel(coord)
-    ).round().astype(int)
+    x, y = np.array(wcs.celestial.world_to_pixel(coord)).round().astype(int)
 
     qarr = dataQ[:, y, x]
     uarr = dataU[:, y, x]
@@ -391,21 +364,16 @@ def rmsynthoncut1d(
         mfs_i_1 = fits.getdata(tt1, memmap=True)
         mfs_head = fits.getheader(tt0)
         mfs_wcs = WCS(mfs_head)
-        xp, yp = np.array(mfs_wcs.celestial.world_to_pixel(
-            coord)).round().astype(int)
+        xp, yp = np.array(mfs_wcs.celestial.world_to_pixel(coord)).round().astype(int)
         tt1_p = mfs_i_1[yp, xp]
         tt0_p = mfs_i_0[yp, xp]
 
         alpha = -1 * tt1_p / tt0_p
         amplitude = tt0_p
-        x_0 = mfs_head['RESTFREQ']
+        x_0 = mfs_head["RESTFREQ"]
 
-        log.debug(f'alpha is {alpha}')
-        model_I = models.PowerLaw1D(
-            amplitude=amplitude,
-            x_0=x_0,
-            alpha=alpha
-        )
+        log.debug(f"alpha is {alpha}")
+        model_I = models.PowerLaw1D(amplitude=amplitude, x_0=x_0, alpha=alpha)
         modStokesI = model_I(freq)
         model_repr = model_I.__repr__()
 
@@ -417,37 +385,23 @@ def rmsynthoncut1d(
         modStokesI = None
 
     if np.sum(np.isfinite(qarr)) < 2 or np.sum(np.isfinite(uarr)) < 2:
-        log.critical(f'{cname} QU data is all NaNs.')
-        myquery = {
-            "Gaussian_ID": cname
-        }
-        badvalues = {
-            "$set":
-                {
-                    "rmsynth1d": False
-                }
-        }
+        log.critical(f"{cname} QU data is all NaNs.")
+        myquery = {"Gaussian_ID": cname}
+        badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
     if noStokesI:
         data = [np.array(freq), qarr, uarr, rmsq, rmsu]
     else:
         if np.isnan(iarr).all():
-            log.critical(f'{cname} I data is all NaNs.')
-            myquery = {
-                "Gaussian_ID": cname
-            }
-            badvalues = {
-                "$set":
-                    {
-                        "rmsynth1d": False
-                    }
-            }
+            log.critical(f"{cname} I data is all NaNs.")
+            myquery = {"Gaussian_ID": cname}
+            badvalues = {"$set": {"rmsynth1d": False}}
             return pymongo.UpdateOne(myquery, badvalues)
 
         data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
 
         # Run 1D RM-synthesis on the spectra
-        np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=' ')
+        np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
         try:
             log.debug(f"Using {fit_function} to fit Stokes I")
             mDict, aDict = do_RMsynth_1D.run_rmsynth(
@@ -467,29 +421,27 @@ def rmsynthoncut1d(
                 debug=debug,
                 fit_function=fit_function,
                 prefixOut=prefix,
-        )
+            )
         except Exception as err:
             traceback.print_tb(err.__traceback__)
             raise err
         if savePlots:
-            plt.close('all')
-            plotdir = os.path.join(outdir, 'plots')
-            plot_files = glob(os.path.join(os.path.dirname(ifile), '*.pdf'))
+            plt.close("all")
+            plotdir = os.path.join(outdir, "plots")
+            plot_files = glob(os.path.join(os.path.dirname(ifile), "*.pdf"))
             for src in plot_files:
                 base = os.path.basename(src)
                 dst = os.path.join(plotdir, base)
                 copyfile(src, dst)
 
-        do_RMsynth_1D.saveOutput(
-            mDict, aDict, prefix, rm_verbose
-        )
+        do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
         myquery = {"Gaussian_ID": cname}
 
         # Prep header
         head_dict = dict(header)
-        head_dict.pop('', None)
-        head_dict['COMMENT'] = str(head_dict['COMMENT'])
+        head_dict.pop("", None)
+        head_dict["COMMENT"] = str(head_dict["COMMENT"])
 
         outer_dir = os.path.basename(os.path.dirname(ifile))
 
@@ -512,9 +464,11 @@ def rmsynthoncut1d(
                     "I_model": modStokesI.tolist() if modStokesI is not None else None,
                     "I_model_params": {
                         "alpha": float(alpha) if alpha is not None else None,
-                        "amplitude": float(amplitude) if amplitude is not None else None,
+                        "amplitude": float(amplitude)
+                        if amplitude is not None
+                        else None,
                         "x_0": float(x_0) if x_0 is not None else None,
-                        "model_repr": model_repr
+                        "model_repr": model_repr,
                     },
                     "I": iarr.tolist(),
                     "Q": qarr.tolist(),
@@ -522,7 +476,7 @@ def rmsynthoncut1d(
                     "I_err": rmsi.tolist(),
                     "Q_err": rmsq.tolist(),
                     "U_err": rmsu.tolist(),
-                }
+                },
             }
         }
         return pymongo.UpdateOne(myquery, newvalues)
@@ -582,8 +536,7 @@ def rmsynthoncut_i(
         wcs = WCS(header)
 
     x, y, z = (
-        np.array(wcs.all_world2pix(ra, dec, np.nanmean(freq), 0)
-                 ).round().astype(int)
+        np.array(wcs.all_world2pix(ra, dec, np.nanmean(freq), 0)).round().astype(int)
     )
 
     mom = np.nansum(dataI, axis=0)
@@ -596,10 +549,9 @@ def rmsynthoncut_i(
     _ = input("Press [enter] to continue")  # wait for input from the user
     plt.close()  # close the figure to show the next one.
 
-    data = np.nansum(dataI[:, y - 1: y + 1 + 1, x - 1: x + 1 + 1], axis=(1, 2))
+    data = np.nansum(dataI[:, y - 1 : y + 1 + 1, x - 1 : x + 1 + 1], axis=(1, 2))
 
-    rmsi = estimate_noise_annulus(
-        dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
+    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
     rmsi[rmsi == 0] = np.nan
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
     noise = rmsi
@@ -663,29 +615,29 @@ def main(
     outdir: str,
     host: str,
     client: Client,
-    username:str=None,
-    password:str=None,
-    dimension:str="1d",
-    verbose:bool=True,
-    database:bool=False,
-    validate:bool=False,
-    limit:int=None,
-    savePlots:bool=False,
-    weightType:str="variance",
-    fitRMSF:bool=True,
-    phiMax_radm2:float=None,
-    dPhi_radm2:float=None,
-    nSamples:int=5,
-    polyOrd:int=3,
-    noStokesI:bool=False,
-    showPlots:bool=False,
-    not_RMSF:bool=False,
-    rm_verbose:bool=False,
-    debug:bool=False,
-    fit_function:str="log",
-    tt0:str=None,
-    tt1:str=None,
-    ion:bool=False
+    username: str = None,
+    password: str = None,
+    dimension: str = "1d",
+    verbose: bool = True,
+    database: bool = False,
+    validate: bool = False,
+    limit: int = None,
+    savePlots: bool = False,
+    weightType: str = "variance",
+    fitRMSF: bool = True,
+    phiMax_radm2: float = None,
+    dPhi_radm2: float = None,
+    nSamples: int = 5,
+    polyOrd: int = 3,
+    noStokesI: bool = False,
+    showPlots: bool = False,
+    not_RMSF: bool = False,
+    rm_verbose: bool = False,
+    debug: bool = False,
+    fit_function: str = "log",
+    tt0: str = None,
+    tt1: str = None,
+    ion: bool = False,
 ) -> None:
 
     outdir = os.path.abspath(outdir)
@@ -708,16 +660,15 @@ def main(
     island_ids = sorted(beams_col.distinct("Source_ID", beam_query))
 
     isl_query = {"Source_ID": {"$in": island_ids}}
-    components = pd.DataFrame(list(comp_col.find(
-        isl_query,
-        # Only get required values
-        {
-            "Source_ID": 1,
-            "Gaussian_ID": 1,
-            "RA": 1,
-            "Dec": 1,
-        }
-    ).sort("Source_ID")))
+    components = pd.DataFrame(
+        list(
+            comp_col.find(
+                isl_query,
+                # Only get required values
+                {"Source_ID": 1, "Gaussian_ID": 1, "RA": 1, "Dec": 1,},
+            ).sort("Source_ID")
+        )
+    )
     components.set_index("Source_ID", drop=False, inplace=True)
     component_ids = list(components["Gaussian_ID"])
 
@@ -726,14 +677,12 @@ def main(
 
     # Unset rmsynth in db
     if dimension == "1d":
-        query_1d = {
-            "$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth1d": True}]}
+        query_1d = {"$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth1d": True}]}
 
         comp_col.update_many(query_1d, {"$set": {"rmsynth1d": False}})
 
     elif dimension == "3d":
-        query_3d = {
-            "$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth3d": True}]}
+        query_3d = {"$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth3d": True}]}
 
         island_col.update(query_3d, {"$set": {"rmsynth3d": False}})
 
@@ -775,8 +724,8 @@ def main(
     elif dimension == "1d":
         log.info(f"Running RMsynth on {n_comp} components")
         for i, (_, comp) in tqdm(
-            enumerate(components.iterrows()), 
-            total=n_comp, 
+            enumerate(components.iterrows()),
+            total=n_comp,
             disable=(not verbose),
             desc="Constructing 1D RMsynth jobs",
         ):
@@ -829,7 +778,7 @@ def main(
                     fitRMSF=fitRMSF,
                     not_RMSF=not_RMSF,
                     rm_verbose=rm_verbose,
-                    ion=ion
+                    ion=ion,
                 )
                 outputs.append(output)
 
@@ -1076,8 +1025,9 @@ def cli():
     client = Client(cluster)
     log.debug(client)
 
-    test_db(host=args.host, username=args.username,
-            password=args.password, verbose=verbose)
+    test_db(
+        host=args.host, username=args.username, password=args.password, verbose=verbose
+    )
 
     main(
         field=args.field,

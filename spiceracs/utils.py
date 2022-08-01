@@ -51,20 +51,23 @@ def zip_equal(*iterables):
     sentinel = object()
     for combo in zip_longest(*iterables, fillvalue=sentinel):
         if sentinel in combo:
-            raise ValueError('Iterables have different lengths')
+            raise ValueError("Iterables have different lengths")
         yield combo
 
+
 def chunk_dask(
-    outputs:list,
-    client:distributed.Client,
-    batch_size:int=1000,
+    outputs: list,
+    client: distributed.Client,
+    batch_size: int = 1000,
     task_name="",
     progress_text="",
-    verbose=True
+    verbose=True,
 ) -> list:
     chunk_outputs = []
-    for i in trange(0, len(outputs), batch_size, desc=f"Chunking {task_name}", disable=(not verbose)):
-        outputs_chunk = outputs[i:i+batch_size]
+    for i in trange(
+        0, len(outputs), batch_size, desc=f"Chunking {task_name}", disable=(not verbose)
+    ):
+        outputs_chunk = outputs[i : i + batch_size]
         futures = client.persist(outputs_chunk)
         # dumb solution for https://github.com/dask/distributed/issues/4831
         if i == 0:
@@ -97,32 +100,37 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     # Width and max height in inches for IEEE journals taken from
     # computer.org/cms/Computer.org/Journal%20templates/transactions_art_guide.pdf
 
-    assert(columns in [1,2])
+    assert columns in [1, 2]
 
     if fig_width is None:
-        fig_width = 3.39 if columns==1 else 6.9 # width in inches
+        fig_width = 3.39 if columns == 1 else 6.9  # width in inches
 
     if fig_height is None:
-        golden_mean = (sqrt(5)-1.0)/2.0    # Aesthetic ratio
-        fig_height = fig_width*golden_mean # height in inches
+        golden_mean = (sqrt(5) - 1.0) / 2.0  # Aesthetic ratio
+        fig_height = fig_width * golden_mean  # height in inches
 
     MAX_HEIGHT_INCHES = 8.0
     if fig_height > MAX_HEIGHT_INCHES:
-        print("WARNING: fig_height too large:" + fig_height +
-              "so will reduce to" + MAX_HEIGHT_INCHES + "inches.")
+        print(
+            "WARNING: fig_height too large:"
+            + fig_height
+            + "so will reduce to"
+            + MAX_HEIGHT_INCHES
+            + "inches."
+        )
         fig_height = MAX_HEIGHT_INCHES
 
     params = {
-        'backend': 'pdf',
-        'axes.labelsize': 8, # fontsize for x and y labels (was 10)
-        'axes.titlesize': 8,
-        'font.size': 8, # was 10
-        'legend.fontsize': 8, # was 10
-        'xtick.labelsize': 8,
-        'ytick.labelsize': 8,
-        'text.usetex': False,
-        'figure.figsize': [fig_width,fig_height],
-        'font.family': 'serif'
+        "backend": "pdf",
+        "axes.labelsize": 8,  # fontsize for x and y labels (was 10)
+        "axes.titlesize": 8,
+        "font.size": 8,  # was 10
+        "legend.fontsize": 8,  # was 10
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+        "text.usetex": False,
+        "figure.figsize": [fig_width, fig_height],
+        "font.family": "serif",
     }
 
     matplotlib.rcParams.update(params)
@@ -139,11 +147,11 @@ def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array
         da.Array: Dask array
     """
     sample = list_of_delayed[0].compute()
-    dim = (len(list_of_delayed),)  + sample.shape
+    dim = (len(list_of_delayed),) + sample.shape
     if chunk is None:
         c_dim = dim
     else:
-        c_dim = (chunk,)  + sample.shape
+        c_dim = (chunk,) + sample.shape
     darray = [
         da.from_delayed(lazy, dtype=sample.dtype, shape=sample.shape)
         for lazy in list_of_delayed
@@ -151,6 +159,7 @@ def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array
     darray = da.stack(darray, axis=0).reshape(dim).rechunk(c_dim)
 
     return darray
+
 
 def yes_or_no(question: str) -> bool:
     """Ask a yes or no question via input()
@@ -484,8 +493,7 @@ def cpu_to_use(max_cpu: int, count: int) -> int:
     return np.max(factors_arr[factors_arr <= max_cpu])
 
 
-def getfreq(
-    cube: str, outdir: str = None, filename: str = None):
+def getfreq(cube: str, outdir: str = None, filename: str = None):
     """Get list of frequencies from FITS data.
 
     Gets the frequency list from a given cube. Can optionally save
@@ -515,7 +523,7 @@ def getfreq(
 
     # Write to file if outdir is specified
     if outdir is None:
-        return freq # Type: u.Quantity
+        return freq  # Type: u.Quantity
     else:
         if outdir[-1] == "/":
             outdir = outdir[:-1]
@@ -525,7 +533,7 @@ def getfreq(
             outfile = f"{outdir}/{filename}"
         log.info(f"Saving to {outfile}")
         np.savetxt(outfile, np.array(freq))
-        return freq, outfile # Type: Tuple[u.Quantity, str]
+        return freq, outfile  # Type: Tuple[u.Quantity, str]
 
 
 def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:

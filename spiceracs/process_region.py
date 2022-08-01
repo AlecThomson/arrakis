@@ -77,9 +77,7 @@ def main(args: configargparse.Namespace) -> None:
         )
         client = Client()
     else:
-        cluster = SLURMCluster(
-            **config,
-        )
+        cluster = SLURMCluster(**config,)
         log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes
@@ -95,8 +93,7 @@ def main(args: configargparse.Namespace) -> None:
     )
 
     args_yaml = yaml.dump(vars(args))
-    args_yaml_f = os.path.abspath(
-        f"{args.merge_name}-config-{Time.now().fits}.yaml")
+    args_yaml_f = os.path.abspath(f"{args.merge_name}-config-{Time.now().fits}.yaml")
     log.info(f"Saving config to '{args_yaml_f}'")
     with open(args_yaml_f, "w") as f:
         f.write(args_yaml)
@@ -155,7 +152,7 @@ def main(args: configargparse.Namespace) -> None:
             tt0=args.tt0,
             tt1=args.tt1,
             ion=False,
-            upstream_tasks=[merge]
+            upstream_tasks=[merge],
         )
         clean_spec = process_spice.rmclean_task(
             args.skip_rmclean,
@@ -194,6 +191,7 @@ def main(args: configargparse.Namespace) -> None:
 
     client.close()
 
+
 def cli():
     """Command-line interface"""
     # Help string to be shown using the -h option
@@ -226,26 +224,20 @@ def cli():
         description=descStr,
         formatter_class=configargparse.RawTextHelpFormatter,
     )
-    parser.add("--config", required=False,
-               is_config_file=True, help="Config file path")
+    parser.add("--config", required=False, is_config_file=True, help="Config file path")
 
     parser.add_argument(
-        "--merge_name",
-        type=str,
-        help="Name of the merged region",
+        "--merge_name", type=str, help="Name of the merged region",
     )
 
     parser.add_argument(
-        "--fields",
-        type=str,
-        nargs='+',
-        help="RACS fields to mosaic - e.g. 2132-50A."
+        "--fields", type=str, nargs="+", help="RACS fields to mosaic - e.g. 2132-50A."
     )
 
     parser.add_argument(
         "--datadirs",
         type=str,
-        nargs='+',
+        nargs="+",
         help="Directories containing cutouts (in subdir outdir/cutouts)..",
     )
 
@@ -314,7 +306,9 @@ def cli():
     options.add_argument(
         "-v", "--verbose", action="store_true", help="Verbose output [False]."
     )
-    options.add_argument("--debugger", action="store_true", help="Debug output [False].")
+    options.add_argument(
+        "--debugger", action="store_true", help="Debug output [False]."
+    )
     options.add_argument(
         "-vw",
         "--verbose_worker",
@@ -355,8 +349,9 @@ def cli():
         "--validate", action="store_true", help="Run on RMsynth Stokes I [False]."
     )
 
-    synth.add_argument("--limit", default=None, type=int,
-                       help="Limit number of sources [All].")
+    synth.add_argument(
+        "--limit", default=None, type=int, help="Limit number of sources [All]."
+    )
     tools = parser.add_argument_group("RM-tools arguments")
     # RM-tools args
     tools.add_argument(
@@ -454,8 +449,10 @@ def cli():
         "-g", "--gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
     )
     tools.add_argument(
-        "--window", type=float, default=None, 
-        help="Further CLEAN in mask to this threshold [False]."
+        "--window",
+        type=float,
+        default=None,
+        help="Further CLEAN in mask to this threshold [False].",
     )
 
     cat = parser.add_argument_group("catalogue arguments")
@@ -463,7 +460,7 @@ def cli():
     cat.add_argument(
         "--outfile", default=None, type=str, help="File to save table to [None]."
     )
-    
+
     args = parser.parse_args()
     if not args.use_mpi:
         parser.print_values()
@@ -474,20 +471,20 @@ def cli():
             level=log.INFO,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
     if args.debugger:
         log.basicConfig(
             level=log.DEBUG,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
     else:
         log.basicConfig(
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
 
     main(args)

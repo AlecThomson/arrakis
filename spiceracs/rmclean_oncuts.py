@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
-from spiceracs.utils import (
-    getfreq, MyEncoder, tqdm_dask, get_db, test_db, chunk_dask
-)
+from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, get_db, test_db, chunk_dask
 import json
 import numpy as np
 import os
@@ -98,14 +96,12 @@ def rmclean1d(
         )
 
         # Save output
-        do_RMclean_1D.saveOutput(
-            outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
+        do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
         if savePlots:
             plt.close("all")
             plotdir = os.path.join(outdir, "plots")
             plot_files = glob(
-                os.path.join(os.path.abspath(
-                    os.path.dirname(fdfFile)), "*.pdf")
+                os.path.join(os.path.abspath(os.path.dirname(fdfFile)), "*.pdf")
             )
             for src in plot_files:
                 base = os.path.basename(src)
@@ -115,10 +111,7 @@ def rmclean1d(
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
-            "$set": {
-                "rmclean1d": True,
-                "rmclean_summary": outdict,
-            },
+            "$set": {"rmclean1d": True, "rmclean_summary": outdict,},
         }
     except KeyError:
         log.critical("Failed to load data! RM-CLEAN not applied to component!")
@@ -126,9 +119,7 @@ def rmclean1d(
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
-            "$set": {
-                "rmclean1d": False,
-            },
+            "$set": {"rmclean1d": False,},
         }
     return pymongo.UpdateOne(myquery, newvalues)
 
@@ -258,35 +249,29 @@ def main(
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
 
     if dimension == "3d":
-        query = {
-            "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]
-        }
+        query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]}
 
-        islands = list(island_col.find(
-            query,
-            # Only get required values
-            {
-                "Source_ID": 1,
-                "rm3dfiles": 1,
-            }
-        ).sort("Source_ID"))
+        islands = list(
+            island_col.find(
+                query,
+                # Only get required values
+                {"Source_ID": 1, "rm3dfiles": 1,},
+            ).sort("Source_ID")
+        )
         island_ids = [doc["Source_ID"] for doc in islands]
         n_island = island_col.count_documents(query)
         island_col.update(query, {"$set": {"rmclean3d": False}})
 
     elif dimension == "1d":
-        query = {
-            "$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
+        query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
 
-        components = list(comp_col.find(
-            query,
-            # Only get required values
-            {
-                "Source_ID": 1,
-                "Gaussian_ID": 1,
-                "rm1dfiles": 1,
-            }
-        ).sort("Source_ID"))
+        components = list(
+            comp_col.find(
+                query,
+                # Only get required values
+                {"Source_ID": 1, "Gaussian_ID": 1, "rm1dfiles": 1,},
+            ).sort("Source_ID")
+        )
         n_comp = comp_col.count_documents(query)
         comp_col.update_many(query, {"$set": {"rmclean1d": False}})
 
@@ -465,8 +450,12 @@ def cli():
     parser.add_argument(
         "-g", dest="gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
     )
-    parser.add_argument("-w", dest="window", type=float, default=None, 
-        help="Further CLEAN in mask to this threshold [False]."
+    parser.add_argument(
+        "-w",
+        dest="window",
+        type=float,
+        default=None,
+        help="Further CLEAN in mask to this threshold [False].",
     )
     parser.add_argument(
         "-p", dest="showPlots", action="store_true", help="show the plots [False]."
@@ -492,20 +481,20 @@ def cli():
             level=log.DEBUG,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
     elif verbose:
         log.basicConfig(
             level=log.INFO,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
     else:
         log.basicConfig(
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
 
     main(

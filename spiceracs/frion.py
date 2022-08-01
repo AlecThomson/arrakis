@@ -17,6 +17,7 @@ from typing import Dict, List, Tuple
 import logging as log
 import dask
 
+
 @delayed
 def correct_worker(
     beam: Dict, outdir: str, field: str, predict_file: str, island_id: str
@@ -49,10 +50,7 @@ def correct_worker(
     myquery = {"Source_ID": island_id}
 
     newvalues = {
-        "$set": {
-            f"beams.{field}.q_file_ion": qout,
-            f"beams.{field}.u_file_ion": uout,
-        }
+        "$set": {f"beams.{field}.q_file_ion": qout, f"beams.{field}.u_file_ion": uout,}
     }
     return pymongo.UpdateOne(myquery, newvalues)
 
@@ -100,8 +98,7 @@ def predict_worker(
         ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
-    predict.write_modulation(
-        freq_array=freq, theta=theta, filename=predict_file)
+    predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
 
     plot_file = os.path.join(i_dir, f"{iname}_ion.pdf")
     predict.generate_plots(
@@ -118,7 +115,9 @@ def predict_worker(
     newvalues = {
         "$set": {
             "frion": {
-                "times": (times.mjd * 86400.0).tolist(), # Turn back into MJD seconds for backwards compatibility
+                "times": (
+                    times.mjd * 86400.0
+                ).tolist(),  # Turn back into MJD seconds for backwards compatibility
                 "RMs": RMs.tolist(),
                 "theta_real": theta.real.tolist(),
                 "theta_imag": theta.imag.tolist(),
@@ -192,15 +191,14 @@ def main(
 
     freq = getfreq(
         os.path.join(cutdir, f"{beams[0]['beams'][f'{field}']['q_file']}"),
-    ) # Type: u.Quantity
+    )  # Type: u.Quantity
 
     # Loop over islands in parallel
     outputs = []
     updates_arrays = []
     for island in islands:
         island_id = island["Source_ID"]
-        beam_idx = [i for i, b in enumerate(
-            beams) if b["Source_ID"] == island_id][0]
+        beam_idx = [i for i, b in enumerate(beams) if b["Source_ID"] == island_id][0]
         beam = beams[beam_idx]
         # Get FRion predictions
         predict_file, update = predict_worker(
@@ -227,7 +225,7 @@ def main(
     _ = outputs[0].compute()
     time.sleep(10)
     # Execute
-    futures,future_arrays = dask.persist(outputs,updates_arrays)
+    futures, future_arrays = dask.persist(outputs, updates_arrays)
     # dumb solution for https://github.com/dask/distributed/issues/4831
     time.sleep(10)
     tqdm_dask(
@@ -241,7 +239,7 @@ def main(
 
         log.info("Updating island database...")
         updates_arrays_cmp = [f.compute() for f in future_arrays]
-        
+
         db_res = island_col.bulk_write(updates_arrays_cmp, ordered=False)
         log.info(pformat(db_res.bulk_api_result))
 
@@ -325,19 +323,18 @@ def cli():
             level=log.INFO,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
     else:
         log.basicConfig(
             level=log.WARNING,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            force=True
+            force=True,
         )
 
     cluster = LocalCluster(
-        n_workers=10, processes=True, threads_per_worker=1, 
-        local_directory="/dev/shm"
+        n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm"
     )
     client = Client(cluster)
     log.info(client)
