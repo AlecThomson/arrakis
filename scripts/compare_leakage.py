@@ -268,7 +268,9 @@ def cli():
     parser.add_argument("--holofile", type=str, help="Path to holography image")
 
     parser.add_argument(
-        "--host", type=str, help="Host of mongodb.",
+        "--host",
+        type=str,
+        help="Host of mongodb.",
     )
 
     parser.add_argument(
@@ -287,7 +289,10 @@ def cli():
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(n_workers=10, threads_per_worker=1,)
+    cluster = LocalCluster(
+        n_workers=10,
+        threads_per_worker=1,
+    )
     client = Client(cluster)
 
     main(
