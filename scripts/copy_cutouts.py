@@ -55,9 +55,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--dry_run",
-        action="store_true",
-        help="Don't launch rsync",
+        "--dry_run", action="store_true", help="Don't launch rsync",
     )
 
     parser.add_argument(

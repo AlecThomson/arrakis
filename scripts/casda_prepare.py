@@ -46,9 +46,7 @@ def make_thumbnail(cube_f: str, cube_dir: str):
     pix_scales = proj_plane_pixel_scales(med_wcs) * u.deg
     beam = Beam.from_fits_header(head)
     ellipse = beam.ellipse_to_plot(
-        xcen=10,
-        ycen=10,
-        pixscale=pix_scales[0],  # Assume same pixel scale in x and y
+        xcen=10, ycen=10, pixscale=pix_scales[0],  # Assume same pixel scale in x and y
     )
     fig = plt.figure(facecolor="w")
     if ".weights." in cube_f:
@@ -96,11 +94,7 @@ def find_spectra(data_dir: str = ".") -> list:
 
 @delayed
 def convert_spectra(
-    spectrum: str,
-    ra: float,
-    dec: float,
-    gauss_id: str,
-    spec_dir: str = ".",
+    spectrum: str, ra: float, dec: float, gauss_id: str, spec_dir: str = ".",
 ) -> dict:
     """Convert a ascii spectrum to FITS
 
@@ -192,7 +186,7 @@ def convert_spectra(
             rm_file, names=("phi", "Q", "U"), delim_whitespace=True
         )
         rmtables[name] = full_rm_data
-        phis = full_rm_data["phi"].values * u.rad / u.m**2
+        phis = full_rm_data["phi"].values * u.rad / u.m ** 2
         rm_q_data = full_rm_data["Q"].values
         rm_u_data = full_rm_data["U"].values
         rm_data = np.array([rm_q_data, rm_u_data]) * unit
@@ -297,10 +291,7 @@ def find_cubes(data_dir: str = ".") -> list:
 
 
 def make_polspec(
-    casda_dir: str,
-    polcat: Table,
-    pol_df: pd.DataFrame,
-    outdir: str = None,
+    casda_dir: str, polcat: Table, pol_df: pd.DataFrame, outdir: str = None,
 ) -> None:
     """Make a PolSpectra table
 
@@ -358,14 +349,8 @@ def make_polspec(
         spectrum_table[col].unit = unit
 
     pol_df_cols = {
-        "faraday_depth": {
-            "unit": radms,
-            "description": "Faraday depth",
-        },
-        "faraday_depth_long": {
-            "unit": radms,
-            "description": "Faraday depth (long)",
-        },
+        "faraday_depth": {"unit": radms, "description": "Faraday depth",},
+        "faraday_depth_long": {"unit": radms, "description": "Faraday depth (long)",},
         "FDF_Q_dirty": {
             "unit": unit_fdf,
             "description": "Dirty Stokes Q per Faraday depth",
@@ -701,25 +686,16 @@ def cli():
         "--convert-plots", action="store_true", help="Convert plots", default=False
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Verbose output",
+        "-v", "--verbose", action="store_true", help="Verbose output",
     )
     parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Debug output",
+        "--debug", action="store_true", help="Debug output",
     )
     parser.add_argument(
-        "--test",
-        action="store_true",
-        help="Test mode",
+        "--test", action="store_true", help="Test mode",
     )
     parser.add_argument(
-        "--mpi",
-        action="store_true",
-        help="Use MPI",
+        "--mpi", action="store_true", help="Use MPI",
     )
     parser.add_argument(
         "--batch_size", help="Number parallel jobs to run", type=int, default=10,

@@ -107,14 +107,10 @@ if __name__ == "__main__":
         "cal_sbid", metavar="cal_sbid", type=int, help="Calibrator SBID for field",
     )
     parser.add_argument(
-        "--clean",
-        action="store_true",
-        help="Cleanup Checkfiles",
+        "--clean", action="store_true", help="Cleanup Checkfiles",
     )
     parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force cleanup of Checkfiles",
+        "--force", action="store_true", help="Force cleanup of Checkfiles",
     )
     parser.add_argument(
         "--ncores", type=int, default=1, help="Ncores for parallel rsync",

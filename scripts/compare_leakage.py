@@ -287,10 +287,7 @@ def cli():
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(
-        n_workers=10,
-        threads_per_worker=1,
-    )
+    cluster = LocalCluster(n_workers=10, threads_per_worker=1,)
     client = Client(cluster)
 
     main(
