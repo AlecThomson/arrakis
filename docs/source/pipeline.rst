@@ -4,7 +4,7 @@ So you're ready to run the pipeline? The SPICE-RACS pipeline picks up from whate
 
     working_directory/image.restored.{i,q,u}*contcube*beam{00..36}.conv.fits
 
-:code:`spice_process` orchestrates the pipeline flow using `Prefect <https://prefect.io>`_ and `Dask <https://dask.org>`_. This script calls the other :code:`spiceracs` modules to do the work. You can control which modules run in the configuration of :code:`processSPICE`, or run the modules individually. :code:`processSPICE` operates on the level of a single RACS fields, currently.
+:code:`spice_process` orchestrates the pipeline flow using `Prefect <https://prefect.io>`_ and `Dask <https://dask.org>`_. This script calls the other :code:`spiceracs` modules to do the work. You can control which modules run in the configuration of :code:`spice_process`, or run the modules individually. :code:`spice_process` operates on the level of a single RACS fields, currently.
 
 .. image:: flow.png
    :alt: Left floating image
@@ -31,8 +31,8 @@ Details of each module can be found in the API documentation. But broadly the st
 
 With an initalised database you can call the pipeline: ::
 
-    (spice) $ processSPICE -h
-    usage: processSPICE [-h] [--config CONFIG] [-v] [-vw] [-p PAD] [--dryrun]
+    (spice) $ spice_process -h
+    usage: spice_process [-h] [--config CONFIG] [-v] [-vw] [-p PAD] [--dryrun]
                         [--dimension DIMENSION] [-m] [--validate] [--limit LIMIT]
                         [-sp] [-w WEIGHTTYPE] [-t] [-l PHIMAX_RADM2]
                         [-d DPHI_RADM2] [-s NSAMPLES] [-o POLYORD] [-i]
@@ -40,7 +40,7 @@ With an initalised database you can call the pipeline: ::
                         [-g GAIN] [--outfile OUTFILE] [-f FORMAT]
                         field datadir host
 
-        
+
          mmm   mmm   mmm   mmm   mmm
          )-(   )-(   )-(   )-(   )-(
         ( S ) ( P ) ( I ) ( C ) ( E )
@@ -52,13 +52,13 @@ With an initalised database you can call the pipeline: ::
         |   |   |   |   |   |   |   |
         |___|   |___|   |___|   |___|
 
-        
+
         SPICE-RACS pipeline.
 
         Before running make sure to start a session of mongodb e.g.
             $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
 
-        
+
 
     positional arguments:
     field                 Name of field (e.g. 2132-50A).
