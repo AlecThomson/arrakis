@@ -1,14 +1,14 @@
 """
 The interpolation works as follows:
-Take pixels offsets x,y from reference pixel in input image, multiply by 
-axis increments to get offx and offy. 
+Take pixels offsets x,y from reference pixel in input image, multiply by
+axis increments to get offx and offy.
 
-Then compute offset = arcsin(offx^2+offy^2) and angle=atan2(offx,offy), 
+Then compute offset = arcsin(offx^2+offy^2) and angle=atan2(offx,offy),
 which should be the angular offset on the sky of the pixel position.
- 
+
 For the leakage image the inverse is used.
 Take the offset and angle and turn them into pixel positions on the leakage map:
- 
+
 x = sin(offset)*cos(angle)/incx + refx
 y = sin(offset)*sin(angle)/incy + refy
 """
@@ -218,8 +218,7 @@ def main(
 
 
 def cli():
-    """Command-line interface
-    """
+    """Command-line interface"""
     import argparse
     from astropy.utils.exceptions import AstropyWarning
 
@@ -288,7 +287,10 @@ def cli():
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(n_workers=10, threads_per_worker=1,)
+    cluster = LocalCluster(
+        n_workers=10,
+        threads_per_worker=1,
+    )
     client = Client(cluster)
 
     main(

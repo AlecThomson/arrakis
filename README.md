@@ -18,7 +18,7 @@ conda activate spice
 ```
 
 ### Parallelisation
-Dask is used for parallelisation and job submission. The pipeline is currently configured for the `galaxy` supercomputer at Pawsey, which uses a Slurm job manager. This configuration is specicfied by the `cluster` variable in `spiceracs/processSPICE.py`. Either use this as is for galaxy, or add your own configuration by editing the variable (see the dask-jobqueue [docs](https://jobqueue.dask.org/en/latest/configuration.html)).
+Dask is used for parallelisation and job submission. The pipeline is currently configured for the `galaxy` supercomputer at Pawsey, which uses a Slurm job manager. This configuration is specicfied by the `cluster` variable in `spiceracs/spice_process.py`. Either use this as is for galaxy, or add your own configuration by editing the variable (see the dask-jobqueue [docs](https://jobqueue.dask.org/en/latest/configuration.html)).
 
 ## Getting started
 First you must initialise the SPICE-RACS database using MongoDB and the RACS catalogues. For example, you can start mongo using (for NUMA systems):
@@ -33,7 +33,7 @@ Then run the initialisation script:
 (spice) $ initSPICE -h
 usage: initSPICE [-h] [-i ISLANDCAT] [-c COMPCAT] [-v] [-l] host
 
-    
+
      mmm   mmm   mmm   mmm   mmm
      )-(   )-(   )-(   )-(   )-(
     ( S ) ( P ) ( I ) ( C ) ( E )
@@ -45,15 +45,15 @@ usage: initSPICE [-h] [-i ISLANDCAT] [-c COMPCAT] [-v] [-l] host
     |   |   |   |   |   |   |   |
     |___|   |___|   |___|   |___|
 
-    
+
     SPICE-RACS Initialisation:
-    
+
     Create MongoDB database from RACS catalogues.
 
     Before running make sure to start a session of mongodb e.g.
         $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
 
-    
+
 
 positional arguments:
   host          Host of mongodb (probably $hostname -i).
@@ -69,8 +69,8 @@ optional arguments:
 ## Running the pipeline
 With an initalised database you can call the pipeline:
 ```
-(spice) $ processSPICE -h
-usage: processSPICE [-h] [--config CONFIG] [-v] [-vw] [-p PAD] [--dryrun]
+(spice) $ spice_process -h
+usage: spice_process [-h] [--config CONFIG] [-v] [-vw] [-p PAD] [--dryrun]
                     [--dimension DIMENSION] [-m] [--validate] [--limit LIMIT]
                     [-sp] [-w WEIGHTTYPE] [-t] [-l PHIMAX_RADM2]
                     [-d DPHI_RADM2] [-s NSAMPLES] [-o POLYORD] [-i]
@@ -78,7 +78,7 @@ usage: processSPICE [-h] [--config CONFIG] [-v] [-vw] [-p PAD] [--dryrun]
                     [-g GAIN] [--outfile OUTFILE] [-f FORMAT]
                     field datadir host
 
-    
+
      mmm   mmm   mmm   mmm   mmm
      )-(   )-(   )-(   )-(   )-(
     ( S ) ( P ) ( I ) ( C ) ( E )
@@ -90,13 +90,13 @@ usage: processSPICE [-h] [--config CONFIG] [-v] [-vw] [-p PAD] [--dryrun]
     |   |   |   |   |   |   |   |
     |___|   |___|   |___|   |___|
 
-    
+
     SPICE-RACS pipeline.
 
     Before running make sure to start a session of mongodb e.g.
         $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
 
-    
+
 
 positional arguments:
   field                 Name of field (e.g. 2132-50A).
@@ -170,11 +170,11 @@ List of third party libraries:
 * [SciPy](https://www.scipy.org/)
 * [Matplotlib](https://matplotlib.org/)
 * [Astropy](https://www.astropy.org/)
-* [MongoDB](https://www.mongodb.com/) / [pymongo](https://api.mongodb.com/python/current/) 
+* [MongoDB](https://www.mongodb.com/) / [pymongo](https://api.mongodb.com/python/current/)
 * [Dask](https://dask.org/)
 * [Prefect](https://www.prefect.io/)
 * [RM-Tools](https://github.com/CIRADA-Tools/RM)
 * [RMTable](https://github.com/Cameron-Van-Eck/RMTable)
 * [Spectral-Cube](https://spectral-cube.readthedocs.io/)
-* [tqdm](https://tqdm.github.io/) 
-* [ConfigArgParse](https://github.com/bw2/ConfigArgParse) 
+* [tqdm](https://tqdm.github.io/)
+* [ConfigArgParse](https://github.com/bw2/ConfigArgParse)

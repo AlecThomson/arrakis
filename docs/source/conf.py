@@ -55,13 +55,14 @@ napoleon_use_ivar = True
 
 autoapi_type = 'python'
 autoapi_dirs = ['../../spiceracs', '../../scripts']
+# autoapi_dirs = ['../../spiceracs']
 autoapi_member_order = 'groupwise'
-autoapi_keep_files = True
+autoapi_keep_files = False
 # autoapi_root = 'api'
 autoapi_template_dir = '_autoapi_templates'
-autoapi_add_toctree_entry = False
+autoapi_add_toctree_entry = True
 # autoapi_generate_api_docs = True
-autoapi_generate_api_docs = False
+autoapi_generate_api_docs = True
 
 
 # Add any paths that contain templates here, relative to this directory.
