@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SPICE-RACS pipeline script"""
+"""SPICE-RACS single-field pipeline"""
 import os
 import pymongo
 from prefect import task, Task, Flow
