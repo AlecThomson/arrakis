@@ -22,14 +22,20 @@ from dask_mpi import initialize
 import matplotlib.pyplot as plt
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
-from astropy.visualization import (MinMaxInterval, SqrtStretch,
-                                   ImageNormalize, ZScaleInterval, LogStretch)
+from astropy.visualization import (
+    MinMaxInterval,
+    SqrtStretch,
+    ImageNormalize,
+    ZScaleInterval,
+    LogStretch,
+)
 import astropy.units as u
 from radio_beam import Beam
 from tqdm.auto import tqdm, trange
 import pandas as pd
 import h5py
 from IPython import embed
+
 
 def make_thumbnail(cube_f: str, cube_dir: str):
     cube = np.squeeze(fits.getdata(cube_f))
@@ -42,10 +48,9 @@ def make_thumbnail(cube_f: str, cube_dir: str):
     ellipse = beam.ellipse_to_plot(
         xcen=10,
         ycen=10,
-        pixscale=pix_scales[0], # Assume same pixel scale in x and y
-        
+        pixscale=pix_scales[0],  # Assume same pixel scale in x and y
     )
-    fig = plt.figure(facecolor='w')
+    fig = plt.figure(facecolor="w")
     if ".weights." in cube_f:
         cmap = "gray"
         norm = ImageNormalize(med, interval=MinMaxInterval())
@@ -58,11 +63,11 @@ def make_thumbnail(cube_f: str, cube_dir: str):
             absmax = np.max(np.abs(med))
             norm = ImageNormalize(med, vmin=-absmax, vmax=absmax)
     ax = fig.add_subplot(111, projection=med_wcs)
-    im = ax.imshow(med, origin='lower', cmap=cmap, norm=norm)
+    im = ax.imshow(med, origin="lower", cmap=cmap, norm=norm)
     ax.add_patch(ellipse)
     ellipse.set_clip_box(ax.bbox)
-    ellipse.set_facecolor('none')
-    ellipse.set_edgecolor('k')
+    ellipse.set_facecolor("none")
+    ellipse.set_edgecolor("k")
     ellipse.set_hatch("//")
     ax.set_xlabel("RA")
     ax.set_ylabel("Dec")
@@ -71,7 +76,8 @@ def make_thumbnail(cube_f: str, cube_dir: str):
     log.info(f"Saving thumbnail to {outf}")
     fig.savefig(outf, dpi=300)
     plt.close(fig)
-    
+
+
 def find_spectra(data_dir: str = ".") -> list:
     """Find spectra in from cutouts directory
 
@@ -90,12 +96,12 @@ def find_spectra(data_dir: str = ".") -> list:
 
 @delayed
 def convert_spectra(
-    spectrum: str, 
+    spectrum: str,
     ra: float,
     dec: float,
     gauss_id: str,
     spec_dir: str = ".",
-    ) -> dict:
+) -> dict:
     """Convert a ascii spectrum to FITS
 
     Args:
@@ -110,7 +116,6 @@ def convert_spectra(
         names=("freq", "I", "Q", "U", "dI", "dQ", "dU"),
         delim_whitespace=True,
     )
-    
 
     freq = full_data["freq"].values * u.Hz
 
@@ -119,7 +124,9 @@ def convert_spectra(
     log.debug(f"Using a pixel size of {pix_size}")
 
     data = np.array([full_data["I"], full_data["Q"], full_data["U"]]) * u.Jy / u.beam
-    noise = np.array([full_data["dI"], full_data["dQ"], full_data["dU"]]) * u.Jy / u.beam
+    noise = (
+        np.array([full_data["dI"], full_data["dQ"], full_data["dU"]]) * u.Jy / u.beam
+    )
     # Add dummy axes for RA/DEC
     data = data[:, :, np.newaxis, np.newaxis]
     noise = noise[:, :, np.newaxis, np.newaxis]
@@ -169,7 +176,7 @@ def convert_spectra(
         "_RMSF.dat",
     )
 
-    rmtables = {} # type: Dict[str, Table]
+    rmtables = {}  # type: Dict[str, Table]
     for suffix in suffixes:
         name = suffix.replace(".dat", "").replace("_", "").replace("FDF", "")
         unit = u.Jy / u.beam / rmsf
@@ -181,9 +188,11 @@ def convert_spectra(
             unit = u.Jy / u.beam / rmsf
         rm_file = spectrum.replace(".dat", suffix)
         # full_rm_data = Table.read(rm_file, format="ascii", names=("phi","Q","U"))
-        full_rm_data = pd.read_csv(rm_file, names=("phi", "Q", "U"), delim_whitespace=True)
+        full_rm_data = pd.read_csv(
+            rm_file, names=("phi", "Q", "U"), delim_whitespace=True
+        )
         rmtables[name] = full_rm_data
-        phis = full_rm_data["phi"].values * u.rad / u.m ** 2
+        phis = full_rm_data["phi"].values * u.rad / u.m**2
         rm_q_data = full_rm_data["Q"].values
         rm_u_data = full_rm_data["U"].values
         rm_data = np.array([rm_q_data, rm_u_data]) * unit
@@ -225,27 +234,27 @@ def convert_spectra(
         log.debug(f"Writing {rm_f} from {rm_file}")
         hdu.writeto(rm_f, overwrite=True)
 
-
     return dict(
-            freq=full_data["freq"], 
-            stokesI=full_data["I"],
-            stokesQ=full_data["Q"],
-            stokesU=full_data["U"],
-            stokesI_error=full_data["dI"],
-            stokesQ_error=full_data["dQ"],
-            stokesU_error=full_data["dU"],
-            faraday_depth=rmtables["clean"]["phi"], 
-            faraday_depth_long=rmtables["RMSF"]["phi"],
-            FDF_Q_clean=rmtables["clean"]["Q"],
-            FDF_U_clean=rmtables["clean"]["U"],
-            FDF_Q_dirty=rmtables["dirty"]["Q"],
-            FDF_U_dirty=rmtables["dirty"]["U"],
-            FDF_Q_model=rmtables["model"]["Q"],
-            FDF_U_model=rmtables["model"]["U"],
-            RMSF_Q=rmtables["RMSF"]["Q"],
-            RMSF_U=rmtables["RMSF"]["U"],
-            cat_id=gauss_id
-        )
+        freq=full_data["freq"],
+        stokesI=full_data["I"],
+        stokesQ=full_data["Q"],
+        stokesU=full_data["U"],
+        stokesI_error=full_data["dI"],
+        stokesQ_error=full_data["dQ"],
+        stokesU_error=full_data["dU"],
+        faraday_depth=rmtables["clean"]["phi"],
+        faraday_depth_long=rmtables["RMSF"]["phi"],
+        FDF_Q_clean=rmtables["clean"]["Q"],
+        FDF_U_clean=rmtables["clean"]["U"],
+        FDF_Q_dirty=rmtables["dirty"]["Q"],
+        FDF_U_dirty=rmtables["dirty"]["U"],
+        FDF_Q_model=rmtables["model"]["Q"],
+        FDF_U_model=rmtables["model"]["U"],
+        RMSF_Q=rmtables["RMSF"]["Q"],
+        RMSF_U=rmtables["RMSF"]["U"],
+        cat_id=gauss_id,
+    )
+
 
 @delayed
 def update_cube(cube: str, cube_dir: str) -> None:
@@ -286,11 +295,12 @@ def find_cubes(data_dir: str = ".") -> list:
     log.info(f"Found {len(cubes)} cubes")
     return cubes
 
+
 def make_polspec(
     casda_dir: str,
     polcat: Table,
     pol_df: pd.DataFrame,
-    outdir: str=None,
+    outdir: str = None,
 ) -> None:
     """Make a PolSpectra table
 
@@ -337,22 +347,29 @@ def make_polspec(
         flux_type=polcat["flux_type"],
     )
     # Fix units
-    for col in ("stokesI", "stokesI_error", "stokesQ", "stokesQ_error", "stokesU", "stokesU_error"):
+    for col in (
+        "stokesI",
+        "stokesI_error",
+        "stokesQ",
+        "stokesQ_error",
+        "stokesU",
+        "stokesU_error",
+    ):
         spectrum_table[col].unit = unit
 
     pol_df_cols = {
         "faraday_depth": {
             "unit": radms,
             "description": "Faraday depth",
-        }, 
+        },
         "faraday_depth_long": {
             "unit": radms,
             "description": "Faraday depth (long)",
-        }, 
+        },
         "FDF_Q_dirty": {
             "unit": unit_fdf,
             "description": "Dirty Stokes Q per Faraday depth",
-        }, 
+        },
         "FDF_U_dirty": {
             "unit": unit_fdf,
             "description": "Dirty Stokes U per Faraday depth",
@@ -387,7 +404,7 @@ def make_polspec(
         new_col = Column(
             name=col,
             unit=desc["unit"],
-            dtype='object',
+            dtype="object",
             shape=(),
             length=spectrum_table.Nrows,
             description=desc["description"],
@@ -400,13 +417,14 @@ def make_polspec(
     outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits")
     log.info(f"Saving to {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)
-    
+
     outf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.hdf5")
     log.info(f"Saving to {outf}")
     spectrum_table.write_HDF5(outf, overwrite=True, compress=True)
 
+
 @delayed
-def convert_pdf(pdf_file: str, plots_dir:str, spec_dir: str) -> None:
+def convert_pdf(pdf_file: str, plots_dir: str, spec_dir: str) -> None:
     """Convert a PDF to a PNG
 
     Args:
@@ -436,10 +454,7 @@ def convert_pdf(pdf_file: str, plots_dir:str, spec_dir: str) -> None:
     for old, new in rename_dict.items():
         if old in thumb:
             thumb = thumb.replace(old, new)
-    try_symlink(
-        os.path.abspath(wanted_name),
-        thumb
-    )
+    try_symlink(os.path.abspath(wanted_name), thumb)
     other_rename = {
         "_spectra.png": "_noise.png",
         "_FDFdirty.png": "_RMSF.png",
@@ -448,10 +463,7 @@ def convert_pdf(pdf_file: str, plots_dir:str, spec_dir: str) -> None:
     for old, new in other_rename.items():
         if old in thumb:
             thumb = thumb.replace(old, new)
-    try_symlink(
-        os.path.abspath(wanted_name),
-        thumb
-    )
+    try_symlink(os.path.abspath(wanted_name), thumb)
 
 
 def find_plots(data_dir: str = ".") -> list:
@@ -468,6 +480,7 @@ def find_plots(data_dir: str = ".") -> list:
     plots = glob(os.path.join(os.path.join(cut_dir, "RACS_*"), "*.pdf"))
     log.info(f"Found {len(plots)} plots")
     return plots
+
 
 def main(
     polcatf: str,
@@ -488,7 +501,7 @@ def main(
     log.info(f"Reading {polcatf}")
     polcat = Table.read(polcatf)
     df = polcat.to_pandas()
-    df = df.sort_values(["stokes_I_fit_flag", "snr_polint"], ascending=[True,False])
+    df = df.sort_values(["stokes_I_fit_flag", "snr_polint"], ascending=[True, False])
     polcat = polcat[df.index.values]
     polcat.add_index("cat_id")
 
@@ -498,7 +511,9 @@ def main(
     # Link catalgoue to casda directory
     cat_dir = os.path.join(casda_dir, "catalogues")
     try_mkdir(cat_dir)
-    try_symlink(os.path.abspath(polcatf), os.path.join(cat_dir, os.path.basename(polcatf)))
+    try_symlink(
+        os.path.abspath(polcatf), os.path.join(cat_dir, os.path.basename(polcatf))
+    )
 
     cube_outputs = []
     if do_update_cubes:
@@ -509,9 +524,13 @@ def main(
         cubes = find_cubes(data_dir=data_dir)
         # Check if we have a cube for each source
         try:
-            assert len(cubes) == len(set(polcat["source_id"])) * 3 * 2 # 3 pols x (image, weight)
+            assert (
+                len(cubes) == len(set(polcat["source_id"])) * 3 * 2
+            )  # 3 pols x (image, weight)
         except AssertionError:
-            log.warning(f"Found {len(cubes)} cubes, expected {len(set(polcat['source_id'])) * 3 * 2}")
+            log.warning(
+                f"Found {len(cubes)} cubes, expected {len(set(polcat['source_id'])) * 3 * 2}"
+            )
             if len(cubes) < len(set(polcat["source_id"])) * 3 * 2:
                 log.critical("Some cubes are missing on disk!")
                 raise
@@ -525,7 +544,9 @@ def main(
                     source_ids.append(source_id)
                 in_idx = np.isin(source_ids, polcat["source_id"])
                 cubes = list(np.array(cubes)[in_idx])
-                log.warning(f"I had to exclude {np.sum(~in_idx)} sources that were not in the catalogue")
+                log.warning(
+                    f"I had to exclude {np.sum(~in_idx)} sources that were not in the catalogue"
+                )
                 # Write missing source IDs to disk
                 rem_ids = list(set(np.array(source_ids)[~in_idx]))
                 outf = os.path.join(casda_dir, "excluded_sources.txt")
@@ -538,6 +559,7 @@ def main(
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
         with tqdm(total=len(cubes), desc="Sorting cubes") as pbar:
+
             def my_sorter(x, lookup=lookup, pbar=pbar):
                 basename = x.split("/")[-1]
                 cut_idx = basename.find(".cutout")
@@ -550,6 +572,7 @@ def main(
                         idx += i
                         pbar.update(1)
                         return idx
+
             sorted_cubes = sorted(cubes, key=my_sorter)
 
         for cube in sorted_cubes:
@@ -562,31 +585,34 @@ def main(
         spec_dir = os.path.join(casda_dir, "spectra")
         try_mkdir(spec_dir)
         spectra = find_spectra(data_dir=data_dir)
-        assert len(spectra) == len(polcat) # Sanity check
+        assert len(spectra) == len(polcat)  # Sanity check
 
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
         with tqdm(total=len(spectra), desc="Sorting spectra") as pbar:
+
             def my_sorter(x, lookup=lookup, pbar=pbar):
                 basename = x.split("/")[-1]
                 sourcename = basename.replace(".dat", "")
                 idx = lookup[sourcename]
                 pbar.update(1)
                 return idx
+
             sorted_spectra = sorted(spectra, key=my_sorter)
 
         # Loop over spectra and convert to FITS
-        gauss_ids = [os.path.basename(spectrum).replace(".dat", "") for spectrum in sorted_spectra]
+        gauss_ids = [
+            os.path.basename(spectrum).replace(".dat", "")
+            for spectrum in sorted_spectra
+        ]
         sorted_polcat = polcat.loc[gauss_ids]
-        for spectrum, gauss_id, row in zip(
-                sorted_spectra, gauss_ids, sorted_polcat
-        ):
+        for spectrum, gauss_id, row in zip(sorted_spectra, gauss_ids, sorted_polcat):
             out = convert_spectra(
-                spectrum=spectrum, 
+                spectrum=spectrum,
                 ra=row["ra"],
                 dec=row["dec"],
                 gauss_id=gauss_id,
-                spec_dir=spec_dir
+                spec_dir=spec_dir,
             )
             spectra_outputs.append(out)
 
@@ -601,11 +627,12 @@ def main(
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
         with tqdm(total=len(plots), desc="Sorting plots") as pbar:
+
             def my_sorter(x, lookup=lookup, pbar=pbar):
                 fname = x.split("/")[-1]
                 for plot_type in ("_spectra", "_RMSF", "_clean"):
                     if plot_type in fname:
-                        sourcename = fname[:fname.find(plot_type)]
+                        sourcename = fname[: fname.find(plot_type)]
                         break
                 idx = lookup[sourcename]
                 pbar.update(1)
@@ -616,7 +643,9 @@ def main(
             out = convert_pdf(pdf_file=plot, plots_dir=plots_dir, spec_dir=spec_dir)
             plot_outputs.append(out)
 
-    for name, outputs in zip(("cubes", "spectra", "plots"), (cube_outputs, spectra_outputs, plot_outputs)):
+    for name, outputs in zip(
+        ("cubes", "spectra", "plots"), (cube_outputs, spectra_outputs, plot_outputs)
+    ):
         if test:
             if name == "spectra":
                 n_things = 10
@@ -681,16 +710,25 @@ def cli():
         "--convert-plots", action="store_true", help="Convert plots", default=False
     )
     parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Verbose output",
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose output",
     )
     parser.add_argument(
-        "--debug", action="store_true", help="Debug output",
+        "--debug",
+        action="store_true",
+        help="Debug output",
     )
     parser.add_argument(
-        "--test", action="store_true", help="Test mode",
+        "--test",
+        action="store_true",
+        help="Test mode",
     )
     parser.add_argument(
-        "--mpi", action="store_true", help="Use MPI",
+        "--mpi",
+        action="store_true",
+        help="Use MPI",
     )
     parser.add_argument(
         "--batch_size",
@@ -738,7 +776,10 @@ def cli():
         client = Client()
     else:
         cluster = LocalCluster(
-            n_workers=12, processes=True, threads_per_worker=1, local_directory="/dev/shm"
+            n_workers=12,
+            processes=True,
+            threads_per_worker=1,
+            local_directory="/dev/shm",
         )
         client = Client(cluster)
     log.debug(client)
@@ -755,6 +796,7 @@ def cli():
         outdir=args.outdir,
     )
     client.close()
+
 
 if __name__ == "__main__":
     cli()
