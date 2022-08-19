@@ -32,6 +32,7 @@ database: True # Add RMsynth data to MongoDB
 # tt1: # TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.
 validate: False # Run on RMsynth Stokes I
 # limit: # Limit number of sources
+own_fit: False # Use own fit for RMsynth Stokes I
 
 [RM-tools options]
 savePlots: False # save the plots

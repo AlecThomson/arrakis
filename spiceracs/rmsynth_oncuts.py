@@ -9,6 +9,7 @@ from spiceracs.utils import (
     try_mkdir,
     get_db,
     chunk_dask,
+    fit_pl,
 )
 import json
 import numpy as np
@@ -189,16 +190,16 @@ def rms_1d(data):
 
 def estimate_noise_annulus(x_center, y_center, cube):
     """
-    Noise estimation for annulus taken around point source. Annulus has fixed 
+    Noise estimation for annulus taken around point source. Annulus has fixed
     inner radius of 10 and outer radius of 31. Function makes an annulus shaped
     mask, then for each source applies the mask at each frequency and takes the
     standard deviation.
 
-    ​Inputs: Array of sets of pixel coordinates (y-position,x-position) for 
+    ​Inputs: Array of sets of pixel coordinates (y-position,x-position) for
     sources, Stokes cube (assumes 4 axes), array of flagged channels (can be an
     empty array), number of frequency channels.
 
-    ​Output: 2D array of standard deviation values with shape (length of 
+    ​Output: 2D array of standard deviation values with shape (length of
     coordinate array, number of unflagged frequency channels).
     """
     cube = np.nan_to_num(cube, nan=0)
@@ -265,6 +266,7 @@ def rmsynthoncut1d(
     tt0: str = None,
     tt1: str = None,
     ion: bool = False,
+    do_own_fit: bool = False,
 ) -> pymongo.UpdateOne:
     """1D RM synthesis
 
@@ -315,12 +317,10 @@ def rmsynthoncut1d(
     rmsi[rmsi == 0] = np.nan
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
 
-    # rmsq = rms_1d(dataQ)
     rmsq = estimate_noise_annulus(dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
     rmsq[rmsq == 0] = np.nan
     rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
 
-    # rmsu = rms_1d(dataU)
     rmsu = estimate_noise_annulus(dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
     rmsu[rmsu == 0] = np.nan
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
@@ -376,6 +376,19 @@ def rmsynthoncut1d(
         model_I = models.PowerLaw1D(amplitude=amplitude, x_0=x_0, alpha=alpha)
         modStokesI = model_I(freq)
         model_repr = model_I.__repr__()
+
+    elif do_own_fit:
+        log.debug(f"Doing own fit")
+        fit_dict = fit_pl(
+            freq=freq,
+            flux=iarr,
+            fluxerr=rmsi
+        )
+        alpha = fit_dict["alpha"]
+        amplitude = fit_dict["norm"]
+        x_0 = fit_dict["ref_nu"]
+        modStokesI = fit_dict["model_arr"]
+        model_repr = None
 
     else:
         alpha = None
@@ -433,6 +446,24 @@ def rmsynthoncut1d(
                 base = os.path.basename(src)
                 dst = os.path.join(plotdir, base)
                 copyfile(src, dst)
+
+        # Update model values if own fit was used
+        if do_own_fit:
+            # Wrangle into format that matches RM-Tools
+            mDict["polyCoeffs"] = ','.join(
+                [
+                    str(i) for i in [
+                        0.0,0.0,0.0, fit_dict["alpha"], fit_dict["norm"]
+                    ]
+                ]
+            )
+            mDict["polyCoefferr"] = ','.join(
+                [
+                    str(i) for i in [
+                        0.0,0.0,0.0, fit_dict["alpha_err"], fit_dict["norm_err"]
+                    ]
+                ]
+            )
 
         do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
@@ -638,6 +669,7 @@ def main(
     tt0: str = None,
     tt1: str = None,
     ion: bool = False,
+    do_own_fit: bool = False,
 ) -> None:
 
     outdir = os.path.abspath(outdir)
@@ -754,6 +786,7 @@ def main(
                     tt0=tt0,
                     tt1=tt1,
                     ion=ion,
+                    do_own_fit=do_own_fit,
                 )
                 outputs.append(output)
 
@@ -914,6 +947,12 @@ def cli():
         type=int,
         help="Limit number of sources [All].",
     )
+    parser.add_argument(
+        "--own_fit",
+        dest="do_own_fit",
+        action="store_true",
+        help="Use own Stokes I fit function [False].",
+    )
 
     # RM-tools args
     parser.add_argument(
@@ -1057,6 +1096,7 @@ def cli():
         tt0=args.tt0,
         tt1=args.tt1,
         ion=args.ion,
+        do_own_fit=args.do_own_fit,
     )
 
 

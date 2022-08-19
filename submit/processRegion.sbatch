@@ -4,8 +4,8 @@
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
-#SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/process_spice-%j.err
-#SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/process_spice-%j.out
+#SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/process_spice-%j.log
+#SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/process_spice-%j.log
 #SBATCH --ntasks=500
 #SBATCH --requeue
 #SBATCH --ntasks-per-node=10
@@ -28,4 +28,4 @@ module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
 
-srun --export=ALL spice_region --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi
+srun --export=ALL spice_region --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi --own_fit --outfile spice-racs.dr1.own_fit.xml --skip_merge

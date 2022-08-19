@@ -39,12 +39,87 @@ import logging as log
 from tqdm.auto import tqdm, trange
 import time
 from itertools import zip_longest
+from scipy.optimize import curve_fit
+from functools import partial
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
 
+# Stolen from GLEAM-X - thanks Uncle Timmy!
+def power_law(nu: np.ndarray, norm: float, alpha: float, ref_nu: float) -> np.ndarray:
+    """A power law model.
+
+    Args:
+        nu (np.ndarray): Frequency array.
+        norm (float): Reference flux.
+        alpha (float): Spectral index.
+        ref_nu (float): Reference frequency.
+
+    Returns:
+        np.ndarray: Model flux.
+    """
+    return norm * (nu / ref_nu) ** alpha
+
+def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray) -> dict:
+    """Perform a power law fit to a spectrum.
+
+    Args:
+        freq (np.ndarray): Frequency array.
+        flux (np.ndarray): Flux array.
+        fluxerr (np.ndarray): Error array.
+
+    Returns:
+        dict: Best fit parameters.
+    """
+    goodchan=np.logical_and(np.isfinite(flux),np.isfinite(fluxerr)) #Ignore NaN channels!
+    ref_nu = np.nanmean(freq[goodchan])
+    p0 = (np.median(flux[goodchan]), -0.8)
+    model_func = partial(power_law, ref_nu=ref_nu)
+    try:
+        fit_res = curve_fit(
+            model_func,
+            freq[goodchan],
+            flux[goodchan],
+            p0=p0,
+            sigma=fluxerr[goodchan],
+            absolute_sigma=True
+        )
+    except RuntimeError as e:
+        log.critical(f"Failed to fit power law: {e}")
+        return dict(
+            norm=np.nan,
+            alpha=np.nan,
+            norm_err=np.nan,
+            alpha_err=np.nan,
+            chi2=np.nan,
+            rchi2=np.nan,
+            dof=np.nan,
+            ref_nu=np.nan,
+            model_arr=np.ones_like(freq),
+        )
+
+    best_p, covar = fit_res
+    err_p = np.sqrt(np.diag(covar))
+    dof = len(freq) - 2
+    model_arr = model_func(freq, *best_p)
+    chi2 = np.sum(
+        ((flux - model_arr) / fluxerr)**2
+        )
+    rchi2 = chi2 / dof
+
+    return dict(
+        norm=best_p[0],
+        alpha=best_p[1],
+        norm_err=err_p[0],
+        alpha_err = err_p[1],
+        chi2=chi2,
+        rchi2=rchi2,
+        dof=dof,
+        ref_nu=ref_nu,
+        model_arr=model_arr,
+    )
 
 # stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
 def zip_equal(*iterables):

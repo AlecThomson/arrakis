@@ -314,6 +314,7 @@ def main(args: configargparse.Namespace) -> None:
             tt0=args.tt0,
             tt1=args.tt1,
             ion=True,
+            do_own_fit=args.do_own_fit,
             upstream_tasks=[frion_run],
         )
         clean_spec = rmclean_task(
@@ -526,6 +527,12 @@ def cli():
 
     synth.add_argument(
         "--limit", default=None, type=int, help="Limit number of sources [All]."
+    )
+    synth.add_argument(
+        "--own_fit",
+        dest="do_own_fit",
+        action="store_true",
+        help="Use own Stokes I fit function [False].",
     )
     tools = parser.add_argument_group("RM-tools arguments")
     # RM-tools args
