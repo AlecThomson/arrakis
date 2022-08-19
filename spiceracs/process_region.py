@@ -73,6 +73,7 @@ def main(args: configargparse.Namespace) -> None:
         initialize(
             interface=config["interface"],
             local_directory=config["local_directory"],
+            nthreads=config["cores"] / config["processes"],
             # dashboard_address=f":{args.port}",
         )
         client = Client()
