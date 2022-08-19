@@ -201,7 +201,7 @@ def main(args: configargparse.Namespace) -> None:
             interface=config["interface"],
             local_directory=config["local_directory"],
             nthreads=config["cores"] / config["processes"],
-            # dashboard_address=f":{args.port}",
+            memory_limit=config["memory"] / config["cores"],
         )
         client = Client()
     else:
