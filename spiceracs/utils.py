@@ -73,11 +73,11 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray) -> dict:
     Returns:
         dict: Best fit parameters.
     """
-    goodchan=np.logical_and(np.isfinite(flux),np.isfinite(fluxerr)) #Ignore NaN channels!
-    ref_nu = np.nanmean(freq[goodchan])
-    p0 = (np.median(flux[goodchan]), -0.8)
-    model_func = partial(power_law, ref_nu=ref_nu)
     try:
+        goodchan=np.logical_and(np.isfinite(flux),np.isfinite(fluxerr)) #Ignore NaN channels!
+        ref_nu = np.nanmean(freq[goodchan])
+        p0 = (np.median(flux[goodchan]), -0.8)
+        model_func = partial(power_law, ref_nu=ref_nu)
         fit_res = curve_fit(
             model_func,
             freq[goodchan],
@@ -86,7 +86,7 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray) -> dict:
             sigma=fluxerr[goodchan],
             absolute_sigma=True
         )
-    except RuntimeError as e:
+    except Exception as e:
         log.critical(f"Failed to fit power law: {e}")
         return dict(
             norm=np.nan,
