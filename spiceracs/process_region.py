@@ -74,7 +74,7 @@ def main(args: configargparse.Namespace) -> None:
             interface=config["interface"],
             local_directory=config["local_directory"],
             nthreads=config["cores"] / config["processes"],
-            memory_limit=config["memory"] / config["cores"],
+            memory_limit=1/config["cores"],
         )
         client = Client()
     else:
