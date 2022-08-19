@@ -28,4 +28,4 @@ module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
 
-srun --export=ALL spice_region --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi --own_fit --outfile spice-racs.dr1.own_fit.xml --skip_merge
+srun --export=ALL spice_region --dask_config /group/askap/athomson/repos/spiceracs/configs/galaxy.yaml --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi --own_fit --outfile spice-racs.dr1.own_fit.xml --skip_merge
