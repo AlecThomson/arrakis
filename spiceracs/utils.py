@@ -122,18 +122,26 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
         for n in range(nterms):
             p0 = p0_long[:n+1]
             model_func = model_func_dict[n]
-            fit_res = curve_fit(
-                model_func,
-                freq[goodchan],
-                flux[goodchan],
-                p0=p0,
-                sigma=fluxerr[goodchan],
-                absolute_sigma=True
-            )
+            try:
+                fit_res = curve_fit(
+                    model_func,
+                    freq[goodchan],
+                    flux[goodchan],
+                    p0=p0,
+                    sigma=fluxerr[goodchan],
+                    absolute_sigma=True
+                )
+            except RuntimeError:
+                aics.append(np.nan)
+                params.append(np.nan)
+                errors.append(np.nan)
+                models.append(np.nan)
+                print(f"{n}: {np.nan}")
+                continue
             best_p, covar = fit_res
             model_arr = model_func(freq, *best_p)
             ssr = np.sum((flux[goodchan] - model_arr[goodchan])**2)
-            aic = akaike_info_criterion_lsq(ssr, len(p0), len(freq[goodchan]))
+            aic = akaike_info_criterion_lsq(ssr, len(p0), goodchan.sum())
             aics.append(aic)
             params.append(best_p)
             errors.append(np.sqrt(np.diag(covar)))
