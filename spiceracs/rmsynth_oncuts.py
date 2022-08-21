@@ -382,13 +382,14 @@ def rmsynthoncut1d(
         fit_dict = fit_pl(
             freq=freq,
             flux=iarr,
-            fluxerr=rmsi
+            fluxerr=rmsi,
+            nterms=abs(polyOrd)
         )
-        alpha = fit_dict["alpha"]
-        amplitude = fit_dict["norm"]
-        x_0 = fit_dict["ref_nu"]
-        modStokesI = fit_dict["model_arr"]
+        alpha = None
+        amplitude = None
+        x_0 = None
         model_repr = None
+        modStokesI = fit_dict["best_m"]
 
     else:
         alpha = None
@@ -452,16 +453,21 @@ def rmsynthoncut1d(
             # Wrangle into format that matches RM-Tools
             mDict["polyCoeffs"] = ','.join(
                 [
-                    str(i) for i in [
-                        0.0,0.0,0.0, fit_dict["alpha"], fit_dict["norm"]
-                    ]
+                    # Pad with zeros to length 5
+                    str(i) for i in np.pad(
+                        fit_dict["best_p"],
+                        (0, 5-len(fit_dict["best_p"])),
+                        'constant'
+                    )[::-1]
                 ]
             )
             mDict["polyCoefferr"] = ','.join(
                 [
-                    str(i) for i in [
-                        0.0,0.0,0.0, fit_dict["alpha_err"], fit_dict["norm_err"]
-                    ]
+                    str(i) for i in np.pad(
+                        fit_dict["best_e"],
+                        (0, 5-len(fit_dict["best_e"])),
+                        'constant'
+                    )[::-1]
                 ]
             )
 
