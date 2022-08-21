@@ -20,6 +20,7 @@ from pathlib import Path
 from astropy.table import Table
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
+from astropy.stats import akaike_info_criterion_lsq
 import astropy.units as u
 import functools
 from os import name
@@ -62,13 +63,45 @@ def power_law(nu: np.ndarray, norm: float, alpha: float, ref_nu: float) -> np.nd
     """
     return norm * (nu / ref_nu) ** alpha
 
-def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray) -> dict:
+def flat_power_law(nu: np.ndarray, norm: float, ref_nu: float) -> np.ndarray:
+    """A flat power law model.
+
+    Args:
+        nu (np.ndarray): Frequency array.
+        norm (float): Reference flux.
+        ref_nu (float): Reference frequency.
+
+    Returns:
+        np.ndarray: Model flux.
+    """
+    x = (nu/ref_nu)
+    return norm * x
+
+def curved_power_law(nu: np.ndarray, norm: float, alpha: float, beta: float, ref_nu: float) -> np.ndarray:
+    """A curved power law model.
+
+    Args:
+        nu (np.ndarray): Frequency array.
+        norm (float): Reference flux.
+        alpha (float): Spectral index.
+        beta (float): Spectral curvature.
+        ref_nu (float): Reference frequency.
+
+    Returns:
+        np.ndarray: Model flux.
+    """
+    x = (nu/ref_nu)
+    power = alpha + beta * np.log10(x)
+    return norm * x ** power
+
+def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) -> dict:
     """Perform a power law fit to a spectrum.
 
     Args:
         freq (np.ndarray): Frequency array.
         flux (np.ndarray): Flux array.
         fluxerr (np.ndarray): Error array.
+        nterms (int): Number of terms to use in the fit.
 
     Returns:
         dict: Best fit parameters.
@@ -76,50 +109,58 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray) -> dict:
     try:
         goodchan=np.logical_and(np.isfinite(flux),np.isfinite(fluxerr)) #Ignore NaN channels!
         ref_nu = np.nanmean(freq[goodchan])
-        p0 = (np.median(flux[goodchan]), -0.8)
-        model_func = partial(power_law, ref_nu=ref_nu)
-        fit_res = curve_fit(
-            model_func,
-            freq[goodchan],
-            flux[goodchan],
-            p0=p0,
-            sigma=fluxerr[goodchan],
-            absolute_sigma=True
+        p0_long = (np.median(flux[goodchan]), -0.8, 0.0)
+        model_func_dict = {
+            0: partial(flat_power_law, ref_nu=ref_nu),
+            1: partial(power_law, ref_nu=ref_nu),
+            2: partial(curved_power_law, ref_nu=ref_nu),
+        }
+        aics = []
+        params = []
+        errors = []
+        models = []
+        for n in range(nterms):
+            p0 = p0_long[:n+1]
+            model_func = model_func_dict[n]
+            fit_res = curve_fit(
+                model_func,
+                freq[goodchan],
+                flux[goodchan],
+                p0=p0,
+                sigma=fluxerr[goodchan],
+                absolute_sigma=True
+            )
+            best_p, covar = fit_res
+            model_arr = model_func(freq, *best_p)
+            ssr = np.sum((flux[goodchan] - model_arr[goodchan])**2)
+            aic = akaike_info_criterion_lsq(ssr, len(p0), len(freq[goodchan]))
+            aics.append(aic)
+            params.append(best_p)
+            errors.append(np.sqrt(np.diag(covar)))
+            models.append(model_arr)
+            log.debug(f"{n}: {aic}")
+        best_n = np.argmin(aics).astype(int)
+        log.debug(f"Best fit: {best_n}, {aics[best_n]}")
+        best_p = params[best_n]
+        best_e = errors[best_n]
+        best_m = models[best_n]
+        best_f = model_func_dict[best_n]
+        return dict(
+            best_n=best_n,
+            best_p=best_p,
+            best_e=best_e,
+            best_m=best_m,
+            best_f=best_f,
         )
     except Exception as e:
         log.critical(f"Failed to fit power law: {e}")
         return dict(
-            norm=np.nan,
-            alpha=np.nan,
-            norm_err=np.nan,
-            alpha_err=np.nan,
-            chi2=np.nan,
-            rchi2=np.nan,
-            dof=np.nan,
-            ref_nu=np.nan,
-            model_arr=np.ones_like(freq),
+            best_n=np.nan,
+            best_p=np.nan,
+            best_e=np.nan,
+            best_m=np.ones_like(freq),
+            best_f=None,
         )
-
-    best_p, covar = fit_res
-    err_p = np.sqrt(np.diag(covar))
-    dof = len(freq) - 2
-    model_arr = model_func(freq, *best_p)
-    chi2 = np.sum(
-        ((flux - model_arr) / fluxerr)**2
-        )
-    rchi2 = chi2 / dof
-
-    return dict(
-        norm=best_p[0],
-        alpha=best_p[1],
-        norm_err=err_p[0],
-        alpha_err = err_p[1],
-        chi2=chi2,
-        rchi2=rchi2,
-        dof=dof,
-        ref_nu=ref_nu,
-        model_arr=model_arr,
-    )
 
 # stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
 def zip_equal(*iterables):
