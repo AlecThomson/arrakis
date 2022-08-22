@@ -154,9 +154,9 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             except RuntimeError:
                 log.error(f"Failed to fit {n}-term power law")
                 aics.append(np.nan)
-                params.append([np.ones_like(p0)*np.nan])
-                errors.append([np.ones_like(p0)*np.nan])
-                models.append([np.ones_like(freq)])
+                params.append(np.ones_like(p0)*np.nan)
+                errors.append(np.ones_like(p0)*np.nan)
+                models.append(np.ones_like(freq))
                 continue
             best_p, covar = fit_res
             model_arr = model_func(freq, *best_p)
