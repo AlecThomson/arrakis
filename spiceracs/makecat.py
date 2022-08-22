@@ -296,14 +296,27 @@ def get_alpha(cat):
     coefs_err_str = cat["stokesI_model_coef_err"]
     alphas = []
     alphas_err = []
+    betas = []
+    betas_err = []
     for c, c_err in zip(coefs_str, coefs_err_str):
         coefs = c.split(",")
         coefs_err = c_err.split(",")
-        alpha = float(coefs[-2])  # alpha is the 2nd last coefficient
+        # alpha is the 2nd last coefficient
+        alpha = float(coefs[-2])
         alpha_err = float(coefs_err[-2])
         alphas.append(alpha)
         alphas_err.append(alpha_err)
-    return np.array(alphas), np.array(alphas_err)
+        # beta is the 3rd last coefficient
+        beta = float(coefs[-3])
+        beta_err = float(coefs_err[-3])
+        betas.append(beta)
+        betas_err.append(beta_err)
+    return dict(
+        alphas=np.array(alphas),
+        alphas_err=np.array(alphas_err),
+        betas=np.array(betas),
+        betas_err=np.array(betas_err),
+    )
 
 
 def get_integration_time(cat, field_col):
@@ -534,9 +547,11 @@ def main(
     rmtab, fit = cuts_and_flags(rmtab)
 
     # Add spectral index from fitted model
-    alphas, alphas_err = get_alpha(rmtab)
-    rmtab.add_column(Column(data=alphas, name="spectral_index"))
-    rmtab.add_column(Column(data=alphas_err, name="spectral_index_err"))
+    alpha_dict = get_alpha(rmtab)
+    rmtab.add_column(Column(data=alpha_dict["alphas"], name="spectral_index"))
+    rmtab.add_column(Column(data=alpha_dict["alphas_err"], name="spectral_index_err"))
+    rmtab.add_column(Column(data=alpha_dict["betas"], name="spectral_curvature"))
+    rmtab.add_column(Column(data=alpha_dict["betas_err"], name="spectral_curvature_err"))
 
     # Add integration time
     field_col = get_field_db(host=host, username=username, password=password)
