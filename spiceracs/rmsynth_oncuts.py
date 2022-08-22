@@ -470,6 +470,7 @@ def rmsynthoncut1d(
                     )[::-1]
                 ]
             )
+            mDict["polyOrd"] = int(fit_dict["best_n"])
 
         do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
