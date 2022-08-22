@@ -119,7 +119,7 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
         params = []
         errors = []
         models = []
-        for n in range(nterms):
+        for n in range(nterms+1):
             p0 = p0_long[:n+1]
             model_func = model_func_dict[n]
             try:
@@ -148,7 +148,7 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             models.append(model_arr)
             log.debug(f"{n}: {aic}")
         best_n = np.nanargmin(aics).astype(int)
-        log.debug(f"Best fit: {best_n}, {aics[best_n]}")
+        log.info(f"Best fit: {best_n}, {aics[best_n]}")
         best_p = params[best_n]
         best_e = errors[best_n]
         best_m = models[best_n]
