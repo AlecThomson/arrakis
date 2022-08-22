@@ -48,6 +48,26 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
 
+def best_aic_func(aics, n_param):
+    """Find the best AIC for a set of AICs using Occam's razor.
+    """
+    # Find the best AIC
+    best_aic_idx = np.nanargmin(aics)
+    best_aic = aics[best_aic_idx]
+    best_n = n_param[best_aic_idx]
+    log.debug(f"Lowest AIC is {best_aic}, with {best_n} params.")
+    # Check if lower have diff < 2 in AIC
+    aic_abs_diff = np.abs(aics - best_aic)
+    bool_min_idx = np.zeros_like(aics).astype(bool)
+    bool_min_idx[best_aic_idx] = True
+    potential_idx = (aic_abs_diff[~bool_min_idx] < 2 ) & (n_param[~bool_min_idx] < best_n)
+    if any(potential_idx):
+        best_n = np.min(n_param[~bool_min_idx][potential_idx])
+        best_aic_idx = np.where(n_param == best_n)[0][0]
+        best_aic = aics[best_aic_idx]
+        log.debug(f"Model within 2 of lowest AIC found. Occam says to take AIC of {best_aic}, with {best_n} params.")
+    return best_aic, best_n, best_aic_idx
+
 # Stolen from GLEAM-X - thanks Uncle Timmy!
 def power_law(nu: np.ndarray, norm: float, alpha: float, ref_nu: float) -> np.ndarray:
     """A power law model.
@@ -134,9 +154,9 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             except RuntimeError:
                 log.error(f"Failed to fit {n}-term power law")
                 aics.append(np.nan)
-                params.append(np.ones_like(p0)*np.nan)
-                errors.append(np.ones_like(p0)*np.nan)
-                models.append(np.ones_like(freq))
+                params.append([np.ones_like(p0)*np.nan])
+                errors.append([np.ones_like(p0)*np.nan])
+                models.append([np.ones_like(freq)])
                 continue
             best_p, covar = fit_res
             model_arr = model_func(freq, *best_p)
@@ -147,8 +167,8 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             errors.append(np.sqrt(np.diag(covar)))
             models.append(model_arr)
             log.debug(f"{n}: {aic}")
-        best_n = np.nanargmin(aics).astype(int)
-        log.info(f"Best fit: {best_n}, {aics[best_n]}")
+        best_aic, best_n, best_aic_idx = best_aic_func(aics, np.array([n for n in range(nterms+1)]))
+        log.info(f"Best fit: {best_n}, {best_aic}")
         best_p = params[best_n]
         best_e = errors[best_n]
         best_m = models[best_n]
