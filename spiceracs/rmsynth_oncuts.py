@@ -457,7 +457,8 @@ def rmsynthoncut1d(
                     str(i) for i in np.pad(
                         fit_dict["best_p"],
                         (0, 5-len(fit_dict["best_p"])),
-                        'constant'
+                        'constant',
+                        constant_values=np.nan,
                     )[::-1]
                 ]
             )
@@ -466,15 +467,16 @@ def rmsynthoncut1d(
                     str(i) for i in np.pad(
                         fit_dict["best_e"],
                         (0, 5-len(fit_dict["best_e"])),
-                        'constant'
+                        'constant',
+                        constant_values=np.nan,
                     )[::-1]
                 ]
             )
             mDict["polyOrd"] = int(fit_dict["best_n"])
             if fit_dict["fit_flag"]:
-                mDict["fit_flag"] = 64
+                mDict["IfitStat"] = 64
             else:
-                mDict["fit_flag"] = 0
+                mDict["IfitStat"] = 0
 
         do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
@@ -836,7 +838,11 @@ def main(
 
     if database:
         log.info("Updating database...")
-        updates = [f.compute() for f in futures if f.compute() is not None]
+        # gather results
+        updates = client.gather(futures)
+        # Remove None values
+        updates = [x for x in updates if x is not None]
+        log.info("Sending updates to database...")
         if dimension == "1d":
             db_res = comp_col.bulk_write(updates, ordered=False)
             log.info(pformat(db_res.bulk_api_result))
