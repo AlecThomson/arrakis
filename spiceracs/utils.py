@@ -139,6 +139,9 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
         params = []
         errors = []
         models = []
+        highs = []
+        lows = []
+        fit_flags = []
         for n in range(nterms+1):
             p0 = p0_long[:n+1]
             model_func = model_func_dict[n]
@@ -152,42 +155,88 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
                     absolute_sigma=True
                 )
             except RuntimeError:
-                log.error(f"Failed to fit {n}-term power law")
+                log.critical(f"Failed to fit {n}-term power law")
                 aics.append(np.nan)
                 params.append(np.ones_like(p0)*np.nan)
                 errors.append(np.ones_like(p0)*np.nan)
                 models.append(np.ones_like(freq))
+                highs.append(np.ones_like(freq))
+                lows.append(np.ones_like(freq))
+                fit_flags.append(True)
                 continue
             best_p, covar = fit_res
             model_arr = model_func(freq, *best_p)
+            model_high = model_func(freq, *(best_p + np.sqrt(np.diag(covar))))
+            model_low = model_func(freq, *(best_p - np.sqrt(np.diag(covar))))
+            model_err = model_high - model_low
             ssr = np.sum((flux[goodchan] - model_arr[goodchan])**2)
             aic = akaike_info_criterion_lsq(ssr, len(p0), goodchan.sum())
             aics.append(aic)
             params.append(best_p)
             errors.append(np.sqrt(np.diag(covar)))
             models.append(model_arr)
+            highs.append(model_high)
+            lows.append(model_low)
+            # Flag if model is negative
+            is_negative = (model_arr < 0).any()
+            if is_negative:
+                log.warning(f"Stokes I flag: Model {n} is negative")
+            # Flag if model is NaN or Inf
+            is_not_finite = ~np.isfinite(model_arr).all()
+            if is_not_finite:
+                log.warning(f"Stokes I flag: Model {n} is not finite")
+            # # Flag if model and data are statistically different
+            # residuals = flux[goodchan] - model_arr[goodchan]
+            # residuals_err = np.hypot(fluxerr[goodchan], model_err[goodchan])
+            # n_sigma = 3
+            # is_outside_sigma = (np.abs(residuals) > n_sigma*residuals_err).any()
+            # if is_outside_sigma:
+            #     log.warning(f"Stokes I flag: Model {n} is outside {n_sigma} sigma of data")
+
+            # This is the old method, which is not as good as the new one above.
+            is_low_snr = (model_arr[goodchan] < fluxerr[goodchan]).any()
+            if is_low_snr:
+                log.warning(f"Stokes I flag: Model {n} is low SNR")
+            fit_flag = any(
+                [
+                    is_negative,
+                    is_not_finite,
+                    # is_outside_sigma,
+                    is_low_snr,
+                ]
+            )
+            fit_flags.append(fit_flag)
             log.debug(f"{n}: {aic}")
         best_aic, best_n, best_aic_idx = best_aic_func(aics, np.array([n for n in range(nterms+1)]))
-        log.info(f"Best fit: {best_n}, {best_aic}")
+        log.debug(f"Best fit: {best_n}, {best_aic}")
         best_p = params[best_n]
         best_e = errors[best_n]
         best_m = models[best_n]
         best_f = model_func_dict[best_n]
+        best_flag = fit_flags[best_n]
+        best_h = highs[best_n]
+        best_l = lows[best_n]
         return dict(
             best_n=best_n,
             best_p=best_p,
             best_e=best_e,
             best_m=best_m,
+            best_h=best_h,
+            best_l=best_l,
             best_f=best_f,
+            fit_flag=best_flag,
         )
     except Exception as e:
         log.critical(f"Failed to fit power law: {e}")
         return dict(
             best_n=np.nan,
-            best_p=np.nan,
+            best_p=[np.nan],
             best_e=np.nan,
             best_m=np.ones_like(freq),
+            best_h=np.ones_like(freq),
+            best_l=np.ones_like(freq),
             best_f=None,
+            fit_flag=True,
         )
 
 # stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
@@ -202,7 +251,7 @@ def zip_equal(*iterables):
 def chunk_dask(
     outputs: list,
     client: distributed.Client,
-    batch_size: int = 1000,
+    batch_size: int = 10_000,
     task_name="",
     progress_text="",
     verbose=True,
