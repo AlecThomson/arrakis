@@ -471,6 +471,10 @@ def rmsynthoncut1d(
                 ]
             )
             mDict["polyOrd"] = int(fit_dict["best_n"])
+            if fit_dict["fit_flag"]:
+                mDict["fit_flag"] = 64
+            else:
+                mDict["fit_flag"] = 0
 
         do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
