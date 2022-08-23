@@ -6,7 +6,7 @@
 #SBATCH --mail-type=ALL
 #SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/process_spice-%j.log
 #SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/process_spice-%j.log
-#SBATCH --ntasks=500
+#SBATCH --ntasks=1000
 #SBATCH --requeue
 #SBATCH --ntasks-per-node=10
 #SBATCH --time=12:00:00
