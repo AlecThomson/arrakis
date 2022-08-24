@@ -838,10 +838,9 @@ def main(
 
     if database:
         log.info("Updating database...")
-        # gather results
-        updates = client.gather(futures)
+        updates = [f.compute() for f in futures]
         # Remove None values
-        updates = [x for x in updates if x is not None]
+        updates = [u for u in updates if u is not None]
         log.info("Sending updates to database...")
         if dimension == "1d":
             db_res = comp_col.bulk_write(updates, ordered=False)
