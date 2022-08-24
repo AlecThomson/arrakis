@@ -165,7 +165,9 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
 
     # plot results
     fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111,)
+    ax = fig.add_subplot(
+        111,
+    )
     # q_leakage_map = np.rot90(q_estimates_arr.reshape((len(xnew),len(ynew))).astype(float),k=3)
     q_leakage_map = np.rot90(
         q_estimates_arr.reshape((len(xnew), len(ynew))).astype(float), k=3
@@ -182,7 +184,9 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     # plt.ylim(-10,40)
 
     fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111,)
+    ax = fig.add_subplot(
+        111,
+    )
     u_leakage_map = np.rot90(
         u_estimates_arr.reshape((len(xnew), len(ynew))).astype(float), k=3
     )
@@ -229,7 +233,11 @@ def main(field, datadir, username="admin", password=None):
     q_big = np.array(q_big)
     u_big = np.array(u_big)
 
-    fig, ax = plt.subplots(2, 6, figsize=(18, 6),)
+    fig, ax = plt.subplots(
+        2,
+        6,
+        figsize=(18, 6),
+    )
     lim = 0.1
     for i, (f, q, u) in enumerate(zip(f_big, q_big, u_big)):
         ax[0, i].imshow(q, origin="lower", vmin=-lim, vmax=lim, cmap=plt.cm.coolwarm)
@@ -237,7 +245,11 @@ def main(field, datadir, username="admin", password=None):
         ax[0, i].invert_xaxis()
         ax[0, i].set_title(f"{f/1e6:0.1f}MHz")
         ax[1, i].imshow(
-            u, origin="lower", cmap=plt.cm.coolwarm, vmin=-lim, vmax=lim,
+            u,
+            origin="lower",
+            cmap=plt.cm.coolwarm,
+            vmin=-lim,
+            vmax=lim,
         )
         ax[1, i].axis("off")
         ax[1, i].invert_xaxis()
