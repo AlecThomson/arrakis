@@ -590,6 +590,10 @@ def main(
         name="complex_flag",
     )
 
+    # Replace all infs with nans
+    for col in rmtab.colnames:
+        rmtab[col][np.isinf(rmtab[col])] = np.nan
+
     # Verify table
     rmtab.add_missing_columns()
     rmtab.verify_standard_strings()
