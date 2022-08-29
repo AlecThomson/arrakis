@@ -205,7 +205,7 @@ def cuts_and_flags(cat):
     snr_flag = cat["snr_polint"] < 8
     cat.add_column(Column(data=snr_flag, name="snr_flag"))
     # Leakage flag
-    fit, fig = get_fit_func(cat, do_plot=True)
+    fit, fig = get_fit_func(cat, do_plot=True, nbins=16, degree=4)
     fig.savefig("leakage_fit.pdf")
     leakage_flag = is_leakage(
         cat["fracpol"].value, cat["beamdist"].to(u.deg).value, fit
@@ -592,7 +592,9 @@ def main(
 
     # Replace all infs with nans
     for col in rmtab.colnames:
-        rmtab[col][np.isinf(rmtab[col])] = np.nan
+        # Check if column is a float
+        if type(rmtab[col][0]) == np.float_:
+            rmtab[col][np.isinf(rmtab[col])] = np.nan
 
     # Verify table
     rmtab.add_missing_columns()
