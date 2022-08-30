@@ -11,7 +11,8 @@
 #SBATCH --account=askap
 #SBATCH --ntasks=48
 #SBATCH --time=1-00:00:00
-##SBATCH --partition=highmemq
+#SBATCH --partition=highmemq
+#SBATCH --mem=1000GB
 
 # conda activate spice
 module load intel-mpi
