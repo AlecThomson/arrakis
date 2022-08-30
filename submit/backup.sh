@@ -14,29 +14,45 @@
 #SBATCH --partition=copyq
 
 ACA_ALIAS=acacia-spiceracs
-DATA_DIR=/group/ja3/athomson/full_spica
-BUCKET_NAME=athomson-fullspica
+DATA_DIR=/group/ja3/athomson/spica
+STAGE_DIR=/scratch/ja3/athomson/staging
+BUCKET_NAME=$(basename $DATA_DIR)-bak-$(date "+%Y-%m-%d")
+# Replace underscores with hyphens in bucket name
+BUCKET_NAME=${BUCKET_NAME//_/-}
 
 module load rclone
-# rclone sync -P -L $data_dir acacia-spiceracs:$BUCKET_NAME --transfers=20 --checkers=20
-# tar -zcvf - $DATA_DIR | rclone rcat acacia-spiceracs:$BUCKET_NAME/data_date "+%Y-%m-%d_%H:%M:%S".tar.gz -v
-# rclone tree acacia-spiceracs:$BUCKET_NAME
 
-# Make sure the bucket exists
-rclone mkdir $ACA_ALIAS:$BUCKET_NAME
 
-# Copy files to the bucket
-for f in $(find $DATA_DIR -maxdepth 1 -type f)
+# Make sure the staging directory exists
+STAGE_AREA=$STAGE_DIR/$(basename $DATA_DIR)
+mkdir $STAGE_AREA
+
+# Get list of files
+FILE_LIST=$STAGE_AREA/file_list.tmp
+find $DATA_DIR -maxdepth 1 -mindepth 1 -type f > $FILE_LIST
+DIR_LIST=$STAGE_AREA/dir_list.tmp
+find $DATA_DIR -maxdepth 1 -mindepth 1 -type d > $DIR_LIST
+
+# Copy the data to the staging area
+echo "Copying data to staging area"
+cat $STAGE_AREA/file_list.tmp | xargs -I {} -P 20 cp -v {} $STAGE_AREA
+# tar directories to the staging area
+echo "Tarring directories to staging area"
+for DIR in $(cat $DIR_LIST)
 do
-    rclone copy $f $ACA_ALIAS:$BUCKET_NAME/ -P &
-done
-
-# Copy directories to the bucket and tar them on the way
-for f in $(find $DATA_DIR -maxdepth 1 -type d)
-do
-    tar -zcvf - $f | rclone rcat $ACA_ALIAS:$BUCKET_NAME/$(basename $f).tar.gz -v &
+    # ((i=i%N)); ((i++==0)) && wait
+    # tar -cfh $STAGE_AREA/$(basename $DIR).tar $DIR &
+    echo $DIR
+    tar cf - $DIR -P | pv -s $(du -sb $DIR | awk '{print $1}') > $STAGE_AREA/$(basename $DIR).tar
 done
 
 wait
 
-rclone tree acacia-spiceracs:$BUCKET_NAME
+echo "Uploading data to S3"
+# Make sure the bucket exists
+echo rclone mkdir $ACA_ALIAS:$BUCKET_NAME
+
+# # Copy the staging area to the bucket
+rclone copy $STAGE_AREA $ACA_ALIAS:$BUCKET_NAME --transfers=20 --checkers=20
+
+rclone tree $ACA_ALIAS:$BUCKET_NAME
