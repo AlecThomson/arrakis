@@ -13,10 +13,10 @@
 #SBATCH --time=2-00:00:00
 #SBATCH --partition=copyq
 
-ACA_ALIAS=acacia-spiceracs
-DATA_DIR=/group/ja3/athomson/full_spica
+ACA_ALIAS=askap
+DATA_DIR=/group/askap/athomson/projects
 STAGE_DIR=/scratch/ja3/athomson/staging
-BUCKET_NAME=$(basename $DATA_DIR)-bak-$(date "+%Y-%m-%d")
+BUCKET_NAME=$(basename $DATA_DIR)-bak #-$(date "+%Y-%m-%d")
 # Replace underscores with hyphens in bucket name
 BUCKET_NAME=${BUCKET_NAME//_/-}
 
@@ -52,10 +52,10 @@ wait
 
 echo "Uploading data to S3"
 # Make sure the bucket exists
-echo rclone mkdir $ACA_ALIAS:$BUCKET_NAME
+rclone mkdir $ACA_ALIAS:$BUCKET_NAME
 
 # Copy the staging area to the bucket
-rclone copy $STAGE_AREA $ACA_ALIAS:$BUCKET_NAME --transfers=20 --checkers=20
+rclone copy $STAGE_AREA $ACA_ALIAS:$BUCKET_NAME --transfers=20 --checkers=20 -P
 
 # Inspect file tree
 rclone tree $ACA_ALIAS:$BUCKET_NAME
