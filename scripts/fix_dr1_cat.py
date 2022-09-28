@@ -90,7 +90,8 @@ def main(cat: str):
     tab = RMTable.read(cat)
     log.debug(f"Fixing {cat}")
     tab = fix_fields(tab)
-    fit = get_fit_func(tab, degree=4, do_plot=False)
+    fit, fig = get_fit_func(tab, do_plot=True, nbins=16, degree=4)
+    fig.savefig("leakage_fit_dr1_fix.pdf")
     leakage_flag = is_leakage(
         tab["fracpol"].value, tab["beamdist"].to(u.deg).value, fit
     )

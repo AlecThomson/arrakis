@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from typing import Optional, Union, Callable
 from vorbin.voronoi_2d_binning import voronoi_2d_binning
 import pandas as pd
+from corner import hist2d
 from IPython import embed
 
 
@@ -102,27 +103,16 @@ def is_leakage(frac, sep, fit):
     return frac < fit_frac
 
 
-def get_fit_func(
-    tab: Union[RMTable, Table],
-    nbins: int = 21,
-    offset: float = 0.002,
-    degree: int = 2,
-    do_plot: bool = False,
-) -> Union[Callable, Optional[plt.Figure]]:
+def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     """Fit an envelope to define leakage sources
 
     Args:
-        tab (Union[RMTable, Table]): Catalogue to fit
+        tab (Table): Catalogue to fit
         nbins (int, optional): Number of bins along seperation axis. Defaults to 21.
-        offset (float, optional): Offset to fit envelope. Defaults to 0.002.
-        degree (int, optional): Polynomial order of fit. Defaults to 2.
-        do_plot (bool, optional): Make a plot of the leakage. Defaults to False.
 
     Returns:
-        Union[np.polynomial.Polynomial.fit, Optional[plt.Figure]]: Polynomial
-        fit to the leakage and optional plot
+        np.polynomial.Polynomial.fit: 3rd order polynomial fit.
     """
-
     # Select high SNR sources
     hi_snr = (
         tab["stokesI"].to(u.Jy / u.beam) / tab["stokesI_err"].to(u.Jy / u.beam)
@@ -152,7 +142,7 @@ def get_fit_func(
         return fit
 
     # Plot the fit
-    latexify(columns=1)
+    latexify(columns=2)
     figure = plt.figure(facecolor="w")
     fig = plt.figure(facecolor="w")
     color = "tab:green"
@@ -163,16 +153,25 @@ def get_fit_func(
         "s1_ups": s1_ups,
         "s2_ups": s2_ups,
     }
-    plt.scatter(
-        hi_i_tab["beamdist"].to(u.deg).value,
-        frac_P,
-        s=1,
-        alpha=0.2,
-        marker=".",
-        c="k",
-        zorder=0,
+    # plt.scatter(
+    #     hi_i_tab["beamdist"].to(u.deg).value,
+    #     frac_P,
+    #     s=1,
+    #     alpha=0.2,
+    #     marker=".",
+    #     c="k",
+    #     zorder=0,
+    #     rasterized=True,
+    # )
+    is_finite = np.logical_and(np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P))
+    hist2d(
+        np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite,np.newaxis],
+        np.array(frac_P)[is_finite,np.newaxis],
+        bins=(nbins, nbins),
+        range=[[0, 5], [0, 0.05]],
+        # color=color,
     )
-    plt.plot(bins_c, meds, alpha=1, c=color, label="Median")
+    plt.plot(bins_c, meds, alpha=1, c=color, label="Median", linewidth=2)
     for s, ls in zip((1, 2), ("--", ":")):
         for r in ("ups", "los"):
             plt.plot(
@@ -182,12 +181,13 @@ def get_fit_func(
                 c=color,
                 linestyle=ls,
                 label=f"${s}\sigma$" if r == "ups" else "",
+                linewidth=2,
             )
     xx = np.linspace(0, 4.5, 100)
-    plt.plot(xx, fit(xx), "tab:orange", label="Leakage envelope")
+    plt.plot(xx, fit(xx), "tab:orange", label="Leakage envelope", linewidth=2)
     plt.legend(loc="upper left")
     plt.xlabel("Separation from tile centre [deg]")
-    plt.ylabel(f"$P/I$ fraction")
+    plt.ylabel(f"$L/I$")
     plt.ylim(0, +0.05)
     plt.grid()
     return fit, fig
@@ -205,7 +205,7 @@ def cuts_and_flags(cat):
     snr_flag = cat["snr_polint"] < 8
     cat.add_column(Column(data=snr_flag, name="snr_flag"))
     # Leakage flag
-    fit, fig = get_fit_func(cat, do_plot=True)
+    fit, fig = get_fit_func(cat, do_plot=True, nbins=16, degree=4)
     fig.savefig("leakage_fit.pdf")
     leakage_flag = is_leakage(
         cat["fracpol"].value, cat["beamdist"].to(u.deg).value, fit
@@ -431,7 +431,15 @@ def replace_nans(filename: str):
 
 
 def write_votable(rmtab: RMTable, outfile: str) -> None:
+    # Replace bad column names
+    fix_columns = {
+        "catalog": "catalog_name",
+        "interval": "obs_interval",
+    }
     # CASDA needs v1.3
+    for col_name, new_name in fix_columns.items():
+        if col_name in rmtab.colnames:
+            rmtab.rename_column(col_name, new_name)
     vo_table = vot.from_table(rmtab)
     vo_table.version = "1.3"
     vo_table = add_metadata(vo_table, outfile)
@@ -589,6 +597,12 @@ def main(
         col=np.logical_or(rmtab["complex_sigma_add_flag"], rmtab["complex_M2_CC_flag"]),
         name="complex_flag",
     )
+
+    # Replace all infs with nans
+    for col in rmtab.colnames:
+        # Check if column is a float
+        if type(rmtab[col][0]) == np.float_:
+            rmtab[col][np.isinf(rmtab[col])] = np.nan
 
     # Verify table
     rmtab.add_missing_columns()
