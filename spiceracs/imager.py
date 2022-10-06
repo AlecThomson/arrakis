@@ -2,7 +2,8 @@
 """SPICE-RACS imager"""
 import os
 from glob import glob
-from spiceracs.utils import wsclean
+from spiceracs.utils import wsclean, beam_from_ms
+from spiceracs import fix_ms_dir.main as fix_ms
 import astropy.units as u
 from casatasks import vishead
 import subprocess as sp
@@ -13,7 +14,7 @@ def get_prefix(
 ) -> str:
     """Get prefix for output files"""
     field = vishead(ms, "list")["field"][0][0]
-    beam = ms[ms.find("beam")+len("beam"):ms.find("beam")+len("beam")+2]
+    beam = beam_from_ms(ms)
     prefix = f"image.{field}.contcube.beam{beam}"
     return os.path.join(out_dir, prefix)
 
@@ -64,10 +65,24 @@ def image_beam(
     )
 
     sp.run(command.split(), check=True)
+    image_list = sorted(glob(f"{prefix}*.fits"))
+    weight_list = sorted(glob(f"{prefix}*.weight.fits"))
 
-    return sorted(glob(f"{prefix}*.fits"))
+    return image_list, weight_list
 
 def make_cube(
+    image_list: list,
+    weight_list: list,
+):
+    """Make a cube from the images"""
+    im_cube_name = image_list[0].replace(".fits", ".cube.fits")
+    w_cube_name = weight_list[0].replace(".fits", ".cube.fits")
+
+
+    return im_cube_name, w_cube_name
+
+
+def main(
     msdir: str,
     out_dir: str,
 ):
@@ -78,16 +93,25 @@ def make_cube(
     assert len(mslist) == 36, f"Incorrect number of MS files found: {len(mslist)}"
 
     for ms in mslist:
+        # Apply Emil's fix for MSs
         fixed_ms = fix_ms(ms)
-        image_list = image_beam(
+        # Image with wsclean
+        image_list, weight_list = image_beam(
             ms=fixed_ms,
             out_dir=out_dir,
         )
+        # Make a cube
+        im_cube_name, w_cube_name = make_cube(
+            image_list=image_list,
+            weight_list=weight_list,
+        )
+        # Clean up
+        for image in image_list:
+            os.remove(image)
+        for weight in weight_list:
+            os.remove(weight)
 
-def main(
-    mslist,
-):
-    pass
+
 
 def cli():
     import argparse
@@ -110,10 +134,8 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage 5:
-    Run RMsynthesis on cubelets.
-
-    Note: Runs on brightest sources first.
+    SPICE-RACS Stage X:
+    Image calibrated visibilities
 
     """
 

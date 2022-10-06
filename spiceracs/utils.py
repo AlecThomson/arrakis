@@ -42,11 +42,21 @@ import time
 from itertools import zip_longest
 from scipy.optimize import curve_fit
 from functools import partial
+from casacore.tables import table
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
+
+def beam_from_ms(ms: str) -> int:
+    """ Work out which beam is in this MS """
+    t = table(ms, readonly=True, ack=False)
+    vis_feed = t.getcol("FEED1", 0, 1)
+    beam = vis_feed[0]
+    t.close()
+    return beam
+
 
 def wsclean(
     mslist: list,
