@@ -3,7 +3,7 @@
 import os
 from glob import glob
 from spiceracs.utils import wsclean, beam_from_ms
-from spiceracs import fix_ms_dir.main as fix_ms
+import spiceracs.fix_ms_dir.main as fix_ms
 import astropy.units as u
 from casatasks import vishead
 import subprocess as sp
