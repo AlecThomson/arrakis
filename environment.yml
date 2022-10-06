@@ -30,6 +30,7 @@ dependencies:
 - numpydoc
 - sphinx-autoapi
 - m2r2
+- racs-tools
 - pip:
   - tqdm
   - configargparse
