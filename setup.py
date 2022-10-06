@@ -113,6 +113,7 @@ setup(
             "spice_process=spiceracs.process_spice:cli",
             "spice_region=spiceracs.process_region:cli",
             "spice_cat=spiceracs.makecat:cli",
+            "spice_image=spiceracs.imager:cli",
         ],
     },
     scripts=glob(
