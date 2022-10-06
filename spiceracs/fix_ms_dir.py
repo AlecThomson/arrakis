@@ -220,13 +220,13 @@ def main(ms):
     # Work out which beam is in this MS
     beam = beam_from_ms(ms)
 
-    if tableexists("%s/FIELD_OLD" % (ms)) == False:
+    if not tableexists("%s/FIELD_OLD" % (ms)):
         log.info("Making copy of original FIELD table")
         tablecopy(tablename="%s/FIELD" % (ms), newtablename="%s/FIELD_OLD" % (ms))
     else:
         log.info("Original copy of FIELD table is being used")
 
-    if tableexists("%s/FEED_OLD" % (ms)) == False:
+    if not tableexists("%s/FEED_OLD" % (ms)):
         log.info("Making copy of original FEED table")
         tablecopy(tablename="%s/FEED" % (ms), newtablename="%s/FEED_OLD" % (ms))
     else:
