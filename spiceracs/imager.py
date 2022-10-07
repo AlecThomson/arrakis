@@ -2,24 +2,30 @@
 """SPICE-RACS imager"""
 import os
 import shutil
+import pickle
 from glob import glob
 import logging as log
+from bleach import clean
 import numpy as np
 from astropy.io import fits
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
 from spiceracs.utils import wsclean, beam_from_ms
+from casatasks import vishead, casalog
 from spiceracs import fix_ms_dir
 import astropy.units as u
-from casatasks import vishead
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
 from racs_tools import beamcon_2D
+from schwimmbad import SerialPool
+import multiprocessing as mp
 from argparse import Namespace
 from IPython import embed
 from dask.distributed import get_client, Client
 from dask import delayed, compute
+import hashlib
+from radio_beam import Beam
 
 def get_wsclean(
     hub_address: str = "docker://alecthomson/wsclean",
@@ -42,15 +48,16 @@ def get_prefix(
     out_dir: str,
 ) -> str:
     """Get prefix for output files"""
-    field = vishead(ms, "list")["field"][0][0]
+    field = vishead(vis=ms, mode="list")["field"][0][0]
     beam = beam_from_ms(ms)
-    prefix = f"image.{field}.contcube.beam{beam}"
+    prefix = f"image.{field}.contcube.beam{beam:02}"
     return os.path.join(out_dir, prefix)
 
 @delayed(nout=3)
 def image_beam(
     ms: str,
     out_dir: str,
+    prefix: str,
     image: str,
     pols: str = "IQU",
     nchan: int = 36,
@@ -70,7 +77,7 @@ def image_beam(
     """Image a single beam
 
     """
-    prefix = get_prefix(ms, out_dir)
+    client = get_client()
     command = wsclean(
         mslist=[ms],
         use_mpi=False,
@@ -94,6 +101,8 @@ def image_beam(
         mem=mem,
         save_weights=True,
         no_mf_weighting=True,
+        j=[i for i in client.nthreads().values()][0], # Set number of threads to match dask
+        # j=1,
     )
 
     root_dir = os.path.dirname(ms)
@@ -113,7 +122,7 @@ def image_beam(
     image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
     weight_list = sorted(glob(f"{prefix}*[0-9]-weights.fits"))
     aux_lists = {
-        aux: sorted(glob(f"{prefix}*[0-9]-{aux}.fits")) for aux in ["model", "psf", "residual", "dirty"]
+        aux: sorted(glob(f"{prefix}*[0-9]-{s}-{aux}.fits")) for aux in ["model", "psf", "residual", "dirty" ] for s in pols
     }
 
     return image_lists, weight_list, aux_lists
@@ -122,10 +131,11 @@ def image_beam(
 def make_cube(
     image_lists: dict,
     weight_list: list,
+    common_beam_pkl: str,
 ) -> tuple:
     """Make a cube from the images"""
     im_cube_names = []
-    for s in tqdm("IQU",desc=f"Making Stokes {s} image cube"):
+    for s in tqdm("IQU", desc=f"Making Stokes image cube"):
         # First combine images into cubes
         freqs = []
         for chan, image in enumerate(
@@ -174,6 +184,10 @@ def make_cube(
         new_header["CRVAL3"] = freqs[0].value
         new_header["CDELT3"] = np.diff(freqs).mean().value
         new_header["CUNIT3"] = "Hz"
+        # Deserialise beam
+        with open(common_beam_pkl, "rb") as f:
+            common_beam = pickle.load(f)
+        new_header = common_beam.attach_to_header(new_header)
         fits.writeto(new_name, data_cube, new_header, overwrite=True)
         log.info(f"Written {new_name}")
         im_cube_names.append(new_name)
@@ -196,27 +210,68 @@ def make_cube(
                         leave=False,
                     )
                 ):
-                hdul[0].data = fits.getdata(weight)
+                hdul[0].data[:,chan] = fits.getdata(weight)
 
     return im_cube_names, weight_cube_names
 
-@delayed
-def smooth_images(image_lists):
+@delayed(nout=2)
+def get_beam(image_lists, cutoff=None):
     # convert dict to list
-    out_lists = {}
+    image_list = []
     for s in image_lists.keys():
-        # Smooth images
-        beamcon_2D.main(
-            pool=get_client(),
-            infile=image_lists[s],
-            suffix="conv",
-            cutoff=25,
+        image_list.extend(image_lists[s])
+    # Create a unique hash for the beam log filename
+    beam_log = f"beam_{hashlib.md5(''.join(image_list).encode()).hexdigest()}.log"
+    with SerialPool() as pool:
+        common_beam = beamcon_2D.main(
+            pool=pool,
+            infile=image_list,
+            cutoff=cutoff,
+            dryrun=True,
+            log=os.path.join("/tmp", beam_log),
         )
-        out_list  = []
+    # serialise the beam
+    common_beam_pkl = os.path.join(
+        "/tmp",
+        f"beam_{hashlib.md5(''.join(image_list).encode()).hexdigest()}.pkl"
+    )
+
+    with open(common_beam_pkl, "wb") as f:
+        pickle.dump(common_beam, f)
+
+    return common_beam_pkl, beam_log
+
+@delayed(nout=2)
+def smooth_image(image, common_beam_pkl):
+    # Smooth image
+    # Deserialise the beam
+    with open(common_beam_pkl, "rb") as f:
+        common_beam = pickle.load(f)
+    with SerialPool() as pool:
+        _ = beamcon_2D.main(
+            pool=pool,
+            infile=[image],
+            suffix="conv",
+            bmaj=common_beam.major.to(u.arcsec).value,
+            bmin=common_beam.minor.to(u.arcsec).value,
+            bpa=common_beam.pa.to(u.deg).value,
+        )
+    sm_image = image.replace(".fits", ".conv.fits")
+    return sm_image
+
+@delayed
+def smooth_images(image_lists, common_beam_pkl):
+    sm_image_lists = {}
+    for s in image_lists.keys():
+        sm_image_lists[s] = []
         for image in image_lists[s]:
-            out_list.append(image.replace(".fits", ".conv.fits"))
-        out_lists[s] = out_list
-    return out_lists
+            sm_image = smooth_image(
+                image,
+                common_beam_pkl=common_beam_pkl,
+            )
+            sm_image_lists[s].append(sm_image)
+    # return delayed(sm_image_lists)
+    return sm_image_lists
 
 @delayed
 def cleanup(
@@ -247,6 +302,9 @@ def fix_ms(ms):
 def main(
     msdir: str,
     out_dir: str,
+    cutoff: float = None,
+    robust: float = -0.5,
+    pols: str = "IQU",
 ):
     image = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
@@ -260,8 +318,14 @@ def main(
     log.info(
         f"Will image {len(mslist)} MS files in {msdir} to {out_dir}"
     )
-
     cleans = []
+
+    # Do this in serial since
+    prefixs = {}
+    for ms in mslist:
+        prefix = get_prefix(ms, out_dir)
+        prefixs[ms] = prefix
+
     for ms in mslist:
         log.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs
@@ -270,27 +334,32 @@ def main(
         image_lists, weight_list, aux_lists = image_beam(
             ms=ms_fix,
             out_dir=out_dir,
+            prefix=prefixs[ms],
             image=image,
             niter=1,
+            robust=robust,
         )
         # Smooth images
-        sm_image_lists = smooth_images(image_lists)
+        common_beam_pkl, beam_log = get_beam(image_lists, cutoff=cutoff)
+        sm_image_lists = smooth_images(image_lists, common_beam_pkl=common_beam_pkl)
+
         # Make a cube
         im_cube_name, w_cube_name = make_cube(
             image_lists=sm_image_lists,
             weight_list=weight_list,
+            common_beam_pkl=common_beam_pkl,
         )
         # Clean up
         clean = cleanup(
             im_cube_name=im_cube_name,
             w_cube_name=w_cube_name,
             image_lists=image_lists,
+            sm_image_lists=sm_image_lists,
             weight_list=weight_list,
             aux_lists=aux_lists,
         )
         cleans.append(clean)
-        clean.compute()
-        exit()
+
     compute(*cleans)
 
 
@@ -334,19 +403,31 @@ def cli():
         type=str,
         help="Directory to output images",
     )
+    parser.add_argument(
+        "--cutoff",
+        type=float,
+        help="Cutoff for smoothing",
+    )
+    parser.add_argument(
+        "--robust",
+        type=float,
+        default=-0.5,
+    )
 
     args = parser.parse_args()
     main(
         msdir=args.msdir,
         out_dir=args.outdir,
+        cutoff=args.cutoff,
+        robust=args.robust,
     )
 
 if __name__ == "__main__":
     log.basicConfig(
-            level=log.INFO,
+            level=log.DEBUG,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
             force=True,
     )
-    client = Client()
+    client = Client(n_workers=4)
     cli()
