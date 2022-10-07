@@ -30,7 +30,7 @@ dependencies:
 - numpydoc
 - sphinx-autoapi
 - m2r2
-- racs-tools
+- gfortran
 - pip:
   - tqdm
   - configargparse
@@ -45,4 +45,5 @@ dependencies:
   - git+https://github.com/CIRADA-Tools/RMTable
   - sphinx-book-theme
   - vorbin
+  - racs-tools
   - ./
