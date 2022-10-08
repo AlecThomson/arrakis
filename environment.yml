@@ -46,4 +46,6 @@ dependencies:
   - sphinx-book-theme
   - vorbin
   - racs-tools
+  - casatools
+  - casatasks
   - ./
