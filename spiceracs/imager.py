@@ -5,13 +5,12 @@ import shutil
 import pickle
 from glob import glob
 import logging as log
-from bleach import clean
 import numpy as np
 from astropy.io import fits
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
-from spiceracs.utils import wsclean, beam_from_ms
+from spiceracs.utils import wsclean, beam_from_ms, chunk_dask
 from casatasks import vishead, casalog
 from spiceracs import fix_ms_dir
 import astropy.units as u
@@ -23,6 +22,7 @@ import multiprocessing as mp
 from argparse import Namespace
 from IPython import embed
 from dask.distributed import get_client, Client
+from dask_mpi import initialize
 from dask import delayed, compute
 import hashlib
 from radio_beam import Beam
@@ -336,7 +336,6 @@ def main(
             out_dir=out_dir,
             prefix=prefixs[ms],
             image=image,
-            niter=1,
             robust=robust,
         )
         # Smooth images
@@ -360,7 +359,9 @@ def main(
         )
         cleans.append(clean)
 
-    compute(*cleans)
+    client = get_client()
+    futures = client.compute(cleans)
+    results = client.gather(futures)
 
 
 def cli():
@@ -413,8 +414,19 @@ def cli():
         type=float,
         default=-0.5,
     )
+    parser.add_argument(
+        "--mpi",
+        action="store_true",
+        help="Use MPI",
+    )
 
     args = parser.parse_args()
+
+    if args.mpi:
+        initialize()
+
+    client = Client()
+
     main(
         msdir=args.msdir,
         out_dir=args.outdir,
@@ -424,10 +436,9 @@ def cli():
 
 if __name__ == "__main__":
     log.basicConfig(
-            level=log.DEBUG,
+            level=log.INFO,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
             force=True,
     )
-    client = Client(n_workers=4)
     cli()
