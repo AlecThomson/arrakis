@@ -34,6 +34,7 @@ from FRion.correct import find_freq_axis
 from typing import Tuple, List, Dict, Any, Union, Optional
 import dask
 from dask import delayed
+from dask.distributed import get_client
 import dask.array as da
 import dask.distributed as distributed
 import logging as log
