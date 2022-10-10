@@ -34,6 +34,7 @@ from FRion.correct import find_freq_axis
 from typing import Tuple, List, Dict, Any, Union, Optional
 import dask
 from dask import delayed
+from dask.delayed import Delayed
 from dask.distributed import get_client
 import dask.array as da
 import dask.distributed as distributed
@@ -49,6 +50,34 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
+
+def inspect_client(client: Union[distributed.Client,None] = None) -> Tuple[
+    str, int, int, u.Quantity, int, u.Quantity
+]:
+    """_summary_
+
+    Args:
+        client (Union[distributed.Client,None]): Dask client to inspect.
+            if None, will use the default client.
+
+    Returns:
+        Tuple[ str, int, int, u.Quantity, float, u.Quantity ]: addr, nworkers,
+            nthreads, memory, threads_per_worker, memory_per_worker
+    """
+    """Inspect a client"""
+    if client is None:
+        client = get_client()
+    log.debug(f"Client: {client}")
+    info = client._scheduler_identity
+    addr = info.get("address")
+    workers = info.get("workers", {})
+    nworkers = len(workers)
+    nthreads = sum(w["nthreads"] for w in workers.values())
+    memory = sum([w["memory_limit"] for w in workers.values()]) * u.byte
+    threads_per_worker = nthreads // nworkers
+    memory_per_worker = memory / nworkers
+    return addr, nworkers, nthreads, memory, threads_per_worker, memory_per_worker
+
 
 def beam_from_ms(ms: str) -> int:
     """ Work out which beam is in this MS """
@@ -951,12 +980,12 @@ def zip_equal(*iterables):
 
 def chunk_dask(
     outputs: list,
-    client: distributed.Client,
     batch_size: int = 10_000,
     task_name="",
     progress_text="",
     verbose=True,
 ) -> list:
+    client = get_client()
     chunk_outputs = []
     for i in trange(
         0, len(outputs), batch_size, desc=f"Chunking {task_name}", disable=(not verbose)
@@ -1030,7 +1059,7 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     matplotlib.rcParams.update(params)
 
 
-def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array:
+def delayed_to_da(list_of_delayed: List[Delayed], chunk: int = None) -> da.Array:
     """Convert list of delayed arrays to a dask array
 
     Args:
@@ -1046,11 +1075,11 @@ def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array
         c_dim = dim
     else:
         c_dim = (chunk,) + sample.shape
-    darray = [
+    darray_list = [
         da.from_delayed(lazy, dtype=sample.dtype, shape=sample.shape)
         for lazy in list_of_delayed
     ]
-    darray = da.stack(darray, axis=0).reshape(dim).rechunk(c_dim)
+    darray = da.stack(darray_list, axis=0).reshape(dim).rechunk(c_dim) # type: da.Array
 
     return darray
 
@@ -1268,10 +1297,10 @@ class TqdmProgressBar(ProgressBar):
 
 def tqdm_dask(futures: distributed.Future, **kwargs) -> None:
     """Tqdm for Dask futures"""
-    futures = futures_of(futures)
+    futures_list = futures_of(futures)
     if not isinstance(futures, (set, list)):
-        futures = [futures]
-    TqdmProgressBar(futures, **kwargs)
+        futures_list= [futures]
+    TqdmProgressBar(futures_list, **kwargs)
 
 
 def port_forward(port: int, target: str) -> None:

@@ -3,6 +3,7 @@
 import os
 import shutil
 import pickle
+from typing import List
 from glob import glob
 import logging as log
 import numpy as np
@@ -10,7 +11,8 @@ from astropy.io import fits
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
-from spiceracs.utils import wsclean, beam_from_ms, chunk_dask
+from astropy.stats import mad_std
+from spiceracs.utils import wsclean, beam_from_ms, chunk_dask, inspect_client
 from casatasks import vishead, casalog
 from spiceracs import fix_ms_dir
 import astropy.units as u
@@ -24,6 +26,7 @@ from IPython import embed
 from dask.distributed import get_client, Client
 from dask_mpi import initialize
 from dask import delayed, compute
+from dask.delayed import Delayed
 import hashlib
 from radio_beam import Beam
 
@@ -53,7 +56,7 @@ def get_prefix(
     prefix = f"image.{field}.contcube.beam{beam:02}"
     return os.path.join(out_dir, prefix)
 
-@delayed(nout=3)
+@delayed
 def image_beam(
     ms: str,
     out_dir: str,
@@ -77,7 +80,40 @@ def image_beam(
     """Image a single beam
 
     """
-    client = get_client()
+    addr, nworkers, nthreads, memory, threads_per_worker, memory_per_worker = inspect_client()
+    abs_mem = float(memory_per_worker.to(u.gigabyte).value*mem/100)
+    log.debug(f"Using {abs_mem} GB of memory")
+
+    # # First generate the weights with option no_reorder
+    # command_1 = wsclean(
+    #     mslist=[ms],
+    #     use_mpi=False,
+    #     name=prefix,
+    #     pol=pols,
+    #     verbose=True,
+    #     channels_out=nchan,
+    #     scale=f"{scale.to(u.arcsec).value}asec",
+    #     size=f"{npix} {npix}",
+    #     join_polarizations=join_polarizations,
+    #     join_channels=join_channels,
+    #     squared_channel_joining=squared_channel_joining,
+    #     mgain=mgain,
+    #     niter=0,
+    #     auto_mask=auto_mask,
+    #     auto_threshold=auto_threshold,
+    #     use_wgridder=use_wgridder,
+    #     weight=f"briggs {robust}",
+    #     log_time=False,
+    #     temp_dir=out_dir,
+    #     abs_mem=abs_mem,
+    #     store_imaging_weights=True,
+    #     make_psf=True,
+    #     no_mf_weighting=True,
+    #     j=threads_per_worker,
+    #     no_reorder=True,
+    # )
+
+    # Now do the actual imaging
     command = wsclean(
         mslist=[ms],
         use_mpi=False,
@@ -98,17 +134,17 @@ def image_beam(
         weight=f"briggs {robust}",
         log_time=False,
         temp_dir=out_dir,
-        mem=mem,
-        save_weights=True,
+        abs_mem=abs_mem,
         no_mf_weighting=True,
-        j=[i for i in client.nthreads().values()][0], # Set number of threads to match dask
-        # j=1,
+        j=threads_per_worker,
+        # reuse_dirty=prefix,
+        # reuse_psf=prefix,
     )
 
     root_dir = os.path.dirname(ms)
 
+    # for command in (command_1, command_2):
     log.info(f"Running wsclean with command: {command}")
-
     output = sclient.execute(
         image=image,
         command=command.split(),
@@ -119,106 +155,113 @@ def image_beam(
     )
     for line in output:
         log.info(line)
-    image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
-    weight_list = sorted(glob(f"{prefix}*[0-9]-weights.fits"))
-    aux_lists = {
-        aux: sorted(glob(f"{prefix}*[0-9]-{s}-{aux}.fits")) for aux in ["model", "psf", "residual", "dirty" ] for s in pols
-    }
+    return True
 
-    return image_lists, weight_list, aux_lists
+def get_images(image_done: bool, pol, prefix):
+    # image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
+    if image_done:
+        image_list = sorted(glob(f"{prefix}*[0-9]-{pol}-image.fits"))
+        return image_list
+    else:
+        raise ValueError("Imaging must be done")
+
+@delayed
+def get_weights(image_done, prefix):
+    if image_done:
+        weight_list = sorted(glob(f"{prefix}*[0-9]-weights.fits"))
+        return weight_list
+    else:
+        raise ValueError("Imaging must be done")
+
+@delayed
+def get_aux(image_done: bool, pol, prefix):
+    if image_done:
+        aux_lists = {
+            aux: sorted(glob(f"{prefix}*[0-9]-{pol}-{aux}.fits")) for aux in ["model", "psf", "residual", "dirty" ]
+        }
+        return aux_lists
+    else:
+        raise ValueError("Imaging must be done")
 
 @delayed(nout=2)
 def make_cube(
-    image_lists: dict,
+    pol: str,
+    image_list: list,
     weight_list: list,
     common_beam_pkl: str,
 ) -> tuple:
     """Make a cube from the images"""
-    im_cube_names = []
-    for s in tqdm("IQU", desc=f"Making Stokes image cube"):
-        # First combine images into cubes
-        freqs = []
-        for chan, image in enumerate(
-                tqdm(
-                    image_lists[s],
-                    desc="Reading channel image",
-                    leave=False,
-                )
-            ):
-            # init cube
-            if chan == 0:
-                old_name = image
-                old_header = fits.getheader(old_name)
-                wcs = WCS(old_header)
-                idx = 0
-                for j,t in enumerate(wcs.axis_type_names[::-1]): # Reverse to match index order
-                    if t == "FREQ":
-                        idx = j
-                        break
+    # First combine images into cubes
+    freqs = []
+    rmss = []
+    for chan, image in enumerate(
+            tqdm(
+                image_list,
+                desc="Reading channel image",
+                leave=False,
+            )
+        ):
+        # init cube
+        if chan == 0:
+            old_name = image
+            old_header = fits.getheader(old_name)
+            wcs = WCS(old_header)
+            idx = 0
+            for j,t in enumerate(wcs.axis_type_names[::-1]): # Reverse to match index order
+                if t == "FREQ":
+                    idx = j
+                    break
 
-                plane_shape = list(fits.getdata(old_name).shape)
-                cube_shape = plane_shape.copy()
-                cube_shape[idx] = len(image_lists[s])
+            plane_shape = list(fits.getdata(old_name).shape)
+            cube_shape = plane_shape.copy()
+            cube_shape[idx] = len(image_list)
 
-                data_cube = np.zeros(cube_shape)
+            data_cube = np.zeros(cube_shape)
 
-                out_dir = os.path.dirname(old_name)
-                old_base = os.path.basename(old_name)
-                new_base = old_base
-                b_idx = new_base.find("beam") + len("beam") + 2
-                sub = new_base[b_idx:]
-                new_base = new_base.replace(sub, ".fits")
-                new_base = new_base.replace("image", f"image.restored.{s.lower()}")
-                new_name = os.path.join(out_dir, new_base)
+            out_dir = os.path.dirname(old_name)
+            old_base = os.path.basename(old_name)
+            new_base = old_base
+            b_idx = new_base.find("beam") + len("beam") + 2
+            sub = new_base[b_idx:]
+            new_base = new_base.replace(sub, ".fits")
+            new_base = new_base.replace("image", f"image.restored.{pol.lower()}")
+            new_name = os.path.join(out_dir, new_base)
 
-            data_cube[:,chan] = fits.getdata(image)
-            freq = WCS(image).spectral.pixel_to_world(0)
-            freqs.append(freq.to(u.Hz).value)
-        # Write out cubes
-        freqs = np.array(freqs) * u.Hz
-        assert np.diff(freqs).std() < 1e-6 * u.Hz, "Frequencies are not evenly spaced"
-        new_header = old_header.copy()
-        new_header["NAXIS"] = len(cube_shape)
-        new_header["NAXIS3"] = len(freqs)
-        new_header["CRPIX3"] = 1
-        new_header["CRVAL3"] = freqs[0].value
-        new_header["CDELT3"] = np.diff(freqs).mean().value
-        new_header["CUNIT3"] = "Hz"
-        # Deserialise beam
-        with open(common_beam_pkl, "rb") as f:
-            common_beam = pickle.load(f)
-        new_header = common_beam.attach_to_header(new_header)
-        fits.writeto(new_name, data_cube, new_header, overwrite=True)
-        log.info(f"Written {new_name}")
-        im_cube_names.append(new_name)
+        plane = fits.getdata(image)
+        plane_rms = mad_std(plane, ignore_nan=True)
+        rmss.append(plane_rms)
+        data_cube[:,chan] = plane
+        freq = WCS(image).spectral.pixel_to_world(0)
+        freqs.append(freq.to(u.Hz).value)
+    # Write out cubes
+    freqs = np.array(freqs) * u.Hz
+    rmss = np.array(rmss) * u.Jy / u.beam
+    assert np.diff(freqs).std() < 1e-6 * u.Hz, "Frequencies are not evenly spaced"
+    new_header = old_header.copy()
+    new_header["NAXIS"] = len(cube_shape)
+    new_header["NAXIS3"] = len(freqs)
+    new_header["CRPIX3"] = 1
+    new_header["CRVAL3"] = freqs[0].value
+    new_header["CDELT3"] = np.diff(freqs).mean().value
+    new_header["CUNIT3"] = "Hz"
+    # Deserialise beam
+    with open(common_beam_pkl, "rb") as f:
+        common_beam = pickle.load(f)
+    new_header = common_beam.attach_to_header(new_header)
+    fits.writeto(new_name, data_cube, new_header, overwrite=True)
+    log.info(f"Written {new_name}")
 
-    # Now combine weights into cubes
-    weight_cube_names = []
-    for i, s in enumerate(tqdm("IQU",desc=f"Making Stokes {s} weights cube")):
-        # Copy image cube
-        old_name = im_cube_names[i]
-        new_name = old_name.replace("image.restored", "weights")
-        if os.path.exists(new_name):
-            os.remove(new_name)
-        shutil.copy(old_name, new_name)
-        weight_cube_names.append(new_name)
-        with fits.open(new_name, mode="update") as hdul:
-            for chan, weight in enumerate(
-                    tqdm(
-                        weight_list,
-                        desc="Reading channel weights",
-                        leave=False,
-                    )
-                ):
-                hdul[0].data[:,chan] = fits.getdata(weight)
+    # Copy image cube
+    new_w_name = new_name.replace("image.restored", "weights").replace(".fits", ".txt")
+    np.savetxt(new_w_name, rmss, fmt="%s")
 
-    return im_cube_names, weight_cube_names
+    return new_name, new_w_name
 
 @delayed(nout=2)
-def get_beam(image_lists, cutoff=None):
+def get_beam(image_lists, pols, cutoff=None):
     # convert dict to list
     image_list = []
-    for s in image_lists.keys():
+    for s in pols:
         image_list.extend(image_lists[s])
     # Create a unique hash for the beam log filename
     beam_log = f"beam_{hashlib.md5(''.join(image_list).encode()).hexdigest()}.log"
@@ -260,21 +303,8 @@ def smooth_image(image, common_beam_pkl):
     return sm_image
 
 @delayed
-def smooth_images(image_lists, common_beam_pkl):
-    sm_image_lists = {}
-    for s in image_lists.keys():
-        sm_image_lists[s] = []
-        for image in image_lists[s]:
-            sm_image = smooth_image(
-                image,
-                common_beam_pkl=common_beam_pkl,
-            )
-            sm_image_lists[s].append(sm_image)
-    # return delayed(sm_image_lists)
-    return sm_image_lists
-
-@delayed
 def cleanup(
+    pols,
     im_cube_name,
     w_cube_name,
     image_lists,
@@ -282,7 +312,7 @@ def cleanup(
     aux_lists,
     sm_image_lists,
 ):
-    for s in image_lists.keys():
+    for s in pols:
         for image in image_lists[s]:
             os.remove(image)
         for image in sm_image_lists[s]:
@@ -305,20 +335,28 @@ def main(
     cutoff: float = None,
     robust: float = -0.5,
     pols: str = "IQU",
+    nchan: int = 36,
+    size: int = 4096,
 ):
     image = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
     out_dir = os.path.abspath(out_dir)
+    get_image_task = delayed(get_images, nout=nchan)
 
+    # mslist = sorted(
+    #     glob(
+    #         os.path.join(msdir, "scienceData*_averaged_cal.leakage.ms")
+    #     )
+    # )
     mslist = glob(
-        os.path.join(msdir, "scienceData*_averaged_cal.leakage.ms")
+            os.path.join(msdir, "scienceData*_averaged_cal.leakage.ms")
     )
     assert (len(mslist) > 0) & (len(mslist) == 36), f"Incorrect number of MS files found: {len(mslist)}"
 
     log.info(
         f"Will image {len(mslist)} MS files in {msdir} to {out_dir}"
     )
-    cleans = []
+    cleans = [] # type: List[Delayed]
 
     # Do this in serial since
     prefixs = {}
@@ -328,28 +366,68 @@ def main(
 
     for ms in mslist:
         log.info(f"Imaging {ms}")
-        # Apply Emil's fix for MSs
+        # Apply Emil's fix for MSs feed centre
         ms_fix = fix_ms(ms)
         # Image with wsclean
-        image_lists, weight_list, aux_lists = image_beam(
+        image_done = image_beam(
             ms=ms_fix,
             out_dir=out_dir,
             prefix=prefixs[ms],
             image=image,
             robust=robust,
+            niter=1,
+            pols=pols,
+            nchan=nchan,
+            npix=size,
         )
-        # Smooth images
-        common_beam_pkl, beam_log = get_beam(image_lists, cutoff=cutoff)
-        sm_image_lists = smooth_images(image_lists, common_beam_pkl=common_beam_pkl)
+        # Get images
+        weight_list = get_weights(
+            image_done=image_done,
+            prefix=prefixs[ms],
+        )
+        image_lists = {}
+        aux_lists = {}
+        for s in pols:
+            image_list = get_image_task(
+                    image_done=image_done,
+                    pol=s,
+                    prefix=prefixs[ms],
+            )
+            image_lists[s] = image_list
+            aux_list = get_aux(
+                image_done=image_done,
+                pol=s,
+                prefix=prefixs[ms],
+            )
+            aux_lists[s] = aux_list
 
-        # Make a cube
-        im_cube_name, w_cube_name = make_cube(
-            image_lists=sm_image_lists,
-            weight_list=weight_list,
-            common_beam_pkl=common_beam_pkl,
+        # Smooth images
+        common_beam_pkl, beam_log = get_beam(
+            image_lists=image_lists,
+            pols=pols,
+            cutoff=cutoff,
         )
+        sm_image_lists = {}
+        for s in pols:
+            sm_image_list = []
+            for image in image_lists[s]:
+                sm_image = smooth_image(
+                    image,
+                    common_beam_pkl=common_beam_pkl,
+                )
+                sm_image_list.append(sm_image)
+
+            # Make a cube
+            im_cube_name, w_cube_name = make_cube(
+                pol=s,
+                image_list=sm_image_list,
+                weight_list=weight_list,
+                common_beam_pkl=common_beam_pkl,
+            )
+            sm_image_lists[s] = sm_image_list
         # Clean up
         clean = cleanup(
+            pols=pols,
             im_cube_name=im_cube_name,
             w_cube_name=w_cube_name,
             image_lists=image_lists,
@@ -359,9 +437,19 @@ def main(
         )
         cleans.append(clean)
 
-    client = get_client()
-    futures = client.compute(cleans)
-    results = client.gather(futures)
+        embed()
+        exit()
+    # client = get_client()
+    # futures = client.compute(cleans)
+    # results = client.gather(futures)
+
+    futures = chunk_dask(
+        outputs=cleans,
+        task_name="Image and cube",
+        progress_text="Imaging",
+        verbose=True,
+        batch_size=1,
+    )
 
 
 def cli():
@@ -415,6 +503,21 @@ def cli():
         default=-0.5,
     )
     parser.add_argument(
+        "--nchan",
+        type=int,
+        default=36,
+    )
+    parser.add_argument(
+        "--pols",
+        type=str,
+        default="IQU",
+    )
+    parser.add_argument(
+        "--size",
+        type=int,
+        default=4096,
+    )
+    parser.add_argument(
         "--mpi",
         action="store_true",
         help="Use MPI",
@@ -423,7 +526,9 @@ def cli():
     args = parser.parse_args()
 
     if args.mpi:
-        initialize()
+        initialize(
+            interface="ipogif0"
+        )
 
     client = Client()
 
@@ -432,11 +537,14 @@ def cli():
         out_dir=args.outdir,
         cutoff=args.cutoff,
         robust=args.robust,
+        nchan=args.nchan,
+        pols=args.pols,
+        size=args.size,
     )
 
 if __name__ == "__main__":
     log.basicConfig(
-            level=log.INFO,
+            level=log.DEBUG,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
             force=True,
