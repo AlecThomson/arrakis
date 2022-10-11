@@ -76,6 +76,7 @@ def image_beam(
     use_wgridder: bool = True,
     robust: float = 0.0,
     mem: float = 90,
+    taper: float = None,
 ):
     """Image a single beam
 
@@ -84,36 +85,6 @@ def image_beam(
     abs_mem = float(memory_per_worker.to(u.gigabyte).value*mem/100)
     log.debug(f"Using {abs_mem} GB of memory")
 
-    # # First generate the weights with option no_reorder
-    # command_1 = wsclean(
-    #     mslist=[ms],
-    #     use_mpi=False,
-    #     name=prefix,
-    #     pol=pols,
-    #     verbose=True,
-    #     channels_out=nchan,
-    #     scale=f"{scale.to(u.arcsec).value}asec",
-    #     size=f"{npix} {npix}",
-    #     join_polarizations=join_polarizations,
-    #     join_channels=join_channels,
-    #     squared_channel_joining=squared_channel_joining,
-    #     mgain=mgain,
-    #     niter=0,
-    #     auto_mask=auto_mask,
-    #     auto_threshold=auto_threshold,
-    #     use_wgridder=use_wgridder,
-    #     weight=f"briggs {robust}",
-    #     log_time=False,
-    #     temp_dir=out_dir,
-    #     abs_mem=abs_mem,
-    #     store_imaging_weights=True,
-    #     make_psf=True,
-    #     no_mf_weighting=True,
-    #     j=threads_per_worker,
-    #     no_reorder=True,
-    # )
-
-    # Now do the actual imaging
     command = wsclean(
         mslist=[ms],
         use_mpi=False,
@@ -137,8 +108,7 @@ def image_beam(
         abs_mem=abs_mem,
         no_mf_weighting=True,
         j=threads_per_worker,
-        # reuse_dirty=prefix,
-        # reuse_psf=prefix,
+        gaussian_taper=f"{taper}asec" if taper else None,
     )
 
     root_dir = os.path.dirname(ms)
@@ -274,10 +244,7 @@ def get_beam(image_lists, pols, cutoff=None):
             log=os.path.join("/tmp", beam_log),
         )
     # serialise the beam
-    common_beam_pkl = os.path.join(
-        "/tmp",
-        f"beam_{hashlib.md5(''.join(image_list).encode()).hexdigest()}.pkl"
-    )
+    common_beam_pkl = os.path.abspath(f"beam_{hashlib.md5(''.join(image_list).encode()).hexdigest()}.pkl")
 
     with open(common_beam_pkl, "wb") as f:
         pickle.dump(common_beam, f)
@@ -311,7 +278,9 @@ def cleanup(
     weight_list,
     aux_lists,
     sm_image_lists,
+    common_beam_pkl,
 ):
+    os.remove(common_beam_pkl)
     for s in pols:
         for image in image_lists[s]:
             os.remove(image)
@@ -321,7 +290,12 @@ def cleanup(
         os.remove(weight)
     for aux in aux_lists.keys():
         for image in aux_lists[aux]:
-            os.remove(image)
+            try:
+                os.remove(image)
+            except FileNotFoundError:
+                log.error(f"Could not find {image}")
+                log.debug(f"aux_lists: {aux_lists}")
+
     return
 
 @delayed
@@ -337,20 +311,19 @@ def main(
     pols: str = "IQU",
     nchan: int = 36,
     size: int = 4096,
+    taper: float = None,
 ):
     image = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
     out_dir = os.path.abspath(out_dir)
     get_image_task = delayed(get_images, nout=nchan)
 
-    # mslist = sorted(
-    #     glob(
-    #         os.path.join(msdir, "scienceData*_averaged_cal.leakage.ms")
-    #     )
-    # )
-    mslist = glob(
+    mslist = sorted(
+        glob(
             os.path.join(msdir, "scienceData*_averaged_cal.leakage.ms")
+        )
     )
+
     assert (len(mslist) > 0) & (len(mslist) == 36), f"Incorrect number of MS files found: {len(mslist)}"
 
     log.info(
@@ -379,6 +352,7 @@ def main(
             pols=pols,
             nchan=nchan,
             npix=size,
+            taper=taper,
         )
         # Get images
         weight_list = get_weights(
@@ -434,14 +408,9 @@ def main(
             sm_image_lists=sm_image_lists,
             weight_list=weight_list,
             aux_lists=aux_lists,
+            common_beam_pkl=common_beam_pkl,
         )
         cleans.append(clean)
-
-        embed()
-        exit()
-    # client = get_client()
-    # futures = client.compute(cleans)
-    # results = client.gather(futures)
 
     futures = chunk_dask(
         outputs=cleans,
@@ -518,6 +487,11 @@ def cli():
         default=4096,
     )
     parser.add_argument(
+        "--taper",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
         "--mpi",
         action="store_true",
         help="Use MPI",
@@ -540,6 +514,7 @@ def cli():
         nchan=args.nchan,
         pols=args.pols,
         size=args.size,
+        taper=args.taper,
     )
 
 if __name__ == "__main__":
