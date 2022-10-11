@@ -58,7 +58,7 @@ def image_beam(
     ms: str,
     out_dir: str,
     prefix: str,
-    image: str,
+    simage: str,
     pols: str = "IQU",
     nchan: int = 36,
     scale: u.Quantity = 2.5 * u.arcsec,
@@ -108,7 +108,6 @@ def image_beam(
         use_wgridder=use_wgridder,
         weight=f"briggs {robust}",
         log_time=False,
-        temp_dir=out_dir,
         abs_mem=abs_mem,
         no_mf_weighting=True,
         j=threads_per_worker,
@@ -120,7 +119,7 @@ def image_beam(
     # for command in (command_1, command_2):
     log.info(f"Running wsclean with command: {command}")
     output = sclient.execute(
-        image=image,
+        image=simage,
         command=command.split(),
         bind=f"{out_dir}:{out_dir}, {root_dir}:{root_dir}",
         return_result=True,
@@ -142,15 +141,6 @@ def get_images(image_done: bool, pol, prefix):
 
 
 @delayed
-def get_weights(image_done, prefix):
-    if image_done:
-        weight_list = sorted(glob(f"{prefix}*[0-9]-weights.fits"))
-        return weight_list
-    else:
-        raise ValueError("Imaging must be done")
-
-
-@delayed
 def get_aux(image_done: bool, pol, prefix):
     if image_done:
         aux_lists = {
@@ -164,7 +154,7 @@ def get_aux(image_done: bool, pol, prefix):
 
 @delayed(nout=2)
 def make_cube(
-    pol: str, image_list: list, weight_list: list, common_beam_pkl: str,
+    pol: str, image_list: list, common_beam_pkl: str,
 ) -> tuple:
     """Make a cube from the images"""
     # First combine images into cubes
@@ -201,7 +191,7 @@ def make_cube(
             new_base = new_base.replace("image", f"image.restored.{pol.lower()}")
             new_name = os.path.join(out_dir, new_base)
 
-        plane = fits.getdata(image)
+        plane = fits.getdata(image) / 2 # Divide by 2 because of ASKAP Stokes
         plane_rms = mad_std(plane, ignore_nan=True)
         rmss.append(plane_rms)
         data_cube[:, chan] = plane
@@ -209,7 +199,7 @@ def make_cube(
         freqs.append(freq.to(u.Hz).value)
     # Write out cubes
     freqs = np.array(freqs) * u.Hz
-    rmss = np.array(rmss) * u.Jy / u.beam
+    rmss_arr = np.array(rmss) * u.Jy / u.beam
     assert np.diff(freqs).std() < 1e-6 * u.Hz, "Frequencies are not evenly spaced"
     new_header = old_header.copy()
     new_header["NAXIS"] = len(cube_shape)
@@ -227,17 +217,19 @@ def make_cube(
 
     # Copy image cube
     new_w_name = new_name.replace("image.restored", "weights").replace(".fits", ".txt")
-    np.savetxt(new_w_name, rmss, fmt="%s")
+    np.savetxt(new_w_name, rmss_arr.value, fmt="%s")
 
     return new_name, new_w_name
 
 
 @delayed(nout=2)
-def get_beam(image_lists, pols, cutoff=None):
+def get_beam(ms_dict, pols, cutoff=None):
     # convert dict to list
     image_list = []
-    for s in pols:
-        image_list.extend(image_lists[s])
+    for ms in ms_dict.keys():
+        for s in pols:
+            image_lists = ms_dict[ms]["image_lists"]
+            image_list.extend(image_lists[s])
     # Create a unique hash for the beam log filename
     beam_log = f"beam_{hashlib.md5(''.join(image_list).encode()).hexdigest()}.log"
     with SerialPool() as pool:
@@ -280,31 +272,26 @@ def smooth_image(image, common_beam_pkl):
 
 @delayed
 def cleanup(
-    pols,
     im_cube_name,
     w_cube_name,
-    image_lists,
-    weight_list,
-    aux_lists,
-    sm_image_lists,
-    common_beam_pkl,
+    image_list,
+    aux_list,
+    sm_image_list,
 ):
-    os.remove(common_beam_pkl)
-    for s in pols:
-        for image in image_lists[s]:
-            os.remove(image)
-        for image in sm_image_lists[s]:
-            os.remove(image)
-    for weight in weight_list:
-        os.remove(weight)
-    for aux in aux_lists.keys():
-        for image in aux_lists[aux]:
+    for image in image_list:
+        log.error(f"Removing {image}")
+        os.remove(image)
+    for sm_image in sm_image_list:
+        log.error(f"Removing {sm_image}")
+        os.remove(sm_image)
+    for aux in aux_list.keys():
+        for aux_image in aux_list[aux]:
             try:
-                os.remove(image)
+                log.error(f"Removing {aux_image}")
+                os.remove(aux_image)
             except FileNotFoundError:
-                log.error(f"Could not find {image}")
-                log.debug(f"aux_lists: {aux_lists}")
-
+                log.error(f"Could not find {aux_image}")
+                log.error(f"aux_lists: {aux_list}")
     return
 
 
@@ -324,7 +311,7 @@ def main(
     size: int = 4096,
     taper: float = None,
 ):
-    image = get_wsclean(tag="latest")
+    simage = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
     out_dir = os.path.abspath(out_dir)
     get_image_task = delayed(get_images, nout=nchan)
@@ -344,6 +331,7 @@ def main(
         prefix = get_prefix(ms, out_dir)
         prefixs[ms] = prefix
 
+    ms_dict = {}
     for ms in mslist:
         log.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
@@ -353,7 +341,7 @@ def main(
             ms=ms_fix,
             out_dir=out_dir,
             prefix=prefixs[ms],
-            image=image,
+            simage=simage,
             robust=robust,
             niter=1,
             pols=pols,
@@ -362,7 +350,6 @@ def main(
             taper=taper,
         )
         # Get images
-        weight_list = get_weights(image_done=image_done, prefix=prefixs[ms],)
         image_lists = {}
         aux_lists = {}
         for s in pols:
@@ -372,15 +359,25 @@ def main(
             image_lists[s] = image_list
             aux_list = get_aux(image_done=image_done, pol=s, prefix=prefixs[ms],)
             aux_lists[s] = aux_list
-
+        ms_dict[ms] = {
+            "image_lists": image_lists,
+            "aux_lists": aux_lists,
+        }
         # Smooth images
-        common_beam_pkl, beam_log = get_beam(
-            image_lists=image_lists, pols=pols, cutoff=cutoff,
-        )
+    common_beam_pkl, beam_log = get_beam(
+        ms_dict=ms_dict, pols=pols, cutoff=cutoff,
+    )
+
+    for ms in mslist:
         sm_image_lists = {}
+        image_lists = ms_dict[ms]["image_lists"]
+        aux_lists = ms_dict[ms]["aux_lists"]
+
         for s in pols:
             sm_image_list = []
-            for image in image_lists[s]:
+            image_list = image_lists[s]
+            aux_list = aux_lists[s]
+            for image in image_list:
                 sm_image = smooth_image(image, common_beam_pkl=common_beam_pkl,)
                 sm_image_list.append(sm_image)
 
@@ -388,30 +385,28 @@ def main(
             im_cube_name, w_cube_name = make_cube(
                 pol=s,
                 image_list=sm_image_list,
-                weight_list=weight_list,
                 common_beam_pkl=common_beam_pkl,
             )
             sm_image_lists[s] = sm_image_list
-        # Clean up
-        clean = cleanup(
-            pols=pols,
-            im_cube_name=im_cube_name,
-            w_cube_name=w_cube_name,
-            image_lists=image_lists,
-            sm_image_lists=sm_image_lists,
-            weight_list=weight_list,
-            aux_lists=aux_lists,
-            common_beam_pkl=common_beam_pkl,
-        )
-        cleans.append(clean)
+            # Clean up
+            clean = cleanup(
+                im_cube_name=im_cube_name,
+                w_cube_name=w_cube_name,
+                image_list=image_list,
+                sm_image_list=sm_image_list,
+                aux_list=aux_list,
+            )
+            cleans.append(clean)
 
     futures = chunk_dask(
         outputs=cleans,
         task_name="Image and cube",
         progress_text="Imaging",
         verbose=True,
-        batch_size=1,
+        batch_size=10,
     )
+
+    return [f.result() for f in futures]
 
 
 def cli():
