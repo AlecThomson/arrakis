@@ -185,7 +185,8 @@ def main(args: configargparse.Namespace) -> None:
         )
 
     with performance_report(f"{args.merge_name}-report-{Time.now().fits}.html"):
-        flow.run()
+        executor = DaskExecutor(address=client.scheduler.address)
+        flow.run(executor=executor)
 
     client.close()
 
