@@ -30,10 +30,8 @@ from dask.delayed import Delayed
 import hashlib
 from radio_beam import Beam
 
-def get_wsclean(
-    hub_address: str = "docker://alecthomson/wsclean",
-    tag="3.1"
-) -> str:
+
+def get_wsclean(hub_address: str = "docker://alecthomson/wsclean", tag="3.1") -> str:
     """Pull wsclean image from dockerhub (or wherver).
 
     Args:
@@ -46,15 +44,14 @@ def get_wsclean(
     image = os.path.abspath(sclient.pull())
     return image
 
-def get_prefix(
-    ms: str,
-    out_dir: str,
-) -> str:
+
+def get_prefix(ms: str, out_dir: str,) -> str:
     """Get prefix for output files"""
     field = vishead(vis=ms, mode="list")["field"][0][0]
     beam = beam_from_ms(ms)
     prefix = f"image.{field}.contcube.beam{beam:02}"
     return os.path.join(out_dir, prefix)
+
 
 @delayed
 def image_beam(
@@ -81,8 +78,15 @@ def image_beam(
     """Image a single beam
 
     """
-    addr, nworkers, nthreads, memory, threads_per_worker, memory_per_worker = inspect_client()
-    abs_mem = float(memory_per_worker.to(u.gigabyte).value*mem/100)
+    (
+        addr,
+        nworkers,
+        nthreads,
+        memory,
+        threads_per_worker,
+        memory_per_worker,
+    ) = inspect_client()
+    abs_mem = float(memory_per_worker.to(u.gigabyte).value * mem / 100)
     log.debug(f"Using {abs_mem} GB of memory")
 
     command = wsclean(
@@ -121,11 +125,12 @@ def image_beam(
         bind=f"{out_dir}:{out_dir}, {root_dir}:{root_dir}",
         return_result=True,
         quiet=False,
-        stream=True
+        stream=True,
     )
     for line in output:
         log.info(line)
     return True
+
 
 def get_images(image_done: bool, pol, prefix):
     # image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
@@ -135,6 +140,7 @@ def get_images(image_done: bool, pol, prefix):
     else:
         raise ValueError("Imaging must be done")
 
+
 @delayed
 def get_weights(image_done, prefix):
     if image_done:
@@ -143,41 +149,39 @@ def get_weights(image_done, prefix):
     else:
         raise ValueError("Imaging must be done")
 
+
 @delayed
 def get_aux(image_done: bool, pol, prefix):
     if image_done:
         aux_lists = {
-            aux: sorted(glob(f"{prefix}*[0-9]-{pol}-{aux}.fits")) for aux in ["model", "psf", "residual", "dirty" ]
+            aux: sorted(glob(f"{prefix}*[0-9]-{pol}-{aux}.fits"))
+            for aux in ["model", "psf", "residual", "dirty"]
         }
         return aux_lists
     else:
         raise ValueError("Imaging must be done")
 
+
 @delayed(nout=2)
 def make_cube(
-    pol: str,
-    image_list: list,
-    weight_list: list,
-    common_beam_pkl: str,
+    pol: str, image_list: list, weight_list: list, common_beam_pkl: str,
 ) -> tuple:
     """Make a cube from the images"""
     # First combine images into cubes
     freqs = []
     rmss = []
     for chan, image in enumerate(
-            tqdm(
-                image_list,
-                desc="Reading channel image",
-                leave=False,
-            )
-        ):
+        tqdm(image_list, desc="Reading channel image", leave=False,)
+    ):
         # init cube
         if chan == 0:
             old_name = image
             old_header = fits.getheader(old_name)
             wcs = WCS(old_header)
             idx = 0
-            for j,t in enumerate(wcs.axis_type_names[::-1]): # Reverse to match index order
+            for j, t in enumerate(
+                wcs.axis_type_names[::-1]
+            ):  # Reverse to match index order
                 if t == "FREQ":
                     idx = j
                     break
@@ -200,7 +204,7 @@ def make_cube(
         plane = fits.getdata(image)
         plane_rms = mad_std(plane, ignore_nan=True)
         rmss.append(plane_rms)
-        data_cube[:,chan] = plane
+        data_cube[:, chan] = plane
         freq = WCS(image).spectral.pixel_to_world(0)
         freqs.append(freq.to(u.Hz).value)
     # Write out cubes
@@ -227,6 +231,7 @@ def make_cube(
 
     return new_name, new_w_name
 
+
 @delayed(nout=2)
 def get_beam(image_lists, pols, cutoff=None):
     # convert dict to list
@@ -244,12 +249,15 @@ def get_beam(image_lists, pols, cutoff=None):
             log=os.path.join("/tmp", beam_log),
         )
     # serialise the beam
-    common_beam_pkl = os.path.abspath(f"beam_{hashlib.md5(''.join(image_list).encode()).hexdigest()}.pkl")
+    common_beam_pkl = os.path.abspath(
+        f"beam_{hashlib.md5(''.join(image_list).encode()).hexdigest()}.pkl"
+    )
 
     with open(common_beam_pkl, "wb") as f:
         pickle.dump(common_beam, f)
 
     return common_beam_pkl, beam_log
+
 
 @delayed(nout=2)
 def smooth_image(image, common_beam_pkl):
@@ -268,6 +276,7 @@ def smooth_image(image, common_beam_pkl):
         )
     sm_image = image.replace(".fits", ".conv.fits")
     return sm_image
+
 
 @delayed
 def cleanup(
@@ -298,10 +307,12 @@ def cleanup(
 
     return
 
+
 @delayed
 def fix_ms(ms):
     fix_ms_dir.main(ms)
     return ms
+
 
 def main(
     msdir: str,
@@ -318,18 +329,14 @@ def main(
     out_dir = os.path.abspath(out_dir)
     get_image_task = delayed(get_images, nout=nchan)
 
-    mslist = sorted(
-        glob(
-            os.path.join(msdir, "scienceData*_averaged_cal.leakage.ms")
-        )
-    )
+    mslist = sorted(glob(os.path.join(msdir, "scienceData*_averaged_cal.leakage.ms")))
 
-    assert (len(mslist) > 0) & (len(mslist) == 36), f"Incorrect number of MS files found: {len(mslist)}"
+    assert (len(mslist) > 0) & (
+        len(mslist) == 36
+    ), f"Incorrect number of MS files found: {len(mslist)}"
 
-    log.info(
-        f"Will image {len(mslist)} MS files in {msdir} to {out_dir}"
-    )
-    cleans = [] # type: List[Delayed]
+    log.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
+    cleans = []  # type: List[Delayed]
 
     # Do this in serial since
     prefixs = {}
@@ -355,40 +362,26 @@ def main(
             taper=taper,
         )
         # Get images
-        weight_list = get_weights(
-            image_done=image_done,
-            prefix=prefixs[ms],
-        )
+        weight_list = get_weights(image_done=image_done, prefix=prefixs[ms],)
         image_lists = {}
         aux_lists = {}
         for s in pols:
             image_list = get_image_task(
-                    image_done=image_done,
-                    pol=s,
-                    prefix=prefixs[ms],
+                image_done=image_done, pol=s, prefix=prefixs[ms],
             )
             image_lists[s] = image_list
-            aux_list = get_aux(
-                image_done=image_done,
-                pol=s,
-                prefix=prefixs[ms],
-            )
+            aux_list = get_aux(image_done=image_done, pol=s, prefix=prefixs[ms],)
             aux_lists[s] = aux_list
 
         # Smooth images
         common_beam_pkl, beam_log = get_beam(
-            image_lists=image_lists,
-            pols=pols,
-            cutoff=cutoff,
+            image_lists=image_lists, pols=pols, cutoff=cutoff,
         )
         sm_image_lists = {}
         for s in pols:
             sm_image_list = []
             for image in image_lists[s]:
-                sm_image = smooth_image(
-                    image,
-                    common_beam_pkl=common_beam_pkl,
-                )
+                sm_image = smooth_image(image, common_beam_pkl=common_beam_pkl,)
                 sm_image_list.append(sm_image)
 
             # Make a cube
@@ -423,6 +416,7 @@ def main(
 
 def cli():
     import argparse
+
     """Command-line interface"""
     # Help string to be shown using the -h option
     logostr = """
@@ -452,57 +446,37 @@ def cli():
         description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "msdir",
-        type=str,
-        help="Directory containing MS files",
+        "msdir", type=str, help="Directory containing MS files",
     )
     parser.add_argument(
-        "outdir",
-        type=str,
-        help="Directory to output images",
+        "outdir", type=str, help="Directory to output images",
     )
     parser.add_argument(
-        "--cutoff",
-        type=float,
-        help="Cutoff for smoothing",
+        "--cutoff", type=float, help="Cutoff for smoothing",
     )
     parser.add_argument(
-        "--robust",
-        type=float,
-        default=-0.5,
+        "--robust", type=float, default=-0.5,
     )
     parser.add_argument(
-        "--nchan",
-        type=int,
-        default=36,
+        "--nchan", type=int, default=36,
     )
     parser.add_argument(
-        "--pols",
-        type=str,
-        default="IQU",
+        "--pols", type=str, default="IQU",
     )
     parser.add_argument(
-        "--size",
-        type=int,
-        default=4096,
+        "--size", type=int, default=4096,
     )
     parser.add_argument(
-        "--taper",
-        type=float,
-        default=None,
+        "--taper", type=float, default=None,
     )
     parser.add_argument(
-        "--mpi",
-        action="store_true",
-        help="Use MPI",
+        "--mpi", action="store_true", help="Use MPI",
     )
 
     args = parser.parse_args()
 
     if args.mpi:
-        initialize(
-            interface="ipogif0"
-        )
+        initialize(interface="ipogif0")
 
     client = Client()
 
@@ -517,11 +491,12 @@ def cli():
         taper=args.taper,
     )
 
+
 if __name__ == "__main__":
     log.basicConfig(
-            level=log.DEBUG,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
+        level=log.DEBUG,
+        format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        force=True,
     )
     cli()
