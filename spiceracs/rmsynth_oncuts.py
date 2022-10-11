@@ -830,7 +830,6 @@ def main(
 
     futures = chunk_dask(
         outputs=outputs,
-        client=client,
         task_name="RMsynth",
         progress_text="Running RMsynth",
         verbose=verbose,

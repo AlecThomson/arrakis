@@ -196,7 +196,6 @@ def main(
     field: str,
     outdir: str,
     host: str,
-    client: Client,
     username: str = None,
     password: str = None,
     dimension="1d",
@@ -218,7 +217,6 @@ def main(
         field (str): RACS field name.
         outdir (str): Output directory.
         host (str): MongoDB host IP.
-        client (Client): Dask client.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
         dimension (str, optional): Which dimension to run RM-CLEAN. Defaults to "1d".
@@ -319,7 +317,6 @@ def main(
                 outputs.append(output)
     futures = chunk_dask(
         outputs=outputs,
-        client=client,
         task_name="RM-CLEAN",
         progress_text="Running RM-CLEAN",
         verbose=verbose,
@@ -501,7 +498,6 @@ def cli():
         field=args.field,
         outdir=args.outdir,
         host=host,
-        client=client,
         username=args.username,
         password=args.password,
         dimension=args.dimension,

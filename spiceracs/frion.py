@@ -134,7 +134,6 @@ def main(
     field: str,
     outdir: str,
     host: str,
-    client: Client,
     username: str = None,
     password: str = None,
     database=False,
@@ -146,7 +145,6 @@ def main(
         field (str): RACS field name
         outdir (str): Output directory
         host (str): MongoDB host IP address
-        client (Client): Dask distributed client
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo passwrod. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
@@ -347,7 +345,6 @@ def cli():
         field=args.field,
         outdir=args.outdir,
         host=args.host,
-        client=client,
         username=args.username,
         password=args.password,
         database=args.database,

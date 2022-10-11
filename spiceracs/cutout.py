@@ -3,6 +3,7 @@
 import logging as log
 import argparse
 import warnings
+from distributed import get_client
 import pymongo
 import dask
 from shutil import copyfile
@@ -319,7 +320,6 @@ def cutout_islands(
     field: str,
     directory: str,
     host: str,
-    client: Client,
     username: str = None,
     password: str = None,
     verbose=True,
@@ -345,6 +345,7 @@ def cutout_islands(
     """
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
+    client = get_client()
     log.debug(f"Client is {client}")
     directory = os.path.abspath(directory)
     outdir = os.path.join(directory, "cutouts")
@@ -423,7 +424,6 @@ def cutout_islands(
 
     futures = chunk_dask(
         outputs=cuts,
-        client=client,
         task_name="cutouts",
         progress_text="Cutting out",
         verbose=verbose,
@@ -454,7 +454,6 @@ def main(args: argparse.Namespace, verbose=True) -> None:
         field=args.field,
         directory=args.datadir,
         host=args.host,
-        client=client,
         username=args.username,
         password=args.password,
         verbose=verbose,

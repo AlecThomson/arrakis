@@ -274,7 +274,6 @@ def get_yanda(version="1.3.0") -> str:
 def main(
     field: str,
     datadir: str,
-    client: Client,
     host: str,
     holofile: str = None,
     username: str = None,
@@ -288,7 +287,6 @@ def main(
     Args:
         field (str): RACS field name.
         datadir (str): Data directory.
-        client (Client): Dask client.
         host (str): MongoDB host IP.
         holofile (str): Path to primary beam file.
         username (str, optional): Mongo username. Defaults to None.
@@ -299,9 +297,6 @@ def main(
     """
     # Setup singularity image
     image = get_yanda(version=yanda)
-    # image = sclient.pull()
-
-    # Use ASKAPcli to get beam separations for PB correction
 
     beamseps = gen_seps(field)
     if stokeslist is None:
@@ -367,7 +362,6 @@ def main(
 
     futures = chunk_dask(
         outputs=results,
-        client=client,
         task_name="LINMOS",
         progress_text="Runing LINMOS",
         verbose=verbose,
@@ -459,7 +453,6 @@ def cli():
     main(
         field=args.field,
         datadir=args.datadir,
-        client=client,
         host=args.host,
         holofile=args.holofile,
         username=args.username,

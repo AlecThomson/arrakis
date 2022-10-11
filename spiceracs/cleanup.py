@@ -27,7 +27,7 @@ def cleanup(workdir: str, stoke: str) -> None:
 
 
 def main(
-    datadir: str, client: Client, stokeslist: List[str] = None, verbose=True
+    datadir: str, stokeslist: List[str] = None, verbose=True
 ) -> None:
     """Clean up beam images
 
@@ -63,7 +63,6 @@ def main(
 
     futures = chunk_dask(
         outputs=outputs,
-        client=client,
         task_name="cleanup",
         progress_text="Running cleanup",
         verbose=verbose,
@@ -133,7 +132,7 @@ def cli():
     cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
 
-    main(datadir=args.outdir, client=client, stokeslist=None, verbose=verbose)
+    main(datadir=args.outdir, stokeslist=None, verbose=verbose)
 
     client.close()
     cluster.close()

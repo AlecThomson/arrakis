@@ -23,7 +23,6 @@ from astropy.coordinates import SkyCoord
 from astropy.stats import akaike_info_criterion_lsq
 import astropy.units as u
 import functools
-from os import name
 import subprocess
 import shlex
 import pymongo

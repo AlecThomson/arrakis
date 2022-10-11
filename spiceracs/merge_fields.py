@@ -209,7 +209,6 @@ def main(
     field_dirs: List[str],
     merge_name: str,
     output_dir: str,
-    client: Client,
     host: str,
     username: str = None,
     password: str = None,
@@ -257,7 +256,6 @@ def main(
 
     singleton_futures = chunk_dask(
         outputs=singleton_updates,
-        client=client,
         task_name="singleton islands",
         progress_text="Copying singleton islands",
         verbose=verbose,
@@ -266,7 +264,6 @@ def main(
 
     multiple_futures = chunk_dask(
         outputs=mutilple_updates,
-        client=client,
         task_name="overlapping islands",
         progress_text="Running LINMOS on overlapping islands",
         verbose=verbose,
@@ -360,7 +357,6 @@ def cli():
         field_dirs=args.datadirs,
         merge_name=args.merge_name,
         output_dir=args.output_dir,
-        client=client,
         host=args.host,
         username=args.username,
         password=args.password,
