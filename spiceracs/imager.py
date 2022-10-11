@@ -108,7 +108,7 @@ def image_beam(
         abs_mem=abs_mem,
         no_mf_weighting=True,
         j=threads_per_worker,
-        gaussian_taper=f"{taper}asec" if taper else None,
+        taper_gaussian=f"{taper}asec" if taper else None,
     )
 
     root_dir = os.path.dirname(ms)
