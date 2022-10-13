@@ -1,5 +1,5 @@
 on: [push]
-- name: mirror-repository
+  name: mirror-repository
   # You may pin to the exact commit or the version.
   # uses: yesolutions/mirror-action@082a9611ed4b64c796245a62b34584ee2ded6833
   uses: yesolutions/mirror-action@v0.6.0
