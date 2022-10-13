@@ -17,14 +17,15 @@ conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
-field='1416+00A'
+field='1600-50A'
 
 echo Running pipeline on $field
 cal_sbid=`find_sbid.py $field --cal`
 weight=`find_sbid.py $field --weight`
 weight_pad=`printf "%05d\n" $weight`
 zernike=/group/askap/athomson/projects/spiceracs/leakages/${weight_pad}_zernike_holo_cube.fits
-data_dir=/group/ja3/athomson/spica
+# data_dir=/group/ja3/athomson/spica
+data_dir=/group/askap/athomson/projects/spiceracs/raw_data/13615/RACS_test4_1.05_1600-50A
 config=/group/askap/athomson/projects/spiceracs/spica/spica_config.txt
 
 # Image dirctory
