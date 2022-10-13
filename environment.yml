@@ -32,6 +32,7 @@ dependencies:
 - m2r2
 - gfortran
 - wsclean
+- numba
 - pip:
   - tqdm
   - configargparse
