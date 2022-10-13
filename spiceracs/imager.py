@@ -343,7 +343,6 @@ def main(
             prefix=prefixs[ms],
             simage=simage,
             robust=robust,
-            niter=1,
             pols=pols,
             nchan=nchan,
             npix=size,
@@ -403,7 +402,7 @@ def main(
         task_name="Image and cube",
         progress_text="Imaging",
         verbose=True,
-        batch_size=10,
+        batch_size=1,
     )
 
     return [f.result() for f in futures]
