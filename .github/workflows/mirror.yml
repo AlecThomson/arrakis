@@ -10,5 +10,5 @@ jobs:
       - uses: yesolutions/mirror-action@master
         with:
           REMOTE: 'https://bitbucket.csiro.au/scm/spice/spiceracs.git'
-          GIT_USERNAME: ${{ secrets.GIT_USERNAME }}
+          GIT_USERNAME: mirror
           GIT_PASSWORD: ${{ secrets.GIT_PASSWORD }}
