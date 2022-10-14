@@ -23,7 +23,8 @@ jobs:
         curl micro.mamba.pm/install.sh | bash
     - name: Install dependencies
       run: |
-        micromamba env update --file environment.yml --name base
+        micromamba env create
+        micromamba activate spice
     - name: Lint with flake8
       run: |
         micromamba install flake8
