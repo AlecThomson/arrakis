@@ -21,6 +21,7 @@ jobs:
     - name: Install mamba
       run: |
         conda install mamba -n base -c conda-forge
+        mamba init
     - name: Install dependencies
       run: |
         mamba env create
