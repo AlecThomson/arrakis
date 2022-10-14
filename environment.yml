@@ -30,5 +30,21 @@ dependencies:
 - numpydoc
 - sphinx-autoapi
 - m2r2
+- gfortran
+- numba
 - pip:
-  - -e ./
+  - tqdm
+  - configargparse
+  - spectral_cube
+  - RMextract
+  - spython
+  - mpi4py
+  - dask_mpi
+  - FRion
+  - Polspectra
+  - pytest
+  - git+https://github.com/CIRADA-Tools/RMTable
+  - sphinx-book-theme
+  - vorbin
+  # - ./RM-tools
+  # - -e ./

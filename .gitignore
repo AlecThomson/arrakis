@@ -137,3 +137,5 @@ dask-worker-space/
 *.pdf
 dask_tests/*
 password.txt
+conda-lock.yml
+poetry.lock
