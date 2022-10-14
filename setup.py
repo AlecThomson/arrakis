@@ -120,7 +120,7 @@ setup(
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
-    license='BSD 3-clause "New" or "Revised License',
+    license='BSD 3-clause "New" or "Revised" License',
     classifiers=[
         # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
