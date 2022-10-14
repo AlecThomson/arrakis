@@ -225,6 +225,7 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             best_l=best_l,
             best_f=best_f,
             fit_flag=best_flag,
+            ref_nu=ref_nu,
         )
     except Exception as e:
         log.critical(f"Failed to fit power law: {e}")
@@ -237,6 +238,7 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             best_l=np.ones_like(freq),
             best_f=None,
             fit_flag=True,
+            ref_nu=np.nan,
         )
 
 # stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
