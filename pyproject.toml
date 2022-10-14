@@ -7,7 +7,7 @@ license = "BSD-3-Clause"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-rm-tools = {path = "RM-Tools"}
+rm-tools = {git = "https://github.com/AlecThomson/RM-Tools.git@spiceracs_dev"}
 astropy = "^4.3"
 bilby = "*"
 casatasks = "*"
@@ -17,7 +17,6 @@ distributed = "*"
 dask_jobqueue = "*"
 dask_mpi = "*"
 FRion = "*"
-RMTable = "git+https://github.com/CIRADA-Tools/RMTable"
 h5py = "*"
 ipython = "*"
 matplotlib = "*"
@@ -47,9 +46,16 @@ numpydoc = "*"
 sphinx-autoapi = "*"
 m2r2 = "*"
 prefect = "<2"
+RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
 
 [tool.poetry.dev-dependencies]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+spice_init = "spiceracs.init_database:cli"
+spice_process = "spiceracs.process_spice:cli"
+spice_region = "spiceracs.process_region:cli"
+spice_cat = "spiceracs.makecat:cli"
