@@ -7,8 +7,10 @@
 import io
 import os
 import sys
+import re
 from shutil import rmtree
 from glob import glob
+from typing import List, Dict
 
 from setuptools import find_packages, setup, Command
 
@@ -22,15 +24,12 @@ AUTHOR = "Alec Thomson"
 EMAIL = "alec.thomson@csiro.au"
 
 # What packages are required for this module to be executed?
-REQUIRED = [
-    # 'numpy', 'matplotlib', 'astropy', 'spectral_cube', 'tqdm',
-    # 'pymongo', 'schwimmbad', 'AegeanTools', 'pandas', 'psutil', 'RM-Tools'
-]
+REQUIRED = [] # type: List[str]
+# e.g. REQUIRED = ['requests', 'maya', 'records']
 
 # What packages are optional?
-EXTRAS = {
-    # 'fancy feature': ['django'],
-}
+EXTRAS = {} # type: Dict[str, List[str]]
+# e.g. EXTRAS = {'fancy feature': ['django'],}
 
 # The rest you shouldn't have to touch too much :)
 # ------------------------------------------------
@@ -48,10 +47,10 @@ except FileNotFoundError:
     long_description = DESCRIPTION
 
 # Load the package's __version__.py module as a dictionary.
-about = {}
+about = {} # type: Dict[str, str]
 if not VERSION:
     project_slug = NAME.lower().replace("-", "_").replace(" ", "_")
-    with open(os.path.join(here, project_slug, "__version__.py")) as f:
+    with open(os.path.join(here, project_slug, "__version__.py"), "r") as f: # type: ignore
         exec(f.read(), about)
 else:
     about["__version__"] = VERSION
@@ -61,7 +60,7 @@ class UploadCommand(Command):
     """Support setup.py upload."""
 
     description = "Build and publish the package."
-    user_options = []
+    # user_options = []
 
     @staticmethod
     def status(s):
