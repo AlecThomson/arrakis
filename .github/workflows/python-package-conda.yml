@@ -25,7 +25,7 @@ jobs:
     - name: Install dependencies
       run: |
         mamba env create
-        mamba activate spice
+        conda activate spice
     - name: Lint with flake8
       run: |
         mamba install flake8
