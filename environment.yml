@@ -31,17 +31,4 @@ dependencies:
 - sphinx-autoapi
 - m2r2
 - pip:
-  - tqdm
-  - configargparse
-  - spectral_cube
-  - RMextract
-  - spython
-  - mpi4py
-  - dask_mpi
-  - FRion
-  - Polspectra
-  - pytest
-  - git+https://github.com/CIRADA-Tools/RMTable
-  - sphinx-book-theme
-  - vorbin
-  - ./
+  - -e ./
