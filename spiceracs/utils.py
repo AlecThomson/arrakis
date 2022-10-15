@@ -1,47 +1,46 @@
 #!/usr/bin/env python
 """Utility functions"""
-from typing import Optional, Tuple, List
-import numpy as np
-import os
-import stat
-from tornado.ioloop import IOLoop
-from distributed.utils import LoopRunner, is_kernel
-from distributed.client import futures_of
-from distributed.diagnostics.progressbar import ProgressBar
-from glob import glob
-from spectral_cube import SpectralCube
-from astropy.io import fits
-from astropy.coordinates.angles import hms_tuple, dms_tuple
 import dataclasses
-from dataclasses import dataclass, asdict, make_dataclass
-import json
-import subprocess
-from pathlib import Path
-from astropy.table import Table
-from astropy.wcs import WCS
-from astropy.coordinates import SkyCoord
-from astropy.stats import akaike_info_criterion_lsq
-import astropy.units as u
 import functools
-from os import name
-import subprocess
+import json
+import logging as log
+import os
 import shlex
-import pymongo
+import stat
+import subprocess
+import time
 import warnings
-from astropy.utils.exceptions import AstropyWarning
-from spectral_cube.utils import SpectralCubeWarning
-from FRion.correct import find_freq_axis
-from typing import Tuple, List, Dict, Any, Union, Optional
+from dataclasses import asdict, dataclass, make_dataclass
+from functools import partial
+from glob import glob
+from itertools import zip_longest
+from os import name
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import astropy.units as u
 import dask
-from dask import delayed
 import dask.array as da
 import dask.distributed as distributed
-import logging as log
-from tqdm.auto import tqdm, trange
-import time
-from itertools import zip_longest
+import numpy as np
+import pymongo
+from astropy.coordinates import SkyCoord
+from astropy.coordinates.angles import dms_tuple, hms_tuple
+from astropy.io import fits
+from astropy.stats import akaike_info_criterion_lsq
+from astropy.table import Table
+from astropy.utils.exceptions import AstropyWarning
+from astropy.wcs import WCS
+from dask import delayed
+from distributed.client import futures_of
+from distributed.diagnostics.progressbar import ProgressBar
+from distributed.utils import LoopRunner, is_kernel
+from FRion.correct import find_freq_axis
 from scipy.optimize import curve_fit
-from functools import partial
+from spectral_cube import SpectralCube
+from spectral_cube.utils import SpectralCubeWarning
+from tornado.ioloop import IOLoop
+from tqdm.auto import tqdm, trange
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -284,14 +283,14 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     fig_height : float,  optional, inches
     columns : {1, 2}
     """
+    from math import sqrt
+
+    import matplotlib
     import matplotlib.pyplot as plt
     import numpy as np
     import pandas as pd
-    import matplotlib
-    from math import sqrt
 
     # code adapted from http://www.scipy.org/Cookbook/Matplotlib/LaTeX_Examples
-
     # Width and max height in inches for IEEE journals taken from
     # computer.org/cms/Computer.org/Journal%20templates/transactions_art_guide.pdf
 

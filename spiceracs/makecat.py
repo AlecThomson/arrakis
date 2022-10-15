@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
 """Make a SPICE-RACS catalogue"""
+import logging as log
 import os
 import time
-import numpy as np
 import warnings
-from astropy.table import Table, Column
+from pprint import pformat
+from typing import Callable, Optional, Union
+
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from astropy.io import fits
 from astropy.io import votable as vot
-from astropy.stats import sigma_clip, mad_std
-import astropy.units as u
-from tqdm import tqdm, trange
-from spiceracs import columns_possum
-from spiceracs.utils import get_db, test_db, get_field_db, latexify
-from rmtable import RMTable
-import logging as log
-from pprint import pformat
-from scipy.stats import lognorm, norm
-import matplotlib.pyplot as plt
-from typing import Optional, Union, Callable
-from vorbin.voronoi_2d_binning import voronoi_2d_binning
-import pandas as pd
+from astropy.stats import mad_std, sigma_clip
+from astropy.table import Column, Table
 from corner import hist2d
 from IPython import embed
+from rmtable import RMTable
+from scipy.stats import lognorm, norm
+from tqdm import tqdm, trange
+from vorbin.voronoi_2d_binning import voronoi_2d_binning
+
+from spiceracs import columns_possum
+from spiceracs.utils import get_db, get_field_db, latexify, test_db
 
 
 def lognorm_from_percentiles(x1, p1, x2, p2):
@@ -635,6 +637,7 @@ def main(
 def cli():
     """Command-line interface"""
     import argparse
+
     from astropy.utils.exceptions import AstropyWarning
 
     warnings.simplefilter("ignore", category=AstropyWarning)

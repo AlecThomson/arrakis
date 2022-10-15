@@ -1,14 +1,16 @@
+import argparse
 import os
-import subprocess as sb
 import shlex
+import subprocess as sb
 from glob import glob
 from pprint import pprint
-from astropy.table import Table
-import numpy as np
+
 import copy_data
+import numpy as np
 import spica
+from astropy.table import Table
+
 from spiceracs.utils import try_mkdir
-import argparse
 
 racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")
 # spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')

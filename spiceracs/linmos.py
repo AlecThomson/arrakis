@@ -1,33 +1,35 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
-import sys
-from pprint import pformat
-from logging import disable
-from typing import List, Tuple
-import os
-import subprocess
-import shlex
 import ast
-import pymongo
-import numpy as np
-from astropy.table import Table
-from glob import glob
-from astropy.coordinates import SkyCoord
-import astropy.units as u
-from spiceracs.utils import tqdm_dask, get_db, test_db, coord_to_string, chunk_dask
-from IPython import embed
-import astropy
-import time
-from dask import delayed
-import dask
-from dask.distributed import Client, LocalCluster
-from dask import distributed
-from dask.diagnostics import ProgressBar
-from spython.main import Client as sclient
-import warnings
-from astropy.utils.exceptions import AstropyWarning
-from spectral_cube.utils import SpectralCubeWarning
 import logging as log
+import os
+import shlex
+import subprocess
+import sys
+import time
+import warnings
+from glob import glob
+from logging import disable
+from pprint import pformat
+from typing import List, Tuple
+
+import astropy
+import astropy.units as u
+import dask
+import numpy as np
+import pymongo
+from astropy.coordinates import SkyCoord
+from astropy.table import Table
+from astropy.utils.exceptions import AstropyWarning
+from dask import delayed, distributed
+from dask.diagnostics import ProgressBar
+from dask.distributed import Client, LocalCluster
+from IPython import embed
+from spectral_cube.utils import SpectralCubeWarning
+from spython.main import Client as sclient
+
+from spiceracs.utils import (chunk_dask, coord_to_string, get_db, test_db,
+                             tqdm_dask)
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)

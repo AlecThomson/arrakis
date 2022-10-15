@@ -1,9 +1,9 @@
 #!/usr/bin/env python
+import argparse
 import os
 import subprocess
-from shlex import split
 from glob import glob
-import argparse
+from shlex import split
 
 
 def main(indir, outdir):

@@ -1,3 +1,3 @@
-VERSION = (0, 1, 0)
+from importlib.metadata import distribution
 
-__version__ = ".".join(map(str, VERSION))
+__version__ = distribution("spiceracs").version

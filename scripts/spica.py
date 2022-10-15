@@ -1,11 +1,13 @@
 import os
-import subprocess as sb
 import shlex
+import subprocess as sb
 from glob import glob
 from pprint import pprint
-from astropy.table import Table
-import numpy as np
+
 import copy_data
+import numpy as np
+from astropy.table import Table
+
 from spiceracs.utils import try_mkdir
 
 racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")

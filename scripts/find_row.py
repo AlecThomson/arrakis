@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-from astropy.table import Table
 import argparse
 import os
+
+from astropy.table import Table
 
 
 def main(name: str, sbid: int):

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-from astropy.table import Table
 import argparse
 import os
 from glob import glob
+from shutil import SameFileError, copyfile
+
+from astropy.table import Table
+
 from spiceracs.utils import try_mkdir
-from shutil import copyfile, SameFileError
 
 
 def yes_or_no(question):

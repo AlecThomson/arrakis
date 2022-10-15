@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-from astropy.table import Table, Row
 import argparse
 import os
+
+from astropy.table import Row, Table
 
 sorted_sbids = [
     8570,

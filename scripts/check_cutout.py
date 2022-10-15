@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
-from astropy.table import Table
-from spectral_cube import SpectralCube
-from glob import glob
 import os
-import matplotlib.pyplot as plt
+from glob import glob
+
 import astropy.units as u
+import matplotlib.pyplot as plt
+from astropy.table import Table
+from astropy.visualization import (ImageNormalize, LogStretch, MinMaxInterval,
+                                   SqrtStretch, ZScaleInterval)
 from matplotlib.patches import Ellipse
-from astropy.visualization import (
-    SqrtStretch,
-    ZScaleInterval,
-    ImageNormalize,
-    LogStretch,
-    MinMaxInterval,
-)
+from spectral_cube import SpectralCube
 
 
 def plot_comp(row, c="b"):

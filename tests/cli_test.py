@@ -3,6 +3,7 @@
 import subprocess
 import unittest
 
+
 class test_cli(unittest.TestCase):
     def test_cli_init(self):
         """Tests that the CLI `initSPICE` runs."""
