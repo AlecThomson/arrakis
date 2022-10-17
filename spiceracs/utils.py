@@ -32,6 +32,7 @@ from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
 from dask import delayed
+from dask.delayed import Delayed
 from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner, is_kernel
@@ -330,7 +331,7 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     matplotlib.rcParams.update(params)
 
 
-def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array:
+def delayed_to_da(list_of_delayed: List[Delayed], chunk: int = None) -> da.Array:
     """Convert list of delayed arrays to a dask array
 
     Args:
@@ -346,11 +347,11 @@ def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array
         c_dim = dim
     else:
         c_dim = (chunk,) + sample.shape
-    darray = [
+    darray_list = [
         da.from_delayed(lazy, dtype=sample.dtype, shape=sample.shape)
         for lazy in list_of_delayed
     ]
-    darray = da.stack(darray, axis=0).reshape(dim).rechunk(c_dim)
+    darray = da.stack(darray_list, axis=0).reshape(dim).rechunk(c_dim)
 
     return darray
 
@@ -471,7 +472,7 @@ def test_db(
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    ) as dbclient:
+    ) as dbclient: # type: pymongo.MongoClient
         try:
             dbclient.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
@@ -503,7 +504,7 @@ def get_db(
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    )
+    ) # type: pymongo.MongoClient
     mydb = dbclient["spiceracs"]  # Create/open database
     comp_col = mydb["components"]  # Create/open collection
     island_col = mydb["islands"]  # Create/open collection
@@ -530,7 +531,7 @@ def get_field_db(
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    )
+    ) # type: pymongo.MongoClient
     mydb = dbclient["spiceracs"]  # Create/open database
     field_col = mydb["fields"]  # Create/open collection
     return field_col
@@ -568,10 +569,10 @@ class TqdmProgressBar(ProgressBar):
 
 def tqdm_dask(futures: distributed.Future, **kwargs) -> None:
     """Tqdm for Dask futures"""
-    futures = futures_of(futures)
-    if not isinstance(futures, (set, list)):
-        futures = [futures]
-    TqdmProgressBar(futures, **kwargs)
+    futures_list = futures_of(futures)
+    if not isinstance(futures_list, (set, list)):
+        futures_list = [futures_list]
+    TqdmProgressBar(futures_list, **kwargs)
 
 
 def port_forward(port: int, target: str) -> None:
