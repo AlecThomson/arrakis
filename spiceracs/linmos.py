@@ -61,7 +61,9 @@ def gen_seps(field: str) -> Table:
 
     # Look for multiple SBIDs - only need one
     cats = glob(
-        os.path.join(survey_dir, "racs", "db", "epoch_0", f"beam_inf_*-RACS_{field}.csv")
+        os.path.join(
+            survey_dir, "racs", "db", "epoch_0", f"beam_inf_*-RACS_{field}.csv"
+        )
     )
     beam_cat = Table.read(cats[0])
     beam_cat.add_index("BEAM_NUM")

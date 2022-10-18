@@ -52,7 +52,7 @@ def main(args: configargparse.Namespace) -> None:
 
     if args.dask_config is None:
         config_dir = pkg_resources.resource_filename("spiceracs", "configs")
-        args.dask_config = os.path.join(config_dir,"default.yaml")
+        args.dask_config = os.path.join(config_dir, "default.yaml")
 
     if args.outfile is None:
         args.outfile = f"{args.merge_name}.pipe.test.fits"
