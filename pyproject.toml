@@ -17,12 +17,13 @@ classifiers=[
     "Topic :: Scientific/Engineering :: Astronomy",
     "Development Status :: 3 - Alpha",
 ]
+packages = [
+    { include = "spiceracs"},
+]
+
 include = [
-    'README.md',
-    'LICENSE',
-    'askap_surveys',
-    'pyproject.toml',
-    # 'scripts',
+    {path='spiceracs/askap_surveys/**/**/*', format=['sdist','wheel']},
+    {path='spiceracs/configs/*', format=['sdist','wheel']},
 ]
 
 [tool.poetry.dependencies]
