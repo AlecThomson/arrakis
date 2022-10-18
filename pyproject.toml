@@ -64,6 +64,10 @@ bokeh = "*"
 prefect = "<2"
 RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
 
+[tool.poetry.dev-dependencies]
+black = "^22.10"
+flake8 = "^5"
+isort = "^5"
 
 [tool.poetry.extras]
 docs = [
@@ -75,7 +79,11 @@ docs = [
     "numpydoc",
 ]
 
-[tool.poetry.dev-dependencies]
+dev = [
+    "black>=22.10",
+    "flake8>=5",
+    "isort>=5",
+]
 
 [build-system]
 requires = ["poetry-core>=1.2"]
@@ -86,5 +94,8 @@ spice_init = "spiceracs.init_database:cli"
 spice_process = "spiceracs.process_spice:cli"
 spice_region = "spiceracs.process_region:cli"
 spice_cat = "spiceracs.makecat:cli"
-# check_cutout = {reference = "scripts/check_cutout.py", type= "file", extras=[]}
+# Unified script script
 spice_script =  "spiceracs.scripts.spice_script:cli"
+
+[tool.isort]
+profile = "black"
