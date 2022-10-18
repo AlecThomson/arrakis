@@ -281,7 +281,7 @@ def main(args, verbose=True):
     """Main script
 
     Arguments:
-        args {[type]} -- commandline args
+        args -- commandline args
     """
 
     if args.load:
@@ -360,7 +360,7 @@ def cli():
     descStr = f"""
     {logostr}
     SPICE-RACS Initialisation:
-    
+
     Create MongoDB database from RACS catalogues.
 
     Before running make sure to start a session of mongodb e.g.
