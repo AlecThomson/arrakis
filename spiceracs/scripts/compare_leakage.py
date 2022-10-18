@@ -33,8 +33,14 @@ from IPython import embed
 from IPython.core.pylabtools import figsize
 
 from spiceracs.linmos import gen_seps
-from spiceracs.utils import (chunk_dask, coord_to_string, get_db, getfreq,
-                             test_db, tqdm_dask)
+from spiceracs.utils import (
+    chunk_dask,
+    coord_to_string,
+    get_db,
+    getfreq,
+    test_db,
+    tqdm_dask,
+)
 
 
 def make_plot(data, comp, imfile):
@@ -265,9 +271,7 @@ def cli():
     parser.add_argument("--holofile", type=str, help="Path to holography image")
 
     parser.add_argument(
-        "--host",
-        type=str,
-        help="Host of mongodb.",
+        "--host", type=str, help="Host of mongodb.",
     )
 
     parser.add_argument(
@@ -286,10 +290,7 @@ def cli():
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(
-        n_workers=10,
-        threads_per_worker=1,
-    )
+    cluster = LocalCluster(n_workers=10, threads_per_worker=1,)
     client = Client(cluster)
 
     main(

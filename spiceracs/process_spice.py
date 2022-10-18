@@ -19,8 +19,15 @@ from prefect import Flow, Task, task
 from prefect.engine import signals
 from prefect.engine.executors import DaskExecutor
 
-from spiceracs import (cleanup, cutout, frion, linmos, makecat, rmclean_oncuts,
-                       rmsynth_oncuts)
+from spiceracs import (
+    cleanup,
+    cutout,
+    frion,
+    linmos,
+    makecat,
+    rmclean_oncuts,
+    rmsynth_oncuts,
+)
 from spiceracs.utils import port_forward, test_db
 
 

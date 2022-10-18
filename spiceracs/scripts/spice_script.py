@@ -20,15 +20,19 @@ def main(argv=None):
             script_names.pop(idx)
         except ValueError:
             pass
-    parser.add_argument(choices=script_names, dest="subprogram", help="Subprogram to run")
+    parser.add_argument(
+        choices=script_names, dest="subprogram", help="Subprogram to run"
+    )
     opts = parser.parse_args(argv)
     return opts.subprogram
+
 
 def cli():
     # Get the subprogram
     subprogram = main([sys.argv[1]])
     module = importlib.import_module(f"spiceracs.scripts.{subprogram}")
     module.cli()
+
 
 # Initialize
 if __name__ == "__main__":

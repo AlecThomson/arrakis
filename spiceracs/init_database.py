@@ -22,8 +22,7 @@ from astropy.wcs import WCS
 from IPython import embed
 from tqdm import tqdm, trange
 
-from spiceracs.utils import (MyEncoder, get_db, get_field_db, getdata, test_db,
-                             yes_or_no)
+from spiceracs.utils import MyEncoder, get_db, get_field_db, getdata, test_db, yes_or_no
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep=1) -> Table:

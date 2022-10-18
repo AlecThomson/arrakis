@@ -19,8 +19,13 @@ import pandas as pd
 import polspectra
 from astropy.io import fits
 from astropy.table import Column, Row, Table
-from astropy.visualization import (ImageNormalize, LogStretch, MinMaxInterval,
-                                   SqrtStretch, ZScaleInterval)
+from astropy.visualization import (
+    ImageNormalize,
+    LogStretch,
+    MinMaxInterval,
+    SqrtStretch,
+    ZScaleInterval,
+)
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
@@ -30,8 +35,7 @@ from IPython import embed
 from radio_beam import Beam
 from tqdm.auto import tqdm, trange
 
-from spiceracs.utils import (chunk_dask, tqdm_dask, try_mkdir, try_symlink,
-                             zip_equal)
+from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -43,9 +47,7 @@ def make_thumbnail(cube_f: str, cube_dir: str):
     pix_scales = proj_plane_pixel_scales(med_wcs) * u.deg
     beam = Beam.from_fits_header(head)
     ellipse = beam.ellipse_to_plot(
-        xcen=10,
-        ycen=10,
-        pixscale=pix_scales[0],  # Assume same pixel scale in x and y
+        xcen=10, ycen=10, pixscale=pix_scales[0],  # Assume same pixel scale in x and y
     )
     fig = plt.figure(facecolor="w")
     if ".weights." in cube_f:
@@ -93,11 +95,7 @@ def find_spectra(data_dir: str = ".") -> list:
 
 @delayed
 def convert_spectra(
-    spectrum: str,
-    ra: float,
-    dec: float,
-    gauss_id: str,
-    spec_dir: str = ".",
+    spectrum: str, ra: float, dec: float, gauss_id: str, spec_dir: str = ".",
 ) -> dict:
     """Convert a ascii spectrum to FITS
 
@@ -294,10 +292,7 @@ def find_cubes(data_dir: str = ".") -> list:
 
 
 def make_polspec(
-    casda_dir: str,
-    polcat: Table,
-    pol_df: pd.DataFrame,
-    outdir: str = None,
+    casda_dir: str, polcat: Table, pol_df: pd.DataFrame, outdir: str = None,
 ) -> None:
     """Make a PolSpectra table
 
@@ -355,14 +350,8 @@ def make_polspec(
         spectrum_table[col].unit = unit
 
     pol_df_cols = {
-        "faraday_depth": {
-            "unit": radms,
-            "description": "Faraday depth",
-        },
-        "faraday_depth_long": {
-            "unit": radms,
-            "description": "Faraday depth (long)",
-        },
+        "faraday_depth": {"unit": radms, "description": "Faraday depth",},
+        "faraday_depth_long": {"unit": radms, "description": "Faraday depth (long)",},
         "FDF_Q_dirty": {
             "unit": unit_fdf,
             "description": "Dirty Stokes Q per Faraday depth",
@@ -387,14 +376,8 @@ def make_polspec(
             "unit": unit_fdf,
             "description": "Model Stokes U per Faraday depth",
         },
-        "RMSF_Q": {
-            "unit": unit_fdf,
-            "description": "Stokes Q RMSF per Faraday depth",
-        },
-        "RMSF_U": {
-            "unit": unit_fdf,
-            "description": "Stokes U RMSF per Faraday depth",
-        },
+        "RMSF_Q": {"unit": unit_fdf, "description": "Stokes Q RMSF per Faraday depth",},
+        "RMSF_U": {"unit": unit_fdf, "description": "Stokes U RMSF per Faraday depth",},
     }
     for col, desc in tqdm(pol_df_cols.items(), desc="Adding spectrum columns"):
         data = pol_df[col]
@@ -672,10 +655,7 @@ def main(
             pol_df.set_index("cat_id", inplace=True, drop=False)
             # Make polspec catalogue
             make_polspec(
-                casda_dir=casda_dir,
-                polcat=polcat,
-                pol_df=pol_df,
-                outdir=outdir,
+                casda_dir=casda_dir, polcat=polcat, pol_df=pol_df, outdir=outdir,
             )
 
     log.info("Done")
@@ -707,43 +687,25 @@ def cli():
         "--convert-plots", action="store_true", help="Convert plots", default=False
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Verbose output",
+        "-v", "--verbose", action="store_true", help="Verbose output",
     )
     parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Debug output",
+        "--debug", action="store_true", help="Debug output",
     )
     parser.add_argument(
-        "--test",
-        action="store_true",
-        help="Test mode",
+        "--test", action="store_true", help="Test mode",
     )
     parser.add_argument(
-        "--mpi",
-        action="store_true",
-        help="Use MPI",
+        "--mpi", action="store_true", help="Use MPI",
     )
     parser.add_argument(
-        "--batch_size",
-        help="Number parallel jobs to run",
-        type=int,
-        default=10,
+        "--batch_size", help="Number parallel jobs to run", type=int, default=10,
     )
     parser.add_argument(
-        "--interface",
-        help="Interface to use",
-        type=str,
-        default="ipogif0",
+        "--interface", help="Interface to use", type=str, default="ipogif0",
     )
     parser.add_argument(
-        "--outdir",
-        help="Output directory",
-        type=str,
-        default=None,
+        "--outdir", help="Output directory", type=str, default=None,
     )
     args = parser.parse_args()
     if args.verbose:
@@ -766,8 +728,7 @@ def cli():
 
     if args.mpi:
         initialize(
-            interface=args.interface,
-            local_directory="/dev/shm",
+            interface=args.interface, local_directory="/dev/shm",
         )
         cluster = None
     else:

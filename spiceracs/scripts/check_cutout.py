@@ -5,8 +5,13 @@ from glob import glob
 import astropy.units as u
 import matplotlib.pyplot as plt
 from astropy.table import Table
-from astropy.visualization import (ImageNormalize, LogStretch, MinMaxInterval,
-                                   SqrtStretch, ZScaleInterval)
+from astropy.visualization import (
+    ImageNormalize,
+    LogStretch,
+    MinMaxInterval,
+    SqrtStretch,
+    ZScaleInterval,
+)
 from matplotlib.patches import Ellipse
 from spectral_cube import SpectralCube
 
@@ -94,6 +99,7 @@ def cli():
 
     args = parser.parse_args()
     main(args.cutdir, args.source)
+
 
 if __name__ == "__main__":
     cli()

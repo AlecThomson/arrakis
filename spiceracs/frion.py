@@ -17,8 +17,7 @@ from dask import delayed
 from dask.distributed import Client, LocalCluster, progress, wait
 from FRion import correct, predict
 
-from spiceracs.utils import (get_db, get_field_db, getfreq, test_db, tqdm_dask,
-                             try_mkdir)
+from spiceracs.utils import get_db, get_field_db, getfreq, test_db, tqdm_dask, try_mkdir
 
 
 @delayed

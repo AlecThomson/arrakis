@@ -37,8 +37,16 @@ from RMutils.util_plotTk import plot_rmsf_fdf_fig
 from spectral_cube import SpectralCube
 from tqdm import tqdm, trange
 
-from spiceracs.utils import (MyEncoder, chunk_dask, fit_pl, get_db, getfreq,
-                             test_db, tqdm_dask, try_mkdir)
+from spiceracs.utils import (
+    MyEncoder,
+    chunk_dask,
+    fit_pl,
+    get_db,
+    getfreq,
+    test_db,
+    tqdm_dask,
+    try_mkdir,
+)
 
 
 @delayed
@@ -373,12 +381,7 @@ def rmsynthoncut1d(
 
     elif do_own_fit:
         log.debug(f"Doing own fit")
-        fit_dict = fit_pl(
-            freq=freq,
-            flux=iarr,
-            fluxerr=rmsi,
-            nterms=abs(polyOrd)
-        )
+        fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
         alpha = None
         amplitude = None
         x_0 = None
@@ -445,23 +448,25 @@ def rmsynthoncut1d(
         # Update model values if own fit was used
         if do_own_fit:
             # Wrangle into format that matches RM-Tools
-            mDict["polyCoeffs"] = ','.join(
+            mDict["polyCoeffs"] = ",".join(
                 [
                     # Pad with zeros to length 5
-                    str(i) for i in np.pad(
+                    str(i)
+                    for i in np.pad(
                         fit_dict["best_p"],
-                        (0, 5-len(fit_dict["best_p"])),
-                        'constant',
+                        (0, 5 - len(fit_dict["best_p"])),
+                        "constant",
                         constant_values=np.nan,
                     )[::-1]
                 ]
             )
-            mDict["polyCoefferr"] = ','.join(
+            mDict["polyCoefferr"] = ",".join(
                 [
-                    str(i) for i in np.pad(
+                    str(i)
+                    for i in np.pad(
                         fit_dict["best_e"],
-                        (0, 5-len(fit_dict["best_e"])),
-                        'constant',
+                        (0, 5 - len(fit_dict["best_e"])),
+                        "constant",
                         constant_values=np.nan,
                     )[::-1]
                 ]

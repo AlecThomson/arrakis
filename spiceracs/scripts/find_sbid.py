@@ -108,6 +108,7 @@ def main(name: str, cal=False, science=False, weight=False):
             print(f"{space}CAL SBID {i+1}: {row['CAL_SBID']}")
             print(f"{space}Science SBID {i+1}: {row['SBID']}\n")
 
+
 def cli():
     descStr = """
     Find SBID(s) in RACS-DB for given field
@@ -125,11 +126,9 @@ def cli():
     parser.add_argument("--weight", action="store_true", help="Return weight SBID only")
     args = parser.parse_args()
     main(
-        args.field,
-        cal=args.cal,
-        science=args.science,
-        weight=args.weight,
+        args.field, cal=args.cal, science=args.science, weight=args.weight,
     )
+
 
 if __name__ == "__main__":
     cli()

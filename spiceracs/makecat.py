@@ -165,10 +165,12 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     #     zorder=0,
     #     rasterized=True,
     # )
-    is_finite = np.logical_and(np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P))
+    is_finite = np.logical_and(
+        np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P)
+    )
     hist2d(
-        np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite,np.newaxis],
-        np.array(frac_P)[is_finite,np.newaxis],
+        np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite, np.newaxis],
+        np.array(frac_P)[is_finite, np.newaxis],
         bins=(nbins, nbins),
         range=[[0, 5], [0, 0.05]],
         # color=color,
@@ -561,7 +563,9 @@ def main(
     rmtab.add_column(Column(data=alpha_dict["alphas"], name="spectral_index"))
     rmtab.add_column(Column(data=alpha_dict["alphas_err"], name="spectral_index_err"))
     rmtab.add_column(Column(data=alpha_dict["betas"], name="spectral_curvature"))
-    rmtab.add_column(Column(data=alpha_dict["betas_err"], name="spectral_curvature_err"))
+    rmtab.add_column(
+        Column(data=alpha_dict["betas_err"], name="spectral_curvature_err")
+    )
 
     # Add integration time
     field_col = get_field_db(host=host, username=username, password=password)

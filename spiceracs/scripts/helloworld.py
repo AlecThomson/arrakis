@@ -14,14 +14,17 @@ def main():
     name = MPI.Get_processor_name()
 
     sys.stdout.write(
-        "Hello, World! I am process %d of %d on %s.\n"
-        % (rank, size, name))
+        "Hello, World! I am process %d of %d on %s.\n" % (rank, size, name)
+    )
+
 
 def cli():
     import argparse
+
     parser = argparse.ArgumentParser(help="Run a parallel hello world")
     args = parser.parse_args()
     main()
+
 
 if __name__ == "__main__":
     cli()

@@ -22,6 +22,7 @@ def main(indir, outdir):
         print(cmd)
         subprocess.run(split(cmd))
 
+
 def cli():
     descStr = f"""
     Create symlinks to ASKAP cubes in one directory to another.
@@ -37,6 +38,7 @@ def cli():
     args = parser.parse_args()
 
     main(args.indir, args.outdir)
+
 
 if __name__ == "__main__":
     cli()
