@@ -267,6 +267,7 @@ def cuts_and_flags(cat):
     df.set_index("cat_id", inplace=True)
     df["bin_number"] = bin_number
     # Use sigma clipping to find outliers
+
     def masker(x):
         return pd.Series(
             sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
