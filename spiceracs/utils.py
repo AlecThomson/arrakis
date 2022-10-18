@@ -50,8 +50,7 @@ print = functools.partial(print, flush=True)
 
 
 def best_aic_func(aics, n_param):
-    """Find the best AIC for a set of AICs using Occam's razor.
-    """
+    """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
     best_aic_idx = np.nanargmin(aics)
     best_aic = aics[best_aic_idx]
@@ -122,7 +121,7 @@ def curved_power_law(
     """
     x = nu / ref_nu
     power = alpha + beta * np.log10(x)
-    return norm * x ** power
+    return norm * x**power
 
 
 def fit_pl(

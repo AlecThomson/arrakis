@@ -404,7 +404,9 @@ def cli():
     )
 
     parser.add_argument(
-        "--field", action="store_true", help="Load field table into database [False].",
+        "--field",
+        action="store_true",
+        help="Load field table into database [False].",
     )
 
     args = parser.parse_args()

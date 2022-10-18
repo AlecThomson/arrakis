@@ -61,11 +61,19 @@ def fix_fields(tab: Table) -> Table:
         new_tab["separation_tile_centre"].value * new_tab["separation_tile_centre"].unit
     )
     all_seps[idx] = min_seps
-    new_tab["separation_tile_centre"] = Column(data=all_seps,)
-    new_tab["beamdist"] = Column(data=all_seps,)
+    new_tab["separation_tile_centre"] = Column(
+        data=all_seps,
+    )
+    new_tab["beamdist"] = Column(
+        data=all_seps,
+    )
     all_seps[idx] = min_seps
-    new_tab["separation_tile_centre"] = Column(data=all_seps,)
-    new_tab["beamdist"] = Column(data=all_seps,)
+    new_tab["separation_tile_centre"] = Column(
+        data=all_seps,
+    )
+    new_tab["beamdist"] = Column(
+        data=all_seps,
+    )
 
     # Fix the units - Why does VOTable do this?? Thanks I hate it
     dumb_units = {

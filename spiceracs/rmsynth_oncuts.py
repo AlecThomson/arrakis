@@ -104,7 +104,11 @@ def rmsynthoncut3d(
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         log.critical(f"Cubelet {iname} is entirely NaN")
         myquery = {"Source_ID": iname}
-        badvalues = {"$set": {"rmsynth3d": False,}}
+        badvalues = {
+            "$set": {
+                "rmsynth3d": False,
+            }
+        }
         return pymongo.UpdateOne(myquery, badvalues)
     rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
     rmsi[rmsi == 0] = np.nan
@@ -181,8 +185,7 @@ def rmsynthoncut3d(
 
 @delayed
 def rms_1d(data):
-    """Compute RMS from bounding pixels
-    """
+    """Compute RMS from bounding pixels"""
     Nfreq, Ndec, Nra = data.shape
     mask = np.ones((Ndec, Nra), dtype=np.bool)
     mask[3:-3, 3:-3] = False
@@ -220,7 +223,7 @@ def estimate_noise_annulus(x_center, y_center, cube):
         -1 * outer_radius : outer_radius + 1, -1 * outer_radius : outer_radius + 1
     ]
     grid_mask = np.logical_or(
-        x ** 2 + y ** 2 < inner_radius ** 2, x ** 2 + y ** 2 > outer_radius ** 2
+        x**2 + y**2 < inner_radius**2, x**2 + y**2 > outer_radius**2
     )
     for i in range(lenfreq):
         if naxis == 4:
@@ -710,7 +713,12 @@ def main(
             comp_col.find(
                 isl_query,
                 # Only get required values
-                {"Source_ID": 1, "Gaussian_ID": 1, "RA": 1, "Dec": 1,},
+                {
+                    "Source_ID": 1,
+                    "Gaussian_ID": 1,
+                    "RA": 1,
+                    "Dec": 1,
+                },
             ).sort("Source_ID")
         )
     )
@@ -852,8 +860,7 @@ def main(
 
 
 def cli():
-    """Command-line interface
-    """
+    """Command-line interface"""
     import argparse
 
     from astropy.utils.exceptions import AstropyWarning

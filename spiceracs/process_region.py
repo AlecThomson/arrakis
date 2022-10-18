@@ -77,7 +77,9 @@ def main(args: configargparse.Namespace) -> None:
         )
         client = Client()
     else:
-        cluster = SLURMCluster(**config,)
+        cluster = SLURMCluster(
+            **config,
+        )
         log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes
@@ -228,7 +230,9 @@ def cli():
     parser.add("--config", required=False, is_config_file=True, help="Config file path")
 
     parser.add_argument(
-        "--merge_name", type=str, help="Name of the merged region",
+        "--merge_name",
+        type=str,
+        help="Name of the merged region",
     )
 
     parser.add_argument(

@@ -66,16 +66,23 @@ def cli():
     )
 
     parser.add_argument(
-        "--dry_run", action="store_true", help="Don't launch rsync",
+        "--dry_run",
+        action="store_true",
+        help="Don't launch rsync",
     )
 
     parser.add_argument(
-        "--ncores", type=int, default=1, help="Ncores for parallel rsync",
+        "--ncores",
+        type=int,
+        default=1,
+        help="Ncores for parallel rsync",
     )
 
     args = parser.parse_args()
     main(
-        field=args.field, dry_run=args.dry_run, ncores=args.ncores,
+        field=args.field,
+        dry_run=args.dry_run,
+        ncores=args.ncores,
     )
 
 

@@ -27,10 +27,10 @@ from spiceracs.utils import get_db, get_field_db, latexify, test_db
 
 
 def lognorm_from_percentiles(x1, p1, x2, p2):
-    """ Return a log-normal distribuion X parametrized by:
+    """Return a log-normal distribuion X parametrized by:
 
-            P(X < p1) = x1
-            P(X < p2) = x2
+    P(X < p1) = x1
+    P(X < p2) = x2
     """
     x1 = np.log(x1)
     x2 = np.log(x2)
@@ -273,7 +273,9 @@ def cuts_and_flags(cat):
             index=x.index,
         )
 
-    perc_g = df.groupby("bin_number").apply(masker,)
+    perc_g = df.groupby("bin_number").apply(
+        masker,
+    )
     # Put flag into the catalogue
     df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
     df.drop(columns=["bin_number"], inplace=True)
@@ -596,7 +598,10 @@ def main(
     rmtab["aperture"] = 0 * u.deg
 
     rmtab.add_column(
-        col=fit(rmtab["separation_tile_centre"].to(u.deg).value,), name="leakage"
+        col=fit(
+            rmtab["separation_tile_centre"].to(u.deg).value,
+        ),
+        name="leakage",
     )
 
     rmtab.add_column(

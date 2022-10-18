@@ -113,7 +113,10 @@ def rmclean1d(
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
-            "$set": {"rmclean1d": True, "rmclean_summary": outdict,},
+            "$set": {
+                "rmclean1d": True,
+                "rmclean_summary": outdict,
+            },
         }
     except KeyError:
         log.critical("Failed to load data! RM-CLEAN not applied to component!")
@@ -121,7 +124,9 @@ def rmclean1d(
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
-            "$set": {"rmclean1d": False,},
+            "$set": {
+                "rmclean1d": False,
+            },
         }
     return pymongo.UpdateOne(myquery, newvalues)
 
@@ -257,7 +262,10 @@ def main(
             island_col.find(
                 query,
                 # Only get required values
-                {"Source_ID": 1, "rm3dfiles": 1,},
+                {
+                    "Source_ID": 1,
+                    "rm3dfiles": 1,
+                },
             ).sort("Source_ID")
         )
         island_ids = [doc["Source_ID"] for doc in islands]
@@ -271,7 +279,11 @@ def main(
             comp_col.find(
                 query,
                 # Only get required values
-                {"Source_ID": 1, "Gaussian_ID": 1, "rm1dfiles": 1,},
+                {
+                    "Source_ID": 1,
+                    "Gaussian_ID": 1,
+                    "rm1dfiles": 1,
+                },
             ).sort("Source_ID")
         )
         n_comp = comp_col.count_documents(query)

@@ -52,7 +52,10 @@ def correct_worker(
     myquery = {"Source_ID": island_id}
 
     newvalues = {
-        "$set": {f"beams.{field}.q_file_ion": qout, f"beams.{field}.u_file_ion": uout,}
+        "$set": {
+            f"beams.{field}.q_file_ion": qout,
+            f"beams.{field}.u_file_ion": uout,
+        }
     }
     return pymongo.UpdateOne(myquery, newvalues)
 

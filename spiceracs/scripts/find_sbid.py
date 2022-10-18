@@ -126,7 +126,10 @@ def cli():
     parser.add_argument("--weight", action="store_true", help="Return weight SBID only")
     args = parser.parse_args()
     main(
-        args.field, cal=args.cal, science=args.science, weight=args.weight,
+        args.field,
+        cal=args.cal,
+        science=args.science,
+        weight=args.weight,
     )
 
 
