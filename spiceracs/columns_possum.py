@@ -52,8 +52,8 @@ columns = [
     ("separation_tile_centre", float, "cat", "Separation_Tile_Centre", u.deg),
     ("s_code", str, "cat", "S_Code", None),
     # Important quantities from the RMsynthesis
-    ("rm", float, "synth", "phiPeakPIfit_rm2", u.rad / u.m ** 2),
-    ("rm_err", float, "synth", "dPhiPeakPIfit_rm2", u.rad / u.m ** 2),
+    ("rm", float, "synth", "phiPeakPIfit_rm2", u.rad / u.m**2),
+    ("rm_err", float, "synth", "dPhiPeakPIfit_rm2", u.rad / u.m**2),
     ("polint", float, "synth", "ampPeakPIfitEff", u.Jy / u.beam),
     ("polint_err", float, "synth", "dAmpPeakPIchan", u.Jy / u.beam),
     ("stokesQ", float, "synth", "peakFDFrealFit", u.Jy / u.beam),
@@ -67,8 +67,8 @@ columns = [
     ("reffreq_beam", float, "synth", "freq0_Hz", u.Hz),
     ("reffreq_I", float, "synth", "poly_reffreq", u.Hz),
     ("fdf_noise_th", float, "synth", "dFDFth", u.Jy / u.beam),
-    ("rmsf_fwhm", float, "synth", "fwhmRMSF", u.rad / u.m ** 2),
-    ("refwave_sq_pol", float, "synth", "lam0Sq_m2", u.m ** 2),
+    ("rmsf_fwhm", float, "synth", "fwhmRMSF", u.rad / u.m**2),
+    ("refwave_sq_pol", float, "synth", "lam0Sq_m2", u.m**2),
     ("stokesI", float, "synth", "Ifreq0", u.Jy / u.beam),
     ("stokes_I_fit_flag", int, "synth", "IfitStat", u.dimensionless_unscaled),
     ("snr_polint", float, "synth", "snrPIfit", u.dimensionless_unscaled),
@@ -76,7 +76,7 @@ columns = [
     ("maxfreq", float, "synth", "max_freq", u.Hz),
     ("channelwidth", float, "synth", "median_channel_width", u.Hz),
     ("Nchan", int, "synth", "N_channels", u.dimensionless_unscaled),
-    ("rm_width", float, "synth", "mom2CCFDF", u.rad / u.m ** 2),
+    ("rm_width", float, "synth", "mom2CCFDF", u.rad / u.m**2),
     ("stokesI_model_coef", str, "synth", "polyCoeffs", None),
     ("stokesI_model_coef_err", str, "synth", "polyCoefferr", None),
     ("stokesI_model_order", int, "synth", "polyOrd", u.dimensionless_unscaled),
@@ -187,7 +187,10 @@ extra_column_descriptions = {
         "description": "Error in Right Ascension",
         "ucd": "stat.error;pos.eq.ra",
     },
-    "dec_err": {"description": "Error in Declination", "ucd": "stat.error;pos.eq.dec",},
+    "dec_err": {
+        "description": "Error in Declination",
+        "ucd": "stat.error;pos.eq.dec",
+    },
     "total_I_flux": {
         "description": "Total flux density in Stokes I",
         "ucd": "phot.flux.density;arith.sum;phys.polarization.stokes.I",
@@ -256,10 +259,22 @@ extra_column_descriptions = {
         "description": "Number of Gaussians associated with source",
         "ucd": "meta.number",
     },
-    "source_id": {"description": "Source ID", "ucd": "meta.id",},
-    "tile_id": {"description": "Tile ID", "ucd": "meta.id",},
-    "sbid": {"description": "Scheduling Block ID", "ucd": "meta.id",},
-    "start_time": {"description": "Observation start time", "ucd": "time.start",},
+    "source_id": {
+        "description": "Source ID",
+        "ucd": "meta.id",
+    },
+    "tile_id": {
+        "description": "Tile ID",
+        "ucd": "meta.id",
+    },
+    "sbid": {
+        "description": "Scheduling Block ID",
+        "ucd": "meta.id",
+    },
+    "start_time": {
+        "description": "Observation start time",
+        "ucd": "time.start",
+    },
     "separation_tile_centre": {
         "description": "Separation from tile centre",
         "ucd": "pos.angDistance",
@@ -300,10 +315,22 @@ extra_column_descriptions = {
         "description": "Error in Sigma_add complexity metric",
         "ucd": "stat.error;phys.polarization.rotMeasure;stat.stdev",
     },
-    "snr_flag": {"description": "SNR flag", "ucd": "meta.code.qual",},
-    "leakage_flag": {"description": "Leakage flag", "ucd": "meta.code.qual",},
-    "channel_flag": {"description": "Channel flag", "ucd": "meta.code.qual",},
-    "stokes_I_fit_flag": {"description": "Stokes I fit flag", "ucd": "meta.code.qual",},
+    "snr_flag": {
+        "description": "SNR flag",
+        "ucd": "meta.code.qual",
+    },
+    "leakage_flag": {
+        "description": "Leakage flag",
+        "ucd": "meta.code.qual",
+    },
+    "channel_flag": {
+        "description": "Channel flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokes_I_fit_flag": {
+        "description": "Stokes I fit flag",
+        "ucd": "meta.code.qual",
+    },
     "complex_sigma_add_flag": {
         "description": "Sigma_add complexity flag",
         "ucd": "meta.code",
