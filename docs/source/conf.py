@@ -1,5 +1,6 @@
 import os
 import sys
+from importlib.metadata import distribution
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -25,7 +26,7 @@ copyright = '2021, Alec Thomson'
 author = 'Alec Thomson'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.0'
+release = distribution("spiceracs").version
 
 
 # -- General configuration ---------------------------------------------------
@@ -54,19 +55,10 @@ napoleon_use_param = False
 napoleon_use_ivar = True
 
 autoapi_type = 'python'
-autoapi_dirs = ['../../spiceracs', '../../scripts']
-# autoapi_dirs = ['../../spiceracs']
+autoapi_dirs = ['../../spiceracs']
 autoapi_member_order = 'groupwise'
-autoapi_keep_files = False
-# autoapi_root = 'api'
-autoapi_template_dir = '_autoapi_templates'
-autoapi_add_toctree_entry = True
-# autoapi_generate_api_docs = True
-autoapi_generate_api_docs = True
-
-
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+# templates_path = ['_templates']
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -79,17 +71,7 @@ templates_path = ['_templates']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_book_theme'
-html_theme_options = {
-
-    "repository_url": "https://bitbucket.csiro.au/projects/SPICE/repos/spiceracs",
-    "use_repository_button": True,
-    # "use_issues_button": True,
-    # "use_edit_page_button": True,
-    "logo_only": True,
-    "show_navbar_depth":1,
-
-}
+html_theme = 'sphinx_rtd_theme'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
@@ -105,8 +87,3 @@ html_favicon="favicon.ico"
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, os.path.abspath('.'))
-sys.path.insert(0, os.path.abspath('../'))
-sys.path.insert(0, os.path.abspath('../spiceracs'))
-sys.path.insert(0, os.path.abspath('../askap_surveys'))
-sys.path.insert(0, os.path.abspath('../askap_surveys/racs'))
-sys.path.insert(0, os.path.abspath('../rmtable'))

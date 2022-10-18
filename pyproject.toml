@@ -1,0 +1,101 @@
+[tool.poetry]
+name = "spiceracs"
+version = "0.1.0"
+description = "Processing polarized RACS data products."
+homepage = "https://research.csiro.au/racs/"
+repository = "https://github.com/AlecThomson/spiceracs"
+documentation = "https://spiceracs.readthedocs.io/en/latest/"
+authors = ["Alec Thomson"]
+license = "BSD-3-Clause"
+readme = "README.md"
+classifiers=[
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Development Status :: 3 - Alpha",
+]
+include = [
+    'README.md',
+    'LICENSE',
+    'askap_surveys',
+    'pyproject.toml',
+    # 'scripts',
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+rm-tools = {git = "https://github.com/AlecThomson/RM-Tools.git@spiceracs_dev"}
+astropy = "^5"
+bilby = "*"
+casatasks = "*"
+ConfigArgParse = "*"
+dask = "*"
+distributed = "*"
+dask_jobqueue = "*"
+dask_mpi = "*"
+FRion = "*"
+h5py = "*"
+ipython = "*"
+matplotlib = "*"
+numba = "*"
+numba_progress = "*"
+mpi4py = "*"
+pandas = "*"
+Polspectra = "*"
+psutil = "*"
+pymongo = "*"
+pymultinest = "*"
+pytest = "*"
+python_casacore = "*"
+RACS_tools = "*"
+radio_beam = "*"
+RMextract = "*"
+schwimmbad = "*"
+scipy = "*"
+spectral_cube = "*"
+spython = "*"
+tqdm = "*"
+vorbin = "*"
+graphviz = "*"
+bokeh = "*"
+prefect = "<2"
+RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
+
+[tool.poetry.dev-dependencies]
+black = "^22.10"
+flake8 = "^5"
+isort = "^5"
+
+[tool.poetry.extras]
+docs = [
+    "sphinx",
+    "sphinx_rtd_theme",
+    "sphinx-book-theme",
+    "sphinx-autoapi",
+    "m2r2",
+    "numpydoc",
+]
+
+dev = [
+    "black>=22.10",
+    "flake8>=5",
+    "isort>=5",
+]
+
+[build-system]
+requires = ["poetry-core>=1.2"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+spice_init = "spiceracs.init_database:cli"
+spice_process = "spiceracs.process_spice:cli"
+spice_region = "spiceracs.process_region:cli"
+spice_cat = "spiceracs.makecat:cli"
+# Unified script script
+spice_script =  "spiceracs.scripts.spice_script:cli"
+
+[tool.isort]
+profile = "black"

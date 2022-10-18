@@ -2,6 +2,7 @@
 
 import unittest
 
+
 class test_imports(unittest.TestCase):
     def test_imports(self):
         """Tests that package imports are working correctly."""

@@ -1,54 +1,53 @@
 #!/usr/bin/env python
 """Produce cutouts from RACS cubes"""
-import logging as log
 import argparse
-import warnings
-import pymongo
-import dask
-from shutil import copyfile
-from dask import delayed
-from dask.distributed import Client, progress, LocalCluster
-from dask.diagnostics import ProgressBar
-from IPython import embed
-from functools import partial
 import functools
-import psutil
+import json
+import logging as log
+import os
 import shlex
 import subprocess
-import json
+import sys
 import time
-from tqdm import tqdm, trange
+import warnings
+from functools import partial
+from glob import glob
+from pprint import pformat
+from shutil import copyfile
+from typing import Dict, List, Tuple
+
+import astropy.units as u
+import dask
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.coordinates import SkyCoord, search_around_sky
+import psutil
+import pymongo
 from astropy import units as u
+from astropy.coordinates import Latitude, Longitude, SkyCoord, search_around_sky
+from astropy.io import fits
+from astropy.table import Table, vstack
+from astropy.utils import iers
+from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
 from astropy.wcs.utils import skycoord_to_pixel
-from astropy.io import fits
-import sys
-import os
-from glob import glob
-from astropy.table import Table, vstack
-from astropy.coordinates import SkyCoord, Longitude, Latitude
-from spiceracs.utils import (
-    getdata,
-    MyEncoder,
-    try_mkdir,
-    tqdm_dask,
-    get_db,
-    test_db,
-    fix_header,
-    chunk_dask,
-)
-from astropy.utils import iers
-import astropy.units as u
+from dask import delayed
+from dask.diagnostics import ProgressBar
+from dask.distributed import Client, LocalCluster, progress
+from IPython import embed
 from spectral_cube import SpectralCube
-from pprint import pformat
-import warnings
-from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
+from tqdm import tqdm, trange
 
-from typing import List, Dict, Tuple
+from spiceracs.utils import (
+    MyEncoder,
+    chunk_dask,
+    fix_header,
+    get_db,
+    getdata,
+    test_db,
+    tqdm_dask,
+    try_mkdir,
+)
 
 iers.conf.auto_download = False
 warnings.filterwarnings(

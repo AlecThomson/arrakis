@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """DANGER ZONE: Purge directories of un-needed FITS files."""
+import logging as log
 import os
-from glob import glob
 import time
-from spiceracs.utils import chunk_dask
+from glob import glob
+from typing import List
+
 from dask import delayed
 from dask.distributed import Client, LocalCluster
-from typing import List
-import logging as log
+
+from spiceracs.utils import chunk_dask
 
 
 @delayed

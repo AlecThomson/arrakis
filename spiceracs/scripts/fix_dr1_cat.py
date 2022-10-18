@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Post process DR1 catalog"""
-import os
-import numpy as np
-from astropy.table import Table, Column
-from astropy.coordinates import SkyCoord
-import astropy.units as u
-from spiceracs.makecat import is_leakage, get_fit_func, write_votable
-from spica import SPICA, basedir
 import logging as log
-from rmtable import RMTable
+import os
 import pickle
+
+import astropy.units as u
+import numpy as np
+from astropy.coordinates import SkyCoord
+from astropy.table import Column, Table
 from IPython import embed
+from rmtable import RMTable
+from spica import SPICA, basedir
+
+from spiceracs.makecat import get_fit_func, is_leakage, write_votable
 
 
 def fix_fields(tab: Table) -> Table:

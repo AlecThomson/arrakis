@@ -1,9 +1,9 @@
 #!/usr/bin/env python
+import argparse
 import os
 import subprocess
-from shlex import split
 from glob import glob
-import argparse
+from shlex import split
 
 
 def main(indir, outdir):
@@ -23,7 +23,7 @@ def main(indir, outdir):
         subprocess.run(split(cmd))
 
 
-if __name__ == "__main__":
+def cli():
     descStr = f"""
     Create symlinks to ASKAP cubes in one directory to another.
     """
@@ -38,3 +38,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args.indir, args.outdir)
+
+
+if __name__ == "__main__":
+    cli()

@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """SPICE-RACS multi-field pipeline"""
+import logging as log
 import os
-from prefect import task, Task, Flow
-from prefect.engine.executors import DaskExecutor
-from prefect.engine import signals
-from spiceracs import merge_fields
-from spiceracs import process_spice
-from spiceracs.utils import port_forward, test_db
+from time import sleep
+
+import configargparse
+import yaml
+from astropy.time import Time
+from dask import delayed, distributed
+from dask.diagnostics import ProgressBar
+from dask.distributed import Client, LocalCluster, performance_report, progress
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
-from dask import distributed
-from dask.distributed import Client, progress, performance_report, LocalCluster
-from dask.diagnostics import ProgressBar
-from dask import delayed
 from IPython import embed
-from time import sleep
-from astropy.time import Time
-import yaml
-import configargparse
-import logging as log
+from prefect import Flow, Task, task
+from prefect.engine import signals
+from prefect.engine.executors import DaskExecutor
+
+from spiceracs import merge_fields, process_spice
+from spiceracs.utils import port_forward, test_db
 
 
 @task(name="Merge fields", skip_on_upstream_skip=False)
@@ -77,7 +77,9 @@ def main(args: configargparse.Namespace) -> None:
         )
         client = Client()
     else:
-        cluster = SLURMCluster(**config,)
+        cluster = SLURMCluster(
+            **config,
+        )
         log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes
@@ -228,7 +230,9 @@ def cli():
     parser.add("--config", required=False, is_config_file=True, help="Config file path")
 
     parser.add_argument(
-        "--merge_name", type=str, help="Name of the merged region",
+        "--merge_name",
+        type=str,
+        help="Name of the merged region",
     )
 
     parser.add_argument(

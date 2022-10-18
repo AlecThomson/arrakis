@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-from astropy.table import Table
-from spectral_cube import SpectralCube
-from glob import glob
 import os
-import matplotlib.pyplot as plt
+from glob import glob
+
 import astropy.units as u
-from matplotlib.patches import Ellipse
+import matplotlib.pyplot as plt
+from astropy.table import Table
 from astropy.visualization import (
-    SqrtStretch,
-    ZScaleInterval,
     ImageNormalize,
     LogStretch,
     MinMaxInterval,
+    SqrtStretch,
+    ZScaleInterval,
 )
+from matplotlib.patches import Ellipse
+from spectral_cube import SpectralCube
 
 
 def plot_comp(row, c="b"):
@@ -83,7 +84,7 @@ def main(cutdir, source):
     # plt.savefig('test.png')
 
 
-if __name__ == "__main__":
+def cli():
     import argparse
 
     descStr = """
@@ -98,3 +99,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     main(args.cutdir, args.source)
+
+
+if __name__ == "__main__":
+    cli()

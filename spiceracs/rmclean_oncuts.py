@@ -1,31 +1,33 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
-from spiceracs.utils import getfreq, MyEncoder, tqdm_dask, get_db, test_db, chunk_dask
 import json
-import numpy as np
+import logging as log
 import os
-import pymongo
 import sys
 import time
-from tqdm import tqdm, trange
 import warnings
-from RMtools_1D import do_RMclean_1D
-from RMtools_3D import do_RMclean_3D
-from spectral_cube import SpectralCube
+from glob import glob
+from pprint import pformat
+from shutil import copyfile
+
+import dask
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pymongo
 from astropy.io import fits
 from astropy.wcs import WCS
-import matplotlib.pyplot as plt
-from RMutils.util_misc import create_frac_spectra
-from IPython import embed
-import dask
 from dask import delayed
-from dask.distributed import Client, progress, LocalCluster
 from dask.diagnostics import ProgressBar
-from glob import glob
-from shutil import copyfile
-from pprint import pformat
-import logging as log
-import pandas as pd
+from dask.distributed import Client, LocalCluster, progress
+from IPython import embed
+from RMtools_1D import do_RMclean_1D
+from RMtools_3D import do_RMclean_3D
+from RMutils.util_misc import create_frac_spectra
+from spectral_cube import SpectralCube
+from tqdm import tqdm, trange
+
+from spiceracs.utils import MyEncoder, chunk_dask, get_db, getfreq, test_db, tqdm_dask
 
 
 @delayed
@@ -111,7 +113,10 @@ def rmclean1d(
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
-            "$set": {"rmclean1d": True, "rmclean_summary": outdict,},
+            "$set": {
+                "rmclean1d": True,
+                "rmclean_summary": outdict,
+            },
         }
     except KeyError:
         log.critical("Failed to load data! RM-CLEAN not applied to component!")
@@ -119,7 +124,9 @@ def rmclean1d(
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
-            "$set": {"rmclean1d": False,},
+            "$set": {
+                "rmclean1d": False,
+            },
         }
     return pymongo.UpdateOne(myquery, newvalues)
 
@@ -255,7 +262,10 @@ def main(
             island_col.find(
                 query,
                 # Only get required values
-                {"Source_ID": 1, "rm3dfiles": 1,},
+                {
+                    "Source_ID": 1,
+                    "rm3dfiles": 1,
+                },
             ).sort("Source_ID")
         )
         island_ids = [doc["Source_ID"] for doc in islands]
@@ -269,7 +279,11 @@ def main(
             comp_col.find(
                 query,
                 # Only get required values
-                {"Source_ID": 1, "Gaussian_ID": 1, "rm1dfiles": 1,},
+                {
+                    "Source_ID": 1,
+                    "Gaussian_ID": 1,
+                    "rm1dfiles": 1,
+                },
             ).sort("Source_ID")
         )
         n_comp = comp_col.count_documents(query)
@@ -340,6 +354,7 @@ def main(
 def cli():
     """Command-line interface"""
     import argparse
+
     from astropy.utils.exceptions import AstropyWarning
 
     warnings.simplefilter("ignore", category=AstropyWarning)

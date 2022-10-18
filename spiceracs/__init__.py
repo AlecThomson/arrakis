@@ -1,3 +1,5 @@
 """Processing polarized RACS data products."""
-from .__version__ import __version__
+from importlib.metadata import distribution
+
+__version__ = distribution("spiceracs").version
 __author__ = "Alec Thomson"

@@ -1,18 +1,21 @@
+import argparse
 import os
-import subprocess as sb
 import shlex
+import subprocess as sb
 from glob import glob
 from pprint import pprint
-from astropy.table import Table
-import numpy as np
-import copy_data
-import spica
-from spiceracs.utils import try_mkdir
-import argparse
 
-racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")
+import copy_data
+import numpy as np
+import spica
+from astropy.table import Table
+
+from spiceracs.utils import try_mkdir
+
+# racs_area = os.path.abspath('/askapbuffer/processing/len067/spiceracs')
 # spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')
-spice_area = os.path.abspath("/scratch/ja3/athomson/spica")
+spice_area = os.path.abspath("/askapbuffer/processing/len067/spiceracs")
+# spice_area = os.path.abspath('/scratch/ja3/athomson/spica')
 group_area = os.path.abspath("/group/ja3/athomson/spica")
 
 
@@ -21,7 +24,7 @@ def main(field, dry_run=False, ncores=10):
     spica_tab.add_index("Field name")
     row = spica_tab.loc["Field name", f"RACS_{field}"]
     cut_dir = os.path.join(
-        spice_area, f"{row['CAL SBID']}", f"RACS_test4_1.05_{field}", "cutouts"
+        spice_area, f"{row['SBID']}", f"RACS_test4_1.05_{field}", "cutouts"
     )
     test_cut = os.path.isdir(cut_dir)
     if not test_cut:
@@ -29,13 +32,21 @@ def main(field, dry_run=False, ncores=10):
     else:
         print(f"Copying '{cut_dir}'")
 
-    store_dir = os.path.join(
-        group_area, f"{row['CAL SBID']}", f"RACS_test4_1.05_{field}", "cutouts"
+    field_dir = os.path.join(
+        group_area, f"{row['CAL SBID']}", f"RACS_test4_1.05_{field}"
     )
+
+    try_mkdir(field_dir)
+    test_field = os.path.isdir(field_dir)
+    if not test_field:
+        raise FileNotFoundError(test_field)
+
+    store_dir = os.path.join(field_dir, "cutouts")
+
     try_mkdir(store_dir)
     test_store = os.path.isdir(store_dir)
-    if not test_cut:
-        raise FileNotFoundError(test_store)
+    if not test_store:
+        raise FileNotFoundError(store_dir)
     else:
         print(f"Storing in '{store_dir}'")
 
@@ -43,7 +54,7 @@ def main(field, dry_run=False, ncores=10):
         copy_data.prsync(f"{cut_dir}/*", store_dir, ncores=ncores)
 
 
-if __name__ == "__main__":
+def cli():
     descStr = f"""
     Copy data from RACS area to SPICE area'
     """
@@ -73,3 +84,7 @@ if __name__ == "__main__":
         dry_run=args.dry_run,
         ncores=args.ncores,
     )
+
+
+if __name__ == "__main__":
+    cli()

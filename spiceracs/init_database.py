@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
 """Create the SPICE-RACS database"""
-from spiceracs.utils import get_db, test_db, get_field_db
-from IPython import embed
-from functools import partial
 import functools
-import psutil
-import pymongo
 import json
+import logging as log
+import os
+import sys
 import time
-from tqdm import tqdm, trange
+from functools import partial
+from glob import glob
+from typing import List, Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.coordinates import SkyCoord, search_around_sky, Angle
+import psutil
+import pymongo
 from astropy import units as u
-from astropy.wcs import WCS
+from astropy.coordinates import Angle, SkyCoord, search_around_sky
 from astropy.io import fits
-import sys
-import os
-from glob import glob
 from astropy.table import Table, vstack
-from spiceracs.utils import getdata, MyEncoder, yes_or_no
-from typing import Tuple, List
-import logging as log
+from astropy.wcs import WCS
+from IPython import embed
+from tqdm import tqdm, trange
+
+from spiceracs.utils import MyEncoder, get_db, get_field_db, getdata, test_db, yes_or_no
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep=1) -> Table:
@@ -279,7 +280,7 @@ def main(args, verbose=True):
     """Main script
 
     Arguments:
-        args {[type]} -- commandline args
+        args -- commandline args
     """
 
     if args.load:
@@ -358,7 +359,7 @@ def cli():
     descStr = f"""
     {logostr}
     SPICE-RACS Initialisation:
-    
+
     Create MongoDB database from RACS catalogues.
 
     Before running make sure to start a session of mongodb e.g.
@@ -403,7 +404,9 @@ def cli():
     )
 
     parser.add_argument(
-        "--field", action="store_true", help="Load field table into database [False].",
+        "--field",
+        action="store_true",
+        help="Load field table into database [False].",
     )
 
     args = parser.parse_args()

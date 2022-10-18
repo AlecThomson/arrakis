@@ -1,56 +1,56 @@
 #!/usr/bin/env python
 """Utility functions"""
-from typing import Optional, Tuple, List
-import numpy as np
-import os
-import stat
-from tornado.ioloop import IOLoop
-from distributed.utils import LoopRunner, is_kernel
-from distributed.client import futures_of
-from distributed.diagnostics.progressbar import ProgressBar
-from glob import glob
-from spectral_cube import SpectralCube
-from astropy.io import fits
-from astropy.coordinates.angles import hms_tuple, dms_tuple
 import dataclasses
-from dataclasses import dataclass, asdict, make_dataclass
-import json
-import subprocess
-from pathlib import Path
-from astropy.table import Table
-from astropy.wcs import WCS
-from astropy.coordinates import SkyCoord
-from astropy.stats import akaike_info_criterion_lsq
-import astropy.units as u
 import functools
-from os import name
-import subprocess
+import json
+import logging as log
+import os
 import shlex
-import pymongo
+import stat
+import subprocess
+import time
 import warnings
-from astropy.utils.exceptions import AstropyWarning
-from spectral_cube.utils import SpectralCubeWarning
-from FRion.correct import find_freq_axis
-from typing import Tuple, List, Dict, Any, Union, Optional
+from dataclasses import asdict, dataclass, make_dataclass
+from functools import partial
+from glob import glob
+from itertools import zip_longest
+from os import name
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import astropy.units as u
 import dask
-from dask import delayed
 import dask.array as da
 import dask.distributed as distributed
-import logging as log
-from tqdm.auto import tqdm, trange
-import time
-from itertools import zip_longest
+import numpy as np
+import pymongo
+from astropy.coordinates import SkyCoord
+from astropy.coordinates.angles import dms_tuple, hms_tuple
+from astropy.io import fits
+from astropy.stats import akaike_info_criterion_lsq
+from astropy.table import Table
+from astropy.utils.exceptions import AstropyWarning
+from astropy.wcs import WCS
+from dask import delayed
+from dask.delayed import Delayed
+from distributed.client import futures_of
+from distributed.diagnostics.progressbar import ProgressBar
+from distributed.utils import LoopRunner, is_kernel
+from FRion.correct import find_freq_axis
 from scipy.optimize import curve_fit
-from functools import partial
+from spectral_cube import SpectralCube
+from spectral_cube.utils import SpectralCubeWarning
+from tornado.ioloop import IOLoop
+from tqdm.auto import tqdm, trange
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
 
+
 def best_aic_func(aics, n_param):
-    """Find the best AIC for a set of AICs using Occam's razor.
-    """
+    """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
     best_aic_idx = np.nanargmin(aics)
     best_aic = aics[best_aic_idx]
@@ -60,13 +60,18 @@ def best_aic_func(aics, n_param):
     aic_abs_diff = np.abs(aics - best_aic)
     bool_min_idx = np.zeros_like(aics).astype(bool)
     bool_min_idx[best_aic_idx] = True
-    potential_idx = (aic_abs_diff[~bool_min_idx] < 2 ) & (n_param[~bool_min_idx] < best_n)
+    potential_idx = (aic_abs_diff[~bool_min_idx] < 2) & (
+        n_param[~bool_min_idx] < best_n
+    )
     if any(potential_idx):
         best_n = np.min(n_param[~bool_min_idx][potential_idx])
         best_aic_idx = np.where(n_param == best_n)[0][0]
         best_aic = aics[best_aic_idx]
-        log.debug(f"Model within 2 of lowest AIC found. Occam says to take AIC of {best_aic}, with {best_n} params.")
+        log.debug(
+            f"Model within 2 of lowest AIC found. Occam says to take AIC of {best_aic}, with {best_n} params."
+        )
     return best_aic, best_n, best_aic_idx
+
 
 # Stolen from GLEAM-X - thanks Uncle Timmy!
 def power_law(nu: np.ndarray, norm: float, alpha: float, ref_nu: float) -> np.ndarray:
@@ -83,6 +88,7 @@ def power_law(nu: np.ndarray, norm: float, alpha: float, ref_nu: float) -> np.nd
     """
     return norm * (nu / ref_nu) ** alpha
 
+
 def flat_power_law(nu: np.ndarray, norm: float, ref_nu: float) -> np.ndarray:
     """A flat power law model.
 
@@ -94,10 +100,13 @@ def flat_power_law(nu: np.ndarray, norm: float, ref_nu: float) -> np.ndarray:
     Returns:
         np.ndarray: Model flux.
     """
-    x = (nu/ref_nu)
+    x = nu / ref_nu
     return norm * x
 
-def curved_power_law(nu: np.ndarray, norm: float, alpha: float, beta: float, ref_nu: float) -> np.ndarray:
+
+def curved_power_law(
+    nu: np.ndarray, norm: float, alpha: float, beta: float, ref_nu: float
+) -> np.ndarray:
     """A curved power law model.
 
     Args:
@@ -110,11 +119,14 @@ def curved_power_law(nu: np.ndarray, norm: float, alpha: float, beta: float, ref
     Returns:
         np.ndarray: Model flux.
     """
-    x = (nu/ref_nu)
+    x = nu / ref_nu
     power = alpha + beta * np.log10(x)
-    return norm * x ** power
+    return norm * x**power
 
-def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) -> dict:
+
+def fit_pl(
+    freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms: int
+) -> dict:
     """Perform a power law fit to a spectrum.
 
     Args:
@@ -127,7 +139,9 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
         dict: Best fit parameters.
     """
     try:
-        goodchan=np.logical_and(np.isfinite(flux),np.isfinite(fluxerr)) #Ignore NaN channels!
+        goodchan = np.logical_and(
+            np.isfinite(flux), np.isfinite(fluxerr)
+        )  # Ignore NaN channels!
         ref_nu = np.nanmean(freq[goodchan])
         p0_long = (np.median(flux[goodchan]), -0.8, 0.0)
         model_func_dict = {
@@ -142,8 +156,8 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
         highs = []
         lows = []
         fit_flags = []
-        for n in range(nterms+1):
-            p0 = p0_long[:n+1]
+        for n in range(nterms + 1):
+            p0 = p0_long[: n + 1]
             model_func = model_func_dict[n]
             try:
                 fit_res = curve_fit(
@@ -152,13 +166,13 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
                     flux[goodchan],
                     p0=p0,
                     sigma=fluxerr[goodchan],
-                    absolute_sigma=True
+                    absolute_sigma=True,
                 )
             except RuntimeError:
                 log.critical(f"Failed to fit {n}-term power law")
                 aics.append(np.nan)
-                params.append(np.ones_like(p0)*np.nan)
-                errors.append(np.ones_like(p0)*np.nan)
+                params.append(np.ones_like(p0) * np.nan)
+                errors.append(np.ones_like(p0) * np.nan)
                 models.append(np.ones_like(freq))
                 highs.append(np.ones_like(freq))
                 lows.append(np.ones_like(freq))
@@ -169,7 +183,7 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             model_high = model_func(freq, *(best_p + np.sqrt(np.diag(covar))))
             model_low = model_func(freq, *(best_p - np.sqrt(np.diag(covar))))
             model_err = model_high - model_low
-            ssr = np.sum((flux[goodchan] - model_arr[goodchan])**2)
+            ssr = np.sum((flux[goodchan] - model_arr[goodchan]) ** 2)
             aic = akaike_info_criterion_lsq(ssr, len(p0), goodchan.sum())
             aics.append(aic)
             params.append(best_p)
@@ -207,7 +221,9 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             )
             fit_flags.append(fit_flag)
             log.debug(f"{n}: {aic}")
-        best_aic, best_n, best_aic_idx = best_aic_func(aics, np.array([n for n in range(nterms+1)]))
+        best_aic, best_n, best_aic_idx = best_aic_func(
+            aics, np.array([n for n in range(nterms + 1)])
+        )
         log.debug(f"Best fit: {best_n}, {best_aic}")
         best_p = params[best_n]
         best_e = errors[best_n]
@@ -225,6 +241,7 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             best_l=best_l,
             best_f=best_f,
             fit_flag=best_flag,
+            ref_nu=ref_nu,
         )
     except Exception as e:
         log.critical(f"Failed to fit power law: {e}")
@@ -237,7 +254,9 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             best_l=np.ones_like(freq),
             best_f=None,
             fit_flag=True,
+            ref_nu=np.nan,
         )
+
 
 # stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
 def zip_equal(*iterables):
@@ -282,14 +301,14 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     fig_height : float,  optional, inches
     columns : {1, 2}
     """
+    from math import sqrt
+
+    import matplotlib
     import matplotlib.pyplot as plt
     import numpy as np
     import pandas as pd
-    import matplotlib
-    from math import sqrt
 
     # code adapted from http://www.scipy.org/Cookbook/Matplotlib/LaTeX_Examples
-
     # Width and max height in inches for IEEE journals taken from
     # computer.org/cms/Computer.org/Journal%20templates/transactions_art_guide.pdf
 
@@ -329,7 +348,7 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     matplotlib.rcParams.update(params)
 
 
-def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array:
+def delayed_to_da(list_of_delayed: List[Delayed], chunk: int = None) -> da.Array:
     """Convert list of delayed arrays to a dask array
 
     Args:
@@ -345,11 +364,11 @@ def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array
         c_dim = dim
     else:
         c_dim = (chunk,) + sample.shape
-    darray = [
+    darray_list = [
         da.from_delayed(lazy, dtype=sample.dtype, shape=sample.shape)
         for lazy in list_of_delayed
     ]
-    darray = da.stack(darray, axis=0).reshape(dim).rechunk(c_dim)
+    darray = da.stack(darray_list, axis=0).reshape(dim).rechunk(c_dim)
 
     return darray
 
@@ -470,7 +489,7 @@ def test_db(
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    ) as dbclient:
+    ) as dbclient:  # type: pymongo.MongoClient
         try:
             dbclient.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
@@ -502,7 +521,7 @@ def get_db(
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    )
+    )  # type: pymongo.MongoClient
     mydb = dbclient["spiceracs"]  # Create/open database
     comp_col = mydb["components"]  # Create/open collection
     island_col = mydb["islands"]  # Create/open collection
@@ -529,7 +548,7 @@ def get_field_db(
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    )
+    )  # type: pymongo.MongoClient
     mydb = dbclient["spiceracs"]  # Create/open database
     field_col = mydb["fields"]  # Create/open collection
     return field_col
@@ -567,10 +586,10 @@ class TqdmProgressBar(ProgressBar):
 
 def tqdm_dask(futures: distributed.Future, **kwargs) -> None:
     """Tqdm for Dask futures"""
-    futures = futures_of(futures)
-    if not isinstance(futures, (set, list)):
-        futures = [futures]
-    TqdmProgressBar(futures, **kwargs)
+    futures_list = futures_of(futures)
+    if not isinstance(futures_list, (set, list)):
+        futures_list = [futures_list]
+    TqdmProgressBar(futures_list, **kwargs)
 
 
 def port_forward(port: int, target: str) -> None:

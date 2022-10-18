@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
+import logging as log
 import os
+import time
 from pprint import pformat, pprint
 from shutil import copyfile
-from dask import distributed
+from typing import Dict, List, Tuple
+
 import pymongo
-from spiceracs.utils import test_db, tqdm_dask, try_mkdir, get_db, chunk_dask
-from tqdm import tqdm
-from typing import List, Tuple, Dict
-from dask import delayed
+from dask import delayed, distributed
 from dask.distributed import Client, LocalCluster
-from spiceracs.linmos import linmos, get_yanda
-import time
-from pprint import pprint
-import logging as log
+from tqdm import tqdm
+
+from spiceracs.linmos import get_yanda, linmos
+from spiceracs.utils import chunk_dask, get_db, test_db, tqdm_dask, try_mkdir
 
 
 def make_short_name(name: str) -> str:
@@ -104,7 +104,11 @@ def copy_singletons(
 
 
 @delayed
-def genparset(old_ims: list, stokes: str, new_dir: str,) -> str:
+def genparset(
+    old_ims: list,
+    stokes: str,
+    new_dir: str,
+) -> str:
     imlist = "[" + ",".join([im.replace(".fits", "") for im in old_ims]) + "]"
     weightlist = f"[{','.join([im.replace('.fits', '').replace('.image.restored.','.weights.').replace('.ion','') for im in old_ims])}]"
 
@@ -302,7 +306,9 @@ def cli():
     )
 
     parser.add_argument(
-        "--merge_name", type=str, help="Name of the merged region",
+        "--merge_name",
+        type=str,
+        help="Name of the merged region",
     )
 
     parser.add_argument(
@@ -330,7 +336,9 @@ def cli():
     )
 
     parser.add_argument(
-        "--host", type=str, help="Host of mongodb (probably $hostname -i).",
+        "--host",
+        type=str,
+        help="Host of mongodb (probably $hostname -i).",
     )
 
     parser.add_argument(

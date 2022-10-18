@@ -1,6 +1,9 @@
 Installation
 ------------
-Both the Python and other dependencies are installed using conda.
+
+The full python package can be installed using `pip`.
+
+To make life easier, both the Python and other dependencies can be installed using conda.
 
 First, ensure you have `anaconda <https://www.anaconda.com/products/individual/>`_ or `miniconda <https://docs.conda.io/en/latest/miniconda.html/>`_ installed.
 

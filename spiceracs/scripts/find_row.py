@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-from astropy.table import Table
 import argparse
 import os
+
+from astropy.table import Table
 
 
 def main(name: str, sbid: int):
@@ -15,7 +16,7 @@ def main(name: str, sbid: int):
     print(f"Row in RACS database is {row}")
 
 
-if __name__ == "__main__":
+def cli():
     descStr = """
     Find row in RACS-DB for given field
     """
@@ -34,3 +35,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(args.field, args.cal_sbid)
+
+
+if __name__ == "__main__":
+    cli()

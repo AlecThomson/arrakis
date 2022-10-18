@@ -1,31 +1,34 @@
 #!/usr/bin/env python3
 """SPICE-RACS single-field pipeline"""
+import logging as log
 import os
+import socket
+from time import sleep
+
+import configargparse
 import pymongo
-from prefect import task, Task, Flow
-from prefect.engine.executors import DaskExecutor
-from prefect.engine import signals
-from spiceracs import cutout
-from spiceracs import linmos
-from spiceracs import cleanup
-from spiceracs import rmsynth_oncuts
-from spiceracs import rmclean_oncuts
-from spiceracs import makecat
-from spiceracs import frion
-from spiceracs.utils import port_forward, test_db
+import yaml
+from astropy.time import Time
+from dask import delayed, distributed
+from dask.diagnostics import ProgressBar
+from dask.distributed import Client, LocalCluster, performance_report, progress
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
-from dask import distributed
-from dask.distributed import Client, progress, performance_report, LocalCluster
-from dask.diagnostics import ProgressBar
-from dask import delayed
 from IPython import embed
-from time import sleep
-from astropy.time import Time
-import yaml
-import socket
-import configargparse
-import logging as log
+from prefect import Flow, Task, task
+from prefect.engine import signals
+from prefect.engine.executors import DaskExecutor
+
+from spiceracs import (
+    cleanup,
+    cutout,
+    frion,
+    linmos,
+    makecat,
+    rmclean_oncuts,
+    rmsynth_oncuts,
+)
+from spiceracs.utils import port_forward, test_db
 
 
 @task(name="Cutout", skip_on_upstream_skip=False)
@@ -204,7 +207,9 @@ def main(args: configargparse.Namespace) -> None:
         )
         client = Client()
     else:
-        cluster = SLURMCluster(**config,)
+        cluster = SLURMCluster(
+            **config,
+        )
         log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes

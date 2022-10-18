@@ -1,50 +1,52 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
+import functools
+import json
+import logging as log
+import os
+import pdb
+import subprocess
+import sys
+import time
+import traceback
+import warnings
+from glob import glob
 from pprint import pformat, pprint
+from shutil import copyfile
+
+import astropy.units as u
+import dask
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import psutil
+import pymongo
+from astropy.coordinates import SkyCoord
+from astropy.io import fits
+from astropy.modeling import fitting, models
+from astropy.stats import mad_std, sigma_clip
+from astropy.wcs import WCS
+from dask import delayed
+from dask.diagnostics import ProgressBar
+from dask.distributed import Client, LocalCluster, progress, wait
+from IPython import embed
+from RMtools_1D import do_RMsynth_1D
+from RMtools_3D import do_RMsynth_3D
+from RMutils.util_misc import create_frac_spectra
+from RMutils.util_plotTk import plot_rmsf_fdf_fig
+from spectral_cube import SpectralCube
+from tqdm import tqdm, trange
+
 from spiceracs.utils import (
-    getfreq,
     MyEncoder,
+    chunk_dask,
+    fit_pl,
+    get_db,
+    getfreq,
     test_db,
     tqdm_dask,
     try_mkdir,
-    get_db,
-    chunk_dask,
-    fit_pl,
 )
-import json
-import numpy as np
-import os
-from glob import glob
-from shutil import copyfile
-import pymongo
-import sys
-import subprocess
-import time
-from tqdm import tqdm, trange
-import warnings
-from RMtools_1D import do_RMsynth_1D
-from RMtools_3D import do_RMsynth_3D
-from spectral_cube import SpectralCube
-from astropy.io import fits
-from astropy.wcs import WCS
-from astropy.stats import sigma_clip, mad_std
-from astropy.coordinates import SkyCoord
-from astropy.modeling import models, fitting
-import astropy.units as u
-import matplotlib.pyplot as plt
-from RMutils.util_plotTk import plot_rmsf_fdf_fig
-from RMutils.util_misc import create_frac_spectra
-import functools
-import psutil
-import pdb
-from IPython import embed
-import dask
-from dask import delayed
-from dask.distributed import Client, progress, LocalCluster, wait
-from dask.diagnostics import ProgressBar
-import traceback
-import logging as log
-import pandas as pd
 
 
 @delayed
@@ -102,7 +104,11 @@ def rmsynthoncut3d(
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         log.critical(f"Cubelet {iname} is entirely NaN")
         myquery = {"Source_ID": iname}
-        badvalues = {"$set": {"rmsynth3d": False,}}
+        badvalues = {
+            "$set": {
+                "rmsynth3d": False,
+            }
+        }
         return pymongo.UpdateOne(myquery, badvalues)
     rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
     rmsi[rmsi == 0] = np.nan
@@ -179,8 +185,7 @@ def rmsynthoncut3d(
 
 @delayed
 def rms_1d(data):
-    """Compute RMS from bounding pixels
-    """
+    """Compute RMS from bounding pixels"""
     Nfreq, Ndec, Nra = data.shape
     mask = np.ones((Ndec, Nra), dtype=np.bool)
     mask[3:-3, 3:-3] = False
@@ -218,7 +223,7 @@ def estimate_noise_annulus(x_center, y_center, cube):
         -1 * outer_radius : outer_radius + 1, -1 * outer_radius : outer_radius + 1
     ]
     grid_mask = np.logical_or(
-        x ** 2 + y ** 2 < inner_radius ** 2, x ** 2 + y ** 2 > outer_radius ** 2
+        x**2 + y**2 < inner_radius**2, x**2 + y**2 > outer_radius**2
     )
     for i in range(lenfreq):
         if naxis == 4:
@@ -379,12 +384,7 @@ def rmsynthoncut1d(
 
     elif do_own_fit:
         log.debug(f"Doing own fit")
-        fit_dict = fit_pl(
-            freq=freq,
-            flux=iarr,
-            fluxerr=rmsi,
-            nterms=abs(polyOrd)
-        )
+        fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
         alpha = None
         amplitude = None
         x_0 = None
@@ -451,28 +451,31 @@ def rmsynthoncut1d(
         # Update model values if own fit was used
         if do_own_fit:
             # Wrangle into format that matches RM-Tools
-            mDict["polyCoeffs"] = ','.join(
+            mDict["polyCoeffs"] = ",".join(
                 [
                     # Pad with zeros to length 5
-                    str(i) for i in np.pad(
+                    str(i)
+                    for i in np.pad(
                         fit_dict["best_p"],
-                        (0, 5-len(fit_dict["best_p"])),
-                        'constant',
+                        (0, 5 - len(fit_dict["best_p"])),
+                        "constant",
                         constant_values=np.nan,
                     )[::-1]
                 ]
             )
-            mDict["polyCoefferr"] = ','.join(
+            mDict["polyCoefferr"] = ",".join(
                 [
-                    str(i) for i in np.pad(
+                    str(i)
+                    for i in np.pad(
                         fit_dict["best_e"],
-                        (0, 5-len(fit_dict["best_e"])),
-                        'constant',
+                        (0, 5 - len(fit_dict["best_e"])),
+                        "constant",
                         constant_values=np.nan,
                     )[::-1]
                 ]
             )
             mDict["polyOrd"] = int(fit_dict["best_n"])
+            mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
             if fit_dict["fit_flag"]:
                 mDict["IfitStat"] = 64
             else:
@@ -710,7 +713,12 @@ def main(
             comp_col.find(
                 isl_query,
                 # Only get required values
-                {"Source_ID": 1, "Gaussian_ID": 1, "RA": 1, "Dec": 1,},
+                {
+                    "Source_ID": 1,
+                    "Gaussian_ID": 1,
+                    "RA": 1,
+                    "Dec": 1,
+                },
             ).sort("Source_ID")
         )
     )
@@ -852,9 +860,9 @@ def main(
 
 
 def cli():
-    """Command-line interface
-    """
+    """Command-line interface"""
     import argparse
+
     from astropy.utils.exceptions import AstropyWarning
 
     warnings.simplefilter("ignore", category=AstropyWarning)
