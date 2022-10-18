@@ -1,5 +1,5 @@
 [submodule "askap_surveys/racs"]
-	path = askap_surveys/racs
+	path = spiceracs/askap_surveys/racs
 	url = https://bitbucket.csiro.au/scm/askap_surveys/racs.git
 [submodule "RM-Tools"]
 	path = RM-Tools
