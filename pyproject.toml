@@ -20,6 +20,9 @@ classifiers=[
 include = [
     'README.md',
     'LICENSE',
+    'askap_surveys',
+    'pyproject.toml',
+    # 'scripts',
 ]
 
 [tool.poetry.dependencies]
@@ -75,7 +78,7 @@ docs = [
 [tool.poetry.dev-dependencies]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=1.2"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
@@ -83,4 +86,5 @@ spice_init = "spiceracs.init_database:cli"
 spice_process = "spiceracs.process_spice:cli"
 spice_region = "spiceracs.process_region:cli"
 spice_cat = "spiceracs.makecat:cli"
-check_cutout = {reference = "scripts/check_cutout.py", type = "file", extras=[]}
+# check_cutout = {reference = "scripts/check_cutout.py", type= "file", extras=[]}
+spice_script =  "spiceracs.scripts.spice_script:cli"
