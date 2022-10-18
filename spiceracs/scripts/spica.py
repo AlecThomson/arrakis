@@ -176,8 +176,7 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
             f.write("\n".join(cmds))
     return spica_tab
 
-
-if __name__ == "__main__":
+def cli():
     import argparse
 
     descStr = """
@@ -218,3 +217,6 @@ if __name__ == "__main__":
         mslist_dir=args.mslist_dir,
         cube_image=args.cube_image,
     )
+
+if __name__ == "__main__":
+    cli()

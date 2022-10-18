@@ -54,7 +54,7 @@ def main(field, dry_run=False, ncores=10):
         copy_data.prsync(f"{cut_dir}/*", store_dir, ncores=ncores)
 
 
-if __name__ == "__main__":
+def cli():
     descStr = f"""
     Copy data from RACS area to SPICE area'
     """
@@ -84,3 +84,6 @@ if __name__ == "__main__":
         dry_run=args.dry_run,
         ncores=args.ncores,
     )
+
+if __name__ == "__main__":
+    cli()

@@ -93,8 +93,7 @@ def main(
             for f in files:
                 os.remove(f)
 
-
-if __name__ == "__main__":
+def cli():
     descStr = f"""
     Copy data from RACS area to SPICE area'
     """
@@ -151,3 +150,7 @@ if __name__ == "__main__":
         clean=args.clean,
         force=args.force,
     )
+
+
+if __name__ == "__main__":
+    cli()
