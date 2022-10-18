@@ -79,7 +79,7 @@ def main(cutdir, source):
     # plt.savefig('test.png')
 
 
-if __name__ == "__main__":
+def cli():
     import argparse
 
     descStr = """
@@ -94,3 +94,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     main(args.cutdir, args.source)
+
+if __name__ == "__main__":
+    cli()

@@ -746,7 +746,6 @@ def cli():
         default=None,
     )
     args = parser.parse_args()
-
     if args.verbose:
         log.basicConfig(
             level=log.INFO,
@@ -770,7 +769,7 @@ def cli():
             interface=args.interface,
             local_directory="/dev/shm",
         )
-        client = Client()
+        cluster = None
     else:
         cluster = LocalCluster(
             n_workers=12,
@@ -778,21 +777,20 @@ def cli():
             threads_per_worker=1,
             local_directory="/dev/shm",
         )
-        client = Client(cluster)
-    log.debug(client)
-    main(
-        polcatf=args.polcat,
-        client=client,
-        data_dir=args.data_dir,
-        do_update_cubes=args.update_cubes,
-        do_convert_spectra=args.convert_spectra,
-        do_convert_plots=args.convert_plots,
-        verbose=args.verbose,
-        test=args.test,
-        batch_size=args.batch_size,
-        outdir=args.outdir,
-    )
-    client.close()
+    with Client(cluster) as client:
+        log.debug(client)
+        main(
+            polcatf=args.polcat,
+            client=client,
+            data_dir=args.data_dir,
+            do_update_cubes=args.update_cubes,
+            do_convert_spectra=args.convert_spectra,
+            do_convert_plots=args.convert_plots,
+            verbose=args.verbose,
+            test=args.test,
+            batch_size=args.batch_size,
+            outdir=args.outdir,
+        )
 
 
 if __name__ == "__main__":
