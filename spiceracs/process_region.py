@@ -3,6 +3,7 @@
 import logging as log
 import os
 from time import sleep
+import pkg_resources
 
 import configargparse
 import yaml
@@ -50,9 +51,8 @@ def main(args: configargparse.Namespace) -> None:
     host = args.host
 
     if args.dask_config is None:
-        scriptdir = os.path.dirname(os.path.realpath(__file__))
-        config_dir = f"{scriptdir}/../configs"
-        args.dask_config = f"{config_dir}/default.yaml"
+        config_dir = pkg_resources.resource_filename("spiceracs", "configs")
+        args.dask_config = os.path.join(config_dir,"default.yaml")
 
     if args.outfile is None:
         args.outfile = f"{args.merge_name}.pipe.test.fits"

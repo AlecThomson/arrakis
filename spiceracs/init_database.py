@@ -9,6 +9,7 @@ import time
 from functools import partial
 from glob import glob
 from typing import List, Tuple
+import pkg_resources
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -176,9 +177,9 @@ def beam_database(islandcat, host, username=None, password=None, verbose=True):
 
 
 def get_catalogue(verbose=True):
-    scriptdir = os.path.dirname(os.path.realpath(__file__))
-    basedir = f"{scriptdir}/../askap_surveys/racs/db/epoch_0"
-    beamfiles = glob(f"{basedir}/beam_inf*")
+    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
+    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
+    beamfiles = glob(os.path.join(basedir, "beam_inf*"))
 
     # Init first field
     beamfile = beamfiles[0]
@@ -261,8 +262,8 @@ def get_beams(mastercat, database, verbose=True):
 
 
 def field_database(host, username, password, verbose=True):
-    scriptdir = os.path.dirname(os.path.realpath(__file__))
-    basedir = f"{scriptdir}/../askap_surveys/racs/db/epoch_0"
+    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
+    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
     data_file = os.path.join(basedir, "field_data.csv")
     database = Table.read(data_file)
     df = database.to_pandas()

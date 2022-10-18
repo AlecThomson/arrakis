@@ -4,6 +4,7 @@ import logging as log
 import os
 import socket
 from time import sleep
+import pkg_resources
 
 import configargparse
 import pymongo
@@ -180,8 +181,7 @@ def main(args: configargparse.Namespace) -> None:
     host = args.host
 
     if args.dask_config is None:
-        scriptdir = os.path.dirname(os.path.realpath(__file__))
-        config_dir = f"{scriptdir}/../configs"
+        config_dir = pkg_resources.resource_filename("spiceracs", "configs")
         args.dask_config = f"{config_dir}/default.yaml"
 
     if args.outfile is None:
