@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-from astropy.table import Table, Row
 import argparse
 import os
+
+from astropy.table import Row, Table
 
 sorted_sbids = [
     8570,
@@ -107,8 +108,7 @@ def main(name: str, cal=False, science=False, weight=False):
             print(f"{space}CAL SBID {i+1}: {row['CAL_SBID']}")
             print(f"{space}Science SBID {i+1}: {row['SBID']}\n")
 
-
-if __name__ == "__main__":
+def cli():
     descStr = """
     Find SBID(s) in RACS-DB for given field
     """
@@ -130,3 +130,6 @@ if __name__ == "__main__":
         science=args.science,
         weight=args.weight,
     )
+
+if __name__ == "__main__":
+    cli()

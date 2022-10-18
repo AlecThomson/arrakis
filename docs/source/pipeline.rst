@@ -32,10 +32,10 @@ Details of each module can be found in the API documentation. But broadly the st
 With an initalised database you can call the pipeline on a single field: ::
 
     (spice) $ spice_process -h
-    usage: spice_process [-h] [--config CONFIG] [--host HOST] [--username USERNAME] [--password PASSWORD] [--use_mpi] [--port_forward PORT_FORWARD [PORT_FORWARD ...]] [--dask_config DASK_CONFIG] [--holofile HOLOFILE] [--yanda YANDA]
-                        [--skip_cutout] [--skip_linmos] [--skip_cleanup] [--skip_frion] [--skip_rmsynth] [--skip_rmclean] [--skip_cat] [-v] [-vw] [-p PAD] [--dryrun] [--dimension DIMENSION] [-m] [--tt0 TT0] [--tt1 TT1] [--validate]
-                        [--limit LIMIT] [-sp] [-w WEIGHTTYPE] [--fit_function FIT_FUNCTION] [-t] [-l PHIMAX_RADM2] [-d DPHI_RADM2] [-s NSAMPLES] [-o POLYORD] [-i] [--showPlots] [-R] [-rmv] [-D] [-c CUTOFF] [-n MAXITER] [-g GAIN]
-                        [--window WINDOW] [--outfile OUTFILE]
+    usage: spice_process [-h] [--config CONFIG] [--host HOST] [--username USERNAME] [--password PASSWORD] [--use_mpi] [--port_forward PORT_FORWARD [PORT_FORWARD ...]] [--dask_config DASK_CONFIG]
+                        [--holofile HOLOFILE] [--yanda YANDA] [--skip_cutout] [--skip_linmos] [--skip_cleanup] [--skip_frion] [--skip_rmsynth] [--skip_rmclean] [--skip_cat] [-v] [-vw] [-p PAD]
+                        [--dryrun] [--dimension DIMENSION] [-m] [--tt0 TT0] [--tt1 TT1] [--validate] [--limit LIMIT] [--own_fit] [-sp] [-w WEIGHTTYPE] [--fit_function FIT_FUNCTION] [-t]
+                        [-l PHIMAX_RADM2] [-d DPHI_RADM2] [-s NSAMPLES] [-o POLYORD] [-i] [--showPlots] [-R] [-rmv] [-D] [-c CUTOFF] [-n MAXITER] [-g GAIN] [--window WINDOW] [--outfile OUTFILE]
                         field datadir
 
 
@@ -102,6 +102,7 @@ With an initalised database you can call the pipeline on a single field: ::
     --tt1 TT1             TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.
     --validate            Run on RMsynth Stokes I [False].
     --limit LIMIT         Limit number of sources [All].
+    --own_fit             Use own Stokes I fit function [False].
 
     RM-tools arguments:
     -sp, --savePlots      save the plots [False].
@@ -133,8 +134,8 @@ With an initalised database you can call the pipeline on a single field: ::
     catalogue arguments:
     --outfile OUTFILE     File to save table to [None].
 
-    Args that start with '--' (eg. --host) can also be set in a config file (.default_config.txt or specified via --config). Config file syntax allows: key=value, flag=true, stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi).
-    If an arg is specified in more than one place, then commandline values override config file values which override defaults.
+    Args that start with '--' (eg. --host) can also be set in a config file (.default_config.txt or specified via --config). Config file syntax allows: key=value, flag=true, stuff=[a,b,c] (for
+    details, see syntax at https://goo.gl/R74nmi). If an arg is specified in more than one place, then commandline values override config file values which override defaults.
 
 
 You can optionally pass a configuration file (with the :code:`--config` argument) to set the options you prefer. An example file in contained in :file:`spiceracs/.default_config.txt`.
@@ -146,10 +147,11 @@ For extra information you can refer to the API:
 Similarly, you can merge multiple fields togther using: ::
 
     (spice) $ spice_region -h
-    usage: spice_region [-h] [--config CONFIG] [--merge_name MERGE_NAME] [--fields FIELDS [FIELDS ...]] [--datadirs DATADIRS [DATADIRS ...]] [--output_dir OUTPUT_DIR] [--host HOST] [--username USERNAME] [--password PASSWORD] [--use_mpi]
-                    [--port_forward PORT_FORWARD [PORT_FORWARD ...]] [--dask_config DASK_CONFIG] [--yanda YANDA] [--skip_merge] [--skip_rmsynth] [--skip_rmclean] [--skip_cat] [-v] [--debugger] [-vw] [--dimension DIMENSION] [-m]
-                    [--tt0 TT0] [--tt1 TT1] [--validate] [--limit LIMIT] [-sp] [-w WEIGHTTYPE] [--fit_function FIT_FUNCTION] [-t] [-l PHIMAX_RADM2] [-d DPHI_RADM2] [-s NSAMPLES] [-o POLYORD] [-i] [--showPlots] [-R] [-rmv] [-D]
-                    [-c CUTOFF] [-n MAXITER] [-g GAIN] [--window WINDOW] [--outfile OUTFILE]
+    usage: spice_region [-h] [--config CONFIG] [--merge_name MERGE_NAME] [--fields FIELDS [FIELDS ...]] [--datadirs DATADIRS [DATADIRS ...]] [--output_dir OUTPUT_DIR] [--host HOST]
+                        [--username USERNAME] [--password PASSWORD] [--use_mpi] [--port_forward PORT_FORWARD [PORT_FORWARD ...]] [--dask_config DASK_CONFIG] [--yanda YANDA] [--skip_merge]
+                        [--skip_rmsynth] [--skip_rmclean] [--skip_cat] [-v] [--debugger] [-vw] [--dimension DIMENSION] [-m] [--tt0 TT0] [--tt1 TT1] [--validate] [--limit LIMIT] [--own_fit] [-sp]
+                        [-w WEIGHTTYPE] [--fit_function FIT_FUNCTION] [-t] [-l PHIMAX_RADM2] [-d DPHI_RADM2] [-s NSAMPLES] [-o POLYORD] [-i] [--showPlots] [-R] [-rmv] [-D] [-c CUTOFF] [-n MAXITER]
+                        [-g GAIN] [--window WINDOW] [--outfile OUTFILE]
 
 
          mmm   mmm   mmm   mmm   mmm
@@ -212,6 +214,7 @@ Similarly, you can merge multiple fields togther using: ::
     --tt1 TT1             TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.
     --validate            Run on RMsynth Stokes I [False].
     --limit LIMIT         Limit number of sources [All].
+    --own_fit             Use own Stokes I fit function [False].
 
     RM-tools arguments:
     -sp, --savePlots      save the plots [False].
@@ -243,7 +246,21 @@ Similarly, you can merge multiple fields togther using: ::
     catalogue arguments:
     --outfile OUTFILE     File to save table to [None].
 
-    Args that start with '--' (eg. --merge_name) can also be set in a config file (.default_field_config.txt or specified via --config). Config file syntax allows: key=value, flag=true, stuff=[a,b,c] (for details, see syntax at
-    https://goo.gl/R74nmi). If an arg is specified in more than one place, then commandline values override config file values which override defaults.
+    Args that start with '--' (eg. --merge_name) can also be set in a config file (.default_field_config.txt or specified via --config). Config file syntax allows: key=value, flag=true,
+    stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi). If an arg is specified in more than one place, then commandline values override config file values which override defaults.
 
 * :py:mod:`spiceracs.process_region`
+
+Helper scripts (mostly for bespoke purposes) are available through a unified commandline interface: ::
+
+    (spice) $ spice_script -h
+    usage: spice_script [-h] {compare_leakage,fix_dr1_cat,check_cutout,spica,find_row,make_links,copy_cutouts_askap,copy_cutouts,copy_data,find_sbid,helloworld,casda_prepare,compute_leakage}
+
+    positional arguments:
+    {compare_leakage,fix_dr1_cat,check_cutout,spica,find_row,make_links,copy_cutouts_askap,copy_cutouts,copy_data,find_sbid,helloworld,casda_prepare,compute_leakage}
+                             Subprogram to run
+
+    optional arguments:
+    -h, --help            show this help message and exit
+
+* :py:mod:`spiceracs.scripts.spice_script`

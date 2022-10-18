@@ -1,50 +1,44 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
-from pprint import pformat, pprint
-from spiceracs.utils import (
-    getfreq,
-    MyEncoder,
-    test_db,
-    tqdm_dask,
-    try_mkdir,
-    get_db,
-    chunk_dask,
-    fit_pl,
-)
+import functools
 import json
-import numpy as np
+import logging as log
 import os
-from glob import glob
-from shutil import copyfile
-import pymongo
-import sys
+import pdb
 import subprocess
+import sys
 import time
-from tqdm import tqdm, trange
+import traceback
 import warnings
+from glob import glob
+from pprint import pformat, pprint
+from shutil import copyfile
+
+import astropy.units as u
+import dask
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import psutil
+import pymongo
+from astropy.coordinates import SkyCoord
+from astropy.io import fits
+from astropy.modeling import fitting, models
+from astropy.stats import mad_std, sigma_clip
+from astropy.wcs import WCS
+from dask import delayed
+from dask.diagnostics import ProgressBar
+from dask.distributed import Client, LocalCluster, progress, wait
+from IPython import embed
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
-from spectral_cube import SpectralCube
-from astropy.io import fits
-from astropy.wcs import WCS
-from astropy.stats import sigma_clip, mad_std
-from astropy.coordinates import SkyCoord
-from astropy.modeling import models, fitting
-import astropy.units as u
-import matplotlib.pyplot as plt
-from RMutils.util_plotTk import plot_rmsf_fdf_fig
 from RMutils.util_misc import create_frac_spectra
-import functools
-import psutil
-import pdb
-from IPython import embed
-import dask
-from dask import delayed
-from dask.distributed import Client, progress, LocalCluster, wait
-from dask.diagnostics import ProgressBar
-import traceback
-import logging as log
-import pandas as pd
+from RMutils.util_plotTk import plot_rmsf_fdf_fig
+from spectral_cube import SpectralCube
+from tqdm import tqdm, trange
+
+from spiceracs.utils import (MyEncoder, chunk_dask, fit_pl, get_db, getfreq,
+                             test_db, tqdm_dask, try_mkdir)
 
 
 @delayed
@@ -473,6 +467,7 @@ def rmsynthoncut1d(
                 ]
             )
             mDict["polyOrd"] = int(fit_dict["best_n"])
+            mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
             if fit_dict["fit_flag"]:
                 mDict["IfitStat"] = 64
             else:
@@ -854,6 +849,7 @@ def cli():
     """Command-line interface
     """
     import argparse
+
     from astropy.utils.exceptions import AstropyWarning
 
     warnings.simplefilter("ignore", category=AstropyWarning)

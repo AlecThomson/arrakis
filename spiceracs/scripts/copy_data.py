@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-from astropy.table import Table
 import argparse
 import os
 from glob import glob
+from shutil import SameFileError, copyfile
+
+from astropy.table import Table
+
 from spiceracs.utils import try_mkdir
-from shutil import copyfile, SameFileError
 
 
 def yes_or_no(question):
@@ -91,8 +93,7 @@ def main(
             for f in files:
                 os.remove(f)
 
-
-if __name__ == "__main__":
+def cli():
     descStr = f"""
     Copy data from RACS area to SPICE area'
     """
@@ -149,3 +150,7 @@ if __name__ == "__main__":
         clean=args.clean,
         force=args.force,
     )
+
+
+if __name__ == "__main__":
+    cli()

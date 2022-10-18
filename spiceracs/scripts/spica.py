@@ -1,11 +1,13 @@
 import os
-import subprocess as sb
 import shlex
+import subprocess as sb
 from glob import glob
 from pprint import pprint
-from astropy.table import Table
-import numpy as np
+
 import copy_data
+import numpy as np
+from astropy.table import Table
+
 from spiceracs.utils import try_mkdir
 
 racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")
@@ -174,8 +176,7 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
             f.write("\n".join(cmds))
     return spica_tab
 
-
-if __name__ == "__main__":
+def cli():
     import argparse
 
     descStr = """
@@ -216,3 +217,6 @@ if __name__ == "__main__":
         mslist_dir=args.mslist_dir,
         cube_image=args.cube_image,
     )
+
+if __name__ == "__main__":
+    cli()

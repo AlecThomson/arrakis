@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
+import logging as log
 import os
+import time
 from pprint import pformat, pprint
 from shutil import copyfile
-from dask import distributed
+from typing import Dict, List, Tuple
+
 import pymongo
-from spiceracs.utils import test_db, tqdm_dask, try_mkdir, get_db, chunk_dask
-from tqdm import tqdm
-from typing import List, Tuple, Dict
-from dask import delayed
+from dask import delayed, distributed
 from dask.distributed import Client, LocalCluster
-from spiceracs.linmos import linmos, get_yanda
-import time
-from pprint import pprint
-import logging as log
+from tqdm import tqdm
+
+from spiceracs.linmos import get_yanda, linmos
+from spiceracs.utils import chunk_dask, get_db, test_db, tqdm_dask, try_mkdir
 
 
 def make_short_name(name: str) -> str:

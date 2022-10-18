@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-import pymongo
-import numpy as np
-from tqdm.auto import tqdm, trange
-from spiceracs.utils import getdata, MyEncoder
 import json
+
+import astropy
+import astropy.units as units
 import matplotlib.pyplot as plt
+import numpy as np
+import pymongo
+from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.wcs import WCS
-from spiceracs.utils import get_db
-from astropy.coordinates import SkyCoord
-import astropy.units as units
-import astropy
+from tqdm.auto import tqdm, trange
+
+from spiceracs.utils import MyEncoder, get_db, getdata
 
 
 def makesurf(start, stop, field, datadir, save_plots=True, data=None):

@@ -13,32 +13,28 @@ x = sin(offset)*cos(angle)/incx + refx
 y = sin(offset)*sin(angle)/incy + refy
 """
 import os
-from IPython.core.pylabtools import figsize
-import numpy as np
-import warnings
-from astropy.coordinates import SkyCoord
-import astropy.units as u
-import astropy
-from astropy.io import fits
-from astropy.wcs import WCS
-from spiceracs.linmos import gen_seps
-from spiceracs.utils import (
-    tqdm_dask,
-    get_db,
-    test_db,
-    coord_to_string,
-    getfreq,
-    chunk_dask,
-)
-from dask import delayed
-from dask.distributed import LocalCluster, Client
-import matplotlib.pyplot as plt
-from shutil import copyfile
 import time
-from astropy.stats import sigma_clip, mad_std
-from IPython import embed
-import pandas as pd
+import warnings
 from glob import glob
+from shutil import copyfile
+
+import astropy
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from astropy.coordinates import SkyCoord
+from astropy.io import fits
+from astropy.stats import mad_std, sigma_clip
+from astropy.wcs import WCS
+from dask import delayed
+from dask.distributed import Client, LocalCluster
+from IPython import embed
+from IPython.core.pylabtools import figsize
+
+from spiceracs.linmos import gen_seps
+from spiceracs.utils import (chunk_dask, coord_to_string, get_db, getfreq,
+                             test_db, tqdm_dask)
 
 
 def make_plot(data, comp, imfile):
@@ -220,6 +216,7 @@ def main(
 def cli():
     """Command-line interface"""
     import argparse
+
     from astropy.utils.exceptions import AstropyWarning
 
     warnings.simplefilter("ignore", category=AstropyWarning)

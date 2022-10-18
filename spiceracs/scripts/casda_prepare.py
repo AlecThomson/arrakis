@@ -1,40 +1,37 @@
 #!/usr/bin/env python3
 """Prepare files for CASDA upload"""
-import os
-import time
-from typing import Tuple, List, Dict
-from spiceracs.utils import try_mkdir, tqdm_dask, try_symlink, chunk_dask, zip_equal
-import polspectra
-from glob import glob
-from astropy.io import fits
-from astropy.table import Table, Column, Row
-import astropy.units as u
-import numpy as np
-import logging as log
-import traceback
 import argparse
-from dask import delayed
-from dask.distributed import Client, LocalCluster
-import dask.bag as db
-import dask.array as da
+import logging as log
+import os
 import subprocess as sp
-from dask_mpi import initialize
+import time
+import traceback
+from glob import glob
+from typing import Dict, List, Tuple
+
+import astropy.units as u
+import dask.array as da
+import dask.bag as db
+import h5py
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import polspectra
+from astropy.io import fits
+from astropy.table import Column, Row, Table
+from astropy.visualization import (ImageNormalize, LogStretch, MinMaxInterval,
+                                   SqrtStretch, ZScaleInterval)
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
-from astropy.visualization import (
-    MinMaxInterval,
-    SqrtStretch,
-    ImageNormalize,
-    ZScaleInterval,
-    LogStretch,
-)
-import astropy.units as u
+from dask import delayed
+from dask.distributed import Client, LocalCluster
+from dask_mpi import initialize
+from IPython import embed
 from radio_beam import Beam
 from tqdm.auto import tqdm, trange
-import pandas as pd
-import h5py
-from IPython import embed
+
+from spiceracs.utils import (chunk_dask, tqdm_dask, try_mkdir, try_symlink,
+                             zip_equal)
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -749,7 +746,6 @@ def cli():
         default=None,
     )
     args = parser.parse_args()
-
     if args.verbose:
         log.basicConfig(
             level=log.INFO,
@@ -773,7 +769,7 @@ def cli():
             interface=args.interface,
             local_directory="/dev/shm",
         )
-        client = Client()
+        cluster = None
     else:
         cluster = LocalCluster(
             n_workers=12,
@@ -781,21 +777,20 @@ def cli():
             threads_per_worker=1,
             local_directory="/dev/shm",
         )
-        client = Client(cluster)
-    log.debug(client)
-    main(
-        polcatf=args.polcat,
-        client=client,
-        data_dir=args.data_dir,
-        do_update_cubes=args.update_cubes,
-        do_convert_spectra=args.convert_spectra,
-        do_convert_plots=args.convert_plots,
-        verbose=args.verbose,
-        test=args.test,
-        batch_size=args.batch_size,
-        outdir=args.outdir,
-    )
-    client.close()
+    with Client(cluster) as client:
+        log.debug(client)
+        main(
+            polcatf=args.polcat,
+            client=client,
+            data_dir=args.data_dir,
+            do_update_cubes=args.update_cubes,
+            do_convert_spectra=args.convert_spectra,
+            do_convert_plots=args.convert_plots,
+            verbose=args.verbose,
+            test=args.test,
+            batch_size=args.batch_size,
+            outdir=args.outdir,
+        )
 
 
 if __name__ == "__main__":

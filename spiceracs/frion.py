@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """Correct for the ionosphere in parallel"""
+import logging as log
 import os
-import numpy as np
-import astropy.units as u
-from astropy.time import Time, TimeDelta
-from spiceracs.utils import get_field_db, getfreq, get_db, tqdm_dask, test_db, try_mkdir
-from FRion import predict, correct
-from dask import delayed
-from dask.distributed import Client, progress, LocalCluster, wait
-import pymongo
 import time
+from glob import glob
 from pprint import pformat
 from shutil import copyfile
-from glob import glob
 from typing import Dict, List, Tuple
-import logging as log
+
+import astropy.units as u
 import dask
+import numpy as np
+import pymongo
+from astropy.time import Time, TimeDelta
+from dask import delayed
+from dask.distributed import Client, LocalCluster, progress, wait
+from FRion import correct, predict
+
+from spiceracs.utils import (get_db, get_field_db, getfreq, test_db, tqdm_dask,
+                             try_mkdir)
 
 
 @delayed
@@ -246,6 +249,7 @@ def cli():
     """Command-line interface"""
     import argparse
     import warnings
+
     from astropy.utils.exceptions import AstropyWarning
 
     warnings.simplefilter("ignore", category=AstropyWarning)

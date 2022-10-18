@@ -31,7 +31,6 @@ dependencies:
 - sphinx-autoapi
 - m2r2
 - gfortran
-- wsclean
 - numba
 - pip:
-  - -e ./
+- -e ./
