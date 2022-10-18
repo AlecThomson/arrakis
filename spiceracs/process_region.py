@@ -3,9 +3,9 @@
 import logging as log
 import os
 from time import sleep
-import pkg_resources
 
 import configargparse
+import pkg_resources
 import yaml
 from astropy.time import Time
 from dask import delayed, distributed

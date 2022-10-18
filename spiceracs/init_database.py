@@ -9,10 +9,10 @@ import time
 from functools import partial
 from glob import glob
 from typing import List, Tuple
-import pkg_resources
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pkg_resources
 import psutil
 import pymongo
 from astropy import units as u

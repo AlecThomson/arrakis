@@ -12,12 +12,12 @@ from glob import glob
 from logging import disable
 from pprint import pformat
 from typing import List, Tuple
-import pkg_resources
 
 import astropy
 import astropy.units as u
 import dask
 import numpy as np
+import pkg_resources
 import pymongo
 from astropy.coordinates import SkyCoord
 from astropy.table import Table

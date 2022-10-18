@@ -4,9 +4,9 @@ import logging as log
 import os
 import socket
 from time import sleep
-import pkg_resources
 
 import configargparse
+import pkg_resources
 import pymongo
 import yaml
 from astropy.time import Time
