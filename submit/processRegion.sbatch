@@ -22,7 +22,7 @@ export OMP_NUM_THREADS=1
 # module load askapsoft
 # unset PYTHONPATH
 # source /home/$(whoami)/.bashrc
-cd /group/ja3/athomson
+cd /askapbuffer/processing/tho822/spice-racs/DR1
 conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
