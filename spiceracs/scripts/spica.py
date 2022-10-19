@@ -4,10 +4,10 @@ import subprocess as sb
 from glob import glob
 from pprint import pprint
 
-import copy_data
 import numpy as np
 from astropy.table import Table
 
+from spiceracs.scripts import copy_data
 from spiceracs.utils import try_mkdir
 
 racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")

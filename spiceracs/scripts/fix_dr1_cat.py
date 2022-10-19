@@ -10,9 +10,9 @@ from astropy.coordinates import SkyCoord
 from astropy.table import Column, Table
 from IPython import embed
 from rmtable import RMTable
-from spica import SPICA, basedir
 
 from spiceracs.makecat import get_fit_func, is_leakage, write_votable
+from spiceracs.scripts.spica import SPICA, basedir
 
 
 def fix_fields(tab: Table) -> Table:
