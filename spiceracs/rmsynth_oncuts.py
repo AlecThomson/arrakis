@@ -481,6 +481,18 @@ def rmsynthoncut1d(
             else:
                 mDict["IfitStat"] = 0
 
+        for k, v in mDict.items():
+            if isinstance(v, np.float_):
+                mDict[k] = float(v)
+            elif isinstance(v, np.float32):
+                mDict[k] = float(v)
+            elif isinstance(v, np.int_):
+                mDict[k] = int(v)
+            elif isinstance(v, np.int32):
+                mDict[k] = int(v)
+            elif isinstance(v, np.ndarray):
+                mDict[k] = v.tolist()
+
         do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
         myquery = {"Gaussian_ID": cname}
