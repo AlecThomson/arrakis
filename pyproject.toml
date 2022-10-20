@@ -110,7 +110,6 @@ fix_dr1_cat = { reference="scripts/fix_dr1_cat.py", type="file"}
 helloworld = { reference="scripts/helloworld.py", type="file"}
 make_links = { reference="scripts/make_links.py", type="file"}
 spica = { reference="scripts/spica.py", type="file"}
-spice_script = { reference="scripts/spice_script.py", type="file"}
 
 [tool.isort]
 profile = "black"
