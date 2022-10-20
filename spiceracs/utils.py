@@ -22,6 +22,7 @@ import astropy.units as u
 import dask
 import dask.array as da
 import dask.distributed as distributed
+from casacore.tables import table
 import numpy as np
 import pymongo
 from astropy.coordinates import SkyCoord
@@ -1076,7 +1077,7 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     matplotlib.rcParams.update(params)
 
 
-def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array:
+def delayed_to_da(list_of_delayed: List[Delayed], chunk: int = None) -> da.Array:
     """Convert list of delayed arrays to a dask array
 
     Args:
@@ -1092,11 +1093,11 @@ def delayed_to_da(list_of_delayed: List[delayed], chunk: int = None) -> da.Array
         c_dim = dim
     else:
         c_dim = (chunk,) + sample.shape
-    darray = [
+    darray_list = [
         da.from_delayed(lazy, dtype=sample.dtype, shape=sample.shape)
         for lazy in list_of_delayed
     ]
-    darray = da.stack(darray, axis=0).reshape(dim).rechunk(c_dim)
+    darray = da.stack(darray_list, axis=0).reshape(dim).rechunk(c_dim)
 
     return darray
 
