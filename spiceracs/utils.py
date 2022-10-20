@@ -46,6 +46,7 @@ import dask
 from dask import delayed
 import dask.array as da
 import dask.distributed as distributed
+from dask.distributed import Client, get_client
 import logging as log
 from tqdm.auto import tqdm, trange
 import time
