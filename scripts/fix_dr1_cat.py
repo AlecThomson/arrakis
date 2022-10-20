@@ -20,7 +20,7 @@ def fix_fields(tab: Table) -> Table:
     # Get field data, and index by field/tile ID
     survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
     basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
-    field = Table.read(os.path.join(basedir), "field_data.csv")
+    field = Table.read(os.path.join(basedir, "field_data.csv"))
     field = field[field["SELECT"] == 1]
     field.add_index("FIELD_NAME")
     tab.add_index("tile_id")
