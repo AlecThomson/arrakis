@@ -33,6 +33,7 @@ from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
 from dask import delayed
 from dask.delayed import Delayed
+from dask.distributed import Client, get_client
 from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner, is_kernel
@@ -40,28 +41,17 @@ from FRion.correct import find_freq_axis
 from scipy.optimize import curve_fit
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
-from FRion.correct import find_freq_axis
-from typing import Tuple, List, Dict, Any, Union, Optional
-import dask
-from dask import delayed
-import dask.array as da
-import dask.distributed as distributed
-from dask.distributed import Client, get_client
-import logging as log
 from tqdm.auto import tqdm, trange
-import time
-from itertools import zip_longest
-from scipy.optimize import curve_fit
-from functools import partial
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
 
-def inspect_client(client: Union[distributed.Client,None] = None) -> Tuple[
-    str, int, int, u.Quantity, int, u.Quantity
-]:
+
+def inspect_client(
+    client: Union[distributed.Client, None] = None
+) -> Tuple[str, int, int, u.Quantity, int, u.Quantity]:
     """_summary_
 
     Args:
@@ -88,7 +78,7 @@ def inspect_client(client: Union[distributed.Client,None] = None) -> Tuple[
 
 
 def beam_from_ms(ms: str) -> int:
-    """ Work out which beam is in this MS """
+    """Work out which beam is in this MS"""
     t = table(ms, readonly=True, ack=False)
     vis_feed = t.getcol("FEED1", 0, 1)
     beam = vis_feed[0]
@@ -780,7 +770,7 @@ def wsclean(
             if value:
                 command += f" -{key.replace('_', '-')}"
         if type(value) is str or type(value) is int or type(value) is float:
-            if "ws_" in key: # Catch for ws_continue command
+            if "ws_" in key:  # Catch for ws_continue command
                 key.replace("ws_", "")
             command += f" -{key.replace('_','-')} {value}"
     command += f" {' '.join(mslist)}"

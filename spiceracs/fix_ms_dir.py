@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 __author__ = "Emil Lenc"
-import os
-import sys
-import numpy as np
-from casacore.tables import table, tableexists, taql, tablecopy
-import math
-import re
 import logging as log
+import math
+import os
+import re
+import sys
+
+import numpy as np
+from casacore.tables import table, tablecopy, tableexists, taql
+
 from spiceracs.utils import beam_from_ms
 
 RAD2DEG = 180.0 / math.pi
@@ -329,6 +331,7 @@ def main(ms):
 
 def cli():
     import argparse
+
     """Command-line interface"""
     # Help string to be shown using the -h option
     logostr = """
@@ -366,7 +369,6 @@ def cli():
         "-v", "--verbose", action="store_true", help="Verbose output [False]."
     )
 
-
     verbose = args.verbose
     if verbose:
         log.basicConfig(
@@ -387,6 +389,7 @@ def cli():
 
     # Call the main function
     main(args.ms)
+
 
 if __name__ == "__main__":
     cli()

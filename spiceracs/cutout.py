@@ -1,16 +1,6 @@
 #!/usr/bin/env python
 """Produce cutouts from RACS cubes"""
 import argparse
-import warnings
-from distributed import get_client
-import pymongo
-import dask
-from shutil import copyfile
-from dask import delayed
-from dask.distributed import Client, progress, LocalCluster
-from dask.diagnostics import ProgressBar
-from IPython import embed
-from functools import partial
 import functools
 import json
 import logging as log
@@ -43,6 +33,7 @@ from astropy.wcs.utils import skycoord_to_pixel
 from dask import delayed
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, LocalCluster, progress
+from distributed import get_client
 from IPython import embed
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning

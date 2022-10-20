@@ -28,9 +28,7 @@ def cleanup(workdir: str, stoke: str) -> None:
     pass
 
 
-def main(
-    datadir: str, stokeslist: List[str] = None, verbose=True
-) -> None:
+def main(datadir: str, stokeslist: List[str] = None, verbose=True) -> None:
     """Clean up beam images
 
     Args:

@@ -1,34 +1,36 @@
 #!/usr/bin/env python3
 """SPICE-RACS imager"""
-import os
-import shutil
-import pickle
-from typing import List
-from glob import glob
+import hashlib
 import logging as log
+import multiprocessing as mp
+import os
+import pickle
+import shutil
+from argparse import Namespace
+from glob import glob
+from typing import List
+
+import astropy.units as u
 import numpy as np
-from astropy.io import fits
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-from astropy.wcs import WCS
+from astropy.io import fits
 from astropy.stats import mad_std
-from spiceracs.utils import wsclean, beam_from_ms, chunk_dask, inspect_client
-from casatasks import vishead, casalog
-from spiceracs import fix_ms_dir
-import astropy.units as u
+from astropy.wcs import WCS
+from casatasks import casalog, vishead
+from dask import compute, delayed
+from dask.delayed import Delayed
+from dask.distributed import Client, get_client
+from dask_mpi import initialize
+from IPython import embed
+from racs_tools import beamcon_2D
+from radio_beam import Beam
+from schwimmbad import SerialPool
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
-from racs_tools import beamcon_2D
-from schwimmbad import SerialPool
-import multiprocessing as mp
-from argparse import Namespace
-from IPython import embed
-from dask.distributed import get_client, Client
-from dask_mpi import initialize
-from dask import delayed, compute
-from dask.delayed import Delayed
-import hashlib
-from radio_beam import Beam
+
+from spiceracs import fix_ms_dir
+from spiceracs.utils import beam_from_ms, chunk_dask, inspect_client, wsclean
 
 
 def get_wsclean(hub_address: str = "docker://alecthomson/wsclean", tag="3.1") -> str:
@@ -45,7 +47,10 @@ def get_wsclean(hub_address: str = "docker://alecthomson/wsclean", tag="3.1") ->
     return image
 
 
-def get_prefix(ms: str, out_dir: str,) -> str:
+def get_prefix(
+    ms: str,
+    out_dir: str,
+) -> str:
     """Get prefix for output files"""
     field = vishead(vis=ms, mode="list")["field"][0][0]
     beam = beam_from_ms(ms)
@@ -75,9 +80,7 @@ def image_beam(
     mem: float = 90,
     taper: float = None,
 ):
-    """Image a single beam
-
-    """
+    """Image a single beam"""
     (
         addr,
         nworkers,
@@ -154,14 +157,20 @@ def get_aux(image_done: bool, pol, prefix):
 
 @delayed(nout=2)
 def make_cube(
-    pol: str, image_list: list, common_beam_pkl: str,
+    pol: str,
+    image_list: list,
+    common_beam_pkl: str,
 ) -> tuple:
     """Make a cube from the images"""
     # First combine images into cubes
     freqs = []
     rmss = []
     for chan, image in enumerate(
-        tqdm(image_list, desc="Reading channel image", leave=False,)
+        tqdm(
+            image_list,
+            desc="Reading channel image",
+            leave=False,
+        )
     ):
         # init cube
         if chan == 0:
@@ -191,7 +200,7 @@ def make_cube(
             new_base = new_base.replace("image", f"image.restored.{pol.lower()}")
             new_name = os.path.join(out_dir, new_base)
 
-        plane = fits.getdata(image) / 2 # Divide by 2 because of ASKAP Stokes
+        plane = fits.getdata(image) / 2  # Divide by 2 because of ASKAP Stokes
         plane_rms = mad_std(plane, ignore_nan=True)
         rmss.append(plane_rms)
         data_cube[:, chan] = plane
@@ -353,10 +362,16 @@ def main(
         aux_lists = {}
         for s in pols:
             image_list = get_image_task(
-                image_done=image_done, pol=s, prefix=prefixs[ms],
+                image_done=image_done,
+                pol=s,
+                prefix=prefixs[ms],
             )
             image_lists[s] = image_list
-            aux_list = get_aux(image_done=image_done, pol=s, prefix=prefixs[ms],)
+            aux_list = get_aux(
+                image_done=image_done,
+                pol=s,
+                prefix=prefixs[ms],
+            )
             aux_lists[s] = aux_list
         ms_dict[ms] = {
             "image_lists": image_lists,
@@ -364,7 +379,9 @@ def main(
         }
         # Smooth images
     common_beam_pkl, beam_log = get_beam(
-        ms_dict=ms_dict, pols=pols, cutoff=cutoff,
+        ms_dict=ms_dict,
+        pols=pols,
+        cutoff=cutoff,
     )
 
     for ms in mslist:
@@ -377,7 +394,10 @@ def main(
             image_list = image_lists[s]
             aux_list = aux_lists[s]
             for image in image_list:
-                sm_image = smooth_image(image, common_beam_pkl=common_beam_pkl,)
+                sm_image = smooth_image(
+                    image,
+                    common_beam_pkl=common_beam_pkl,
+                )
                 sm_image_list.append(sm_image)
 
             # Make a cube
@@ -440,31 +460,49 @@ def cli():
         description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "msdir", type=str, help="Directory containing MS files",
+        "msdir",
+        type=str,
+        help="Directory containing MS files",
     )
     parser.add_argument(
-        "outdir", type=str, help="Directory to output images",
+        "outdir",
+        type=str,
+        help="Directory to output images",
     )
     parser.add_argument(
-        "--cutoff", type=float, help="Cutoff for smoothing",
+        "--cutoff",
+        type=float,
+        help="Cutoff for smoothing",
     )
     parser.add_argument(
-        "--robust", type=float, default=-0.5,
+        "--robust",
+        type=float,
+        default=-0.5,
     )
     parser.add_argument(
-        "--nchan", type=int, default=36,
+        "--nchan",
+        type=int,
+        default=36,
     )
     parser.add_argument(
-        "--pols", type=str, default="IQU",
+        "--pols",
+        type=str,
+        default="IQU",
     )
     parser.add_argument(
-        "--size", type=int, default=4096,
+        "--size",
+        type=int,
+        default=4096,
     )
     parser.add_argument(
-        "--taper", type=float, default=None,
+        "--taper",
+        type=float,
+        default=None,
     )
     parser.add_argument(
-        "--mpi", action="store_true", help="Use MPI",
+        "--mpi",
+        action="store_true",
+        help="Use MPI",
     )
 
     args = parser.parse_args()
