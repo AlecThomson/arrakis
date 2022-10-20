@@ -33,8 +33,7 @@ import numpy as np
 import psutil
 import pymongo
 from astropy import units as u
-from astropy.coordinates import (Latitude, Longitude, SkyCoord,
-                                 search_around_sky)
+from astropy.coordinates import Latitude, Longitude, SkyCoord, search_around_sky
 from astropy.io import fits
 from astropy.table import Table, vstack
 from astropy.utils import iers
@@ -49,8 +48,16 @@ from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm import tqdm, trange
 
-from spiceracs.utils import (MyEncoder, chunk_dask, fix_header, get_db,
-                             getdata, test_db, tqdm_dask, try_mkdir)
+from spiceracs.utils import (
+    MyEncoder,
+    chunk_dask,
+    fix_header,
+    get_db,
+    getdata,
+    test_db,
+    tqdm_dask,
+    try_mkdir,
+)
 
 iers.conf.auto_download = False
 warnings.filterwarnings(

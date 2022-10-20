@@ -6,6 +6,7 @@ import socket
 from time import sleep
 
 import configargparse
+import pkg_resources
 import pymongo
 import yaml
 from astropy.time import Time
@@ -19,8 +20,15 @@ from prefect import Flow, Task, task
 from prefect.engine import signals
 from prefect.engine.executors import DaskExecutor
 
-from spiceracs import (cleanup, cutout, frion, linmos, makecat, rmclean_oncuts,
-                       rmsynth_oncuts)
+from spiceracs import (
+    cleanup,
+    cutout,
+    frion,
+    linmos,
+    makecat,
+    rmclean_oncuts,
+    rmsynth_oncuts,
+)
 from spiceracs.utils import port_forward, test_db
 
 
@@ -173,8 +181,7 @@ def main(args: configargparse.Namespace) -> None:
     host = args.host
 
     if args.dask_config is None:
-        scriptdir = os.path.dirname(os.path.realpath(__file__))
-        config_dir = f"{scriptdir}/../configs"
+        config_dir = pkg_resources.resource_filename("spiceracs", "configs")
         args.dask_config = f"{config_dir}/default.yaml"
 
     if args.outfile is None:
@@ -200,7 +207,9 @@ def main(args: configargparse.Namespace) -> None:
         )
         client = Client()
     else:
-        cluster = SLURMCluster(**config,)
+        cluster = SLURMCluster(
+            **config,
+        )
         log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes

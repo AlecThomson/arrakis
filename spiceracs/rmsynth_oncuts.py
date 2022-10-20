@@ -37,8 +37,16 @@ from RMutils.util_plotTk import plot_rmsf_fdf_fig
 from spectral_cube import SpectralCube
 from tqdm import tqdm, trange
 
-from spiceracs.utils import (MyEncoder, chunk_dask, fit_pl, get_db, getfreq,
-                             test_db, tqdm_dask, try_mkdir)
+from spiceracs.utils import (
+    MyEncoder,
+    chunk_dask,
+    fit_pl,
+    get_db,
+    getfreq,
+    test_db,
+    tqdm_dask,
+    try_mkdir,
+)
 
 
 @delayed
@@ -96,7 +104,11 @@ def rmsynthoncut3d(
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         log.critical(f"Cubelet {iname} is entirely NaN")
         myquery = {"Source_ID": iname}
-        badvalues = {"$set": {"rmsynth3d": False,}}
+        badvalues = {
+            "$set": {
+                "rmsynth3d": False,
+            }
+        }
         return pymongo.UpdateOne(myquery, badvalues)
     rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
     rmsi[rmsi == 0] = np.nan
@@ -173,8 +185,7 @@ def rmsynthoncut3d(
 
 @delayed
 def rms_1d(data):
-    """Compute RMS from bounding pixels
-    """
+    """Compute RMS from bounding pixels"""
     Nfreq, Ndec, Nra = data.shape
     mask = np.ones((Ndec, Nra), dtype=np.bool)
     mask[3:-3, 3:-3] = False
@@ -212,7 +223,7 @@ def estimate_noise_annulus(x_center, y_center, cube):
         -1 * outer_radius : outer_radius + 1, -1 * outer_radius : outer_radius + 1
     ]
     grid_mask = np.logical_or(
-        x ** 2 + y ** 2 < inner_radius ** 2, x ** 2 + y ** 2 > outer_radius ** 2
+        x**2 + y**2 < inner_radius**2, x**2 + y**2 > outer_radius**2
     )
     for i in range(lenfreq):
         if naxis == 4:
@@ -373,12 +384,7 @@ def rmsynthoncut1d(
 
     elif do_own_fit:
         log.debug(f"Doing own fit")
-        fit_dict = fit_pl(
-            freq=freq,
-            flux=iarr,
-            fluxerr=rmsi,
-            nterms=abs(polyOrd)
-        )
+        fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
         alpha = None
         amplitude = None
         x_0 = None
@@ -445,23 +451,25 @@ def rmsynthoncut1d(
         # Update model values if own fit was used
         if do_own_fit:
             # Wrangle into format that matches RM-Tools
-            mDict["polyCoeffs"] = ','.join(
+            mDict["polyCoeffs"] = ",".join(
                 [
                     # Pad with zeros to length 5
-                    str(i) for i in np.pad(
+                    str(i)
+                    for i in np.pad(
                         fit_dict["best_p"],
-                        (0, 5-len(fit_dict["best_p"])),
-                        'constant',
+                        (0, 5 - len(fit_dict["best_p"])),
+                        "constant",
                         constant_values=np.nan,
                     )[::-1]
                 ]
             )
-            mDict["polyCoefferr"] = ','.join(
+            mDict["polyCoefferr"] = ",".join(
                 [
-                    str(i) for i in np.pad(
+                    str(i)
+                    for i in np.pad(
                         fit_dict["best_e"],
-                        (0, 5-len(fit_dict["best_e"])),
-                        'constant',
+                        (0, 5 - len(fit_dict["best_e"])),
+                        "constant",
                         constant_values=np.nan,
                     )[::-1]
                 ]
@@ -472,6 +480,18 @@ def rmsynthoncut1d(
                 mDict["IfitStat"] = 64
             else:
                 mDict["IfitStat"] = 0
+
+        for k, v in mDict.items():
+            if isinstance(v, np.float_):
+                mDict[k] = float(v)
+            elif isinstance(v, np.float32):
+                mDict[k] = float(v)
+            elif isinstance(v, np.int_):
+                mDict[k] = int(v)
+            elif isinstance(v, np.int32):
+                mDict[k] = int(v)
+            elif isinstance(v, np.ndarray):
+                mDict[k] = v.tolist()
 
         do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
@@ -705,7 +725,12 @@ def main(
             comp_col.find(
                 isl_query,
                 # Only get required values
-                {"Source_ID": 1, "Gaussian_ID": 1, "RA": 1, "Dec": 1,},
+                {
+                    "Source_ID": 1,
+                    "Gaussian_ID": 1,
+                    "RA": 1,
+                    "Dec": 1,
+                },
             ).sort("Source_ID")
         )
     )
@@ -846,8 +871,7 @@ def main(
 
 
 def cli():
-    """Command-line interface
-    """
+    """Command-line interface"""
     import argparse
 
     from astropy.utils.exceptions import AstropyWarning

@@ -17,6 +17,7 @@ import astropy
 import astropy.units as u
 import dask
 import numpy as np
+import pkg_resources
 import pymongo
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
@@ -28,8 +29,7 @@ from IPython import embed
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
-from spiceracs.utils import (chunk_dask, coord_to_string, get_db, test_db,
-                             tqdm_dask)
+from spiceracs.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -47,12 +47,12 @@ def gen_seps(field: str) -> Table:
     Returns:
         Table: Table of separation for each beam.
     """
-    scriptdir = os.path.dirname(os.path.realpath(__file__))
-    offsets = Table.read(f"{scriptdir}/../askap_surveys/racs_low_offsets.csv")
+    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
+    offsets = Table.read(os.path.join(survey_dir, "racs_low_offsets.csv"))
     offsets.add_index("Beam")
 
     master_cat = Table.read(
-        f"{scriptdir}/../askap_surveys/racs/db/epoch_0/field_data.csv"
+        os.path.join(survey_dir, "racs", "db", "epoch_0", "field_data.csv"),
     )
     master_cat.add_index("FIELD_NAME")
     master_cat = master_cat.loc[f"RACS_{field}"]
@@ -61,7 +61,9 @@ def gen_seps(field: str) -> Table:
 
     # Look for multiple SBIDs - only need one
     cats = glob(
-        f"{scriptdir}/../askap_surveys/racs/db/epoch_0/beam_inf_*-RACS_{field}.csv"
+        os.path.join(
+            survey_dir, "racs", "db", "epoch_0", f"beam_inf_*-RACS_{field}.csv"
+        )
     )
     beam_cat = Table.read(cats[0])
     beam_cat.add_index("BEAM_NUM")

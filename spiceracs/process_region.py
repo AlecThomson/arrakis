@@ -5,6 +5,7 @@ import os
 from time import sleep
 
 import configargparse
+import pkg_resources
 import yaml
 from astropy.time import Time
 from dask import delayed, distributed
@@ -50,9 +51,8 @@ def main(args: configargparse.Namespace) -> None:
     host = args.host
 
     if args.dask_config is None:
-        scriptdir = os.path.dirname(os.path.realpath(__file__))
-        config_dir = f"{scriptdir}/../configs"
-        args.dask_config = f"{config_dir}/default.yaml"
+        config_dir = pkg_resources.resource_filename("spiceracs", "configs")
+        args.dask_config = os.path.join(config_dir, "default.yaml")
 
     if args.outfile is None:
         args.outfile = f"{args.merge_name}.pipe.test.fits"
@@ -77,7 +77,9 @@ def main(args: configargparse.Namespace) -> None:
         )
         client = Client()
     else:
-        cluster = SLURMCluster(**config,)
+        cluster = SLURMCluster(
+            **config,
+        )
         log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes
@@ -226,7 +228,9 @@ def cli():
     parser.add("--config", required=False, is_config_file=True, help="Config file path")
 
     parser.add_argument(
-        "--merge_name", type=str, help="Name of the merged region",
+        "--merge_name",
+        type=str,
+        help="Name of the merged region",
     )
 
     parser.add_argument(

@@ -27,10 +27,10 @@ from spiceracs.utils import get_db, get_field_db, latexify, test_db
 
 
 def lognorm_from_percentiles(x1, p1, x2, p2):
-    """ Return a log-normal distribuion X parametrized by:
+    """Return a log-normal distribuion X parametrized by:
 
-            P(X < p1) = x1
-            P(X < p2) = x2
+    P(X < p1) = x1
+    P(X < p2) = x2
     """
     x1 = np.log(x1)
     x2 = np.log(x2)
@@ -165,10 +165,12 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     #     zorder=0,
     #     rasterized=True,
     # )
-    is_finite = np.logical_and(np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P))
+    is_finite = np.logical_and(
+        np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P)
+    )
     hist2d(
-        np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite,np.newaxis],
-        np.array(frac_P)[is_finite,np.newaxis],
+        np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite, np.newaxis],
+        np.array(frac_P)[is_finite, np.newaxis],
         bins=(nbins, nbins),
         range=[[0, 5], [0, 0.05]],
         # color=color,
@@ -265,13 +267,16 @@ def cuts_and_flags(cat):
     df.set_index("cat_id", inplace=True)
     df["bin_number"] = bin_number
     # Use sigma clipping to find outliers
+
     def masker(x):
         return pd.Series(
             sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
             index=x.index,
         )
 
-    perc_g = df.groupby("bin_number").apply(masker,)
+    perc_g = df.groupby("bin_number").apply(
+        masker,
+    )
     # Put flag into the catalogue
     df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
     df.drop(columns=["bin_number"], inplace=True)
@@ -561,7 +566,9 @@ def main(
     rmtab.add_column(Column(data=alpha_dict["alphas"], name="spectral_index"))
     rmtab.add_column(Column(data=alpha_dict["alphas_err"], name="spectral_index_err"))
     rmtab.add_column(Column(data=alpha_dict["betas"], name="spectral_curvature"))
-    rmtab.add_column(Column(data=alpha_dict["betas_err"], name="spectral_curvature_err"))
+    rmtab.add_column(
+        Column(data=alpha_dict["betas_err"], name="spectral_curvature_err")
+    )
 
     # Add integration time
     field_col = get_field_db(host=host, username=username, password=password)
@@ -592,7 +599,10 @@ def main(
     rmtab["aperture"] = 0 * u.deg
 
     rmtab.add_column(
-        col=fit(rmtab["separation_tile_centre"].to(u.deg).value,), name="leakage"
+        col=fit(
+            rmtab["separation_tile_centre"].to(u.deg).value,
+        ),
+        name="leakage",
     )
 
     rmtab.add_column(

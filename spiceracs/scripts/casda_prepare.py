@@ -19,8 +19,13 @@ import pandas as pd
 import polspectra
 from astropy.io import fits
 from astropy.table import Column, Row, Table
-from astropy.visualization import (ImageNormalize, LogStretch, MinMaxInterval,
-                                   SqrtStretch, ZScaleInterval)
+from astropy.visualization import (
+    ImageNormalize,
+    LogStretch,
+    MinMaxInterval,
+    SqrtStretch,
+    ZScaleInterval,
+)
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
@@ -30,8 +35,7 @@ from IPython import embed
 from radio_beam import Beam
 from tqdm.auto import tqdm, trange
 
-from spiceracs.utils import (chunk_dask, tqdm_dask, try_mkdir, try_symlink,
-                             zip_equal)
+from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -189,7 +193,7 @@ def convert_spectra(
             rm_file, names=("phi", "Q", "U"), delim_whitespace=True
         )
         rmtables[name] = full_rm_data
-        phis = full_rm_data["phi"].values * u.rad / u.m ** 2
+        phis = full_rm_data["phi"].values * u.rad / u.m**2
         rm_q_data = full_rm_data["Q"].values
         rm_u_data = full_rm_data["U"].values
         rm_data = np.array([rm_q_data, rm_u_data]) * unit
@@ -318,7 +322,7 @@ def make_polspec(
     rmsf_unit = u.def_unit("RMSF")
     unit = u.Jy / u.beam
     unit_fdf = unit / rmsf_unit
-    radms = u.radian / u.m ** 2
+    radms = u.radian / u.m**2
     freq = pol_df["freq"][0].values
     spectrum_table = polspectra.from_arrays(
         long_array=polcat["ra"],

@@ -104,7 +104,11 @@ def copy_singletons(
 
 
 @delayed
-def genparset(old_ims: list, stokes: str, new_dir: str,) -> str:
+def genparset(
+    old_ims: list,
+    stokes: str,
+    new_dir: str,
+) -> str:
     imlist = "[" + ",".join([im.replace(".fits", "") for im in old_ims]) + "]"
     weightlist = f"[{','.join([im.replace('.fits', '').replace('.image.restored.','.weights.').replace('.ion','') for im in old_ims])}]"
 
@@ -299,7 +303,9 @@ def cli():
     )
 
     parser.add_argument(
-        "--merge_name", type=str, help="Name of the merged region",
+        "--merge_name",
+        type=str,
+        help="Name of the merged region",
     )
 
     parser.add_argument(
@@ -327,7 +333,9 @@ def cli():
     )
 
     parser.add_argument(
-        "--host", type=str, help="Host of mongodb (probably $hostname -i).",
+        "--host",
+        type=str,
+        help="Host of mongodb (probably $hostname -i).",
     )
 
     parser.add_argument(

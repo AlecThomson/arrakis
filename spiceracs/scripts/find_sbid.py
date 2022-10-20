@@ -108,6 +108,7 @@ def main(name: str, cal=False, science=False, weight=False):
             print(f"{space}CAL SBID {i+1}: {row['CAL_SBID']}")
             print(f"{space}Science SBID {i+1}: {row['SBID']}\n")
 
+
 def cli():
     descStr = """
     Find SBID(s) in RACS-DB for given field
@@ -130,6 +131,7 @@ def cli():
         science=args.science,
         weight=args.weight,
     )
+
 
 if __name__ == "__main__":
     cli()

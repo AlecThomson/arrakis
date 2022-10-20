@@ -15,6 +15,7 @@ def main(name: str, sbid: int):
 
     print(f"Row in RACS database is {row}")
 
+
 def cli():
     descStr = """
     Find row in RACS-DB for given field
@@ -34,6 +35,7 @@ def cli():
     )
     args = parser.parse_args()
     main(args.field, args.cal_sbid)
+
 
 if __name__ == "__main__":
     cli()

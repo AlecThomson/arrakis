@@ -785,9 +785,9 @@ def wsclean(
     command += f" {' '.join(mslist)}"
     return command
 
+
 def best_aic_func(aics, n_param):
-    """Find the best AIC for a set of AICs using Occam's razor.
-    """
+    """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
     best_aic_idx = np.nanargmin(aics)
     best_aic = aics[best_aic_idx]
@@ -797,13 +797,18 @@ def best_aic_func(aics, n_param):
     aic_abs_diff = np.abs(aics - best_aic)
     bool_min_idx = np.zeros_like(aics).astype(bool)
     bool_min_idx[best_aic_idx] = True
-    potential_idx = (aic_abs_diff[~bool_min_idx] < 2 ) & (n_param[~bool_min_idx] < best_n)
+    potential_idx = (aic_abs_diff[~bool_min_idx] < 2) & (
+        n_param[~bool_min_idx] < best_n
+    )
     if any(potential_idx):
         best_n = np.min(n_param[~bool_min_idx][potential_idx])
         best_aic_idx = np.where(n_param == best_n)[0][0]
         best_aic = aics[best_aic_idx]
-        log.debug(f"Model within 2 of lowest AIC found. Occam says to take AIC of {best_aic}, with {best_n} params.")
+        log.debug(
+            f"Model within 2 of lowest AIC found. Occam says to take AIC of {best_aic}, with {best_n} params."
+        )
     return best_aic, best_n, best_aic_idx
+
 
 # Stolen from GLEAM-X - thanks Uncle Timmy!
 def power_law(nu: np.ndarray, norm: float, alpha: float, ref_nu: float) -> np.ndarray:
@@ -820,6 +825,7 @@ def power_law(nu: np.ndarray, norm: float, alpha: float, ref_nu: float) -> np.nd
     """
     return norm * (nu / ref_nu) ** alpha
 
+
 def flat_power_law(nu: np.ndarray, norm: float, ref_nu: float) -> np.ndarray:
     """A flat power law model.
 
@@ -831,10 +837,13 @@ def flat_power_law(nu: np.ndarray, norm: float, ref_nu: float) -> np.ndarray:
     Returns:
         np.ndarray: Model flux.
     """
-    x = (nu/ref_nu)
+    x = nu / ref_nu
     return norm * x
 
-def curved_power_law(nu: np.ndarray, norm: float, alpha: float, beta: float, ref_nu: float) -> np.ndarray:
+
+def curved_power_law(
+    nu: np.ndarray, norm: float, alpha: float, beta: float, ref_nu: float
+) -> np.ndarray:
     """A curved power law model.
 
     Args:
@@ -847,11 +856,14 @@ def curved_power_law(nu: np.ndarray, norm: float, alpha: float, beta: float, ref
     Returns:
         np.ndarray: Model flux.
     """
-    x = (nu/ref_nu)
+    x = nu / ref_nu
     power = alpha + beta * np.log10(x)
-    return norm * x ** power
+    return norm * x**power
 
-def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) -> dict:
+
+def fit_pl(
+    freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms: int
+) -> dict:
     """Perform a power law fit to a spectrum.
 
     Args:
@@ -864,7 +876,9 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
         dict: Best fit parameters.
     """
     try:
-        goodchan=np.logical_and(np.isfinite(flux),np.isfinite(fluxerr)) #Ignore NaN channels!
+        goodchan = np.logical_and(
+            np.isfinite(flux), np.isfinite(fluxerr)
+        )  # Ignore NaN channels!
         ref_nu = np.nanmean(freq[goodchan])
         p0_long = (np.median(flux[goodchan]), -0.8, 0.0)
         model_func_dict = {
@@ -879,8 +893,8 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
         highs = []
         lows = []
         fit_flags = []
-        for n in range(nterms+1):
-            p0 = p0_long[:n+1]
+        for n in range(nterms + 1):
+            p0 = p0_long[: n + 1]
             model_func = model_func_dict[n]
             try:
                 fit_res = curve_fit(
@@ -889,13 +903,13 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
                     flux[goodchan],
                     p0=p0,
                     sigma=fluxerr[goodchan],
-                    absolute_sigma=True
+                    absolute_sigma=True,
                 )
             except RuntimeError:
                 log.critical(f"Failed to fit {n}-term power law")
                 aics.append(np.nan)
-                params.append(np.ones_like(p0)*np.nan)
-                errors.append(np.ones_like(p0)*np.nan)
+                params.append(np.ones_like(p0) * np.nan)
+                errors.append(np.ones_like(p0) * np.nan)
                 models.append(np.ones_like(freq))
                 highs.append(np.ones_like(freq))
                 lows.append(np.ones_like(freq))
@@ -906,7 +920,7 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             model_high = model_func(freq, *(best_p + np.sqrt(np.diag(covar))))
             model_low = model_func(freq, *(best_p - np.sqrt(np.diag(covar))))
             model_err = model_high - model_low
-            ssr = np.sum((flux[goodchan] - model_arr[goodchan])**2)
+            ssr = np.sum((flux[goodchan] - model_arr[goodchan]) ** 2)
             aic = akaike_info_criterion_lsq(ssr, len(p0), goodchan.sum())
             aics.append(aic)
             params.append(best_p)
@@ -944,7 +958,9 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             )
             fit_flags.append(fit_flag)
             log.debug(f"{n}: {aic}")
-        best_aic, best_n, best_aic_idx = best_aic_func(aics, np.array([n for n in range(nterms+1)]))
+        best_aic, best_n, best_aic_idx = best_aic_func(
+            aics, np.array([n for n in range(nterms + 1)])
+        )
         log.debug(f"Best fit: {best_n}, {best_aic}")
         best_p = params[best_n]
         best_e = errors[best_n]
@@ -977,6 +993,7 @@ def fit_pl(freq: np.ndarray, flux: np.ndarray, fluxerr: np.ndarray, nterms:int) 
             fit_flag=True,
             ref_nu=np.nan,
         )
+
 
 # stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
 def zip_equal(*iterables):
@@ -1209,7 +1226,7 @@ def test_db(
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    ) as dbclient: # type: pymongo.MongoClient
+    ) as dbclient:  # type: pymongo.MongoClient
         try:
             dbclient.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
@@ -1241,7 +1258,7 @@ def get_db(
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    ) # type: pymongo.MongoClient
+    )  # type: pymongo.MongoClient
     mydb = dbclient["spiceracs"]  # Create/open database
     comp_col = mydb["components"]  # Create/open collection
     island_col = mydb["islands"]  # Create/open collection
@@ -1268,7 +1285,7 @@ def get_field_db(
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    ) # type: pymongo.MongoClient
+    )  # type: pymongo.MongoClient
     mydb = dbclient["spiceracs"]  # Create/open database
     field_col = mydb["fields"]  # Create/open collection
     return field_col

@@ -33,8 +33,14 @@ from IPython import embed
 from IPython.core.pylabtools import figsize
 
 from spiceracs.linmos import gen_seps
-from spiceracs.utils import (chunk_dask, coord_to_string, get_db, getfreq,
-                             test_db, tqdm_dask)
+from spiceracs.utils import (
+    chunk_dask,
+    coord_to_string,
+    get_db,
+    getfreq,
+    test_db,
+    tqdm_dask,
+)
 
 
 def make_plot(data, comp, imfile):

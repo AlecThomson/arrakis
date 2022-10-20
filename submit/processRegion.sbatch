@@ -22,12 +22,12 @@ export OMP_NUM_THREADS=1
 # module load askapsoft
 # unset PYTHONPATH
 # source /home/$(whoami)/.bashrc
-cd /group/ja3/athomson
+cd /askapbuffer/processing/tho822/spice-racs/DR1
 conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
 
-srun --export=ALL spice_region --dask_config /group/askap/athomson/repos/spiceracs/configs/galaxy.yaml --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi --own_fit --outfile spice-racs.dr1.xml --skip_merge
+srun --export=ALL spice_region --dask_config /group/askap/athomson/repos/spiceracs/spiceracs/configs/galaxy.yaml --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi --own_fit --outfile spice-racs.dr1.xml --skip_merge --output_dir /askapbuffer/processing/tho822/spice-racs/DR1
 
-fix_dr1_cat.py spice-racs.dr1.xml
+spice_script fix_dr1_cat spice-racs.dr1.xml

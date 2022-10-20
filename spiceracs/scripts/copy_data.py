@@ -93,6 +93,7 @@ def main(
             for f in files:
                 os.remove(f)
 
+
 def cli():
     descStr = f"""
     Copy data from RACS area to SPICE area'

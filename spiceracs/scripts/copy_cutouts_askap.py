@@ -85,5 +85,6 @@ def cli():
         ncores=args.ncores,
     )
 
+
 if __name__ == "__main__":
     cli()

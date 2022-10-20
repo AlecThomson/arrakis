@@ -12,6 +12,7 @@ from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pkg_resources
 import psutil
 import pymongo
 from astropy import units as u
@@ -22,8 +23,7 @@ from astropy.wcs import WCS
 from IPython import embed
 from tqdm import tqdm, trange
 
-from spiceracs.utils import (MyEncoder, get_db, get_field_db, getdata, test_db,
-                             yes_or_no)
+from spiceracs.utils import MyEncoder, get_db, get_field_db, getdata, test_db, yes_or_no
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep=1) -> Table:
@@ -177,9 +177,9 @@ def beam_database(islandcat, host, username=None, password=None, verbose=True):
 
 
 def get_catalogue(verbose=True):
-    scriptdir = os.path.dirname(os.path.realpath(__file__))
-    basedir = f"{scriptdir}/../askap_surveys/racs/db/epoch_0"
-    beamfiles = glob(f"{basedir}/beam_inf*")
+    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
+    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
+    beamfiles = glob(os.path.join(basedir, "beam_inf*"))
 
     # Init first field
     beamfile = beamfiles[0]
@@ -262,8 +262,8 @@ def get_beams(mastercat, database, verbose=True):
 
 
 def field_database(host, username, password, verbose=True):
-    scriptdir = os.path.dirname(os.path.realpath(__file__))
-    basedir = f"{scriptdir}/../askap_surveys/racs/db/epoch_0"
+    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
+    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
     data_file = os.path.join(basedir, "field_data.csv")
     database = Table.read(data_file)
     df = database.to_pandas()
@@ -405,7 +405,9 @@ def cli():
     )
 
     parser.add_argument(
-        "--field", action="store_true", help="Load field table into database [False].",
+        "--field",
+        action="store_true",
+        help="Load field table into database [False].",
     )
 
     args = parser.parse_args()
