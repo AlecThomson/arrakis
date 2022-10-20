@@ -6,6 +6,7 @@ from pprint import pprint
 
 import copy_data
 import numpy as np
+import pkg_resources
 from astropy.table import Table
 
 from spiceracs.utils import try_mkdir
@@ -48,9 +49,6 @@ SPICA = [
     "1213-25A",
 ]
 
-scriptdir = os.path.dirname(os.path.realpath(__file__))
-basedir = f"{scriptdir}/../askap_surveys/racs/db/epoch_0"
-
 
 def mslist(cal_sb, name):
     # os.system('module unload askapsoft')
@@ -80,7 +78,9 @@ def mslist(cal_sb, name):
 
 
 def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
-    tab = Table.read(f"{basedir}/field_data.csv")
+    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
+    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
+    tab = Table.read(os.path.join(basedir, "field_data.csv"))
     tab.add_index("FIELD_NAME")
 
     cols = [
