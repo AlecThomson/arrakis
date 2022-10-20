@@ -22,7 +22,6 @@ import astropy.units as u
 import dask
 import dask.array as da
 import dask.distributed as distributed
-from casacore.tables import table
 import numpy as np
 import pymongo
 from astropy.coordinates import SkyCoord
@@ -32,6 +31,7 @@ from astropy.stats import akaike_info_criterion_lsq
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
+from casacore.tables import table
 from dask import delayed
 from dask.delayed import Delayed
 from dask.distributed import Client, get_client
@@ -42,6 +42,7 @@ from FRion.correct import find_freq_axis
 from scipy.optimize import curve_fit
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
+from tornado.ioloop import IOLoop
 from tqdm.auto import tqdm, trange
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
