@@ -481,6 +481,7 @@ def rmsynthoncut1d(
         else:
             mDict["IfitStat"] = 0
 
+    # Ensure JSON serializable
     for k, v in mDict.items():
         if isinstance(v, np.float_):
             mDict[k] = float(v)
