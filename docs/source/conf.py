@@ -55,8 +55,11 @@ napoleon_use_param = False
 napoleon_use_ivar = True
 
 autoapi_type = 'python'
-autoapi_dirs = ['../../spiceracs']
+autoapi_dirs = ['../../spiceracs', "../../scripts"]
 autoapi_member_order = 'groupwise'
+autoapi_keep_files = False
+autoapi_root = 'autoapi'
+autoapi_add_toctree_entry = True
 # Add any paths that contain templates here, relative to this directory.
 # templates_path = ['_templates']
 
@@ -87,3 +90,4 @@ html_favicon="favicon.ico"
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath('../'))

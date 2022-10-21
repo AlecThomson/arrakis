@@ -55,8 +55,7 @@ def ndix_unique(x: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
     Returns:
         Tuple[np.ndarray, np.ndarray]:
             - 1D-array of sorted unique values
-            - Array of arrays. Each array contains the indices where a
-            given value in x is found
+            - Array of arrays. Each array contains the indices where a given value in x is found
     """
     x_flat = x.ravel()
     ix_flat = np.argsort(x_flat)
