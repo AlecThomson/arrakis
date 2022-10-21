@@ -524,9 +524,7 @@ def rmsynthoncut1d(
                 "I_model": modStokesI.tolist() if modStokesI is not None else None,
                 "I_model_params": {
                     "alpha": float(alpha) if alpha is not None else None,
-                    "amplitude": float(amplitude)
-                    if amplitude is not None
-                    else None,
+                    "amplitude": float(amplitude) if amplitude is not None else None,
                     "x_0": float(x_0) if x_0 is not None else None,
                     "model_repr": model_repr,
                 },
