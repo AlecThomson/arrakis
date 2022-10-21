@@ -406,127 +406,138 @@ def rmsynthoncut1d(
     if noStokesI:
         data = [np.array(freq), qarr, uarr, rmsq, rmsu]
     else:
-        if np.isnan(iarr).all():
-            log.critical(f"{cname} I data is all NaNs.")
-            myquery = {"Gaussian_ID": cname}
-            badvalues = {"$set": {"rmsynth1d": False}}
-            return pymongo.UpdateOne(myquery, badvalues)
-
         data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
 
-        # Run 1D RM-synthesis on the spectra
-        np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
-        try:
-            log.debug(f"Using {fit_function} to fit Stokes I")
-            mDict, aDict = do_RMsynth_1D.run_rmsynth(
-                data=data,
-                polyOrd=polyOrd,
-                phiMax_radm2=phiMax_radm2,
-                dPhi_radm2=dPhi_radm2,
-                nSamples=nSamples,
-                weightType=weightType,
-                fitRMSF=fitRMSF,
-                noStokesI=noStokesI,
-                modStokesI=modStokesI,
-                nBits=32,
-                saveFigures=savePlots,
-                showPlots=showPlots,
-                verbose=rm_verbose,
-                debug=debug,
-                fit_function=fit_function,
-                prefixOut=prefix,
-            )
-        except Exception as err:
-            traceback.print_tb(err.__traceback__)
-            raise err
-        if savePlots:
-            plt.close("all")
-            plotdir = os.path.join(outdir, "plots")
-            plot_files = glob(os.path.join(os.path.dirname(ifile), "*.pdf"))
-            for src in plot_files:
-                base = os.path.basename(src)
-                dst = os.path.join(plotdir, base)
-                copyfile(src, dst)
-
-        # Update model values if own fit was used
-        if do_own_fit:
-            # Wrangle into format that matches RM-Tools
-            mDict["polyCoeffs"] = ",".join(
-                [
-                    # Pad with zeros to length 5
-                    str(i)
-                    for i in np.pad(
-                        fit_dict["best_p"],
-                        (0, 5 - len(fit_dict["best_p"])),
-                        "constant",
-                        constant_values=np.nan,
-                    )[::-1]
-                ]
-            )
-            mDict["polyCoefferr"] = ",".join(
-                [
-                    str(i)
-                    for i in np.pad(
-                        fit_dict["best_e"],
-                        (0, 5 - len(fit_dict["best_e"])),
-                        "constant",
-                        constant_values=np.nan,
-                    )[::-1]
-                ]
-            )
-            mDict["polyOrd"] = int(fit_dict["best_n"])
-            mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
-            if fit_dict["fit_flag"]:
-                mDict["IfitStat"] = 64
-            else:
-                mDict["IfitStat"] = 0
-
-        do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
-
+    if np.isnan(iarr).all():
+        log.critical(f"{cname} I data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
+        badvalues = {"$set": {"rmsynth1d": False}}
+        return pymongo.UpdateOne(myquery, badvalues)
 
-        # Prep header
-        head_dict = dict(header)
-        head_dict.pop("", None)
-        head_dict["COMMENT"] = str(head_dict["COMMENT"])
+    # Run 1D RM-synthesis on the spectra
+    np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
+    try:
+        log.debug(f"Using {fit_function} to fit Stokes I")
+        mDict, aDict = do_RMsynth_1D.run_rmsynth(
+            data=data,
+            polyOrd=polyOrd,
+            phiMax_radm2=phiMax_radm2,
+            dPhi_radm2=dPhi_radm2,
+            nSamples=nSamples,
+            weightType=weightType,
+            fitRMSF=fitRMSF,
+            noStokesI=noStokesI,
+            modStokesI=modStokesI,
+            nBits=32,
+            saveFigures=savePlots,
+            showPlots=showPlots,
+            verbose=rm_verbose,
+            debug=debug,
+            fit_function=fit_function,
+            prefixOut=prefix,
+        )
+    except Exception as err:
+        traceback.print_tb(err.__traceback__)
+        raise err
+    if savePlots:
+        plt.close("all")
+        plotdir = os.path.join(outdir, "plots")
+        plot_files = glob(os.path.join(os.path.dirname(ifile), "*.pdf"))
+        for src in plot_files:
+            base = os.path.basename(src)
+            dst = os.path.join(plotdir, base)
+            copyfile(src, dst)
 
-        outer_dir = os.path.basename(os.path.dirname(ifile))
+    # Update model values if own fit was used
+    if do_own_fit:
+        # Wrangle into format that matches RM-Tools
+        mDict["polyCoeffs"] = ",".join(
+            [
+                # Pad with zeros to length 5
+                str(i)
+                for i in np.pad(
+                    fit_dict["best_p"],
+                    (0, 5 - len(fit_dict["best_p"])),
+                    "constant",
+                    constant_values=np.nan,
+                )[::-1]
+            ]
+        )
+        mDict["polyCoefferr"] = ",".join(
+            [
+                str(i)
+                for i in np.pad(
+                    fit_dict["best_e"],
+                    (0, 5 - len(fit_dict["best_e"])),
+                    "constant",
+                    constant_values=np.nan,
+                )[::-1]
+            ]
+        )
+        mDict["polyOrd"] = int(fit_dict["best_n"])
+        mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
+        if fit_dict["fit_flag"]:
+            mDict["IfitStat"] = 64
+        else:
+            mDict["IfitStat"] = 0
 
-        # Fix for json encoding
+    # Ensure JSON serializable
+    for k, v in mDict.items():
+        if isinstance(v, np.float_):
+            mDict[k] = float(v)
+        elif isinstance(v, np.float32):
+            mDict[k] = float(v)
+        elif isinstance(v, np.int_):
+            mDict[k] = int(v)
+        elif isinstance(v, np.int32):
+            mDict[k] = int(v)
+        elif isinstance(v, np.ndarray):
+            mDict[k] = v.tolist()
 
-        newvalues = {
-            "$set": {
-                "rm1dfiles": {
-                    "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
-                    "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
-                    "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
-                    "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
-                    "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
+    do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
+
+    myquery = {"Gaussian_ID": cname}
+
+    # Prep header
+    head_dict = dict(header)
+    head_dict.pop("", None)
+    head_dict["COMMENT"] = str(head_dict["COMMENT"])
+
+    outer_dir = os.path.basename(os.path.dirname(ifile))
+
+    # Fix for json encoding
+
+    newvalues = {
+        "$set": {
+            "rm1dfiles": {
+                "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
+                "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
+                "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
+                "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
+                "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
+            },
+            "rmsynth1d": True,
+            "header": head_dict,
+            "rmsynth_summary": mDict,
+            "spectra": {
+                "freq": np.array(freq).tolist(),
+                "I_model": modStokesI.tolist() if modStokesI is not None else None,
+                "I_model_params": {
+                    "alpha": float(alpha) if alpha is not None else None,
+                    "amplitude": float(amplitude) if amplitude is not None else None,
+                    "x_0": float(x_0) if x_0 is not None else None,
+                    "model_repr": model_repr,
                 },
-                "rmsynth1d": True,
-                "header": head_dict,
-                "rmsynth_summary": mDict,
-                "spectra": {
-                    "freq": np.array(freq).tolist(),
-                    "I_model": modStokesI.tolist() if modStokesI is not None else None,
-                    "I_model_params": {
-                        "alpha": float(alpha) if alpha is not None else None,
-                        "amplitude": float(amplitude)
-                        if amplitude is not None
-                        else None,
-                        "x_0": float(x_0) if x_0 is not None else None,
-                        "model_repr": model_repr,
-                    },
-                    "I": iarr.tolist(),
-                    "Q": qarr.tolist(),
-                    "U": uarr.tolist(),
-                    "I_err": rmsi.tolist(),
-                    "Q_err": rmsq.tolist(),
-                    "U_err": rmsu.tolist(),
-                },
-            }
+                "I": iarr.tolist(),
+                "Q": qarr.tolist(),
+                "U": uarr.tolist(),
+                "I_err": rmsi.tolist(),
+                "Q_err": rmsq.tolist(),
+                "U_err": rmsu.tolist(),
+            },
         }
-        return pymongo.UpdateOne(myquery, newvalues)
+    }
+    return pymongo.UpdateOne(myquery, newvalues)
 
 
 @delayed

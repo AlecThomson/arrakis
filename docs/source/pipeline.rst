@@ -251,16 +251,4 @@ Similarly, you can merge multiple fields togther using: ::
 
 * :py:mod:`spiceracs.process_region`
 
-Helper scripts (mostly for bespoke purposes) are available through a unified commandline interface: ::
-
-    (spice) $ spice_script -h
-    usage: spice_script [-h] {compare_leakage,fix_dr1_cat,check_cutout,spica,find_row,make_links,copy_cutouts_askap,copy_cutouts,copy_data,find_sbid,helloworld,casda_prepare,compute_leakage}
-
-    positional arguments:
-    {compare_leakage,fix_dr1_cat,check_cutout,spica,find_row,make_links,copy_cutouts_askap,copy_cutouts,copy_data,find_sbid,helloworld,casda_prepare,compute_leakage}
-                             Subprogram to run
-
-    optional arguments:
-    -h, --help            show this help message and exit
-
-* :py:mod:`spiceracs.scripts.spice_script`
+Helper scripts (mostly for bespoke purposes) are available on the commandline. See the API reference for more details.

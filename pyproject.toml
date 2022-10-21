@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spiceracs"
-version = "0.1.0"
+version = "0.2.0"
 description = "Processing polarized RACS data products."
 homepage = "https://research.csiro.au/racs/"
 repository = "https://github.com/AlecThomson/spiceracs"
@@ -97,7 +97,19 @@ spice_process = "spiceracs.process_spice:cli"
 spice_region = "spiceracs.process_region:cli"
 spice_cat = "spiceracs.makecat:cli"
 # Unified script script
-spice_script =  "spiceracs.scripts.spice_script:cli"
+casda_prepare = { reference="scripts/casda_prepare.py", type="file"}
+check_cutout = { reference="scripts/check_cutout.py", type="file"}
+compare_leakage = { reference="scripts/compare_leakage.py", type="file"}
+compute_leakage = { reference="scripts/compute_leakage.py", type="file"}
+copy_cutouts_askap = { reference="scripts/copy_cutouts_askap.py", type="file"}
+copy_cutouts = { reference="scripts/copy_cutouts.py", type="file"}
+copy_data = { reference="scripts/copy_data.py", type="file"}
+find_row = { reference="scripts/find_row.py", type="file"}
+find_sbid = { reference="scripts/find_sbid.py", type="file"}
+fix_dr1_cat = { reference="scripts/fix_dr1_cat.py", type="file"}
+helloworld = { reference="scripts/helloworld.py", type="file"}
+make_links = { reference="scripts/make_links.py", type="file"}
+spica = { reference="scripts/spica.py", type="file"}
 
 [tool.isort]
 profile = "black"
