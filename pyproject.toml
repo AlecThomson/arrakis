@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spiceracs"
-version = "0.1.0"
+version = "0.2.0"
 description = "Processing polarized RACS data products."
 homepage = "https://research.csiro.au/racs/"
 repository = "https://github.com/AlecThomson/spiceracs"
