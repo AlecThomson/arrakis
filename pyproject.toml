@@ -108,7 +108,7 @@ copy_data = { reference="scripts/copy_data.py", type="file"}
 find_row = { reference="scripts/find_row.py", type="file"}
 find_sbid = { reference="scripts/find_sbid.py", type="file"}
 fix_dr1_cat = { reference="scripts/fix_dr1_cat.py", type="file"}
-helloworld = { reference="scripts/helloworld.py", type="file"}
+hello_mpi_world = { reference="scripts/hello_mpi_world.py", type="file"}
 make_links = { reference="scripts/make_links.py", type="file"}
 spica = { reference="scripts/spica.py", type="file"}
 
