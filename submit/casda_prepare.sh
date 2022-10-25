@@ -18,8 +18,8 @@
 module load intel-mpi
 conda activate spice-zeus
 
-data_dir=/scratch/ja3/athomson/spice-racs/DR1/full_spica
-polcat=/scratch/ja3/athomson/spice-racs/DR1/spice-racs.dr1.corrected.xml
+data_dir=/group/askap/athomson/projects/spiceracs/DR1/full_spica
+polcat=/group/askap/athomson/projects/spiceracs/DR1/spice-racs.dr1.corrected.xml
 
 cd $data_dir
 

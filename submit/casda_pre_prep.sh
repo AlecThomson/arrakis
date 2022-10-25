@@ -13,11 +13,11 @@
 #SBATCH --time=1-00:00:00
 #SBATCH --partition=copyq
 
-data_dir=/askapbuffer/processing/tho822/spice-racs/DR1/full_spica
+data_dir=/askapbuffer/processing/tho822/spice-racs/DR1/full_spica/cutouts
 polcat=/askapbuffer/processing/tho822/spice-racs/DR1/spice-racs.dr1.corrected.xml
 
-data_dir_s=/scratch/ja3/athomson/spice-racs/DR1/full_spica
-polcat_s=/scratch/ja3/athomson/spice-racs/DR1/spice-racs.dr1.corrected.xml
+data_dir_s=/group/askap/athomson/projects/spiceracs/DR1/full_spica/cutouts
+polcat_s=/group/askap/athomson/projects/spiceracs/DR1/spice-racs.dr1.corrected.xml
 
 
 module load rclone
