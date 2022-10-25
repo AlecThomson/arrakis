@@ -506,7 +506,7 @@ def main(
     polcat = polcat[df.index.values]
     polcat.add_index("cat_id")
 
-    casda_dir = os.path.join(data_dir, "casda")
+    casda_dir = os.path.join(data_dir, "casda") if not test else os.path.join(data_dir, "casda_test")
     try_mkdir(casda_dir)
 
     # Link catalgoue to casda directory
@@ -649,11 +649,11 @@ def main(
     ):
         if test:
             if name == "spectra":
-                n_things = 10
+                n_things = 10 * 10
             elif name == "cubes":
-                n_things = 60
+                n_things = 60 * 10
             else:
-                n_things = 30
+                n_things = 30 * 10
             outputs = outputs[:n_things]
             log.info(f"Testing {len(outputs)} {name}")
         else:
