@@ -9,8 +9,9 @@
 
 #SBATCH --cluster=zeus
 #SBATCH --account=askap
-#SBATCH --ntasks=20
-#SBATCH --time=1-00:00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=20
+#SBATCH --time=2-00:00:00
 #SBATCH --partition=copyq
 
 data_dir=/askapbuffer/processing/tho822/spice-racs/DR1/full_spica/cutouts
@@ -22,5 +23,5 @@ polcat_s=/group/askap/athomson/projects/spiceracs/DR1/spice-racs.dr1.corrected.x
 
 module load rclone
 
-rclone sync -P --transfers $SLURM_NTASKS --checkers $SLURM_NTASKS $data_dir $data_dir_s
-rclone sync -P --transfers $SLURM_NTASKS --checkers $SLURM_NTASKS $polcat $polcat_s
+rclone sync -P --transfers 10 --checkers 10 $data_dir $data_dir_s
+rclone sync -P --transfers 10 --checkers 10 $polcat $polcat_s
