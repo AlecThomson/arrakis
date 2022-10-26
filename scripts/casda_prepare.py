@@ -102,7 +102,7 @@ def convert_spectra(
     spectrum: str,
     cat_row: Row,
     spec_dir: str = ".",
-) -> dict:
+) -> str:
     """Convert a ascii spectrum to FITS
 
     Args:
@@ -246,128 +246,15 @@ def convert_spectra(
     )
     log.info(f"Saving to {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)
+    # Add object to header
+    with fits.open(outf, mode="update") as hdul:
+        hdul[0].header["OBJECT"] = (cat_row["cat_id"][0], "Gaussian ID")
+        hdul.flush()
 
-    return spectrum_table
-
-
-
-    # # Hard code the pixel size for now
-    # pix_size = 2.5 * u.arcsec
-    # log.debug(f"Using a pixel size of {pix_size}")
-
-    # data = np.array([full_data["I"], full_data["Q"], full_data["U"]]) * u.Jy / u.beam
-    # noise = (
-    #     np.array([full_data["dI"], full_data["dQ"], full_data["dU"]]) * u.Jy / u.beam
-    # )
-    # # Add dummy axes for RA/DEC
-    # data = data[:, :, np.newaxis, np.newaxis]
-    # noise = noise[:, :, np.newaxis, np.newaxis]
-
-    # # Create the data FITS files
-    # for d, n in zip((data, noise), ("spectra", "noise")):
-    #     hdu = fits.PrimaryHDU(data=data.value)
-    #     hdu.header["NAXIS"] = len(d.shape)
-    #     hdu.header["NAXIS1"] = 1
-    #     hdu.header["NAXIS2"] = 1
-    #     hdu.header["NAXIS3"] = len(freq)
-    #     hdu.header["NAXIS4"] = len(d)
-    #     hdu.header["CTYPE1"] = "RA---SIN"
-    #     hdu.header["CTYPE2"] = "DEC--SIN"
-    #     hdu.header["CTYPE3"] = "FREQ"
-    #     hdu.header["CTYPE4"] = "STOKES"
-    #     hdu.header["CRVAL1"] = ra
-    #     hdu.header["CRVAL2"] = dec
-    #     hdu.header["CRVAL3"] = freq[0].value
-    #     hdu.header["CRVAL4"] = 1
-    #     hdu.header["CRPIX1"] = 1
-    #     hdu.header["CRPIX2"] = 1
-    #     hdu.header["CRPIX3"] = 1
-    #     hdu.header["CRPIX4"] = 1
-    #     hdu.header["CDELT1"] = pix_size.to(u.deg).value
-    #     hdu.header["CDELT2"] = pix_size.to(u.deg).value
-    #     hdu.header["CDELT3"] = np.diff(freq)[0].value
-    #     hdu.header["CDELT4"] = 1
-    #     hdu.header["CUNIT1"] = u.deg.to_string(format="fits")
-    #     hdu.header["CUNIT2"] = u.deg.to_string(format="fits")
-    #     hdu.header["CUNIT3"] = freq.unit.to_string(format="fits")
-    #     hdu.header["CUNIT4"] = "STOKES"
-    #     hdu.header["BUNIT"] = d.unit.to_string(format="fits")
-    #     hdu.header["OBJECT"] = (gauss_id, "Gaussian ID")
-
-    #     f = os.path.join(
-    #         spec_dir, os.path.basename(spectrum).replace(".dat", f"_{n}.fits")
-    #     )
-    #     log.debug(f"Writing {f} from {spectrum}")
-    #     hdu.writeto(f, overwrite=True)
+    return outf
 
 
-
-
-    #     phis = full_rm_data["phi"].values * u.rad / u.m**2
-    #     rm_q_data = full_rm_data["Q"].values
-    #     rm_u_data = full_rm_data["U"].values
-    #     rm_data = np.array([rm_q_data, rm_u_data]) * unit
-    #     # Add dummy axis for RA/DEC
-    #     rm_data = rm_data[:, :, np.newaxis, np.newaxis]
-
-    #     # Create HDU
-    #     hdu = fits.PrimaryHDU(data=rm_data.value)
-    #     hdu.header["NAXIS"] = len(rm_data.shape)
-    #     hdu.header["NAXIS1"] = 1
-    #     hdu.header["NAXIS2"] = 1
-    #     hdu.header["NAXIS3"] = len(phis)
-    #     hdu.header["NAXIS4"] = len(rm_data)
-    #     hdu.header["CTYPE1"] = "RA---SIN"
-    #     hdu.header["CTYPE2"] = "DEC--SIN"
-    #     hdu.header["CTYPE3"] = "FDEP"
-    #     hdu.header["CTYPE4"] = "STOKES"
-    #     hdu.header["CRVAL1"] = ra
-    #     hdu.header["CRVAL2"] = dec
-    #     hdu.header["CRVAL3"] = phis[0].value
-    #     hdu.header["CRVAL4"] = 2  # Stokes Q
-    #     hdu.header["CRPIX1"] = 1
-    #     hdu.header["CRPIX2"] = 1
-    #     hdu.header["CRPIX3"] = 1
-    #     hdu.header["CRPIX4"] = 1
-    #     hdu.header["CDELT1"] = pix_size.to(u.deg).value
-    #     hdu.header["CDELT2"] = pix_size.to(u.deg).value
-    #     hdu.header["CDELT3"] = np.diff(phis)[0].value
-    #     hdu.header["CDELT4"] = 1
-    #     hdu.header["CUNIT1"] = u.deg.to_string(format="fits")
-    #     hdu.header["CUNIT2"] = u.deg.to_string(format="fits")
-    #     hdu.header["CUNIT3"] = phis.unit.to_string()
-    #     hdu.header["CUNIT4"] = "STOKES"
-    #     hdu.header["BUNIT"] = rm_data.unit.to_string()
-    #     hdu.header["OBJECT"] = (gauss_id, "Gaussian ID")
-    #     rm_f = os.path.join(
-    #         spec_dir, os.path.basename(rm_file).replace(".dat", ".fits")
-    #     )
-    #     log.debug(f"Writing {rm_f} from {rm_file}")
-    #     hdu.writeto(rm_f, overwrite=True)
-
-    # return dict(
-    #     freq=full_data["freq"],
-    #     stokesI=full_data["I"],
-    #     stokesQ=full_data["Q"],
-    #     stokesU=full_data["U"],
-    #     stokesI_error=full_data["dI"],
-    #     stokesQ_error=full_data["dQ"],
-    #     stokesU_error=full_data["dU"],
-    #     faraday_depth=rmtables["clean"]["phi"],
-    #     faraday_depth_long=rmtables["RMSF"]["phi"],
-    #     FDF_Q_clean=rmtables["clean"]["Q"],
-    #     FDF_U_clean=rmtables["clean"]["U"],
-    #     FDF_Q_dirty=rmtables["dirty"]["Q"],
-    #     FDF_U_dirty=rmtables["dirty"]["U"],
-    #     FDF_Q_model=rmtables["model"]["Q"],
-    #     FDF_U_model=rmtables["model"]["U"],
-    #     RMSF_Q=rmtables["RMSF"]["Q"],
-    #     RMSF_U=rmtables["RMSF"]["U"],
-    #     cat_id=gauss_id,
-    # )
-
-
-@delayed
+@delayed()
 def update_cube(cube: str, cube_dir: str) -> None:
     """Update cube headers and symlink to CASDA area
 
@@ -406,15 +293,16 @@ def find_cubes(data_dir: str = ".") -> list:
     log.info(f"Found {len(cubes)} cubes")
     return cubes
 
+
 @delayed(nout=2)
 def init_polspec(
     casda_dir: str,
-    spectrum_table_0: polspectra.polarizationspectra,
+    spectrum_table_0: str,
     outdir: str = None,
 ):
     if outdir is None:
         outdir = casda_dir
-    polspec_0 = spectrum_table_0
+    polspec_0 = polspectra.from_FITS(spectrum_table_0)
     out_fits = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits")
     log.info(f"Saving to {out_fits}")
     polspec_0.write_FITS(out_fits, overwrite=True)
@@ -425,8 +313,9 @@ def init_polspec(
 
     return out_fits, out_hdf
 
+
 # Reworked from polspectra.py
-def write_polspec(table: Table, filename: str, overwrite: bool=False):
+def write_polspec(table: Table, filename: str, overwrite: bool = False):
     """Write the polspectra to a FITS file.
     Parameters:
         table: astropy.table.Table
@@ -434,33 +323,37 @@ def write_polspec(table: Table, filename: str, overwrite: bool=False):
             Name and relative path of the file to save to.
         overwrite : bool [False]
             Overwrite the file if it already exists?"""
-    #This is going to be complicated, because the automatic write algorithm
+    # This is going to be complicated, because the automatic write algorithm
     # doesn't like variable length arrays. pyfits can support it, it just
     # needs a little TLC to get it into the correct format.
-    #Converting to FITSrec format loses the column description...
+    # Converting to FITSrec format loses the column description...
     # Is that important?
-    fits_columns=[]
-    col_descriptions=[]
+    fits_columns = []
+    col_descriptions = []
 
-    #per column, convert to fits column:
+    # per column, convert to fits column:
     for col in table.colnames:
-        tabcol=table[col]
-        if tabcol.dtype != np.dtype('object'): #Normal columns
-            col_format=fits.column._convert_record2fits(tabcol.dtype)
-        else: #Channelized columns
-            subtype=np.result_type(np.array(tabcol[0])) #get the type of each element in 2D array
-            col_format='Q'+fits.column._convert_record2fits(subtype)+'()'
+        tabcol = table[col]
+        if tabcol.dtype != np.dtype("object"):  # Normal columns
+            col_format = fits.column._convert_record2fits(tabcol.dtype)
+        else:  # Channelized columns
+            subtype = np.result_type(
+                np.array(tabcol[0])
+            )  # get the type of each element in 2D array
+            col_format = "Q" + fits.column._convert_record2fits(subtype) + "()"
         if tabcol.unit != None:
-            unit=tabcol.unit.to_string()
+            unit = tabcol.unit.to_string()
         else:
-            unit=''
-        pfcol=fits.Column(name=tabcol.name,unit=unit,
-                        array=tabcol.data,format=col_format)
+            unit = ""
+        pfcol = fits.Column(
+            name=tabcol.name, unit=unit, array=tabcol.data, format=col_format
+        )
         fits_columns.append(pfcol)
         col_descriptions.append(tabcol.description)
 
-    tablehdu=fits.BinTableHDU.from_columns(fits_columns)
-    tablehdu.writeto(filename,overwrite=overwrite)
+    tablehdu = fits.BinTableHDU.from_columns(fits_columns)
+    tablehdu.writeto(filename, overwrite=overwrite)
+
 
 @delayed()
 def add_polspec_row(
@@ -473,19 +366,21 @@ def add_polspec_row(
         data = hdul[1].data
         header = hdul[1].header
         table = Table(data)
-        for i in range(1,header['TFIELDS']+1):
-            if 'TUNIT{}'.format(i) in header.keys():
-                table[header['TTYPE{}'.format(i)]].unit=header['TUNIT{}'.format(i)]
+        for i in range(1, header["TFIELDS"] + 1):
+            if "TUNIT{}".format(i) in header.keys():
+                table[header["TTYPE{}".format(i)]].unit = header["TUNIT{}".format(i)]
     stack = vstack([table, spectrum_table.table], join_type="exact")
-    write_polspec(stack,out_fits,overwrite=True)
+    write_polspec(stack, out_fits, overwrite=True)
 
-    # Add row to HDF5 table
-    stack = polspectra.read_HDF5(out_hdf)
-    stack.merge_tables(spectrum_table)
-    stack.write_HDF5(out_hdf, overwrite=True, compress=True)
+    # TODO: Make this work
+    # # Add row to HDF5 table
+    # stack = polspectra.polarizationspectra()
+    # stack.read_HDF5(out_hdf)
+    # stack.merge_tables(spectrum_table)
+    # stack.write_HDF5(out_hdf, overwrite=True, compress=True)
 
 
-@delayed
+@delayed()
 def convert_pdf(pdf_file: str, plots_dir: str, spec_dir: str) -> None:
     """Convert a PDF to a PNG
 
@@ -567,7 +462,11 @@ def main(
     polcat = polcat[df.index.values]
     polcat.add_index("cat_id")
 
-    casda_dir = os.path.join(data_dir, "casda") if not test else os.path.join(data_dir, "casda_test")
+    casda_dir = (
+        os.path.join(data_dir, "casda")
+        if not test
+        else os.path.join(data_dir, "casda_test")
+    )
     try_mkdir(casda_dir)
 
     # Link catalgoue to casda directory
@@ -731,15 +630,19 @@ def main(
     ):
         if test:
             if name == "spectra":
-                n_things = 10 #* 10
+                n_things = 10 * 10
             elif name == "cubes":
-                n_things = 60 #* 10
+                n_things = 60 * 10
             else:
-                n_things = 30 #* 10
+                n_things = 30 * 10
             outputs = outputs[:n_things]
             log.info(f"Testing {len(outputs)} {name}")
         else:
             log.info(f"Starting work on {len(outputs)} {name}")
+
+        if name == "spectra":
+            from IPython import embed; embed()
+            exit()
         futures = chunk_dask(
             outputs=outputs,
             client=client,
