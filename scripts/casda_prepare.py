@@ -640,9 +640,6 @@ def main(
         else:
             log.info(f"Starting work on {len(outputs)} {name}")
 
-        if name == "spectra":
-            from IPython import embed; embed()
-            exit()
         futures = chunk_dask(
             outputs=outputs,
             client=client,
