@@ -41,10 +41,15 @@ from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_e
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
-    cube = np.squeeze(fits.getdata(cube_f))
+    cube = fits.getdata(cube_f)
+    icube = cube[:, 0, :, :]
+    qcube = cube[:, 1, :, :]
+    ucube = cube[:, 2, :, :]
+    pcube = np.hypot(qcube, ucube)
+
     head = fits.getheader(cube_f)
     wcs = WCS(head)
-    med = np.nanmedian(cube, axis=0)
+    med = np.nanmedian(pcube, axis=0)
     med_wcs = wcs.celestial
     pix_scales = proj_plane_pixel_scales(med_wcs) * u.deg
     beam = Beam.from_fits_header(head)
@@ -54,17 +59,8 @@ def make_thumbnail(cube_f: str, cube_dir: str):
         pixscale=pix_scales[0],  # Assume same pixel scale in x and y
     )
     fig = plt.figure(facecolor="w")
-    if ".weights." in cube_f:
-        cmap = "gray"
-        norm = ImageNormalize(med, interval=MinMaxInterval())
-    else:
-        if ".i." in cube_f:
-            cmap = "viridis"
-            norm = ImageNormalize(med, interval=MinMaxInterval())
-        else:
-            cmap = "coolwarm"
-            absmax = np.max(np.abs(med))
-            norm = ImageNormalize(med, vmin=-absmax, vmax=absmax)
+    cmap = "gray" if ".weights." in cube_f else "Purples"
+    norm = ImageNormalize(med, interval=MinMaxInterval(), stretch=SqrtStretch())
     ax = fig.add_subplot(111, projection=med_wcs)
     im = ax.imshow(med, origin="lower", cmap=cmap, norm=norm)
     ax.add_patch(ellipse)
@@ -279,20 +275,38 @@ def update_cube(cube: str, cube_dir: str) -> None:
         cube (str): Cubelet path
         cube_dir (str): CASDA cublet directory
     """
-    # Get source ID and update header
-    source_id = os.path.basename(os.path.dirname(cube))
-    with fits.open(cube, mode="update") as hdul:
-        hdul[0].header["OBJECT"] = (source_id, "Source ID")
-        hdul.flush()
+    stokes = ("i", "q", "u")
+    imtypes = ("image.restored", "weights")
+    idata = fits.getdata(cube, memmap=True,)
+    cube = os.path.abspath(cube)
 
-    # Move cube to cubelets directory
-    src = os.path.abspath(cube)
-    dst = os.path.join(cube_dir, os.path.basename(cube))
-    # Fix old RACS name
-    dst = dst.replace("RACS_test4_1.05_", "RACS_")
-    log.info(f"Copying {src} to {dst}")
-    try_symlink(src, dst)
-    make_thumbnail(dst, cube_dir)
+    for imtype in imtypes:
+        data = np.zeros((idata.shape[0], len(stokes), idata.shape[2], idata.shape[3]))
+        for i, stoke in enumerate(stokes):
+            fname = cube.replace("image.restored.i", f"{imtype}.{stoke}")
+            if stoke != "i":
+                fname = fname.replace(".linmos.edge.linmos.fits", ".linmos.ion.edge.linmos.fits")
+                if not os.path.exists(fname) and imtype == "weights":
+                    fname = fname.replace(".linmos.ion.edge.linmos.fits", ".linmos.edge.linmos.fits")
+            if not os.path.exists(fname):
+                raise FileNotFoundError(f"Could not find {fname}")
+            data[:, i, :, :] = fits.getdata(fname, memmap=True,)[:, 0, :, :]
+
+            # Get header from Stokes Q
+            if stoke == "q":
+                header = fits.getheader(fname)
+        # Get source ID and update header
+        source_id = os.path.basename(os.path.dirname(cube))
+        header["OBJECT"] = (source_id, "Source ID")
+        header["CRVAL3"] = 1.0
+
+
+        outf = os.path.join(cube_dir, os.path.basename(cube).replace("image.restored.i.", f"{imtype}.{''.join(stokes)}.")).replace("RACS_test4_1.05_", "RACS_")
+        log.info(f"Writing {outf} cubelet")
+        fits.writeto(outf, data, header, overwrite=True)
+
+        # Move cube to cubelets directory
+        make_thumbnail(outf, cube_dir)
 
 
 def find_cubes(data_dir: str = ".") -> list:
@@ -422,23 +436,23 @@ def convert_pdf(pdf_file: str, plots_dir: str, spec_dir: str) -> None:
     # Make thumbnail plot for CASDA - needs same name as FITS
     thumb = os.path.join(spec_dir, os.path.basename(wanted_name))
     rename_dict = {
-        "_spectra-plots.png": "_spectra.png",
-        "_RMSF-dirtyFDF-plots.png": "_FDFdirty.png",
-        "_cleanFDF-plots.png": "_FDFclean.png",
+        "_spectra-plots.png": "_polspec.png",
+        # "_RMSF-dirtyFDF-plots.png": "_FDFdirty.png",
+        # "_cleanFDF-plots.png": "_FDFclean.png",
     }
     for old, new in rename_dict.items():
         if old in thumb:
             thumb = thumb.replace(old, new)
-    try_symlink(os.path.abspath(wanted_name), thumb)
-    other_rename = {
-        "_spectra.png": "_noise.png",
-        "_FDFdirty.png": "_RMSF.png",
-        "_FDFclean.png": "_FDFmodel.png",
-    }
-    for old, new in other_rename.items():
-        if old in thumb:
-            thumb = thumb.replace(old, new)
-    try_symlink(os.path.abspath(wanted_name), thumb)
+            try_symlink(os.path.abspath(wanted_name), thumb)
+    # other_rename = {
+    #     "_spectra.png": "_noise.png",
+    #     "_FDFdirty.png": "_RMSF.png",
+    #     "_FDFclean.png": "_FDFmodel.png",
+    # }
+    # for old, new in other_rename.items():
+    #     if old in thumb:
+    #         thumb = thumb.replace(old, new)
+    # try_symlink(os.path.abspath(wanted_name), thumb)
 
 
 def find_plots(data_dir: str = ".") -> list:
@@ -508,9 +522,9 @@ def main(
             ), "Number of cubes does not match number of sources"
         except AssertionError:
             log.warning(
-                f"Found {len(cubes)} cubes, expected {len(set(polcat['source_id'])) * 3 * 2}"
+                f"Found {len(cubes)} cubes, expected {len(set(polcat['source_id']))}"
             )
-            if len(cubes) < len(set(polcat["source_id"])) * 3 * 2:
+            if len(cubes) < len(set(polcat["source_id"])):
                 log.critical("Some cubes are missing on disk!")
                 raise
             else:
@@ -533,7 +547,7 @@ def main(
                 with open(outf, "w") as f:
                     for rid in rem_ids:
                         f.write(f"{rid}\n")
-                assert len(cubes) == len(set(polcat["source_id"])) * 3 * 2
+                assert len(cubes) == len(set(polcat["source_id"]))
 
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -636,7 +650,7 @@ def main(
             if name == "spectra":
                 n_things = 10 * 10
             elif name == "cubes":
-                n_things = 60 * 10
+                n_things = 10 * 10
             else:
                 n_things = 30 * 10
             outputs = outputs[:n_things]
@@ -652,7 +666,7 @@ def main(
             verbose=verbose,
             batch_size=batch_size,
         )
-        if name =="spectra":
+        if name =="spectra" and len(outputs) > 0:
             # Get concrete results
             spectrum_tables = client.gather(client.compute(futures))
             # Init spectrum table
@@ -667,8 +681,9 @@ def main(
                     out_hdf=out_hdf,
                     spectrum_table=spectrum_table,
                 )
+    if do_convert_spectra:
+        os.remove("polcat.pkl")
 
-    os.remove("polcat.pkl")
     log.info("Done")
 
 
@@ -689,7 +704,7 @@ def cli():
         metavar="polcat",
     )
     parser.add_argument(
-        "--update-cubes", action="store_true", help="Update cubes", default=False
+        "--convert-cubes", action="store_true", help="Update cubes", default=False
     )
     parser.add_argument(
         "--convert-spectra", action="store_true", help="Convert spectra", default=False
@@ -774,7 +789,7 @@ def cli():
             polcatf=args.polcat,
             client=client,
             data_dir=args.data_dir,
-            do_update_cubes=args.update_cubes,
+            do_update_cubes=args.convert_cubes,
             do_convert_spectra=args.convert_spectra,
             do_convert_plots=args.convert_plots,
             verbose=args.verbose,
