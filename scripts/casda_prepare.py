@@ -3,12 +3,12 @@
 import argparse
 import logging as log
 import os
+import pickle
 import subprocess as sp
 import time
 import traceback
 from glob import glob
 from typing import Dict, List, Tuple
-import pickle
 
 import astropy.units as u
 import dask.array as da
@@ -259,7 +259,9 @@ def convert_spectra(
         hdul[0].header["CDELT2"] = pix_size.to(u.deg).value
         hdul[0].header["CRPIX1"] = 1
         hdul[0].header["CRPIX2"] = 1
-        hdul[0].header["comment"] = "Dummy image to indicate the pixel size and position"
+        hdul[0].header[
+            "comment"
+        ] = "Dummy image to indicate the pixel size and position"
         # Add dummy data to make it a valid FITS file
         # hdul[0].data = np.zeros((1, 1))
         hdul.flush()
@@ -277,7 +279,10 @@ def update_cube(cube: str, cube_dir: str) -> None:
     """
     stokes = ("i", "q", "u")
     imtypes = ("image.restored", "weights")
-    idata = fits.getdata(cube, memmap=True,)
+    idata = fits.getdata(
+        cube,
+        memmap=True,
+    )
     cube = os.path.abspath(cube)
 
     for imtype in imtypes:
@@ -285,12 +290,19 @@ def update_cube(cube: str, cube_dir: str) -> None:
         for i, stoke in enumerate(stokes):
             fname = cube.replace("image.restored.i", f"{imtype}.{stoke}")
             if stoke != "i":
-                fname = fname.replace(".linmos.edge.linmos.fits", ".linmos.ion.edge.linmos.fits")
+                fname = fname.replace(
+                    ".linmos.edge.linmos.fits", ".linmos.ion.edge.linmos.fits"
+                )
                 if not os.path.exists(fname) and imtype == "weights":
-                    fname = fname.replace(".linmos.ion.edge.linmos.fits", ".linmos.edge.linmos.fits")
+                    fname = fname.replace(
+                        ".linmos.ion.edge.linmos.fits", ".linmos.edge.linmos.fits"
+                    )
             if not os.path.exists(fname):
                 raise FileNotFoundError(f"Could not find {fname}")
-            data[:, i, :, :] = fits.getdata(fname, memmap=True,)[:, 0, :, :]
+            data[:, i, :, :] = fits.getdata(
+                fname,
+                memmap=True,
+            )[:, 0, :, :]
 
             # Get header from Stokes Q
             if stoke == "q":
@@ -300,8 +312,12 @@ def update_cube(cube: str, cube_dir: str) -> None:
         header["OBJECT"] = (source_id, "Source ID")
         header["CRVAL3"] = 1.0
 
-
-        outf = os.path.join(cube_dir, os.path.basename(cube).replace("image.restored.i.", f"{imtype}.{''.join(stokes)}.")).replace("RACS_test4_1.05_", "RACS_")
+        outf = os.path.join(
+            cube_dir,
+            os.path.basename(cube).replace(
+                "image.restored.i.", f"{imtype}.{''.join(stokes)}."
+            ),
+        ).replace("RACS_test4_1.05_", "RACS_")
         log.info(f"Writing {outf} cubelet")
         fits.writeto(outf, data, header, overwrite=True)
 
@@ -320,7 +336,9 @@ def find_cubes(data_dir: str = ".") -> list:
     """
     cut_dir = os.path.join(data_dir, "cutouts")
     log.info(f"Globbing for cubes in {cut_dir}")
-    cubes = glob(os.path.join(os.path.join(cut_dir, "*"), "*.image.restored.i.*.linmos.fits"))
+    cubes = glob(
+        os.path.join(os.path.join(cut_dir, "*"), "*.image.restored.i.*.linmos.fits")
+    )
     log.info(f"Found {len(cubes)} Stokes I image cubes")
     return cubes
 
@@ -517,8 +535,8 @@ def main(
         cubes = find_cubes(data_dir=data_dir)
         # Check if we have a cube for each source
         try:
-            assert (
-                len(cubes) == len(set(polcat["source_id"]))
+            assert len(cubes) == len(
+                set(polcat["source_id"])
             ), "Number of cubes does not match number of sources"
         except AssertionError:
             log.warning(
@@ -666,7 +684,7 @@ def main(
             verbose=verbose,
             batch_size=batch_size,
         )
-        if name =="spectra" and len(outputs) > 0:
+        if name == "spectra" and len(outputs) > 0:
             # Get concrete results
             spectrum_tables = client.gather(client.compute(futures))
             # Init spectrum table
@@ -675,7 +693,9 @@ def main(
                 spectrum_table_0=spectrum_tables[0],
                 outdir=outdir,
             )
-            for spectrum_table in tqdm(spectrum_tables, desc="Appending spectra rows to table"):
+            for spectrum_table in tqdm(
+                spectrum_tables, desc="Appending spectra rows to table"
+            ):
                 add_polspec_row(
                     out_fits=out_fits,
                     out_hdf=out_hdf,
