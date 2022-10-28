@@ -8,6 +8,7 @@ import time
 import traceback
 from glob import glob
 from typing import Dict, List, Tuple
+import pickle
 
 import astropy.units as u
 import dask.array as da
@@ -100,7 +101,6 @@ def find_spectra(data_dir: str = ".") -> list:
 def convert_spectra(
     number: int,
     spectrum: str,
-    cat_row: Row,
     spec_dir: str = ".",
 ) -> str:
     """Convert a ascii spectrum to FITS
@@ -109,7 +109,8 @@ def convert_spectra(
         spectrum (str): Name of ASCII spectrum file
         spec_dir (str, optional): Directory to save FITS spectrum. Defaults to '.'.
     """
-    cat_row = Table(cat_row)
+    with open("polcat.pkl", "rb") as f:
+        cat_row = Table(pickle.load(f)[number])
     rmsf_unit = u.def_unit("RMSF")
     unit_flux = u.Jy / u.beam
     unit_fdf = unit_flux / rmsf_unit
@@ -247,8 +248,24 @@ def convert_spectra(
     log.info(f"Saving to {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)
     # Add object to header
+    # Hard code the pixel size for now
+    pix_size = 2.5 * u.arcsec
     with fits.open(outf, mode="update") as hdul:
         hdul[0].header["OBJECT"] = (cat_row["cat_id"][0], "Gaussian ID")
+        hdul[0].header["NAXIS"] = 2
+        hdul[0].header["NAXIS1"] = 1
+        hdul[0].header["NAXIS2"] = 1
+        hdul[0].header["CTYPE1"] = "RA---SIN"
+        hdul[0].header["CTYPE2"] = "DEC--SIN"
+        hdul[0].header["CRVAL1"] = cat_row["ra"][0]
+        hdul[0].header["CRVAL2"] = cat_row["dec"][0]
+        hdul[0].header["CDELT1"] = pix_size.to(u.deg).value
+        hdul[0].header["CDELT2"] = pix_size.to(u.deg).value
+        hdul[0].header["CRPIX1"] = 1
+        hdul[0].header["CRPIX2"] = 1
+        hdul[0].header["comment"] = "Dummy image to indicate the pixel size and position"
+        # Add dummy data to make it a valid FITS file
+        # hdul[0].data = np.zeros((1, 1))
         hdul.flush()
 
     return outf
@@ -279,7 +296,7 @@ def update_cube(cube: str, cube_dir: str) -> None:
 
 
 def find_cubes(data_dir: str = ".") -> list:
-    """Find cubelets in a directory
+    """Find Stokes I image cubelets in a directory
 
     Args:
         data_dir (str, optional): Data containg cutouts directory. Defaults to ".".
@@ -289,12 +306,12 @@ def find_cubes(data_dir: str = ".") -> list:
     """
     cut_dir = os.path.join(data_dir, "cutouts")
     log.info(f"Globbing for cubes in {cut_dir}")
-    cubes = glob(os.path.join(os.path.join(cut_dir, "*"), "*.linmos.fits"))
-    log.info(f"Found {len(cubes)} cubes")
+    cubes = glob(os.path.join(os.path.join(cut_dir, "*"), "*.image.restored.i.*.linmos.fits"))
+    log.info(f"Found {len(cubes)} Stokes I image cubes")
     return cubes
 
 
-@delayed(nout=2)
+# @delayed(nout=2)
 def init_polspec(
     casda_dir: str,
     spectrum_table_0: str,
@@ -308,8 +325,8 @@ def init_polspec(
     polspec_0.write_FITS(out_fits, overwrite=True)
 
     out_hdf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.hdf5")
-    log.info(f"Saving to {out_hdf}")
-    polspec_0.write_HDF5(out_hdf, overwrite=True, compress=True)
+    # log.info(f"Saving to {out_hdf}")
+    # polspec_0.write_HDF5(out_hdf, overwrite=True, compress=True)
 
     return out_fits, out_hdf
 
@@ -355,11 +372,11 @@ def write_polspec(table: Table, filename: str, overwrite: bool = False):
     tablehdu.writeto(filename, overwrite=overwrite)
 
 
-@delayed()
+# @delayed()
 def add_polspec_row(
     out_fits: str,
     out_hdf: str,
-    spectrum_table: polspectra.polarizationspectra,
+    spectrum_table: str,
 ) -> None:
     # Add row to FITS table
     with fits.open(out_fits, mode="denywrite", memmap=True) as hdul:
@@ -369,7 +386,8 @@ def add_polspec_row(
         for i in range(1, header["TFIELDS"] + 1):
             if "TUNIT{}".format(i) in header.keys():
                 table[header["TTYPE{}".format(i)]].unit = header["TUNIT{}".format(i)]
-    stack = vstack([table, spectrum_table.table], join_type="exact")
+    polspec = polspectra.from_FITS(spectrum_table)
+    stack = vstack([table, polspec.table], join_type="exact")
     write_polspec(stack, out_fits, overwrite=True)
 
     # TODO: Make this work
@@ -486,8 +504,8 @@ def main(
         # Check if we have a cube for each source
         try:
             assert (
-                len(cubes) == len(set(polcat["source_id"])) * 3 * 2
-            )  # 3 pols x (image, weight)
+                len(cubes) == len(set(polcat["source_id"]))
+            ), "Number of cubes does not match number of sources"
         except AssertionError:
             log.warning(
                 f"Found {len(cubes)} cubes, expected {len(set(polcat['source_id'])) * 3 * 2}"
@@ -540,7 +558,6 @@ def main(
             out = update_cube(cube=cube, cube_dir=cube_dir)
             cube_outputs.append(out)
 
-    spectrum_tables = []
     spectra_outputs = []
     if do_convert_spectra:
         log.info("Converting spectra")
@@ -567,10 +584,12 @@ def main(
             os.path.basename(spectrum).replace(".dat", "")
             for spectrum in sorted_spectra
         ]
-        sorted_polcat = polcat.loc[gauss_ids]
+        polcat = polcat.loc[gauss_ids]
+        with open("polcat.pkl", "wb") as f:
+            pickle.dump(polcat, f)
         for i, (spectrum, gauss_id, row) in enumerate(
             tqdm(
-                zip(sorted_spectra, gauss_ids, sorted_polcat),
+                zip(sorted_spectra, gauss_ids, polcat),
                 total=len(sorted_spectra),
                 desc="Converting spectra",
             )
@@ -579,24 +598,9 @@ def main(
             spectrum_table = convert_spectra(
                 number=i,
                 spectrum=spectrum,
-                cat_row=row,
                 spec_dir=spec_dir,
             )
-            spectrum_tables.append(spectrum_table)
-        # Init spectrum table
-        out_fits, out_hdf = init_polspec(
-            casda_dir=casda_dir,
-            spectrum_table_0=spectrum_tables[0],
-            outdir=outdir,
-        )
-
-        for spectrum_table in spectrum_tables:
-            out = add_polspec_row(
-                out_fits=out_fits,
-                out_hdf=out_hdf,
-                spectrum_table=spectrum_table,
-            )
-            spectra_outputs.append(out)
+            spectra_outputs.append(spectrum_table)
 
     plot_outputs = []
     if do_convert_plots:
@@ -648,7 +652,23 @@ def main(
             verbose=verbose,
             batch_size=batch_size,
         )
+        if name =="spectra":
+            # Get concrete results
+            spectrum_tables = client.gather(client.compute(futures))
+            # Init spectrum table
+            out_fits, out_hdf = init_polspec(
+                casda_dir=casda_dir,
+                spectrum_table_0=spectrum_tables[0],
+                outdir=outdir,
+            )
+            for spectrum_table in tqdm(spectrum_tables, desc="Appending spectra rows to table"):
+                add_polspec_row(
+                    out_fits=out_fits,
+                    out_hdf=out_hdf,
+                    spectrum_table=spectrum_table,
+                )
 
+    os.remove("polcat.pkl")
     log.info("Done")
 
 
