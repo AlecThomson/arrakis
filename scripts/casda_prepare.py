@@ -259,11 +259,13 @@ def convert_spectra(
         hdul[0].header["CDELT2"] = pix_size.to(u.deg).value
         hdul[0].header["CRPIX1"] = 1
         hdul[0].header["CRPIX2"] = 1
+        hdul[0].header["CUNTI1"] = "deg"
+        hdul[0].header["CUNTI2"] = "deg"
         hdul[0].header[
             "comment"
         ] = "Dummy image to indicate the pixel size and position"
         # Add dummy data to make it a valid FITS file
-        # hdul[0].data = np.zeros((1, 1))
+        hdul[0].data = np.zeros((1, 1))
         hdul.flush()
 
     return outf
