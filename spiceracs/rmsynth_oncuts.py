@@ -476,6 +476,7 @@ def rmsynthoncut1d(
         )
         mDict["polyOrd"] = int(fit_dict["best_n"])
         mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
+        mDict["IfitChiSqRed"] = float(fit_dict["chi_sq_red"])
         if fit_dict["fit_flag"]:
             mDict["IfitStat"] = 64
         else:

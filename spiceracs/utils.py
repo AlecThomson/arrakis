@@ -49,6 +49,22 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 print = functools.partial(print, flush=True)
 
 
+def chi_squared(
+    model: np.ndarray, data: np.ndarray, error: np.ndarray
+) -> float:
+    """Calculate chi squared.
+
+    Args:
+        model (np.ndarray): Model flux.
+        data (np.ndarray): Data flux.
+        error (np.ndarray): Data error.
+
+    Returns:
+        np.ndarray: Chi squared.
+    """
+    return np.sum(((model - data) / error) ** 2)
+
+
 def best_aic_func(aics, n_param):
     """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
@@ -232,6 +248,12 @@ def fit_pl(
         best_flag = fit_flags[best_n]
         best_h = highs[best_n]
         best_l = lows[best_n]
+        chi_sq = chi_squared(
+            model=best_m[goodchan],
+            data=flux[goodchan],
+            error=fluxerr[goodchan],
+        )
+        chi_sq_red = chi_sq / (goodchan.sum() - len(best_p))
         return dict(
             best_n=best_n,
             best_p=best_p,
@@ -242,6 +264,8 @@ def fit_pl(
             best_f=best_f,
             fit_flag=best_flag,
             ref_nu=ref_nu,
+            chi_sq=chi_sq,
+            chi_sq_red=chi_sq_red,
         )
     except Exception as e:
         log.critical(f"Failed to fit power law: {e}")
@@ -255,6 +279,8 @@ def fit_pl(
             best_f=None,
             fit_flag=True,
             ref_nu=np.nan,
+            chi_sq=np.nan,
+            chi_sq_red=np.nan,
         )
 
 
