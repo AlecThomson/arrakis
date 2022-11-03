@@ -49,9 +49,7 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 print = functools.partial(print, flush=True)
 
 
-def chi_squared(
-    model: np.ndarray, data: np.ndarray, error: np.ndarray
-) -> float:
+def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float:
     """Calculate chi squared.
 
     Args:
