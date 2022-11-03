@@ -495,11 +495,11 @@ def main(
     polcatf: str,
     client: Client,
     data_dir: str = ".",
+    prep_type: str = "test",
     do_update_cubes: bool = False,
     do_convert_spectra: bool = False,
     do_convert_plots: bool = False,
     verbose: bool = False,
-    test: bool = False,
     batch_size: int = 10,
     outdir=None,
 ):
@@ -514,10 +514,25 @@ def main(
     polcat = polcat[df.index.values]
     polcat.add_index("cat_id")
 
+    test = prep_type == "test"
+
+    log.info(f"Preparing data for {prep_type} CASDA upload")
+
+    if prep_type == "full":
+        pass
+
+    elif prep_type == "cut":
+        cut_idx = ~polcat["stokes_I_fit_flag"]
+        polcat = polcat[cut_idx]
+
+    elif prep_type == "test":
+        pass
+
+    else:
+        raise ValueError(f"Unknown prep_type: {prep_type}")
+
     casda_dir = (
-        os.path.join(data_dir, "casda")
-        if not test
-        else os.path.join(data_dir, "casda_test")
+        os.path.join(data_dir, f"casda_{prep_type}")
     )
     try_mkdir(casda_dir)
 
@@ -725,6 +740,16 @@ def cli():
         type=str,
         metavar="polcat",
     )
+
+    parser.add_argument(
+        "prep_type",
+        choices=["full", "cut", "test"],
+        help="Type of data to prepare",
+        type=str,
+        metavar="prep_type",
+        default="test",
+    )
+
     parser.add_argument(
         "--convert-cubes", action="store_true", help="Update cubes", default=False
     )
@@ -744,11 +769,6 @@ def cli():
         "--debug",
         action="store_true",
         help="Debug output",
-    )
-    parser.add_argument(
-        "--test",
-        action="store_true",
-        help="Test mode",
     )
     parser.add_argument(
         "--mpi",
@@ -811,11 +831,11 @@ def cli():
             polcatf=args.polcat,
             client=client,
             data_dir=args.data_dir,
+            prep_type=args.prep_type,
             do_update_cubes=args.convert_cubes,
             do_convert_spectra=args.convert_spectra,
             do_convert_plots=args.convert_plots,
             verbose=args.verbose,
-            test=args.test,
             batch_size=args.batch_size,
             outdir=args.outdir,
         )
