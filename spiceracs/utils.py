@@ -38,6 +38,7 @@ from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner, is_kernel
 from FRion.correct import find_freq_axis
 from scipy.optimize import curve_fit
+from scipy.stats import normaltest
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tornado.ioloop import IOLoop
@@ -214,23 +215,27 @@ def fit_pl(
             if is_not_finite:
                 log.warning(f"Stokes I flag: Model {n} is not finite")
             # # Flag if model and data are statistically different
-            # residuals = flux[goodchan] - model_arr[goodchan]
-            # residuals_err = np.hypot(fluxerr[goodchan], model_err[goodchan])
-            # n_sigma = 3
-            # is_outside_sigma = (np.abs(residuals) > n_sigma*residuals_err).any()
-            # if is_outside_sigma:
-            #     log.warning(f"Stokes I flag: Model {n} is outside {n_sigma} sigma of data")
+            residuals = flux[goodchan] - model_arr[goodchan]
+            # Assume errors on resdiuals are the same as the data
+            # i.e. assume the model has no error
+            residuals_err = fluxerr[goodchan]
+            residuals_norm = residuals / residuals_err
+            # Test if the residuals are normally distributed
+            ks,pval = normaltest(residuals_norm)
+            is_not_normal = pval < 1e-6 # 1 in a million chance of being unlucky
+            if is_not_normal:
+                log.warning(f"Stokes I flag: Model {n} is not normally distributed - {pval=}, {ks=}")
 
             # This is the old method, which is not as good as the new one above.
-            is_low_snr = (model_arr[goodchan] < fluxerr[goodchan]).any()
-            if is_low_snr:
-                log.warning(f"Stokes I flag: Model {n} is low SNR")
+            # is_low_snr = (model_arr[goodchan] < fluxerr[goodchan]).any()
+            # if is_low_snr:
+                # log.warning(f"Stokes I flag: Model {n} is low SNR")
             fit_flag = any(
                 [
                     is_negative,
                     is_not_finite,
-                    # is_outside_sigma,
-                    is_low_snr,
+                    is_not_normal,
+                    # is_low_snr,
                 ]
             )
             fit_flags.append(fit_flag)
