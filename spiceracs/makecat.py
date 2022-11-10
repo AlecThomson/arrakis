@@ -227,9 +227,9 @@ def cuts_and_flags(cat):
     # 16: a fit parameter has become infinite/numerical overflow
     # +64 (can be added to other flags): model gives Stokes I values with S:N < 1 for at least one channel
     # +128 (can be added to other flags): model gives Stokes I values < 0 for at least one channel
-    fit_flag = cat["stokes_I_fit_flag"] > 5
-    cat.remove_column("stokes_I_fit_flag")
-    cat.add_column(Column(data=fit_flag, name="stokes_I_fit_flag"))
+    fit_flag = cat["stokesI_fit_flag"] > 5
+    cat.remove_column("stokesI_fit_flag")
+    cat.add_column(Column(data=fit_flag, name="stokesI_fit_flag"))
     # sigma_add flag
     sigma_flag = cat["sigma_add"] > 1
     cat.add_column(Column(data=sigma_flag, name="complex_sigma_add_flag"))

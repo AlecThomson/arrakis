@@ -510,7 +510,7 @@ def main(
     log.info(f"Reading {polcatf}")
     polcat = Table.read(polcatf)
     df = polcat.to_pandas()
-    df = df.sort_values(["stokes_I_fit_flag", "snr_polint"], ascending=[True, False])
+    df = df.sort_values(["stokesI_fit_flag", "snr_polint"], ascending=[True, False])
     polcat = polcat[df.index.values]
     polcat.add_index("cat_id")
 
@@ -522,7 +522,7 @@ def main(
         pass
 
     elif prep_type == "cut":
-        cut_idx = ~polcat["stokes_I_fit_flag"]
+        cut_idx = ~polcat["stokesI_fit_flag"]
         polcat = polcat[cut_idx]
 
     elif prep_type == "test":
