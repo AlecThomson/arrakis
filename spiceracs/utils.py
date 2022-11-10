@@ -275,7 +275,7 @@ def fit_pl(
         return dict(
             best_n=np.nan,
             best_p=[np.nan],
-            best_e=np.nan,
+            best_e=[np.nan],
             best_m=np.ones_like(freq),
             best_h=np.ones_like(freq),
             best_l=np.ones_like(freq),
