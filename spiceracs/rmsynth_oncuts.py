@@ -474,7 +474,7 @@ def rmsynthoncut1d(
                 )[::-1]
             ]
         )
-        mDict["polyOrd"] = int(fit_dict["best_n"])
+        mDict["polyOrd"] = int(fit_dict["best_n"]) if np.isfinite(fit_dict["best_n"]) else float(np.nan)
         mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
         mDict["IfitChiSqRed"] = float(fit_dict["chi_sq_red"])
         if fit_dict["fit_flag"]:
