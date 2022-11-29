@@ -6,18 +6,21 @@ import pickle
 
 import astropy.units as u
 import numpy as np
+import pkg_resources
 from astropy.coordinates import SkyCoord
 from astropy.table import Column, Table
 from IPython import embed
 from rmtable import RMTable
+from spica import SPICA
 
 from spiceracs.makecat import get_fit_func, is_leakage, write_votable
-from spiceracs.scripts.spica import SPICA, basedir
 
 
 def fix_fields(tab: Table) -> Table:
     # Get field data, and index by field/tile ID
-    field = Table.read(f"{basedir}/field_data.csv")
+    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
+    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
+    field = Table.read(os.path.join(basedir, "field_data.csv"))
     field = field[field["SELECT"] == 1]
     field.add_index("FIELD_NAME")
     tab.add_index("tile_id")

@@ -96,6 +96,18 @@ def rmclean1d(
             saveFigures=savePlots,
             window=window,
         )
+        # Ensure JSON serializable
+        for k, v in outdict.items():
+            if isinstance(v, np.float_):
+                outdict[k] = float(v)
+            elif isinstance(v, np.float32):
+                outdict[k] = float(v)
+            elif isinstance(v, np.int_):
+                outdict[k] = int(v)
+            elif isinstance(v, np.int32):
+                outdict[k] = int(v)
+            elif isinstance(v, np.ndarray):
+                outdict[k] = v.tolist()
 
         # Save output
         do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)

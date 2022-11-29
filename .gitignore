@@ -140,3 +140,4 @@ password.txt
 conda-lock.yml
 poetry.lock
 setup.py.bak
+*.bin

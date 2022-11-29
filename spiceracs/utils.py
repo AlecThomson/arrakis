@@ -40,6 +40,7 @@ from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner, is_kernel
 from FRion.correct import find_freq_axis
 from scipy.optimize import curve_fit
+from scipy.stats import normaltest
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tornado.ioloop import IOLoop
@@ -49,6 +50,20 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
+
+
+def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float:
+    """Calculate chi squared.
+
+    Args:
+        model (np.ndarray): Model flux.
+        data (np.ndarray): Data flux.
+        error (np.ndarray): Data error.
+
+    Returns:
+        np.ndarray: Chi squared.
+    """
+    return np.sum(((model - data) / error) ** 2)
 
 
 def inspect_client(
@@ -930,23 +945,27 @@ def fit_pl(
             if is_not_finite:
                 log.warning(f"Stokes I flag: Model {n} is not finite")
             # # Flag if model and data are statistically different
-            # residuals = flux[goodchan] - model_arr[goodchan]
-            # residuals_err = np.hypot(fluxerr[goodchan], model_err[goodchan])
-            # n_sigma = 3
-            # is_outside_sigma = (np.abs(residuals) > n_sigma*residuals_err).any()
-            # if is_outside_sigma:
-            #     log.warning(f"Stokes I flag: Model {n} is outside {n_sigma} sigma of data")
+            residuals = flux[goodchan] - model_arr[goodchan]
+            # Assume errors on resdiuals are the same as the data
+            # i.e. assume the model has no error
+            residuals_err = fluxerr[goodchan]
+            residuals_norm = residuals / residuals_err
+            # Test if the residuals are normally distributed
+            ks,pval = normaltest(residuals_norm)
+            is_not_normal = pval < 1e-6 # 1 in a million chance of being unlucky
+            if is_not_normal:
+                log.warning(f"Stokes I flag: Model {n} is not normally distributed - {pval=}, {ks=}")
 
             # This is the old method, which is not as good as the new one above.
-            is_low_snr = (model_arr[goodchan] < fluxerr[goodchan]).any()
-            if is_low_snr:
-                log.warning(f"Stokes I flag: Model {n} is low SNR")
+            # is_low_snr = (model_arr[goodchan] < fluxerr[goodchan]).any()
+            # if is_low_snr:
+                # log.warning(f"Stokes I flag: Model {n} is low SNR")
             fit_flag = any(
                 [
                     is_negative,
                     is_not_finite,
-                    # is_outside_sigma,
-                    is_low_snr,
+                    is_not_normal,
+                    # is_low_snr,
                 ]
             )
             fit_flags.append(fit_flag)
@@ -962,6 +981,12 @@ def fit_pl(
         best_flag = fit_flags[best_n]
         best_h = highs[best_n]
         best_l = lows[best_n]
+        chi_sq = chi_squared(
+            model=best_m[goodchan],
+            data=flux[goodchan],
+            error=fluxerr[goodchan],
+        )
+        chi_sq_red = chi_sq / (goodchan.sum() - len(best_p))
         return dict(
             best_n=best_n,
             best_p=best_p,
@@ -972,19 +997,23 @@ def fit_pl(
             best_f=best_f,
             fit_flag=best_flag,
             ref_nu=ref_nu,
+            chi_sq=chi_sq,
+            chi_sq_red=chi_sq_red,
         )
     except Exception as e:
         log.critical(f"Failed to fit power law: {e}")
         return dict(
             best_n=np.nan,
             best_p=[np.nan],
-            best_e=np.nan,
+            best_e=[np.nan],
             best_m=np.ones_like(freq),
             best_h=np.ones_like(freq),
             best_l=np.ones_like(freq),
             best_f=None,
             fit_flag=True,
             ref_nu=np.nan,
+            chi_sq=np.nan,
+            chi_sq_red=np.nan,
         )
 
 
