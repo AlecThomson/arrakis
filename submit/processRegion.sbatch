@@ -26,8 +26,8 @@ cd /group/askap/athomson/projects/spiceracs/DR1
 conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
-outfile=spice-racs.dr1.newflag.xml
+outfile=spice-racs.dr1.newflag.wbeta.xml
 
-srun --export=ALL spice_region --dask_config /group/askap/athomson/repos/spiceracs/spiceracs/configs/galaxy.yaml --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi --own_fit --outfile $outfile --skip_merge --output_dir /group/askap/athomson/projects/spiceracs/DR1 --polyOrd -1
+srun --export=ALL spice_region --dask_config /group/askap/athomson/repos/spiceracs/spiceracs/configs/galaxy.yaml --config /group/askap/athomson/projects/spiceracs/spica/spica_full_region_config.txt --use_mpi --own_fit --outfile $outfile --skip_merge --output_dir /group/askap/athomson/projects/spiceracs/DR1 --polyOrd -2
 
 fix_dr1_cat.py $outfile
