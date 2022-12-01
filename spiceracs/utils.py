@@ -32,6 +32,7 @@ from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
 from casacore.tables import table
+from casatasks import listobs
 from dask import delayed
 from dask.delayed import Delayed
 from dask.distributed import Client, get_client
@@ -102,6 +103,14 @@ def beam_from_ms(ms: str) -> int:
     t.close()
     return beam
 
+def field_idx_from_ms(ms: str) -> int:
+    """Get the field from MS metadata"""
+    obs = listobs(vis=ms, verbose=True)
+    fields = [k for k in obs.keys() if "field_" in k]
+    assert len(fields) == 1
+    field = fields[0]
+    idx = int(field.replace("field_", ""))
+    return idx
 
 def wsclean(
     mslist: list,
@@ -260,7 +269,7 @@ def wsclean(
     theoretic_beam: bool = False,
     circular_beam: bool = False,
     elliptical_beam: bool = False,
-):
+) -> str:
     """Construct a wsclean command.
     If False or None is passed as a parameter, the parameter is not included
     in the command (i.e. wsclean will assume a default value).
