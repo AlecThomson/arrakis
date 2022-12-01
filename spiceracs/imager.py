@@ -9,6 +9,7 @@ import shutil
 from argparse import Namespace
 from glob import glob
 from typing import List
+import traceback
 
 import astropy.units as u
 import numpy as np
@@ -20,7 +21,7 @@ from astropy.wcs import WCS
 from casatasks import casalog, vishead
 from dask import compute, delayed
 from dask.delayed import Delayed
-from dask.distributed import Client, get_client
+from dask.distributed import Client, get_client, LocalCluster
 from dask_mpi import initialize
 from IPython import embed
 from racs_tools import beamcon_2D
@@ -30,7 +31,7 @@ from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
 from spiceracs import fix_ms_dir
-from spiceracs.utils import beam_from_ms, chunk_dask, inspect_client, wsclean
+from spiceracs.utils import beam_from_ms, chunk_dask, inspect_client, wsclean, field_idx_from_ms
 
 
 def get_wsclean(hub_address: str = "docker://alecthomson/wsclean", tag="3.1") -> str:
@@ -52,7 +53,8 @@ def get_prefix(
     out_dir: str,
 ) -> str:
     """Get prefix for output files"""
-    field = vishead(vis=ms, mode="list")["field"][0][0]
+    idx = field_idx_from_ms(ms)
+    field = vishead(vis=ms, mode="list")["field"][0][idx]
     beam = beam_from_ms(ms)
     prefix = f"image.{field}.contcube.beam{beam:02}"
     return os.path.join(out_dir, prefix)
@@ -61,6 +63,7 @@ def get_prefix(
 @delayed
 def image_beam(
     ms: str,
+    field_idx: int,
     out_dir: str,
     prefix: str,
     simage: str,
@@ -81,16 +84,24 @@ def image_beam(
     taper: float = None,
 ):
     """Image a single beam"""
-    (
-        addr,
-        nworkers,
-        nthreads,
-        memory,
-        threads_per_worker,
-        memory_per_worker,
-    ) = inspect_client()
-    abs_mem = float(memory_per_worker.to(u.gigabyte).value * mem / 100)
-    log.debug(f"Using {abs_mem} GB of memory")
+    import logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        force=True,
+    )
+    log = logging.getLogger(__name__)
+    # (
+    #     addr,
+    #     nworkers,
+    #     nthreads,
+    #     memory,
+    #     threads_per_worker,
+    #     memory_per_worker,
+    # ) = inspect_client()
+    # abs_mem = float(memory_per_worker.to(u.gigabyte).value * mem / 100)
+    # log.debug(f"Using {abs_mem} GB of memory")
 
     command = wsclean(
         mslist=[ms],
@@ -111,10 +122,12 @@ def image_beam(
         use_wgridder=use_wgridder,
         weight=f"briggs {robust}",
         log_time=False,
-        abs_mem=abs_mem,
-        no_mf_weighting=True,
-        j=threads_per_worker,
+        # abs_mem=abs_mem,
+        mem=mem,
+        # no_mf_weighting=True,
+        # j=1,
         taper_gaussian=f"{taper}asec" if taper else None,
+        field=field_idx,
     )
 
     root_dir = os.path.dirname(ms)
@@ -329,16 +342,18 @@ def main(
 
     assert (len(mslist) > 0) & (
         len(mslist) == 36
-    ), f"Incorrect number of MS files found: {len(mslist)}"
+    ), f"Incorrect number of MS files found: {len(mslist)} / 36"
 
     log.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []  # type: List[Delayed]
 
-    # Do this in serial since
+    # Do this in serial since CASA gets upset
     prefixs = {}
-    for ms in mslist:
+    field_idxs = {}
+    for ms in tqdm(mslist, "Getting metadata"):
         prefix = get_prefix(ms, out_dir)
         prefixs[ms] = prefix
+        field_idxs[ms] = field_idx_from_ms(ms)
 
     ms_dict = {}
     for ms in mslist:
@@ -348,6 +363,7 @@ def main(
         # Image with wsclean
         image_done = image_beam(
             ms=ms_fix,
+            field_idx=field_idxs[ms],
             out_dir=out_dir,
             prefix=prefixs[ms],
             simage=simage,
@@ -509,19 +525,28 @@ def cli():
 
     if args.mpi:
         initialize(interface="ipogif0")
+        cluster = None
 
-    client = Client()
+    else:
+        cluster = LocalCluster(
+                n_workers=1,
+                threads_per_worker=1,
+                # processes=False,
+        )
 
-    main(
-        msdir=args.msdir,
-        out_dir=args.outdir,
-        cutoff=args.cutoff,
-        robust=args.robust,
-        nchan=args.nchan,
-        pols=args.pols,
-        size=args.size,
-        taper=args.taper,
-    )
+    with Client(cluster) as client:
+        log.debug(f"{cluster=}")
+        log.debug(f"{client=}")
+        main(
+            msdir=args.msdir,
+            out_dir=args.outdir,
+            cutoff=args.cutoff,
+            robust=args.robust,
+            nchan=args.nchan,
+            pols=args.pols,
+            size=args.size,
+            taper=args.taper,
+        )
 
 
 if __name__ == "__main__":
