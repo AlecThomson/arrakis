@@ -227,15 +227,15 @@ def fit_pl(
                 log.warning(f"Stokes I flag: Model {n} is not normally distributed - {pval=}, {ks=}")
 
             # This is the old method, which is not as good as the new one above.
-            # is_low_snr = (model_arr[goodchan] < fluxerr[goodchan]).any()
-            # if is_low_snr:
-                # log.warning(f"Stokes I flag: Model {n} is low SNR")
+            is_close_to_zero = (model_arr[goodchan] < fluxerr[goodchan]).any()
+            if is_close_to_zero:
+                log.warning(f"Stokes I flag: Model {n} is low close to 0")
             fit_flag = any(
                 [
                     is_negative,
                     is_not_finite,
                     is_not_normal,
-                    # is_low_snr,
+                    is_close_to_zero,
                 ]
             )
             fit_flags.append(fit_flag)
