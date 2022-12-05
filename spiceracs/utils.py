@@ -226,10 +226,10 @@ def fit_pl(
             if is_not_normal:
                 log.warning(f"Stokes I flag: Model {n} is not normally distributed - {pval=}, {ks=}")
 
-            # This is the old method, which is not as good as the new one above.
-            is_close_to_zero = (model_arr[goodchan] < fluxerr[goodchan]).any()
+            # Test if model is close to 0 within 1 sigma
+            is_close_to_zero = (model_arr[goodchan] / fluxerr[goodchan] < 1).any()
             if is_close_to_zero:
-                log.warning(f"Stokes I flag: Model {n} is low close to 0")
+                log.warning(f"Stokes I flag: Model {n} is close (1sigma) to 0")
             fit_flag = any(
                 [
                     is_negative,
