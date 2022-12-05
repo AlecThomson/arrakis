@@ -229,20 +229,22 @@ def fit_pl(
             residuals_err = fluxerr[goodchan]
             residuals_norm = residuals / residuals_err
             # Test if the residuals are normally distributed
-            ks,pval = normaltest(residuals_norm)
-            is_not_normal = pval < 1e-6 # 1 in a million chance of being unlucky
+            ks, pval = normaltest(residuals_norm)
+            is_not_normal = pval < 1e-6  # 1 in a million chance of being unlucky
             if is_not_normal:
-                log.warning(f"Stokes I flag: Model {n} is not normally distributed - {pval=}, {ks=}")
+                log.warning(
+                    f"Stokes I flag: Model {n} is not normally distributed - {pval=}, {ks=}"
+                )
 
             # Test if model is close to 0 within 1 sigma
             is_close_to_zero = (model_arr[goodchan] / fluxerr[goodchan] < 1).any()
             if is_close_to_zero:
                 log.warning(f"Stokes I flag: Model {n} is close (1sigma) to 0")
             fit_flag = {
-                    "is_negative": is_negative,
-                    "is_not_finite": is_not_finite,
-                    "is_not_normal": is_not_normal,
-                    "is_close_to_zero": is_close_to_zero,
+                "is_negative": is_negative,
+                "is_not_finite": is_not_finite,
+                "is_not_normal": is_not_normal,
+                "is_close_to_zero": is_close_to_zero,
             }
             fit_flags.append(fit_flag)
             log.debug(f"{n}: {aic}")
@@ -287,10 +289,11 @@ def fit_pl(
             best_l=np.ones_like(freq),
             best_f=None,
             fit_flag={
-                        "is_negative": True,
-                        "is_not_finite": True,
-                        "is_not_normal": True,
-                        "is_close_to_zero": True},
+                "is_negative": True,
+                "is_not_finite": True,
+                "is_not_normal": True,
+                "is_close_to_zero": True,
+            },
             ref_nu=np.nan,
             chi_sq=np.nan,
             chi_sq_red=np.nan,
