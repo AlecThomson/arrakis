@@ -191,7 +191,15 @@ def fit_pl(
                 models.append(np.ones_like(freq))
                 highs.append(np.ones_like(freq))
                 lows.append(np.ones_like(freq))
-                fit_flags.append(True)
+                # 4 possible flags
+                fit_flags.append(
+                    {
+                        "is_negative": True,
+                        "is_not_finite": True,
+                        "is_not_normal": True,
+                        "is_close_to_zero": True,
+                    }
+                )
                 continue
             best_p, covar = fit_res
             model_arr = model_func(freq, *best_p)
@@ -230,14 +238,12 @@ def fit_pl(
             is_close_to_zero = (model_arr[goodchan] / fluxerr[goodchan] < 1).any()
             if is_close_to_zero:
                 log.warning(f"Stokes I flag: Model {n} is close (1sigma) to 0")
-            fit_flag = any(
-                [
-                    is_negative,
-                    is_not_finite,
-                    is_not_normal,
-                    is_close_to_zero,
-                ]
-            )
+            fit_flag = {
+                    "is_negative": is_negative,
+                    "is_not_finite": is_not_finite,
+                    "is_not_normal": is_not_normal,
+                    "is_close_to_zero": is_close_to_zero,
+            }
             fit_flags.append(fit_flag)
             log.debug(f"{n}: {aic}")
         best_aic, best_n, best_aic_idx = best_aic_func(
@@ -280,7 +286,11 @@ def fit_pl(
             best_h=np.ones_like(freq),
             best_l=np.ones_like(freq),
             best_f=None,
-            fit_flag=True,
+            fit_flag={
+                        "is_negative": True,
+                        "is_not_finite": True,
+                        "is_not_normal": True,
+                        "is_close_to_zero": True},
             ref_nu=np.nan,
             chi_sq=np.nan,
             chi_sq_red=np.nan,
