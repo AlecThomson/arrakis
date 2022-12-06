@@ -509,6 +509,9 @@ def rmsynthoncut1d(
             mDict[k] = int(v)
         elif isinstance(v, np.ndarray):
             mDict[k] = v.tolist()
+        elif isinstance(v, np.bool_):
+            mDict[k] = bool(v)
+
 
     do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
