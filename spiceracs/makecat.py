@@ -220,7 +220,11 @@ def cuts_and_flags(cat):
     cat.add_column(Column(data=chan_flag, name="channel_flag"))
 
     # Stokes I flag
-    cat["stokesI_fit_flag"] = cat["stokesI_fit_flag_is_negative"] + cat["stokesI_fit_flag_is_close_to_zero"] + cat["stokesI_fit_flag_is_not_finite"]
+    cat["stokesI_fit_flag"] = (
+        cat["stokesI_fit_flag_is_negative"]
+        + cat["stokesI_fit_flag_is_close_to_zero"]
+        + cat["stokesI_fit_flag_is_not_finite"]
+    )
 
     # sigma_add flag
     sigma_flag = cat["sigma_add"] > 1
@@ -231,7 +235,7 @@ def cuts_and_flags(cat):
 
     # Flag RMs which are very diffent from RMs nearby
     # Set up voronoi bins, trying to obtain 50 sources per bin
-    good_cat = cat[~snr_flag & ~leakage_flag & ~chan_flag & ~fit_flag]
+    good_cat = cat[~snr_flag & ~leakage_flag & ~chan_flag & ~cat["stokesI_fit_flag"]]
     log.info("Computing voronoi bins and finding bad RMs")
 
     def sn_func(index, signal=None, noise=None):
@@ -519,7 +523,6 @@ def main(
         ),
     ):
         data = []
-        if name == "stokesI_fit_flags":
         if src == "cat":
             for comp in comps:
                 data += [comp[col]]

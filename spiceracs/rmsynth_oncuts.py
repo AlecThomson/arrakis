@@ -474,7 +474,11 @@ def rmsynthoncut1d(
                 )[::-1]
             ]
         )
-        mDict["polyOrd"] = int(fit_dict["best_n"]) if np.isfinite(fit_dict["best_n"]) else float(np.nan)
+        mDict["polyOrd"] = (
+            int(fit_dict["best_n"])
+            if np.isfinite(fit_dict["best_n"])
+            else float(np.nan)
+        )
         mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
         mDict["IfitChiSqRed"] = float(fit_dict["chi_sq_red"])
         for key, val in fit_dict["fit_flag"].items():
@@ -488,10 +492,10 @@ def rmsynthoncut1d(
         # 16: a fit parameter has become infinite/numerical overflow
         # +64 (can be added to other flags): model gives Stokes I values with S:N < 1 for at least one channel
         # +128 (can be added to other flags): model gives Stokes I values < 0 for at least one channel
-        mDict["fit_flag_is_negative"] =  mDict["IfitStat"] >= 128
-        mDict["fit_flag_is_close_to_zero"] =  mDict["IfitStat"] >= 64
-        mDict["fit_flag_is_not_finite"] =  mDict["IfitStat"] >= 16
-        mDict["fit_flag_is_not_normal"] =  mDict["IfitStat"] >= 5
+        mDict["fit_flag_is_negative"] = mDict["IfitStat"] >= 128
+        mDict["fit_flag_is_close_to_zero"] = mDict["IfitStat"] >= 64
+        mDict["fit_flag_is_not_finite"] = mDict["IfitStat"] >= 16
+        mDict["fit_flag_is_not_normal"] = mDict["IfitStat"] >= 5
 
     # Ensure JSON serializable
     for k, v in mDict.items():
