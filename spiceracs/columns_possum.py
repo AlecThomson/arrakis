@@ -70,7 +70,10 @@ columns = [
     ("rmsf_fwhm", float, "synth", "fwhmRMSF", u.rad / u.m**2),
     ("refwave_sq_pol", float, "synth", "lam0Sq_m2", u.m**2),
     ("stokesI", float, "synth", "Ifreq0", u.Jy / u.beam),
-    ("stokesI_fit_flag", int, "synth", "IfitStat", u.dimensionless_unscaled),
+    ("stokesI_fit_flag_is_negative", bool, "synth", "fit_flag_is_negative", None),
+    ("stokesI_fit_flag_is_close_to_zero", bool, "synth", "fit_flag_is_close_to_zero", None),
+    ("stokesI_fit_flag_is_not_finite", bool, "synth", "fit_flag_is_not_finite", None),
+    ("stokesI_fit_flag_is_not_normal", bool, "synth", "fit_flag_is_not_normal", None),
     ("stokesI_chi2_red", float, "synth", "IfitChiSqRed", u.dimensionless_unscaled),
     ("snr_polint", float, "synth", "snrPIfit", u.dimensionless_unscaled),
     ("minfreq", float, "synth", "min_freq", u.Hz),
@@ -133,6 +136,9 @@ columns = [
     # Data validation metrics
     # Metadata linking back to NRAO data (e.g, observation name)
 ]
+
+# Append Stokes I fit flags to the list of columns
+
 
 # Jennifer's ideas for source validation metrics:
 # Stokes I model fit failed

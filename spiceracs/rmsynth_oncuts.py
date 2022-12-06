@@ -477,10 +477,21 @@ def rmsynthoncut1d(
         mDict["polyOrd"] = int(fit_dict["best_n"]) if np.isfinite(fit_dict["best_n"]) else float(np.nan)
         mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
         mDict["IfitChiSqRed"] = float(fit_dict["chi_sq_red"])
-        if fit_dict["fit_flag"]:
-            mDict["IfitStat"] = 64
-        else:
-            mDict["IfitStat"] = 0
+        for key, val in fit_dict["fit_flag"].items():
+            mDict[f"fit_flag_{key}"] = val
+    else:
+        # 0: Improper input parameters (not sure what would trigger this in RM-Tools?)
+        # 1-4: One or more of the convergence criteria was met.
+        # 5: Reached maximum number of iterations before converging.
+        # 6-8: User defined limits for convergence are too small (should not occur, since RM-Tools uses default values)
+        # 9: fit failed, reason unknown
+        # 16: a fit parameter has become infinite/numerical overflow
+        # +64 (can be added to other flags): model gives Stokes I values with S:N < 1 for at least one channel
+        # +128 (can be added to other flags): model gives Stokes I values < 0 for at least one channel
+        mDict["fit_flag_is_negative"] =  mDict["IfitStat"] >= 128
+        mDict["fit_flag_is_close_to_zero"] =  mDict["IfitStat"] >= 64
+        mDict["fit_flag_is_not_finite"] =  mDict["IfitStat"] >= 16
+        mDict["fit_flag_is_not_normal"] =  mDict["IfitStat"] >= 5
 
     # Ensure JSON serializable
     for k, v in mDict.items():

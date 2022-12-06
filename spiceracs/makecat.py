@@ -218,18 +218,10 @@ def cuts_and_flags(cat):
     # Channel flag
     chan_flag = cat["Nchan"] < 144
     cat.add_column(Column(data=chan_flag, name="channel_flag"))
-    # Fitting flag
-    # 0: Improper input parameters (not sure what would trigger this in RM-Tools?)
-    # 1-4: One or more of the convergence criteria was met.
-    # 5: Reached maximum number of iterations before converging.
-    # 6-8: User defined limits for convergence are too small (should not occur, since RM-Tools uses default values)
-    # 9: fit failed, reason unknown
-    # 16: a fit parameter has become infinite/numerical overflow
-    # +64 (can be added to other flags): model gives Stokes I values with S:N < 1 for at least one channel
-    # +128 (can be added to other flags): model gives Stokes I values < 0 for at least one channel
-    fit_flag = cat["stokesI_fit_flag"] > 5
-    cat.remove_column("stokesI_fit_flag")
-    cat.add_column(Column(data=fit_flag, name="stokesI_fit_flag"))
+
+    # Stokes I flag
+    cat["stokesI_fit_flag"] = cat["stokesI_fit_flag_is_negative"] + cat["stokesI_fit_flag_is_close_to_zero"] + cat["stokesI_fit_flag_is_not_finite"]
+
     # sigma_add flag
     sigma_flag = cat["sigma_add"] > 1
     cat.add_column(Column(data=sigma_flag, name="complex_sigma_add_flag"))
@@ -527,6 +519,7 @@ def main(
         ),
     ):
         data = []
+        if name == "stokesI_fit_flags":
         if src == "cat":
             for comp in comps:
                 data += [comp[col]]
