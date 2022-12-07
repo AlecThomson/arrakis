@@ -8,6 +8,7 @@ import subprocess as sp
 import time
 import traceback
 from glob import glob
+import tarfile
 from typing import Dict, List, Tuple
 
 import astropy.units as u
@@ -406,32 +407,6 @@ def write_polspec(table: Table, filename: str, overwrite: bool = False):
     tablehdu.writeto(filename, overwrite=overwrite)
 
 
-# @delayed()
-def add_polspec_row(
-    out_fits: str,
-    out_hdf: str,
-    spectrum_table: str,
-) -> None:
-    # Add row to FITS table
-    with fits.open(out_fits, mode="denywrite", memmap=True) as hdul:
-        data = hdul[1].data
-        header = hdul[1].header
-        table = Table(data)
-        for i in range(1, header["TFIELDS"] + 1):
-            if "TUNIT{}".format(i) in header.keys():
-                table[header["TTYPE{}".format(i)]].unit = header["TUNIT{}".format(i)]
-    polspec = polspectra.from_FITS(spectrum_table)
-    stack = vstack([table, polspec.table], join_type="exact")
-    write_polspec(stack, out_fits, overwrite=True)
-
-    # TODO: Make this work
-    # # Add row to HDF5 table
-    # stack = polspectra.polarizationspectra()
-    # stack.read_HDF5(out_hdf)
-    # stack.merge_tables(spectrum_table)
-    # stack.write_HDF5(out_hdf, overwrite=True, compress=True)
-
-
 @delayed()
 def convert_pdf(pdf_file: str, plots_dir: str, spec_dir: str) -> None:
     """Convert a PDF to a PNG
@@ -733,20 +708,16 @@ def main(
         if name == "spectra" and len(outputs) > 0:
             # Get concrete results
             spectrum_tables = client.gather(client.compute(futures))
-            # Init spectrum table
-            out_fits, out_hdf = init_polspec(
-                casda_dir=casda_dir,
-                spectrum_table_0=spectrum_tables[0],
-                outdir=outdir,
-            )
-            for spectrum_table in tqdm(
-                spectrum_tables, desc="Appending spectra rows to table"
-            ):
-                add_polspec_row(
-                    out_fits=out_fits,
-                    out_hdf=out_hdf,
-                    spectrum_table=spectrum_table,
-                )
+            # Add all spectrum_tables to a tar ball
+            tarball = os.path.join(casda_dir, f"spice_racs_dr1_polspec_{prep_type}.tar")
+            log.info(f"Adding spectra to tarball {tarball}")
+            with tarfile.open(tarball, "w") as tar:
+                for spectrum_table in tqdm(spectrum_tables, "Adding spectra to tarball"):
+                    tar.add(spectrum_table, arcname=os.path.basename(spectrum_table))
+
+
+
+
     if do_convert_spectra:
         os.remove("polcat.pkl")
 
