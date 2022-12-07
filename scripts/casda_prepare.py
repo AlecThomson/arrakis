@@ -613,7 +613,20 @@ def main(
         spec_dir = os.path.join(casda_dir, "spectra")
         try_mkdir(spec_dir)
         spectra = find_spectra(data_dir=data_dir)
-        assert len(spectra) == len(polcat)  # Sanity check
+        if prep_type != "cut":
+            assert len(spectra) == len(polcat)  # Sanity check
+        else:
+            # Drop spectra that are not in the cut catalogue
+            cat_ids = []
+            for i, spec in enumerate(spectra):
+                basename = os.path.basename(spec)
+                cut_idx = basename.find(".dat")
+                cat_id = basename[:cut_idx]
+                cat_ids.append(cat_id)
+            in_idx = np.isin(cat_ids, polcat["cat_id"])
+            spectra = list(np.array(spectra)[in_idx])
+            assert len(spectra) == len(polcat), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
+
 
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -661,6 +674,22 @@ def main(
         plots = find_plots(data_dir=data_dir)
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
+
+        if prep_type != "cut":
+            assert len(plots) == len(polcat)*3  # Sanity check
+        else:
+            # Drop plots that are not in the cut catalogue
+            cat_ids = []
+            for i, plot in enumerate(plots):
+                basename = os.path.basename(plot)
+                for plot_type in ("_spectra", "_RMSF", "_clean"):
+                    if plot_type in basename:
+                        cat_id = basename[: basename.find(plot_type)]
+                cat_ids.append(cat_id)
+            in_idx = np.isin(cat_ids, polcat["cat_id"])
+            plots = list(np.array(plots)[in_idx])
+            assert len(plots) == len(polcat)*3, f"{len(plots)=} and {len(polcat)=}"
+
         with tqdm(total=len(plots), desc="Sorting plots") as pbar:
 
             def my_sorter(x, lookup=lookup, pbar=pbar):
