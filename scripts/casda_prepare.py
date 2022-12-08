@@ -36,6 +36,7 @@ from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
 from IPython import embed
 from radio_beam import Beam
+from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm, trange
 
 from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
@@ -72,7 +73,7 @@ def make_thumbnail(cube_f: str, cube_dir: str):
     ellipse.set_hatch("//")
     ax.set_xlabel("RA")
     ax.set_ylabel("Dec")
-    fig.colorbar(im, ax=ax, label=f"{u.Unit(head['BUNIT']):latex_inline}")
+    fig.colorbar(im, ax=ax, label=f"{convert_bunit(head['BUNIT']):latex_inline}")
     outf = os.path.join(cube_dir, os.path.basename(cube_f).replace(".fits", ".png"))
     log.info(f"Saving thumbnail to {outf}")
     fig.savefig(outf, dpi=300)
@@ -315,6 +316,8 @@ def update_cube(cube: str, cube_dir: str) -> None:
         source_id = os.path.basename(os.path.dirname(cube))
         header["OBJECT"] = (source_id, "Source ID")
         header["CRVAL3"] = 1.0
+        if header["BUNIT"] == "beam-1 Jy":
+            header["BUNIT"] = (u.Jy / u.beam).to_string()
 
         outf = os.path.join(
             cube_dir,
@@ -502,7 +505,7 @@ def main(
         polcat = polcat[cut_idx]
 
     elif prep_type == "test":
-        pass
+        polcat = polcat[:10]
 
     else:
         raise ValueError(f"Unknown prep_type: {prep_type}")
@@ -515,8 +518,8 @@ def main(
     # Link catalgoue to casda directory
     cat_dir = os.path.join(casda_dir, "catalogues")
     try_mkdir(cat_dir)
-    if prep_type == "cut":
-        out_cat = os.path.join(cat_dir, os.path.basename(polcatf).replace(".xml", ".cut.xml"))
+    if prep_type != "full":
+        out_cat = os.path.join(cat_dir, os.path.basename(polcatf).replace(".xml", f".{prep_type}.xml"))
         write_votable(polcat, out_cat)
     else:
         try_symlink(
@@ -562,7 +565,7 @@ def main(
                 with open(outf, "w") as f:
                     for rid in rem_ids:
                         f.write(f"{rid}\n")
-                assert len(cubes) == len(set(polcat["source_id"]))
+                assert len(cubes) == len(set(polcat["source_id"])), f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
 
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -593,9 +596,7 @@ def main(
         spec_dir = os.path.join(casda_dir, "spectra")
         try_mkdir(spec_dir)
         spectra = find_spectra(data_dir=data_dir)
-        if prep_type != "cut":
-            assert len(spectra) == len(polcat)  # Sanity check
-        else:
+        if prep_type != "full":
             # Drop spectra that are not in the cut catalogue
             cat_ids = []
             for i, spec in enumerate(spectra):
@@ -605,7 +606,7 @@ def main(
                 cat_ids.append(cat_id)
             in_idx = np.isin(cat_ids, polcat["cat_id"])
             spectra = list(np.array(spectra)[in_idx])
-            assert len(spectra) == len(polcat), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
+        assert len(spectra) == len(polcat), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
 
 
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
@@ -655,9 +656,7 @@ def main(
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
 
-        if prep_type != "cut":
-            assert len(plots) == len(polcat)*3  # Sanity check
-        else:
+        if prep_type != "full":
             # Drop plots that are not in the cut catalogue
             cat_ids = []
             for i, plot in enumerate(plots):
@@ -668,7 +667,8 @@ def main(
                 cat_ids.append(cat_id)
             in_idx = np.isin(cat_ids, polcat["cat_id"])
             plots = list(np.array(plots)[in_idx])
-            assert len(plots) == len(polcat)*3, f"{len(plots)=} and {len(polcat)=}"
+
+        assert len(plots) == len(polcat)*3, f"{len(plots)=} and {len(polcat)=}" # Sanity check
 
         with tqdm(total=len(plots), desc="Sorting plots") as pbar:
 
@@ -690,17 +690,19 @@ def main(
     for name, outputs in zip(
         ("cubes", "spectra", "plots"), (cube_outputs, spectra_outputs, plot_outputs)
     ):
-        if test:
-            if name == "spectra":
-                n_things = 10 * 10
-            elif name == "cubes":
-                n_things = 10 * 10
-            else:
-                n_things = 30 * 10
-            outputs = outputs[:n_things]
-            log.info(f"Testing {len(outputs)} {name}")
-        else:
-            log.info(f"Starting work on {len(outputs)} {name}")
+        # if test:
+        #     embed()
+        #     if name == "spectra":
+        #         n_things = 10 * 10
+        #     elif name == "cubes":
+        #         n_things = 10 * 10
+        #     else:
+        #         n_things = 30 * 10
+        #     outputs = outputs[:n_things]
+        #     log.info(f"Testing {len(outputs)} {name}")
+        # else:
+
+        log.info(f"Starting work on {len(outputs)} {name}")
 
         futures = chunk_dask(
             outputs=outputs,
