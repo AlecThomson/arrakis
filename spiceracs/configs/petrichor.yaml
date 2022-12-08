@@ -5,8 +5,8 @@ name: 'spice-worker'
 memory: "512GB"
 account: 'OD-217087'
 #queue: 'workq'
-walltime: '1-00:00:00'
-job_extra_directives: ['']
+walltime: '3-00:00:00'
+job_extra_directives: ['--qos express']
 # interface for the workers
 interface: "ib0"
 log_directory: 'spice_logs'
@@ -19,9 +19,9 @@ job_script_prologue: [
 #     'conda activate spice'
 # ]
 # python: 'srun -n 1 -c 64 python'
-worker_extra_args: [
-    "--lifetime", "23h",
-    "--lifetime-stagger", "5m",
-]
-death_timeout: 300
+#worker_extra_args: [
+#    "--lifetime", "23h",
+#    "--lifetime-stagger", "5m",
+#]
+death_timeout: 1000
 local_directory: '$LOCALDIR'
