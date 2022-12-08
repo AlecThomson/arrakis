@@ -166,7 +166,9 @@ def fit_pl(
         }
 
         # Initialise the save dict
-        save_dict = {n: {} for n in range(nterms + 1)} # type: Dict[int, Dict[str, Any]]
+        save_dict = {
+            n: {} for n in range(nterms + 1)
+        }  # type: Dict[int, Dict[str, Any]]
         for n in range(nterms + 1):
             p0 = p0_long[: n + 1]
             save_dict[n]["aics"] = np.nan
@@ -255,7 +257,7 @@ def fit_pl(
         # Now find the best model
         best_aic, best_n, best_aic_idx = best_aic_func(
             np.array([save_dict[n]["aics"] for n in range(nterms + 1)]),
-            np.array([n for n in range(nterms + 1)])
+            np.array([n for n in range(nterms + 1)]),
         )
         log.debug(f"Best fit: {best_n}, {best_aic}")
         best_p = save_dict[best_n]["params"]

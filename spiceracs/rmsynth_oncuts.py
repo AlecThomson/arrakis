@@ -512,7 +512,6 @@ def rmsynthoncut1d(
         elif isinstance(v, np.bool_):
             mDict[k] = bool(v)
 
-
     do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
     myquery = {"Gaussian_ID": cname}
