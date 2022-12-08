@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 #SBATCH --output=test_image_%j.log
 #SBATCH --error=test_image_%j.log
-#SBATCH --time=2-00:00:00
-#SBATCH --tasks=2
+#SBATCH --time=3-00:00:00
+#SBATCH --tasks=1
 #SBATCH --account=OD-217087
+#SBATCH --qos=express
 
 import logging as log
 
 import yaml
-from dask.distributed import Client
+from dask.distributed import Client, LocalCluster
 from dask_jobqueue import SLURMCluster
 from IPython import embed
 from spiceracs.utils import port_forward
@@ -26,9 +27,10 @@ def main():
         **config,
     )
     log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
-    # exit()
-    # cluster.scale(36)
-    cluster.adapt(minimum=1, maximum=36)
+    # # exit()
+    cluster.scale(1)
+    # cluster = LocalCluster(n_workers=1, threads_per_worker=1)
+    # cluster.adapt(minimum=1, maximum=36)
 
 
     client = Client(cluster)
@@ -41,7 +43,7 @@ def main():
         msdir="/scratch2/tho822/spiceracs/RACS_1213-25A",
         out_dir="/scratch2/tho822/spiceracs/RACS_1213-25A",
         cutoff=25,
-        taper=20,
+        # taper=20,
         pols="IQU",
         nchan=36,
     )
