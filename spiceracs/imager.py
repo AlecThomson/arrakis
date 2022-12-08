@@ -75,9 +75,9 @@ def image_beam(
     join_channels: bool = True,
     squared_channel_joining: bool = True,
     mgain: float = 0.8,
-    niter: int = 50000,
-    auto_mask: float = 5,
-    auto_threshold: float = 3,
+    niter: int = 100_000,
+    auto_mask: float = 3,
+    auto_threshold: float = 1,
     use_wgridder: bool = True,
     robust: float = 0.0,
     mem: float = 90,
@@ -128,6 +128,7 @@ def image_beam(
         # j=1,
         taper_gaussian=f"{taper}asec" if taper else None,
         field=field_idx,
+        parallel_deconvolution=2048,
     )
 
     root_dir = os.path.dirname(ms)
@@ -160,7 +161,11 @@ def get_images(image_done: bool, pol, prefix):
 def get_aux(image_done: bool, pol, prefix):
     if image_done:
         aux_lists = {
-            aux: sorted(glob(f"{prefix}*[0-9]-{pol}-{aux}.fits"))
+            aux: sorted(
+                glob(
+                    f"{prefix}*[0-9]-{pol}-{aux}.fits" if aux != "psf" else f"{prefix}*[0-9]-{aux}.fits"
+                )
+            )
             for aux in ["model", "psf", "residual", "dirty"]
         }
         return aux_lists
@@ -330,7 +335,8 @@ def main(
     robust: float = -0.5,
     pols: str = "IQU",
     nchan: int = 36,
-    size: int = 4096,
+    # size: int = 4096,
+    size: int = 6074,
     taper: float = None,
 ):
     simage = get_wsclean(tag="latest")
@@ -343,6 +349,8 @@ def main(
     assert (len(mslist) > 0) & (
         len(mslist) == 36
     ), f"Incorrect number of MS files found: {len(mslist)} / 36"
+
+    mslist = [mslist[0]]
 
     log.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []  # type: List[Delayed]
