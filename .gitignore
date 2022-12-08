@@ -142,3 +142,4 @@ poetry.lock
 setup.py.bak
 *.bin
 *.sif
+*.pkl
