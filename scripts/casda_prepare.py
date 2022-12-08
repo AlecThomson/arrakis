@@ -39,6 +39,7 @@ from radio_beam import Beam
 from tqdm.auto import tqdm, trange
 
 from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
+from spiceracs.makecat import write_votable
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -129,8 +130,8 @@ def convert_spectra(
         stokesI_error=(full_data.dI.values)[np.newaxis, :],
         stokesQ=(full_data.Q.values)[np.newaxis, :],
         stokesQ_error=(full_data.dQ.values)[np.newaxis, :],
-        stokesU=(full_data.Q.values)[np.newaxis, :],
-        stokesU_error=(full_data.dQ.values)[np.newaxis, :],
+        stokesU=(full_data.U.values)[np.newaxis, :],
+        stokesU_error=(full_data.dU.values)[np.newaxis, :],
         source_number_array=[number],
         cat_id=cat_row["cat_id"],
         beam_maj=cat_row["beam_maj"],
@@ -514,9 +515,13 @@ def main(
     # Link catalgoue to casda directory
     cat_dir = os.path.join(casda_dir, "catalogues")
     try_mkdir(cat_dir)
-    try_symlink(
-        os.path.abspath(polcatf), os.path.join(cat_dir, os.path.basename(polcatf))
-    )
+    if prep_type == "cut":
+        out_cat = os.path.join(cat_dir, os.path.basename(polcatf).replace(".xml", ".cut.xml"))
+        write_votable(polcat, out_cat)
+    else:
+        try_symlink(
+            os.path.abspath(polcatf), os.path.join(cat_dir, os.path.basename(polcatf))
+        )
 
     cube_outputs = []
     if do_update_cubes:
