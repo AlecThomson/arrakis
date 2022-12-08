@@ -64,7 +64,7 @@ def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float
     return np.sum(((model - data) / error) ** 2)
 
 
-def best_aic_func(aics, n_param):
+def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, int]:
     """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
     best_aic_idx = np.nanargmin(aics)
@@ -115,7 +115,7 @@ def flat_power_law(nu: np.ndarray, norm: float, ref_nu: float) -> np.ndarray:
     Returns:
         np.ndarray: Model flux.
     """
-    x = nu / ref_nu
+    x = ref_nu * np.ones_like(nu)
     return norm * x
 
 
@@ -164,13 +164,26 @@ def fit_pl(
             1: partial(power_law, ref_nu=ref_nu),
             2: partial(curved_power_law, ref_nu=ref_nu),
         }
-        aics = []
-        params = []
-        errors = []
-        models = []
-        highs = []
-        lows = []
-        fit_flags = []
+
+        # Initialise the save dict
+        save_dict = {n: {} for n in range(nterms + 1)} # type: Dict[int, Dict[str, Any]]
+        for n in range(nterms + 1):
+            p0 = p0_long[: n + 1]
+            save_dict[n]["aics"] = np.nan
+            save_dict[n]["params"] = np.ones_like(p0) * np.nan
+            save_dict[n]["errors"] = np.ones_like(p0) * np.nan
+            save_dict[n]["models"] = np.ones_like(freq)
+            save_dict[n]["highs"] = np.ones_like(freq)
+            save_dict[n]["lows"] = np.ones_like(freq)
+            # 4 possible flags
+            save_dict[n]["fit_flags"] = {
+                "is_negative": True,
+                "is_not_finite": True,
+                "is_not_normal": True,
+                "is_close_to_zero": True,
+            }
+
+        # Now iterate over the number of terms
         for n in range(nterms + 1):
             p0 = p0_long[: n + 1]
             model_func = model_func_dict[n]
@@ -185,35 +198,25 @@ def fit_pl(
                 )
             except RuntimeError:
                 log.critical(f"Failed to fit {n}-term power law")
-                aics.append(np.nan)
-                params.append(np.ones_like(p0) * np.nan)
-                errors.append(np.ones_like(p0) * np.nan)
-                models.append(np.ones_like(freq))
-                highs.append(np.ones_like(freq))
-                lows.append(np.ones_like(freq))
-                # 4 possible flags
-                fit_flags.append(
-                    {
-                        "is_negative": True,
-                        "is_not_finite": True,
-                        "is_not_normal": True,
-                        "is_close_to_zero": True,
-                    }
-                )
                 continue
-            best_p, covar = fit_res
-            model_arr = model_func(freq, *best_p)
-            model_high = model_func(freq, *(best_p + np.sqrt(np.diag(covar))))
-            model_low = model_func(freq, *(best_p - np.sqrt(np.diag(covar))))
+
+            best, covar = fit_res
+            model_arr = model_func(freq, *best)
+            model_high = model_func(freq, *(best + np.sqrt(np.diag(covar))))
+            model_low = model_func(freq, *(best - np.sqrt(np.diag(covar))))
             model_err = model_high - model_low
             ssr = np.sum((flux[goodchan] - model_arr[goodchan]) ** 2)
             aic = akaike_info_criterion_lsq(ssr, len(p0), goodchan.sum())
-            aics.append(aic)
-            params.append(best_p)
-            errors.append(np.sqrt(np.diag(covar)))
-            models.append(model_arr)
-            highs.append(model_high)
-            lows.append(model_low)
+
+            # Save the results
+            save_dict[n]["aics"] = aic
+            save_dict[n]["params"] = best
+            save_dict[n]["errors"] = np.sqrt(np.diag(covar))
+            save_dict[n]["models"] = model_arr
+            save_dict[n]["highs"] = model_high
+            save_dict[n]["lows"] = model_low
+
+            # Calculate the flags
             # Flag if model is negative
             is_negative = (model_arr < 0).any()
             if is_negative:
@@ -246,19 +249,22 @@ def fit_pl(
                 "is_not_normal": is_not_normal,
                 "is_close_to_zero": is_close_to_zero,
             }
-            fit_flags.append(fit_flag)
+            save_dict[n]["fit_flags"] = fit_flag
             log.debug(f"{n}: {aic}")
+
+        # Now find the best model
         best_aic, best_n, best_aic_idx = best_aic_func(
-            aics, np.array([n for n in range(nterms + 1)])
+            np.array([save_dict[n]["aics"] for n in range(nterms + 1)]),
+            np.array([n for n in range(nterms + 1)])
         )
         log.debug(f"Best fit: {best_n}, {best_aic}")
-        best_p = params[best_n]
-        best_e = errors[best_n]
-        best_m = models[best_n]
+        best_p = save_dict[best_n]["params"]
+        best_e = save_dict[best_n]["errors"]
+        best_m = save_dict[best_n]["models"]
         best_f = model_func_dict[best_n]
-        best_flag = fit_flags[best_n]
-        best_h = highs[best_n]
-        best_l = lows[best_n]
+        best_flag = save_dict[best_n]["fit_flags"]
+        best_h = save_dict[best_n]["highs"]
+        best_l = save_dict[best_n]["lows"]
         chi_sq = chi_squared(
             model=best_m[goodchan],
             data=flux[goodchan],
