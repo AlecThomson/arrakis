@@ -7,11 +7,13 @@ import pickle
 import subprocess as sp
 import time
 import traceback
+import pickle
 from glob import glob
 import tarfile
 from typing import Dict, List, Tuple
 
 import astropy.units as u
+from astropy.units.core import get_current_unit_registry
 import dask.array as da
 import dask.bag as db
 import h5py
@@ -41,6 +43,7 @@ from tqdm.auto import tqdm, trange
 
 from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 from spiceracs.makecat import write_votable
+from distributed.protocol.serialize import register_serialization_family, pickle_dumps, pickle_loads
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -108,6 +111,9 @@ def convert_spectra(
         spectrum (str): Name of ASCII spectrum file
         spec_dir (str, optional): Directory to save FITS spectrum. Defaults to '.'.
     """
+    # Re-register astropy units
+    for unit in (u.deg, u.hour, u.hourangle, u.Jy, u.arcsec, u.arcmin, u.beam):
+        get_current_unit_registry().add_enabled_units([unit])
     with open("polcat.pkl", "rb") as f:
         cat_row = Table(pickle.load(f)[number])
     rmsf_unit = u.def_unit("RMSF")
@@ -122,10 +128,10 @@ def convert_spectra(
     )
 
     freq = full_data["freq"].values
-
+    u.deg = u.core._recreate_irreducible_unit(u.Unit, ["deg", "degree"], True)
     spectrum_table = polspectra.from_arrays(
-        long_array=cat_row["ra"],
-        lat_array=cat_row["dec"],
+        long_array=cat_row["ra"].value,
+        lat_array=cat_row["dec"].value,
         freq_array=freq,
         stokesI=(full_data.I.values)[np.newaxis, :],
         stokesI_error=(full_data.dI.values)[np.newaxis, :],
@@ -282,6 +288,9 @@ def update_cube(cube: str, cube_dir: str) -> None:
         cube (str): Cubelet path
         cube_dir (str): CASDA cublet directory
     """
+    # Re-register astropy units
+    for unit in (u.deg, u.hour, u.hourangle, u.Jy, u.arcsec, u.arcmin, u.beam):
+        get_current_unit_registry().add_enabled_units([unit])
     stokes = ("i", "q", "u")
     imtypes = ("image.restored", "weights")
     idata = fits.getdata(
@@ -483,10 +492,13 @@ def main(
     outdir=None,
 ):
     """Main function"""
-
+    # Re-register astropy units
+    for unit in (u.deg, u.hour, u.hourangle, u.Jy, u.arcsec, u.arcmin, u.beam):
+        get_current_unit_registry().add_enabled_units([unit])
     log.info("Starting")
     log.info(f"Dask client: {client}")
     log.info(f"Reading {polcatf}")
+
     polcat = Table.read(polcatf)
     df = polcat.to_pandas()
     df = df.sort_values(["stokesI_fit_flag", "snr_polint"], ascending=[True, False])
@@ -690,18 +702,6 @@ def main(
     for name, outputs in zip(
         ("cubes", "spectra", "plots"), (cube_outputs, spectra_outputs, plot_outputs)
     ):
-        # if test:
-        #     embed()
-        #     if name == "spectra":
-        #         n_things = 10 * 10
-        #     elif name == "cubes":
-        #         n_things = 10 * 10
-        #     else:
-        #         n_things = 30 * 10
-        #     outputs = outputs[:n_things]
-        #     log.info(f"Testing {len(outputs)} {name}")
-        # else:
-
         log.info(f"Starting work on {len(outputs)} {name}")
 
         futures = chunk_dask(
@@ -832,8 +832,20 @@ def cli():
             threads_per_worker=1,
             local_directory="/dev/shm",
         )
-    with Client(cluster) as client:
-        log.debug(client)
+
+    with Client(
+        cluster,
+        # serializers=["pickle"],
+        # deserializers=["pickle"],
+    ) as client:
+        log.debug(f"{client=}")
+        log.debug(f"{client._serializers=}")
+        log.debug(f"{client._deserializers=}")
+        # client.run(register_serialization_family,'pickle', pickle_dumps, pickle_loads)
+        # import importlib
+        # client.run(importlib.import_module, "junk")
+        from junk import SkyCoord
+        futures = client.scatter([SkyCoord])
         main(
             polcatf=args.polcat,
             client=client,
