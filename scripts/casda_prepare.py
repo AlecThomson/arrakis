@@ -11,6 +11,7 @@ import pickle
 from glob import glob
 import tarfile
 from typing import Dict, List, Tuple
+import hashlib
 
 import astropy.units as u
 from astropy.units.core import get_current_unit_registry
@@ -103,6 +104,7 @@ def find_spectra(data_dir: str = ".") -> list:
 def convert_spectra(
     number: int,
     spectrum: str,
+    fname_polcat_hash: str,
     spec_dir: str = ".",
 ) -> str:
     """Convert a ascii spectrum to FITS
@@ -114,7 +116,7 @@ def convert_spectra(
     # Re-register astropy units
     for unit in (u.deg, u.hour, u.hourangle, u.Jy, u.arcsec, u.arcmin, u.beam):
         get_current_unit_registry().add_enabled_units([unit])
-    with open("polcat.pkl", "rb") as f:
+    with open(fname_polcat_hash, "rb") as f:
         cat_row = Table(pickle.load(f)[number])
     rmsf_unit = u.def_unit("RMSF")
     unit_flux = u.Jy / u.beam
@@ -363,9 +365,9 @@ def find_cubes(data_dir: str = ".") -> list:
 def init_polspec(
     casda_dir: str,
     spectrum_table_0: str,
-    outdir: str = None,
+    outdir: str = "",
 ):
-    if outdir is None:
+    if outdir == "":
         outdir = casda_dir
     polspec_0 = polspectra.from_FITS(spectrum_table_0)
     out_fits = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits")
@@ -517,7 +519,7 @@ def main(
         polcat = polcat[cut_idx]
 
     elif prep_type == "test":
-        polcat = polcat[:10]
+        polcat = polcat[:100]
 
     else:
         raise ValueError(f"Unknown prep_type: {prep_type}")
@@ -640,7 +642,9 @@ def main(
             for spectrum in sorted_spectra
         ]
         polcat = polcat.loc[gauss_ids]
-        with open("polcat.pkl", "wb") as f:
+        # hash filename using current time and hashlib
+        fname_polcat_hash = f"polcat_{hashlib.sha256(str(time.time()).encode()).hexdigest()}.pkl"
+        with open(fname_polcat_hash, "wb") as f:
             pickle.dump(polcat, f)
         for i, (spectrum, gauss_id, row) in enumerate(
             tqdm(
@@ -653,6 +657,7 @@ def main(
             spectrum_table = convert_spectra(
                 number=i,
                 spectrum=spectrum,
+                fname_polcat_hash=fname_polcat_hash,
                 spec_dir=spec_dir,
             )
             spectra_outputs.append(spectrum_table)
@@ -726,7 +731,7 @@ def main(
 
 
     if do_convert_spectra:
-        os.remove("polcat.pkl")
+        os.remove(fname_polcat_hash)
 
     log.info("Done")
 
@@ -835,17 +840,8 @@ def cli():
 
     with Client(
         cluster,
-        # serializers=["pickle"],
-        # deserializers=["pickle"],
     ) as client:
         log.debug(f"{client=}")
-        log.debug(f"{client._serializers=}")
-        log.debug(f"{client._deserializers=}")
-        # client.run(register_serialization_family,'pickle', pickle_dumps, pickle_loads)
-        # import importlib
-        # client.run(importlib.import_module, "junk")
-        from junk import SkyCoord
-        futures = client.scatter([SkyCoord])
         main(
             polcatf=args.polcat,
             client=client,
