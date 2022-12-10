@@ -82,6 +82,7 @@ def image_beam(
     robust: float = 0.0,
     mem: float = 90,
     taper: float = None,
+    reimage: bool = False,
 ):
     """Image a single beam"""
     import logging
@@ -92,16 +93,17 @@ def image_beam(
         force=True,
     )
     log = logging.getLogger(__name__)
-    # (
-    #     addr,
-    #     nworkers,
-    #     nthreads,
-    #     memory,
-    #     threads_per_worker,
-    #     memory_per_worker,
-    # ) = inspect_client()
-    # abs_mem = float(memory_per_worker.to(u.gigabyte).value * mem / 100)
-    # log.debug(f"Using {abs_mem} GB of memory")
+
+    if not reimage:
+        # Look for existing images
+        checkvals = np.array([f"{prefix}-{i:04}-{s}-image.fits" for s in pols for i in range(nchan)])
+        checks = np.array([os.path.exists(f) for f in checkvals])
+        if all(checks):
+            log.critical("Images already exist, skipping imaging")
+            return True
+        else:
+            log.critical(f"At least some images do not exist: {checkvals[~checks]}")
+            log.critical("starting imaging...")
 
     command = wsclean(
         mslist=[ms],
@@ -306,9 +308,9 @@ def cleanup(
     aux_list,
     sm_image_list,
 ):
-    for image in image_list:
-        log.error(f"Removing {image}")
-        os.remove(image)
+    # for image in image_list:
+    #     log.error(f"Removing {image}")
+    #     os.remove(image)
     for sm_image in sm_image_list:
         log.error(f"Removing {sm_image}")
         os.remove(sm_image)
@@ -336,9 +338,9 @@ def main(
     robust: float = -0.5,
     pols: str = "IQU",
     nchan: int = 36,
-    # size: int = 4096,
     size: int = 6074,
     taper: float = None,
+    reimage: bool = False,
 ):
     simage = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
@@ -381,6 +383,7 @@ def main(
             nchan=nchan,
             npix=size,
             taper=taper,
+            reimage=reimage,
         )
         # Get images
         image_lists = {}
@@ -422,6 +425,7 @@ def main(
                 sm_image = smooth_image(
                     image,
                     common_beam_pkl=common_beam_pkl,
+                    cutoff=cutoff,
                 )
                 sm_image_list.append(sm_image)
 
@@ -442,6 +446,9 @@ def main(
             )
             cleans.append(clean)
 
+    from IPython import embed
+    embed()
+    exit()
 
     futures = chunk_dask(
         outputs=cleans,
@@ -530,6 +537,11 @@ def cli():
         action="store_true",
         help="Use MPI",
     )
+    parser.add_argument(
+        "--reimage",
+        action="store_true",
+        help="Force a new round of imaging. Otherwise, will skip if images already exist.",
+    )
 
     args = parser.parse_args()
 
@@ -556,6 +568,7 @@ def cli():
             pols=args.pols,
             size=args.size,
             taper=args.taper,
+            reimage=args.reimage,
         )
 
 
