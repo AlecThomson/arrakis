@@ -279,7 +279,7 @@ def get_beam(ms_dict, pols, cutoff=None):
 
 
 @delayed(nout=2)
-def smooth_image(image, common_beam_pkl):
+def smooth_image(image, common_beam_pkl, cutoff=None):
     # Smooth image
     # Deserialise the beam
     with open(common_beam_pkl, "rb") as f:
@@ -292,6 +292,7 @@ def smooth_image(image, common_beam_pkl):
             bmaj=common_beam.major.to(u.arcsec).value,
             bmin=common_beam.minor.to(u.arcsec).value,
             bpa=common_beam.pa.to(u.deg).value,
+            cutoff=cutoff,
         )
     sm_image = image.replace(".fits", ".conv.fits")
     return sm_image
@@ -440,6 +441,7 @@ def main(
                 aux_list=aux_list,
             )
             cleans.append(clean)
+
 
     futures = chunk_dask(
         outputs=cleans,
