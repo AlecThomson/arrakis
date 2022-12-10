@@ -64,7 +64,7 @@ graphviz = "*"
 bokeh = "*"
 prefect = "<2"
 RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
-PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git@hdf5"}
+PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git@spiceracs"}
 setuptools = "*"
 
 [tool.poetry.dev-dependencies]

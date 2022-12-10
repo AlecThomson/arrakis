@@ -7,10 +7,14 @@ import pickle
 import subprocess as sp
 import time
 import traceback
+import pickle
 from glob import glob
+import tarfile
 from typing import Dict, List, Tuple
+import hashlib
 
 import astropy.units as u
+from astropy.units.core import get_current_unit_registry
 import dask.array as da
 import dask.bag as db
 import h5py
@@ -35,9 +39,12 @@ from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
 from IPython import embed
 from radio_beam import Beam
+from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm, trange
 
 from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
+from spiceracs.makecat import write_votable
+from distributed.protocol.serialize import register_serialization_family, pickle_dumps, pickle_loads
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -70,7 +77,7 @@ def make_thumbnail(cube_f: str, cube_dir: str):
     ellipse.set_hatch("//")
     ax.set_xlabel("RA")
     ax.set_ylabel("Dec")
-    fig.colorbar(im, ax=ax, label=f"{u.Unit(head['BUNIT']):latex_inline}")
+    fig.colorbar(im, ax=ax, label=f"{convert_bunit(head['BUNIT']):latex_inline}")
     outf = os.path.join(cube_dir, os.path.basename(cube_f).replace(".fits", ".png"))
     log.info(f"Saving thumbnail to {outf}")
     fig.savefig(outf, dpi=300)
@@ -97,6 +104,7 @@ def find_spectra(data_dir: str = ".") -> list:
 def convert_spectra(
     number: int,
     spectrum: str,
+    fname_polcat_hash: str,
     spec_dir: str = ".",
 ) -> str:
     """Convert a ascii spectrum to FITS
@@ -105,7 +113,10 @@ def convert_spectra(
         spectrum (str): Name of ASCII spectrum file
         spec_dir (str, optional): Directory to save FITS spectrum. Defaults to '.'.
     """
-    with open("polcat.pkl", "rb") as f:
+    # Re-register astropy units
+    for unit in (u.deg, u.hour, u.hourangle, u.Jy, u.arcsec, u.arcmin, u.beam):
+        get_current_unit_registry().add_enabled_units([unit])
+    with open(fname_polcat_hash, "rb") as f:
         cat_row = Table(pickle.load(f)[number])
     rmsf_unit = u.def_unit("RMSF")
     unit_flux = u.Jy / u.beam
@@ -119,17 +130,17 @@ def convert_spectra(
     )
 
     freq = full_data["freq"].values
-
+    u.deg = u.core._recreate_irreducible_unit(u.Unit, ["deg", "degree"], True)
     spectrum_table = polspectra.from_arrays(
-        long_array=cat_row["ra"],
-        lat_array=cat_row["dec"],
+        long_array=cat_row["ra"].value,
+        lat_array=cat_row["dec"].value,
         freq_array=freq,
         stokesI=(full_data.I.values)[np.newaxis, :],
         stokesI_error=(full_data.dI.values)[np.newaxis, :],
         stokesQ=(full_data.Q.values)[np.newaxis, :],
         stokesQ_error=(full_data.dQ.values)[np.newaxis, :],
-        stokesU=(full_data.Q.values)[np.newaxis, :],
-        stokesU_error=(full_data.dQ.values)[np.newaxis, :],
+        stokesU=(full_data.U.values)[np.newaxis, :],
+        stokesU_error=(full_data.dU.values)[np.newaxis, :],
         source_number_array=[number],
         cat_id=cat_row["cat_id"],
         beam_maj=cat_row["beam_maj"],
@@ -279,6 +290,9 @@ def update_cube(cube: str, cube_dir: str) -> None:
         cube (str): Cubelet path
         cube_dir (str): CASDA cublet directory
     """
+    # Re-register astropy units
+    for unit in (u.deg, u.hour, u.hourangle, u.Jy, u.arcsec, u.arcmin, u.beam):
+        get_current_unit_registry().add_enabled_units([unit])
     stokes = ("i", "q", "u")
     imtypes = ("image.restored", "weights")
     idata = fits.getdata(
@@ -313,6 +327,8 @@ def update_cube(cube: str, cube_dir: str) -> None:
         source_id = os.path.basename(os.path.dirname(cube))
         header["OBJECT"] = (source_id, "Source ID")
         header["CRVAL3"] = 1.0
+        if header["BUNIT"] == "beam-1 Jy":
+            header["BUNIT"] = (u.Jy / u.beam).to_string()
 
         outf = os.path.join(
             cube_dir,
@@ -349,9 +365,9 @@ def find_cubes(data_dir: str = ".") -> list:
 def init_polspec(
     casda_dir: str,
     spectrum_table_0: str,
-    outdir: str = None,
+    outdir: str = "",
 ):
-    if outdir is None:
+    if outdir == "":
         outdir = casda_dir
     polspec_0 = polspectra.from_FITS(spectrum_table_0)
     out_fits = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits")
@@ -404,32 +420,6 @@ def write_polspec(table: Table, filename: str, overwrite: bool = False):
 
     tablehdu = fits.BinTableHDU.from_columns(fits_columns)
     tablehdu.writeto(filename, overwrite=overwrite)
-
-
-# @delayed()
-def add_polspec_row(
-    out_fits: str,
-    out_hdf: str,
-    spectrum_table: str,
-) -> None:
-    # Add row to FITS table
-    with fits.open(out_fits, mode="denywrite", memmap=True) as hdul:
-        data = hdul[1].data
-        header = hdul[1].header
-        table = Table(data)
-        for i in range(1, header["TFIELDS"] + 1):
-            if "TUNIT{}".format(i) in header.keys():
-                table[header["TTYPE{}".format(i)]].unit = header["TUNIT{}".format(i)]
-    polspec = polspectra.from_FITS(spectrum_table)
-    stack = vstack([table, polspec.table], join_type="exact")
-    write_polspec(stack, out_fits, overwrite=True)
-
-    # TODO: Make this work
-    # # Add row to HDF5 table
-    # stack = polspectra.polarizationspectra()
-    # stack.read_HDF5(out_hdf)
-    # stack.merge_tables(spectrum_table)
-    # stack.write_HDF5(out_hdf, overwrite=True, compress=True)
 
 
 @delayed()
@@ -504,10 +494,13 @@ def main(
     outdir=None,
 ):
     """Main function"""
-
+    # Re-register astropy units
+    for unit in (u.deg, u.hour, u.hourangle, u.Jy, u.arcsec, u.arcmin, u.beam):
+        get_current_unit_registry().add_enabled_units([unit])
     log.info("Starting")
     log.info(f"Dask client: {client}")
     log.info(f"Reading {polcatf}")
+
     polcat = Table.read(polcatf)
     df = polcat.to_pandas()
     df = df.sort_values(["stokesI_fit_flag", "snr_polint"], ascending=[True, False])
@@ -526,7 +519,7 @@ def main(
         polcat = polcat[cut_idx]
 
     elif prep_type == "test":
-        pass
+        polcat = polcat[:100]
 
     else:
         raise ValueError(f"Unknown prep_type: {prep_type}")
@@ -539,9 +532,13 @@ def main(
     # Link catalgoue to casda directory
     cat_dir = os.path.join(casda_dir, "catalogues")
     try_mkdir(cat_dir)
-    try_symlink(
-        os.path.abspath(polcatf), os.path.join(cat_dir, os.path.basename(polcatf))
-    )
+    if prep_type != "full":
+        out_cat = os.path.join(cat_dir, os.path.basename(polcatf).replace(".xml", f".{prep_type}.xml"))
+        write_votable(polcat, out_cat)
+    else:
+        try_symlink(
+            os.path.abspath(polcatf), os.path.join(cat_dir, os.path.basename(polcatf))
+        )
 
     cube_outputs = []
     if do_update_cubes:
@@ -582,7 +579,7 @@ def main(
                 with open(outf, "w") as f:
                     for rid in rem_ids:
                         f.write(f"{rid}\n")
-                assert len(cubes) == len(set(polcat["source_id"]))
+                assert len(cubes) == len(set(polcat["source_id"])), f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
 
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -613,7 +610,18 @@ def main(
         spec_dir = os.path.join(casda_dir, "spectra")
         try_mkdir(spec_dir)
         spectra = find_spectra(data_dir=data_dir)
-        assert len(spectra) == len(polcat)  # Sanity check
+        if prep_type != "full":
+            # Drop spectra that are not in the cut catalogue
+            cat_ids = []
+            for i, spec in enumerate(spectra):
+                basename = os.path.basename(spec)
+                cut_idx = basename.find(".dat")
+                cat_id = basename[:cut_idx]
+                cat_ids.append(cat_id)
+            in_idx = np.isin(cat_ids, polcat["cat_id"])
+            spectra = list(np.array(spectra)[in_idx])
+        assert len(spectra) == len(polcat), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
+
 
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -634,7 +642,9 @@ def main(
             for spectrum in sorted_spectra
         ]
         polcat = polcat.loc[gauss_ids]
-        with open("polcat.pkl", "wb") as f:
+        # hash filename using current time and hashlib
+        fname_polcat_hash = f"polcat_{hashlib.sha256(str(time.time()).encode()).hexdigest()}.pkl"
+        with open(fname_polcat_hash, "wb") as f:
             pickle.dump(polcat, f)
         for i, (spectrum, gauss_id, row) in enumerate(
             tqdm(
@@ -647,6 +657,7 @@ def main(
             spectrum_table = convert_spectra(
                 number=i,
                 spectrum=spectrum,
+                fname_polcat_hash=fname_polcat_hash,
                 spec_dir=spec_dir,
             )
             spectra_outputs.append(spectrum_table)
@@ -661,6 +672,21 @@ def main(
         plots = find_plots(data_dir=data_dir)
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
+
+        if prep_type != "full":
+            # Drop plots that are not in the cut catalogue
+            cat_ids = []
+            for i, plot in enumerate(plots):
+                basename = os.path.basename(plot)
+                for plot_type in ("_spectra", "_RMSF", "_clean"):
+                    if plot_type in basename:
+                        cat_id = basename[: basename.find(plot_type)]
+                cat_ids.append(cat_id)
+            in_idx = np.isin(cat_ids, polcat["cat_id"])
+            plots = list(np.array(plots)[in_idx])
+
+        assert len(plots) == len(polcat)*3, f"{len(plots)=} and {len(polcat)=}" # Sanity check
+
         with tqdm(total=len(plots), desc="Sorting plots") as pbar:
 
             def my_sorter(x, lookup=lookup, pbar=pbar):
@@ -681,17 +707,7 @@ def main(
     for name, outputs in zip(
         ("cubes", "spectra", "plots"), (cube_outputs, spectra_outputs, plot_outputs)
     ):
-        if test:
-            if name == "spectra":
-                n_things = 10 * 10
-            elif name == "cubes":
-                n_things = 10 * 10
-            else:
-                n_things = 30 * 10
-            outputs = outputs[:n_things]
-            log.info(f"Testing {len(outputs)} {name}")
-        else:
-            log.info(f"Starting work on {len(outputs)} {name}")
+        log.info(f"Starting work on {len(outputs)} {name}")
 
         futures = chunk_dask(
             outputs=outputs,
@@ -704,22 +720,18 @@ def main(
         if name == "spectra" and len(outputs) > 0:
             # Get concrete results
             spectrum_tables = client.gather(client.compute(futures))
-            # Init spectrum table
-            out_fits, out_hdf = init_polspec(
-                casda_dir=casda_dir,
-                spectrum_table_0=spectrum_tables[0],
-                outdir=outdir,
-            )
-            for spectrum_table in tqdm(
-                spectrum_tables, desc="Appending spectra rows to table"
-            ):
-                add_polspec_row(
-                    out_fits=out_fits,
-                    out_hdf=out_hdf,
-                    spectrum_table=spectrum_table,
-                )
+            # Add all spectrum_tables to a tar ball
+            tarball = os.path.join(casda_dir, f"spice_racs_dr1_polspec_{prep_type}.tar")
+            log.info(f"Adding spectra to tarball {tarball}")
+            with tarfile.open(tarball, "w") as tar:
+                for spectrum_table in tqdm(spectrum_tables, "Adding spectra to tarball"):
+                    tar.add(spectrum_table, arcname=os.path.basename(spectrum_table))
+
+
+
+
     if do_convert_spectra:
-        os.remove("polcat.pkl")
+        os.remove(fname_polcat_hash)
 
     log.info("Done")
 
@@ -825,8 +837,11 @@ def cli():
             threads_per_worker=1,
             local_directory="/dev/shm",
         )
-    with Client(cluster) as client:
-        log.debug(client)
+
+    with Client(
+        cluster,
+    ) as client:
+        log.debug(f"{client=}")
         main(
             polcatf=args.polcat,
             client=client,
