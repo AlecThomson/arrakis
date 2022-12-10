@@ -302,22 +302,26 @@ def smooth_image(image, common_beam_pkl, cutoff=None):
 
 @delayed
 def cleanup(
+    purge: bool,
     im_cube_name,
     w_cube_name,
     image_list,
     aux_list,
     sm_image_list,
 ):
-    # for image in image_list:
-    #     log.error(f"Removing {image}")
-    #     os.remove(image)
+    if not purge:
+        log.info("Not purging intermediate files")
+        return
+    for image in image_list:
+        log.critical(f"Removing {image}")
+        os.remove(image)
     for sm_image in sm_image_list:
-        log.error(f"Removing {sm_image}")
+        log.critical(f"Removing {sm_image}")
         os.remove(sm_image)
     for aux in aux_list.keys():
         for aux_image in aux_list[aux]:
             try:
-                log.error(f"Removing {aux_image}")
+                log.critical(f"Removing {aux_image}")
                 os.remove(aux_image)
             except FileNotFoundError:
                 log.error(f"Could not find {aux_image}")
@@ -341,6 +345,7 @@ def main(
     size: int = 6074,
     taper: float = None,
     reimage: bool = False,
+    purge: bool = False,
 ):
     simage = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
@@ -352,8 +357,6 @@ def main(
     assert (len(mslist) > 0) & (
         len(mslist) == 36
     ), f"Incorrect number of MS files found: {len(mslist)} / 36"
-
-    mslist = [mslist[0]]
 
     log.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []  # type: List[Delayed]
@@ -438,6 +441,7 @@ def main(
             sm_image_lists[s] = sm_image_list
             # Clean up
             clean = cleanup(
+                purge=purge,
                 im_cube_name=im_cube_name,
                 w_cube_name=w_cube_name,
                 image_list=image_list,
@@ -445,10 +449,6 @@ def main(
                 aux_list=aux_list,
             )
             cleans.append(clean)
-
-    from IPython import embed
-    embed()
-    exit()
 
     futures = chunk_dask(
         outputs=cleans,
