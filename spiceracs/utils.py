@@ -802,8 +802,6 @@ def wsclean(
     command += f" {' '.join(mslist)}"
     return command
 
-
-def best_aic_func(aics, n_param):
 def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, int]:
     """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
