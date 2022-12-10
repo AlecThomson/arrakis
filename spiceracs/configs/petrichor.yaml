@@ -5,7 +5,7 @@ name: 'spice-worker'
 memory: "512GB"
 account: 'OD-217087'
 #queue: 'workq'
-walltime: '3-00:00:00'
+walltime: '1-18:00:00'
 job_extra_directives: ['--qos express']
 # interface for the workers
 interface: "ib0"
