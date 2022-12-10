@@ -26,10 +26,10 @@ def main():
     cluster = SLURMCluster(
         **config,
     )
+    cluster.scale(36)
     log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
     # # exit()
-    cluster.scale(1)
-    # cluster = LocalCluster(n_workers=1, threads_per_worker=1)
+    # cluster = LocalCluster(n_workers=10, threads_per_worker=1)
     # cluster.adapt(minimum=1, maximum=36)
 
 
@@ -48,7 +48,7 @@ def main():
         nchan=36,
     )
 
-    log.info(results)
+    # log.info(results)
 
 if __name__ == "__main__":
     log.basicConfig(
