@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 """Prepare files for CASDA upload"""
 import argparse
+import hashlib
 import logging as log
 import os
 import pickle
 import subprocess as sp
+import tarfile
 import time
 import traceback
-import pickle
 from glob import glob
-import tarfile
 from typing import Dict, List, Tuple
-import hashlib
 
 import astropy.units as u
-from astropy.units.core import get_current_unit_registry
 import dask.array as da
 import dask.bag as db
 import h5py
@@ -24,6 +22,7 @@ import pandas as pd
 import polspectra
 from astropy.io import fits
 from astropy.table import Column, Row, Table, vstack
+from astropy.units.core import get_current_unit_registry
 from astropy.visualization import (
     ImageNormalize,
     LogStretch,
@@ -37,14 +36,18 @@ from dask import delayed
 from dask.delayed import Delayed
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
+from distributed.protocol.serialize import (
+    pickle_dumps,
+    pickle_loads,
+    register_serialization_family,
+)
 from IPython import embed
 from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm, trange
 
-from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 from spiceracs.makecat import write_votable
-from distributed.protocol.serialize import register_serialization_family, pickle_dumps, pickle_loads
+from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):

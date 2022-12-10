@@ -103,6 +103,7 @@ def beam_from_ms(ms: str) -> int:
     t.close()
     return beam
 
+
 def field_idx_from_ms(ms: str) -> int:
     """Get the field from MS metadata"""
     obs = listobs(vis=ms, verbose=True)
@@ -111,6 +112,7 @@ def field_idx_from_ms(ms: str) -> int:
     field = fields[0]
     idx = int(field.replace("field_", ""))
     return idx
+
 
 def wsclean(
     mslist: list,
@@ -801,6 +803,7 @@ def wsclean(
             command += f" -{key.replace('_','-')} {value}"
     command += f" {' '.join(mslist)}"
     return command
+
 
 def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, int]:
     """Find the best AIC for a set of AICs using Occam's razor."""

@@ -12,8 +12,10 @@ import yaml
 from dask.distributed import Client, LocalCluster
 from dask_jobqueue import SLURMCluster
 from IPython import embed
-from spiceracs.utils import port_forward
+
 from spiceracs import imager
+from spiceracs.utils import port_forward
+
 
 def main():
     with open("/scratch2/tho822/spiceracs/spiceracs/spiceracs/configs/petrichor.yaml") as f:

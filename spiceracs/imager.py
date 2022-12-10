@@ -6,10 +6,10 @@ import multiprocessing as mp
 import os
 import pickle
 import shutil
+import traceback
 from argparse import Namespace
 from glob import glob
 from typing import List
-import traceback
 
 import astropy.units as u
 import numpy as np
@@ -21,7 +21,7 @@ from astropy.wcs import WCS
 from casatasks import casalog, vishead
 from dask import compute, delayed
 from dask.delayed import Delayed
-from dask.distributed import Client, get_client, LocalCluster
+from dask.distributed import Client, LocalCluster, get_client
 from dask_mpi import initialize
 from IPython import embed
 from racs_tools import beamcon_2D
@@ -31,7 +31,13 @@ from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
 from spiceracs import fix_ms_dir
-from spiceracs.utils import beam_from_ms, chunk_dask, inspect_client, wsclean, field_idx_from_ms
+from spiceracs.utils import (
+    beam_from_ms,
+    chunk_dask,
+    field_idx_from_ms,
+    inspect_client,
+    wsclean,
+)
 
 
 def get_wsclean(hub_address: str = "docker://alecthomson/wsclean", tag="3.1") -> str:
@@ -86,6 +92,7 @@ def image_beam(
 ):
     """Image a single beam"""
     import logging
+
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
@@ -96,7 +103,9 @@ def image_beam(
 
     if not reimage:
         # Look for existing images
-        checkvals = np.array([f"{prefix}-{i:04}-{s}-image.fits" for s in pols for i in range(nchan)])
+        checkvals = np.array(
+            [f"{prefix}-{i:04}-{s}-image.fits" for s in pols for i in range(nchan)]
+        )
         checks = np.array([os.path.exists(f) for f in checkvals])
         if all(checks):
             log.critical("Images already exist, skipping imaging")
@@ -165,7 +174,9 @@ def get_aux(image_done: bool, pol, prefix):
         aux_lists = {
             aux: sorted(
                 glob(
-                    f"{prefix}*[0-9]-{pol}-{aux}.fits" if aux != "psf" else f"{prefix}*[0-9]-{aux}.fits"
+                    f"{prefix}*[0-9]-{pol}-{aux}.fits"
+                    if aux != "psf"
+                    else f"{prefix}*[0-9]-{aux}.fits"
                 )
             )
             for aux in ["model", "psf", "residual", "dirty"]
@@ -551,9 +562,9 @@ def cli():
 
     else:
         cluster = LocalCluster(
-                n_workers=1,
-                threads_per_worker=1,
-                # processes=False,
+            n_workers=1,
+            threads_per_worker=1,
+            # processes=False,
         )
 
     with Client(cluster) as client:
