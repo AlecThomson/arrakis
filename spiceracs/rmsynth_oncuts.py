@@ -593,10 +593,16 @@ def rmsynthoncut_i(
     myquery = {"Gaussian_ID": comp_id}
     doc = comp_col.find_one(myquery)
 
+    if doc is None:
+        raise ValueError(f"Component {comp_id} not found")
+
     iname = doc["Source_ID"]
     cname = doc["Gaussian_ID"]
 
     beams = beams_col.find_one({"Source_ID": iname})
+    if beams is None:
+        raise ValueError(f"Beams for {iname} not found")
+
     ifile = os.path.join(outdir, beams["beams"][field]["i_file"])
     outdir = os.path.dirname(ifile)
 

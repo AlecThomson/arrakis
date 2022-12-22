@@ -24,6 +24,7 @@ import dask.array as da
 import dask.distributed as distributed
 import numpy as np
 import pymongo
+from pymongo.collection import Collection
 from astropy.coordinates import SkyCoord
 from astropy.coordinates.angles import dms_tuple, hms_tuple
 from astropy.io import fits
@@ -549,11 +550,11 @@ def test_db(
 
 
 def get_db(
-    host: str, username: str = None, password: str = None
+    host: str, username: Union[str,None] = None, password: Union[str,None] = None
 ) -> Tuple[
-    pymongo.collection.Collection,
-    pymongo.collection.Collection,
-    pymongo.collection.Collection,
+    Collection,
+    Collection,
+    Collection,
 ]:
     """Get MongoDBs
 
@@ -563,7 +564,7 @@ def get_db(
         password (str, optional): Password. Defaults to None.
 
     Returns:
-        Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]: beams_col, island_col, comp_col
+        Tuple[Collection, Collection, Collection]: beams_col, island_col, comp_col
     """
     dbclient = pymongo.MongoClient(
         host=host,
