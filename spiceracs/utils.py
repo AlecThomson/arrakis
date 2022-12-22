@@ -24,7 +24,6 @@ import dask.array as da
 import dask.distributed as distributed
 import numpy as np
 import pymongo
-from pymongo.collection import Collection
 from astropy.coordinates import SkyCoord
 from astropy.coordinates.angles import dms_tuple, hms_tuple
 from astropy.io import fits
@@ -38,6 +37,7 @@ from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner, is_kernel
 from FRion.correct import find_freq_axis
+from pymongo.collection import Collection
 from scipy.optimize import curve_fit
 from scipy.stats import normaltest
 from spectral_cube import SpectralCube
@@ -550,12 +550,8 @@ def test_db(
 
 
 def get_db(
-    host: str, username: Union[str,None] = None, password: Union[str,None] = None
-) -> Tuple[
-    Collection,
-    Collection,
-    Collection,
-]:
+    host: str, username: Union[str, None] = None, password: Union[str, None] = None
+) -> Tuple[Collection, Collection, Collection,]:
     """Get MongoDBs
 
     Args:
