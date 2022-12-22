@@ -13,6 +13,7 @@ import warnings
 from glob import glob
 from pprint import pformat, pprint
 from shutil import copyfile
+from typing import List, Optional, Tuple, Union
 
 import astropy.units as u
 import dask
@@ -51,19 +52,19 @@ from spiceracs.utils import (
 
 @delayed
 def rmsynthoncut3d(
-    island_id,
-    beam,
-    outdir,
-    freq,
-    field,
-    phiMax_radm2=None,
-    dPhi_radm2=None,
-    nSamples=5,
-    weightType="variance",
-    fitRMSF=True,
-    not_RMSF=False,
-    rm_verbose=False,
-    ion=False,
+    island_id: str,
+    beam: dict,
+    outdir: str,
+    freq: np.ndarray,
+    field: str,
+    phiMax_radm2: Union[None, float] = None,
+    dPhi_radm2: Union[None, float] = None,
+    nSamples: int = 5,
+    weightType: str="variance",
+    fitRMSF: bool=True,
+    not_RMSF: bool=False,
+    rm_verbose:bool=False,
+    ion: bool=False,
 ):
     """3D RM-synthesis
 
@@ -257,8 +258,8 @@ def rmsynthoncut1d(
     freq: np.ndarray,
     field: str,
     polyOrd: int = 3,
-    phiMax_radm2: float = None,
-    dPhi_radm2: float = None,
+    phiMax_radm2: Union[float,None] = None,
+    dPhi_radm2: Union[float,None] = None,
     nSamples: int = 5,
     weightType: str = "variance",
     fitRMSF: bool = True,
@@ -268,8 +269,8 @@ def rmsynthoncut1d(
     debug: bool = False,
     rm_verbose: bool = False,
     fit_function: str = "log",
-    tt0: str = None,
-    tt1: str = None,
+    tt0: Union[str,None] = None,
+    tt1: Union[str,None] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> pymongo.UpdateOne:
@@ -560,17 +561,17 @@ def rmsynthoncut1d(
 
 @delayed
 def rmsynthoncut_i(
-    comp_id,
-    outdir,
-    freq,
-    host,
-    field,
-    username=None,
-    password=None,
-    nSamples=5,
-    phiMax_radm2=None,
-    verbose=False,
-    rm_verbose=False,
+    comp_id: str,
+    outdir: str,
+    freq: np.ndarray,
+    host: str,
+    field: str,
+    username:Union[str,None]=None,
+    password:Union[str,None]=None,
+    nSamples:int=5,
+    phiMax_radm2:Union[float,None]=None,
+    verbose:bool=False,
+    rm_verbose:bool=False,
 ):
     """RMsynth on Stokes I
 
@@ -691,18 +692,18 @@ def main(
     outdir: str,
     host: str,
     client: Client,
-    username: str = None,
-    password: str = None,
+    username: Union[str,None] = None,
+    password: Union[str,None] = None,
     dimension: str = "1d",
     verbose: bool = True,
     database: bool = False,
     validate: bool = False,
-    limit: int = None,
+    limit: Union[int,None] = None,
     savePlots: bool = False,
     weightType: str = "variance",
     fitRMSF: bool = True,
-    phiMax_radm2: float = None,
-    dPhi_radm2: float = None,
+    phiMax_radm2: Union[float,None] = None,
+    dPhi_radm2: Union[float,None] = None,
     nSamples: int = 5,
     polyOrd: int = 3,
     noStokesI: bool = False,
@@ -711,8 +712,8 @@ def main(
     rm_verbose: bool = False,
     debug: bool = False,
     fit_function: str = "log",
-    tt0: str = None,
-    tt1: str = None,
+    tt0: Union[str,None] = None,
+    tt1: Union[str,None] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> None:
