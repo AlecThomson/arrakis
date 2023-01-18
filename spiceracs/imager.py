@@ -80,15 +80,17 @@ def image_beam(
     join_polarizations: bool = True,
     join_channels: bool = True,
     squared_channel_joining: bool = True,
-    mgain: float = 0.8,
+    mgain: float = 0.7,
     niter: int = 100_000,
     auto_mask: float = 3,
     auto_threshold: float = 1,
     use_wgridder: bool = True,
-    robust: float = 0.0,
+    robust: float = -0.5,
     mem: float = 90,
     taper: float = None,
     reimage: bool = False,
+    minuv_l: float = 0.0,
+    parallel_deconvolution=None,
 ):
     """Image a single beam"""
     import logging
@@ -139,7 +141,8 @@ def image_beam(
         # j=1,
         taper_gaussian=f"{taper}asec" if taper else None,
         field=field_idx,
-        parallel_deconvolution=2048,
+        parallel_deconvolution=parallel_deconvolution,
+        minuv_l=minuv_l,
     )
 
     root_dir = os.path.dirname(ms)
@@ -156,6 +159,14 @@ def image_beam(
     )
     for line in output:
         log.info(line)
+
+    # Check rms of image to check for divergence
+    mfs_image = f"{prefix}-MFS-I-image.fits"
+    rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
+    if rms > 1:
+        log.critical(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
+        return False
+
     return True
 
 
@@ -354,9 +365,16 @@ def main(
     pols: str = "IQU",
     nchan: int = 36,
     size: int = 6074,
+    scale: u.Quantity = 2.5 * u.arcsec,
+    mgain: float = 0.8,
+    niter: int = 100_000,
+    auto_mask: float = 3,
+    auto_threshold: float = 1,
     taper: float = None,
     reimage: bool = False,
     purge: bool = False,
+    minuv: float = 0.0,
+    parallel_deconvolution: int = None,
 ):
     simage = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
@@ -369,6 +387,7 @@ def main(
         len(mslist) == 36
     ), f"Incorrect number of MS files found: {len(mslist)} / 36"
 
+    mslist = [mslist[0]]
     log.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []  # type: List[Delayed]
 
@@ -395,9 +414,16 @@ def main(
             robust=robust,
             pols=pols,
             nchan=nchan,
+            scale=scale,
             npix=size,
+            mgain=mgain,
+            niter=niter,
+            auto_mask=auto_mask,
+            auto_threshold=auto_threshold,
             taper=taper,
             reimage=reimage,
+            minuv_l=minuv,
+            parallel_deconvolution=parallel_deconvolution,
         )
         # Get images
         image_lists = {}
@@ -539,9 +565,49 @@ def cli():
         default=4096,
     )
     parser.add_argument(
+        "--scale",
+        type=u.Quantity,
+        default=2.5,
+    )
+    parser.add_argument(
+        "--mgain",
+        type=float,
+        default=0.8,
+    )
+    parser.add_argument(
+        "--niter",
+        type=int,
+        default=100_000,
+    )
+    parser.add_argument(
+        "--auto_mask",
+        type=float,
+        default=3.0,
+    )
+    parser.add_argument(
+        "--auto_threshold",
+        type=float,
+        default=1.0,
+    )
+    parser.add_argument(
         "--taper",
         type=float,
         default=None,
+    )
+    parser.add_argument(
+        "--minuv",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--purge",
+        action="store_true",
+        help="Purge intermediate files",
     )
     parser.add_argument(
         "--mpi",
@@ -575,11 +641,19 @@ def cli():
             out_dir=args.outdir,
             cutoff=args.cutoff,
             robust=args.robust,
-            nchan=args.nchan,
             pols=args.pols,
+            nchan=args.nchan,
             size=args.size,
+            scale=args.scale,
+            mgain=args.mgain,
+            niter=args.niter,
+            auto_mask=args.auto_mask,
+            auto_threshold=args.auto_threshold,
+            minuv=args.minuv,
+            purge=args.purge,
             taper=args.taper,
             reimage=args.reimage,
+            parallel_deconvolution=args.parallel,
         )
 
 
