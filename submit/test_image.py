@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-#SBATCH --output=test_image_%j.log
-#SBATCH --error=test_image_%j.log
+#SBATCH --output=/scratch2/tho822/spiceracs/RACS_1213-25A/test_image_%j.log
+#SBATCH --error=/scratch2/tho822/spiceracs/RACS_1213-25A/test_image_%j.log
 #SBATCH --time=3-00:00:00
 #SBATCH --tasks=1
 #SBATCH --account=OD-217087
@@ -28,7 +28,7 @@ def main():
     cluster = SLURMCluster(
         **config,
     )
-    cluster.scale(36)
+    cluster.scale(1)
     log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
     # # exit()
     # cluster = LocalCluster(n_workers=10, threads_per_worker=1)
@@ -45,9 +45,12 @@ def main():
         msdir="/scratch2/tho822/spiceracs/RACS_1213-25A",
         out_dir="/scratch2/tho822/spiceracs/RACS_1213-25A",
         cutoff=25,
-        # taper=20,
         pols="IQU",
         nchan=36,
+        minuv=200,
+        mgain=0.6,
+        # parallel_deconvolution=3072,
+        reimage=True,
     )
 
     # log.info(results)
