@@ -4,18 +4,22 @@ import logging as log
 import os
 import pickle
 
-
-from astropy.time import Time
 import astropy.units as u
 import numpy as np
 import pkg_resources
 from astropy.coordinates import SkyCoord
 from astropy.table import Column, Table
+from astropy.time import Time
 from IPython import embed
 from rmtable import RMTable
 from spica import SPICA
 
-from spiceracs.makecat import get_fit_func, is_leakage, write_votable, compute_local_rm_flag
+from spiceracs.makecat import (
+    compute_local_rm_flag,
+    get_fit_func,
+    is_leakage,
+    write_votable,
+)
 
 
 def fix_fields(tab: Table) -> Table:
@@ -44,7 +48,6 @@ def fix_fields(tab: Table) -> Table:
     log.info(f"Found {len(sources_to_fix)} sources to fix")
 
     source_coords = SkyCoord(sources_to_fix["ra"], sources_to_fix["dec"])
-
 
     # Get separation between source and field centres
     seps = []
@@ -76,7 +79,6 @@ def fix_fields(tab: Table) -> Table:
 
     all_start_times = new_tab["start_time"].value
     all_start_times[idx] = spica_field["start_time"][min_idx].value
-
 
     # Update the columns
     new_tab["separation_tile_centre"] = Column(

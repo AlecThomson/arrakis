@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 """Prepare files for CASDA upload"""
 import argparse
+import hashlib
 import logging as log
 import os
 import pickle
 import subprocess as sp
+import tarfile
 import time
 import traceback
-import pickle
 from glob import glob
-import tarfile
 from typing import Dict, List, Tuple
-import hashlib
 
 import astropy.units as u
-from astropy.units.core import get_current_unit_registry
 import dask.array as da
 import dask.bag as db
 import h5py
@@ -24,6 +22,7 @@ import pandas as pd
 import polspectra
 from astropy.io import fits
 from astropy.table import Column, Row, Table, vstack
+from astropy.units.core import get_current_unit_registry
 from astropy.visualization import (
     ImageNormalize,
     LogStretch,
@@ -37,14 +36,18 @@ from dask import delayed
 from dask.delayed import Delayed
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
+from distributed.protocol.serialize import (
+    pickle_dumps,
+    pickle_loads,
+    register_serialization_family,
+)
 from IPython import embed
 from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm, trange
 
-from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 from spiceracs.makecat import write_votable
-from distributed.protocol.serialize import register_serialization_family, pickle_dumps, pickle_loads
+from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -524,16 +527,16 @@ def main(
     else:
         raise ValueError(f"Unknown prep_type: {prep_type}")
 
-    casda_dir = (
-        os.path.join(data_dir, f"casda_{prep_type}")
-    )
+    casda_dir = os.path.join(data_dir, f"casda_{prep_type}")
     try_mkdir(casda_dir)
 
     # Link catalgoue to casda directory
     cat_dir = os.path.join(casda_dir, "catalogues")
     try_mkdir(cat_dir)
     if prep_type != "full":
-        out_cat = os.path.join(cat_dir, os.path.basename(polcatf).replace(".xml", f".{prep_type}.xml"))
+        out_cat = os.path.join(
+            cat_dir, os.path.basename(polcatf).replace(".xml", f".{prep_type}.xml")
+        )
         write_votable(polcat, out_cat)
     else:
         try_symlink(
@@ -579,7 +582,9 @@ def main(
                 with open(outf, "w") as f:
                     for rid in rem_ids:
                         f.write(f"{rid}\n")
-                assert len(cubes) == len(set(polcat["source_id"])), f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
+                assert len(cubes) == len(
+                    set(polcat["source_id"])
+                ), f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
 
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -620,8 +625,9 @@ def main(
                 cat_ids.append(cat_id)
             in_idx = np.isin(cat_ids, polcat["cat_id"])
             spectra = list(np.array(spectra)[in_idx])
-        assert len(spectra) == len(polcat), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
-
+        assert len(spectra) == len(
+            polcat
+        ), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
 
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -643,7 +649,9 @@ def main(
         ]
         polcat = polcat.loc[gauss_ids]
         # hash filename using current time and hashlib
-        fname_polcat_hash = f"polcat_{hashlib.sha256(str(time.time()).encode()).hexdigest()}.pkl"
+        fname_polcat_hash = (
+            f"polcat_{hashlib.sha256(str(time.time()).encode()).hexdigest()}.pkl"
+        )
         with open(fname_polcat_hash, "wb") as f:
             pickle.dump(polcat, f)
         for i, (spectrum, gauss_id, row) in enumerate(
@@ -685,7 +693,9 @@ def main(
             in_idx = np.isin(cat_ids, polcat["cat_id"])
             plots = list(np.array(plots)[in_idx])
 
-        assert len(plots) == len(polcat)*3, f"{len(plots)=} and {len(polcat)=}" # Sanity check
+        assert (
+            len(plots) == len(polcat) * 3
+        ), f"{len(plots)=} and {len(polcat)=}"  # Sanity check
 
         with tqdm(total=len(plots), desc="Sorting plots") as pbar:
 
@@ -724,11 +734,10 @@ def main(
             tarball = os.path.join(casda_dir, f"spice_racs_dr1_polspec_{prep_type}.tar")
             log.info(f"Adding spectra to tarball {tarball}")
             with tarfile.open(tarball, "w") as tar:
-                for spectrum_table in tqdm(spectrum_tables, "Adding spectra to tarball"):
+                for spectrum_table in tqdm(
+                    spectrum_tables, "Adding spectra to tarball"
+                ):
                     tar.add(spectrum_table, arcname=os.path.basename(spectrum_table))
-
-
-
 
     if do_convert_spectra:
         os.remove(fname_polcat_hash)
