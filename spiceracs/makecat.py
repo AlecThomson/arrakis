@@ -262,6 +262,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
 
     return cat_out
 
+
 def cuts_and_flags(cat):
     """Cut out bad sources, and add flag columns
 
@@ -475,10 +476,10 @@ def write_votable(rmtab: RMTable, outfile: str) -> None:
 def main(
     field: str,
     host: str,
-    username: Union[str,None] = None,
-    password: Union[str,None] = None,
-    verbose: bool=True,
-    outfile: Union[str,None] = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
+    verbose: bool = True,
+    outfile: Union[str, None] = None,
 ) -> None:
     """Main
 
