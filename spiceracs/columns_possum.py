@@ -344,6 +344,18 @@ extra_column_descriptions = {
         "description": "Stokes I fit flag",
         "ucd": "meta.code.qual",
     },
+    "stokesI_fit_flag_is_negative": {
+        "description": "Stokes I model is negative flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokesI_fit_flag_is_not_finite": {
+        "description": "Stokes I model is not finite flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokesI_fit_flag_is_not_normal": {
+        "description": "Stokes I model is not normal flag",
+        "ucd": "meta.code.qual",
+    },
     "complex_sigma_add_flag": {
         "description": "Sigma_add complexity flag",
         "ucd": "meta.code",
