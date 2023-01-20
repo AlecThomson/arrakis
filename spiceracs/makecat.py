@@ -197,6 +197,69 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     return fit, fig
 
 
+def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
+    """Compute the local RM flag
+
+    Args:
+        good_cat (Table): Table with just good RMs
+        big_cat (Table): Overall table
+
+    Returns:
+        Table: Table with local RM flag
+    """
+    log.info("Computing voronoi bins and finding bad RMs")
+
+    def sn_func(index, signal=None, noise=None):
+        try:
+            sn = len(np.array(index))
+        except TypeError:
+            sn = 1
+        return sn
+
+    bin_number, x_gen, y_gen, x_bar, y_bar, sn, nPixels, scale = voronoi_2d_binning(
+        x=good_cat["ra"],
+        y=good_cat["dec"],
+        signal=np.ones_like(good_cat["polint"]),
+        noise=np.ones_like(good_cat["polint_err"]),
+        target_sn=50,
+        sn_func=sn_func,
+        cvt=False,
+        pixelsize=10,
+        plot=False,
+        quiet=True,
+        wvt=False,
+    )
+    log.info(f"Found {len(set(bin_number))} bins")
+    df = good_cat.to_pandas()
+    df.set_index("cat_id", inplace=True)
+    df["bin_number"] = bin_number
+    # Use sigma clipping to find outliers
+
+    def masker(x):
+        return pd.Series(
+            sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
+            index=x.index,
+        )
+
+    perc_g = df.groupby("bin_number").apply(
+        masker,
+    )
+    # Put flag into the catalogue
+    df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
+    df.drop(columns=["bin_number"], inplace=True)
+    df_out = big_cat.to_pandas()
+    df_out.set_index("cat_id", inplace=True)
+    df_out["local_rm_flag"] = False
+    df_out.update(df["local_rm_flag"])
+    df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
+    cat_out = RMTable.from_pandas(df_out.reset_index())
+    cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
+    cat_out[
+        "local_rm_flag"
+    ].description = "RM is statistically different from nearby RMs"
+
+    return cat_out
+
 def cuts_and_flags(cat):
     """Cut out bad sources, and add flag columns
 
@@ -235,57 +298,13 @@ def cuts_and_flags(cat):
 
     # Flag RMs which are very diffent from RMs nearby
     # Set up voronoi bins, trying to obtain 50 sources per bin
-    good_cat = cat[~snr_flag & ~leakage_flag & ~chan_flag & ~cat["stokesI_fit_flag"]]
-    log.info("Computing voronoi bins and finding bad RMs")
+    goodI = ~cat["stokesI_fit_flag"] & ~cat["channel_flag"]
+    goodL = goodI & ~cat["leakage_flag"] & (cat["snr_polint"] > 5)
+    goodRM = goodL & ~cat["snr_flag"]
+    good_cat = cat[goodRM]
 
-    def sn_func(index, signal=None, noise=None):
-        try:
-            sn = len(np.array(index))
-        except TypeError:
-            sn = 1
-        return sn
+    cat_out = compute_local_rm_flag(good_cat=good_cat, big_cat=cat)
 
-    bin_number, x_gen, y_gen, x_bar, y_bar, sn, nPixels, scale = voronoi_2d_binning(
-        x=good_cat["ra"],
-        y=good_cat["dec"],
-        signal=np.ones_like(good_cat["polint"]),
-        noise=np.ones_like(good_cat["polint_err"]),
-        target_sn=50,
-        sn_func=sn_func,
-        cvt=False,
-        pixelsize=10,
-        plot=False,
-        quiet=True,
-        wvt=False,
-    )
-    log.info(f"Found {len(bin_number)} bins")
-    df = good_cat.to_pandas()
-    df.set_index("cat_id", inplace=True)
-    df["bin_number"] = bin_number
-    # Use sigma clipping to find outliers
-
-    def masker(x):
-        return pd.Series(
-            sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
-            index=x.index,
-        )
-
-    perc_g = df.groupby("bin_number").apply(
-        masker,
-    )
-    # Put flag into the catalogue
-    df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
-    df.drop(columns=["bin_number"], inplace=True)
-    df_out = cat.to_pandas()
-    df_out.set_index("cat_id", inplace=True)
-    df_out["local_rm_flag"] = False
-    df_out.update(df["local_rm_flag"])
-    df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
-    cat_out = RMTable.from_pandas(df_out.reset_index())
-    cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
-    cat_out[
-        "local_rm_flag"
-    ].description = "RM is statistically different from nearby RMs"
     # Restre units and metadata
     for col in cat.colnames:
         cat_out[col].unit = cat[col].unit
@@ -454,10 +473,10 @@ def write_votable(rmtab: RMTable, outfile: str) -> None:
 def main(
     field: str,
     host: str,
-    username: str = None,
-    password: str = None,
-    verbose=True,
-    outfile: str = None,
+    username: Union[str,None] = None,
+    password: Union[str,None] = None,
+    verbose: bool=True,
+    outfile: Union[str,None] = None,
 ) -> None:
     """Main
 
