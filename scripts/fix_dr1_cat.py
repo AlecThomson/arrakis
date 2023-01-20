@@ -4,6 +4,8 @@ import logging as log
 import os
 import pickle
 
+
+from astropy.time import Time
 import astropy.units as u
 import numpy as np
 import pkg_resources
@@ -35,11 +37,14 @@ def fix_fields(tab: Table) -> Table:
     spica_field_coords = SkyCoord(
         spica_field["RA_DEG"], spica_field["DEC_DEG"], unit=(u.deg, u.deg), frame="icrs"
     )
+    start_times = Time(spica_field["SCAN_START"] * u.second, format="mjd")
+    spica_field["start_time"] = start_times
     # These are the sources to update
     sources_to_fix = tab.loc[fields_not_in_spica]
     log.info(f"Found {len(sources_to_fix)} sources to fix")
 
     source_coords = SkyCoord(sources_to_fix["ra"], sources_to_fix["dec"])
+
 
     # Get separation between source and field centres
     seps = []
@@ -53,7 +58,8 @@ def fix_fields(tab: Table) -> Table:
     closest_fields = np.array(fields_in_spica)[min_idx]
     new_tab = tab.copy()
     idx = new_tab.loc_indices[fields_not_in_spica]
-    # Update tile_id and field sep
+
+    # Update tile_id, SBID, start time, and field sep
     new_tab.remove_indices("tile_id")
 
     all_fields = new_tab["tile_id"].value
@@ -64,18 +70,28 @@ def fix_fields(tab: Table) -> Table:
         new_tab["separation_tile_centre"].value * new_tab["separation_tile_centre"].unit
     )
     all_seps[idx] = min_seps
+
+    all_sbids = new_tab["sbid"].value
+    all_sbids[idx] = spica_field["SBID"][min_idx].value
+
+    all_start_times = new_tab["start_time"].value
+    all_start_times[idx] = spica_field["start_time"][min_idx].value
+
+
+    # Update the columns
     new_tab["separation_tile_centre"] = Column(
         data=all_seps,
     )
     new_tab["beamdist"] = Column(
         data=all_seps,
     )
-    all_seps[idx] = min_seps
-    new_tab["separation_tile_centre"] = Column(
-        data=all_seps,
+
+    new_tab["sbid"] = Column(
+        data=all_sbids,
     )
-    new_tab["beamdist"] = Column(
-        data=all_seps,
+
+    new_tab["start_time"] = Column(
+        data=all_start_times,
     )
 
     # Fix the units - Why does VOTable do this?? Thanks I hate it
