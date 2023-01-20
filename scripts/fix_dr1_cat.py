@@ -110,21 +110,21 @@ def main(cat: str):
     log.debug(f"Reading {cat}")
     tab = RMTable.read(cat)
     log.debug(f"Fixing {cat}")
-    tab = fix_fields(tab)
-    fit, fig = get_fit_func(tab, do_plot=True, nbins=16, degree=4)
+    fix_tab = fix_fields(tab)
+    fit, fig = get_fit_func(fix_tab, do_plot=True, nbins=16, degree=4)
     fig.savefig("leakage_fit_dr1_fix.pdf")
     leakage_flag = is_leakage(
-        tab["fracpol"].value, tab["beamdist"].to(u.deg).value, fit
+        fix_tab["fracpol"].value, fix_tab["beamdist"].to(u.deg).value, fit
     )
-    tab["leakage_flag"] = leakage_flag
-    leakage = fit(tab["separation_tile_centre"].to(u.deg).value)
-    tab["leakage"] = leakage
+    fix_tab["leakage_flag"] = leakage_flag
+    leakage = fit(fix_tab["separation_tile_centre"].to(u.deg).value)
+    fix_tab["leakage"] = leakage
 
-    goodI = ~tab["stokesI_fit_flag"] & ~tab["channel_flag"]
-    goodL = goodI & ~tab["leakage_flag"] & (tab["snr_polint"] > 5)
-    goodRM = goodL & ~tab["snr_flag"]
-    good_tab = tab[goodRM]
-    tab = compute_local_rm_flag(good_cat=good_tab, big_cat=tab)
+    goodI = ~fix_tab["stokesI_fit_flag"] & ~fix_tab["channel_flag"]
+    goodL = goodI & ~fix_tab["leakage_flag"] & (fix_tab["snr_polint"] > 5)
+    goodRM = goodL & ~fix_tab["snr_flag"]
+    good_fix_tab = fix_tab[goodRM]
+    fix_flag_tab = compute_local_rm_flag(good_cat=good_fix_tab, big_cat=fix_tab)
 
     _, ext = os.path.splitext(cat)
     outfile = cat.replace(ext, f".corrected{ext}")
@@ -137,10 +137,9 @@ def main(cat: str):
     # outplot = cat.replace(ext, f'.corrected.leakage.pdf')
     # log.info(f"Writing leakage plot to {outplot}")
     # fig.savefig(outplot, dpi=300, bbox_inches='tight')
-
     log.info(f"Writing corrected catalogue to {outfile}")
     if ext == ".xml" or ext == ".vot":
-        write_votable(tab, outfile)
+        write_votable(fix_flag_tab, outfile)
     else:
         tab.write(outfile, overwrite=True)
     log.info(f"{outfile} written to disk")

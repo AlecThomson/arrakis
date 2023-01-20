@@ -231,6 +231,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     )
     log.info(f"Found {len(set(bin_number))} bins")
     df = good_cat.to_pandas()
+    df.reset_index(inplace=True)
     df.set_index("cat_id", inplace=True)
     df["bin_number"] = bin_number
     # Use sigma clipping to find outliers
@@ -248,6 +249,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
     df.drop(columns=["bin_number"], inplace=True)
     df_out = big_cat.to_pandas()
+    df_out.reset_index(inplace=True)
     df_out.set_index("cat_id", inplace=True)
     df_out["local_rm_flag"] = False
     df_out.update(df["local_rm_flag"])
