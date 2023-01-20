@@ -15,7 +15,7 @@ from IPython import embed
 from rmtable import RMTable
 from spica import SPICA
 
-from spiceracs.makecat import get_fit_func, is_leakage, write_votable
+from spiceracs.makecat import get_fit_func, is_leakage, write_votable, compute_local_rm_flag
 
 
 def fix_fields(tab: Table) -> Table:
@@ -119,6 +119,13 @@ def main(cat: str):
     tab["leakage_flag"] = leakage_flag
     leakage = fit(tab["separation_tile_centre"].to(u.deg).value)
     tab["leakage"] = leakage
+
+    goodI = ~tab["stokesI_fit_flag"] & ~tab["channel_flag"]
+    goodL = goodI & ~tab["leakage_flag"] & (tab["snr_polint"] > 5)
+    goodRM = goodL & ~tab["snr_flag"]
+    good_tab = tab[goodRM]
+    tab = compute_local_rm_flag(good_cat=good_tab, big_cat=tab)
+
     _, ext = os.path.splitext(cat)
     outfile = cat.replace(ext, f".corrected{ext}")
 
