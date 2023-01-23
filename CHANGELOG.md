@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - This changelog!
-- scripts/tar_cubelets.py
+- `scripts/tar_cubelets.py`
 
 ### Changed
+
+- `columns_possum.py`: Add `stokesI_fit_flag_is_close_to_zero` UCD
 
 ### Removed
 
