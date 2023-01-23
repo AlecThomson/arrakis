@@ -13,6 +13,7 @@ import warnings
 from glob import glob
 from pprint import pformat, pprint
 from shutil import copyfile
+from typing import List, Optional, Tuple, Union
 
 import astropy.units as u
 import dask
@@ -51,19 +52,19 @@ from spiceracs.utils import (
 
 @delayed
 def rmsynthoncut3d(
-    island_id,
-    beam,
-    outdir,
-    freq,
-    field,
-    phiMax_radm2=None,
-    dPhi_radm2=None,
-    nSamples=5,
-    weightType="variance",
-    fitRMSF=True,
-    not_RMSF=False,
-    rm_verbose=False,
-    ion=False,
+    island_id: str,
+    beam: dict,
+    outdir: str,
+    freq: np.ndarray,
+    field: str,
+    phiMax_radm2: Union[None, float] = None,
+    dPhi_radm2: Union[None, float] = None,
+    nSamples: int = 5,
+    weightType: str = "variance",
+    fitRMSF: bool = True,
+    not_RMSF: bool = False,
+    rm_verbose: bool = False,
+    ion: bool = False,
 ):
     """3D RM-synthesis
 
@@ -257,8 +258,8 @@ def rmsynthoncut1d(
     freq: np.ndarray,
     field: str,
     polyOrd: int = 3,
-    phiMax_radm2: float = None,
-    dPhi_radm2: float = None,
+    phiMax_radm2: Union[float, None] = None,
+    dPhi_radm2: Union[float, None] = None,
     nSamples: int = 5,
     weightType: str = "variance",
     fitRMSF: bool = True,
@@ -268,8 +269,8 @@ def rmsynthoncut1d(
     debug: bool = False,
     rm_verbose: bool = False,
     fit_function: str = "log",
-    tt0: str = None,
-    tt1: str = None,
+    tt0: Union[str, None] = None,
+    tt1: Union[str, None] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> pymongo.UpdateOne:
@@ -474,12 +475,28 @@ def rmsynthoncut1d(
                 )[::-1]
             ]
         )
-        mDict["polyOrd"] = int(fit_dict["best_n"])
+        mDict["polyOrd"] = (
+            int(fit_dict["best_n"])
+            if np.isfinite(fit_dict["best_n"])
+            else float(np.nan)
+        )
         mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
-        if fit_dict["fit_flag"]:
-            mDict["IfitStat"] = 64
-        else:
-            mDict["IfitStat"] = 0
+        mDict["IfitChiSqRed"] = float(fit_dict["chi_sq_red"])
+        for key, val in fit_dict["fit_flag"].items():
+            mDict[f"fit_flag_{key}"] = val
+    else:
+        # 0: Improper input parameters (not sure what would trigger this in RM-Tools?)
+        # 1-4: One or more of the convergence criteria was met.
+        # 5: Reached maximum number of iterations before converging.
+        # 6-8: User defined limits for convergence are too small (should not occur, since RM-Tools uses default values)
+        # 9: fit failed, reason unknown
+        # 16: a fit parameter has become infinite/numerical overflow
+        # +64 (can be added to other flags): model gives Stokes I values with S:N < 1 for at least one channel
+        # +128 (can be added to other flags): model gives Stokes I values < 0 for at least one channel
+        mDict["fit_flag_is_negative"] = mDict["IfitStat"] >= 128
+        mDict["fit_flag_is_close_to_zero"] = mDict["IfitStat"] >= 64
+        mDict["fit_flag_is_not_finite"] = mDict["IfitStat"] >= 16
+        mDict["fit_flag_is_not_normal"] = mDict["IfitStat"] >= 5
 
     # Ensure JSON serializable
     for k, v in mDict.items():
@@ -493,6 +510,8 @@ def rmsynthoncut1d(
             mDict[k] = int(v)
         elif isinstance(v, np.ndarray):
             mDict[k] = v.tolist()
+        elif isinstance(v, np.bool_):
+            mDict[k] = bool(v)
 
     do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
 
@@ -542,17 +561,17 @@ def rmsynthoncut1d(
 
 @delayed
 def rmsynthoncut_i(
-    comp_id,
-    outdir,
-    freq,
-    host,
-    field,
-    username=None,
-    password=None,
-    nSamples=5,
-    phiMax_radm2=None,
-    verbose=False,
-    rm_verbose=False,
+    comp_id: str,
+    outdir: str,
+    freq: np.ndarray,
+    host: str,
+    field: str,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
+    nSamples: int = 5,
+    phiMax_radm2: Union[float, None] = None,
+    verbose: bool = False,
+    rm_verbose: bool = False,
 ):
     """RMsynth on Stokes I
 
@@ -574,10 +593,16 @@ def rmsynthoncut_i(
     myquery = {"Gaussian_ID": comp_id}
     doc = comp_col.find_one(myquery)
 
+    if doc is None:
+        raise ValueError(f"Component {comp_id} not found")
+
     iname = doc["Source_ID"]
     cname = doc["Gaussian_ID"]
 
     beams = beams_col.find_one({"Source_ID": iname})
+    if beams is None:
+        raise ValueError(f"Beams for {iname} not found")
+
     ifile = os.path.join(outdir, beams["beams"][field]["i_file"])
     outdir = os.path.dirname(ifile)
 
@@ -673,18 +698,18 @@ def main(
     outdir: str,
     host: str,
     client: Client,
-    username: str = None,
-    password: str = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
     dimension: str = "1d",
     verbose: bool = True,
     database: bool = False,
     validate: bool = False,
-    limit: int = None,
+    limit: Union[int, None] = None,
     savePlots: bool = False,
     weightType: str = "variance",
     fitRMSF: bool = True,
-    phiMax_radm2: float = None,
-    dPhi_radm2: float = None,
+    phiMax_radm2: Union[float, None] = None,
+    dPhi_radm2: Union[float, None] = None,
     nSamples: int = 5,
     polyOrd: int = 3,
     noStokesI: bool = False,
@@ -693,8 +718,8 @@ def main(
     rm_verbose: bool = False,
     debug: bool = False,
     fit_function: str = "log",
-    tt0: str = None,
-    tt1: str = None,
+    tt0: Union[str, None] = None,
+    tt1: Union[str, None] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> None:

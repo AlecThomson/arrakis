@@ -197,49 +197,16 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     return fit, fig
 
 
-def cuts_and_flags(cat):
-    """Cut out bad sources, and add flag columns
-
-    A flag of 'True' means the source is bad.
+def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
+    """Compute the local RM flag
 
     Args:
-        cat (rmt): Catalogue to cut and flag
-    """
-    # SNR flag
-    snr_flag = cat["snr_polint"] < 8
-    cat.add_column(Column(data=snr_flag, name="snr_flag"))
-    # Leakage flag
-    fit, fig = get_fit_func(cat, do_plot=True, nbins=16, degree=4)
-    fig.savefig("leakage_fit.pdf")
-    leakage_flag = is_leakage(
-        cat["fracpol"].value, cat["beamdist"].to(u.deg).value, fit
-    )
-    cat.add_column(Column(data=leakage_flag, name="leakage_flag"))
-    # Channel flag
-    chan_flag = cat["Nchan"] < 144
-    cat.add_column(Column(data=chan_flag, name="channel_flag"))
-    # Fitting flag
-    # 0: Improper input parameters (not sure what would trigger this in RM-Tools?)
-    # 1-4: One or more of the convergence criteria was met.
-    # 5: Reached maximum number of iterations before converging.
-    # 6-8: User defined limits for convergence are too small (should not occur, since RM-Tools uses default values)
-    # 9: fit failed, reason unknown
-    # 16: a fit parameter has become infinite/numerical overflow
-    # +64 (can be added to other flags): model gives Stokes I values with S:N < 1 for at least one channel
-    # +128 (can be added to other flags): model gives Stokes I values < 0 for at least one channel
-    fit_flag = cat["stokes_I_fit_flag"] > 5
-    cat.remove_column("stokes_I_fit_flag")
-    cat.add_column(Column(data=fit_flag, name="stokes_I_fit_flag"))
-    # sigma_add flag
-    sigma_flag = cat["sigma_add"] > 1
-    cat.add_column(Column(data=sigma_flag, name="complex_sigma_add_flag"))
-    # M2_CC flag
-    m2_flag = cat["rm_width"] > cat["rmsf_fwhm"]
-    cat.add_column(Column(data=m2_flag, name="complex_M2_CC_flag"))
+        good_cat (Table): Table with just good RMs
+        big_cat (Table): Overall table
 
-    # Flag RMs which are very diffent from RMs nearby
-    # Set up voronoi bins, trying to obtain 50 sources per bin
-    good_cat = cat[~snr_flag & ~leakage_flag & ~chan_flag & ~fit_flag]
+    Returns:
+        Table: Table with local RM flag
+    """
     log.info("Computing voronoi bins and finding bad RMs")
 
     def sn_func(index, signal=None, noise=None):
@@ -262,8 +229,9 @@ def cuts_and_flags(cat):
         quiet=True,
         wvt=False,
     )
-    log.info(f"Found {len(bin_number)} bins")
+    log.info(f"Found {len(set(bin_number))} bins")
     df = good_cat.to_pandas()
+    df.reset_index(inplace=True)
     df.set_index("cat_id", inplace=True)
     df["bin_number"] = bin_number
     # Use sigma clipping to find outliers
@@ -280,7 +248,8 @@ def cuts_and_flags(cat):
     # Put flag into the catalogue
     df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
     df.drop(columns=["bin_number"], inplace=True)
-    df_out = cat.to_pandas()
+    df_out = big_cat.to_pandas()
+    df_out.reset_index(inplace=True)
     df_out.set_index("cat_id", inplace=True)
     df_out["local_rm_flag"] = False
     df_out.update(df["local_rm_flag"])
@@ -290,6 +259,55 @@ def cuts_and_flags(cat):
     cat_out[
         "local_rm_flag"
     ].description = "RM is statistically different from nearby RMs"
+
+    return cat_out
+
+
+def cuts_and_flags(cat):
+    """Cut out bad sources, and add flag columns
+
+    A flag of 'True' means the source is bad.
+
+    Args:
+        cat (rmt): Catalogue to cut and flag
+    """
+    # SNR flag
+    snr_flag = cat["snr_polint"] < 8
+    cat.add_column(Column(data=snr_flag, name="snr_flag"))
+    # Leakage flag
+    fit, fig = get_fit_func(cat, do_plot=True, nbins=16, degree=4)
+    fig.savefig("leakage_fit.pdf")
+    leakage_flag = is_leakage(
+        cat["fracpol"].value, cat["beamdist"].to(u.deg).value, fit
+    )
+    cat.add_column(Column(data=leakage_flag, name="leakage_flag"))
+    # Channel flag
+    chan_flag = cat["Nchan"] < 144
+    cat.add_column(Column(data=chan_flag, name="channel_flag"))
+
+    # Stokes I flag
+    cat["stokesI_fit_flag"] = (
+        cat["stokesI_fit_flag_is_negative"]
+        + cat["stokesI_fit_flag_is_close_to_zero"]
+        + cat["stokesI_fit_flag_is_not_finite"]
+    )
+
+    # sigma_add flag
+    sigma_flag = cat["sigma_add"] > 1
+    cat.add_column(Column(data=sigma_flag, name="complex_sigma_add_flag"))
+    # M2_CC flag
+    m2_flag = cat["rm_width"] > cat["rmsf_fwhm"]
+    cat.add_column(Column(data=m2_flag, name="complex_M2_CC_flag"))
+
+    # Flag RMs which are very diffent from RMs nearby
+    # Set up voronoi bins, trying to obtain 50 sources per bin
+    goodI = ~cat["stokesI_fit_flag"] & ~cat["channel_flag"]
+    goodL = goodI & ~cat["leakage_flag"] & (cat["snr_polint"] > 5)
+    goodRM = goodL & ~cat["snr_flag"]
+    good_cat = cat[goodRM]
+
+    cat_out = compute_local_rm_flag(good_cat=good_cat, big_cat=cat)
+
     # Restre units and metadata
     for col in cat.colnames:
         cat_out[col].unit = cat[col].unit
@@ -458,10 +476,10 @@ def write_votable(rmtab: RMTable, outfile: str) -> None:
 def main(
     field: str,
     host: str,
-    username: str = None,
-    password: str = None,
-    verbose=True,
-    outfile: str = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
+    verbose: bool = True,
+    outfile: Union[str, None] = None,
 ) -> None:
     """Main
 

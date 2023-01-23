@@ -70,7 +70,17 @@ columns = [
     ("rmsf_fwhm", float, "synth", "fwhmRMSF", u.rad / u.m**2),
     ("refwave_sq_pol", float, "synth", "lam0Sq_m2", u.m**2),
     ("stokesI", float, "synth", "Ifreq0", u.Jy / u.beam),
-    ("stokes_I_fit_flag", int, "synth", "IfitStat", u.dimensionless_unscaled),
+    ("stokesI_fit_flag_is_negative", bool, "synth", "fit_flag_is_negative", None),
+    (
+        "stokesI_fit_flag_is_close_to_zero",
+        bool,
+        "synth",
+        "fit_flag_is_close_to_zero",
+        None,
+    ),
+    ("stokesI_fit_flag_is_not_finite", bool, "synth", "fit_flag_is_not_finite", None),
+    ("stokesI_fit_flag_is_not_normal", bool, "synth", "fit_flag_is_not_normal", None),
+    ("stokesI_chi2_red", float, "synth", "IfitChiSqRed", u.dimensionless_unscaled),
     ("snr_polint", float, "synth", "snrPIfit", u.dimensionless_unscaled),
     ("minfreq", float, "synth", "min_freq", u.Hz),
     ("maxfreq", float, "synth", "max_freq", u.Hz),
@@ -79,7 +89,7 @@ columns = [
     ("rm_width", float, "synth", "mom2CCFDF", u.rad / u.m**2),
     ("stokesI_model_coef", str, "synth", "polyCoeffs", None),
     ("stokesI_model_coef_err", str, "synth", "polyCoefferr", None),
-    ("stokesI_model_order", int, "synth", "polyOrd", u.dimensionless_unscaled),
+    ("stokesI_model_order", float, "synth", "polyOrd", u.dimensionless_unscaled),
     # Less important quantities from the RMsynthesis (can be removed or modified after prototype verification?)
     ("noise_chan", float, "synth", "dQU", u.Jy / u.beam),
     ("fdf_noise_mad", float, "synth", "dFDFcorMAD", u.Jy / u.beam),
@@ -132,6 +142,9 @@ columns = [
     # Data validation metrics
     # Metadata linking back to NRAO data (e.g, observation name)
 ]
+
+# Append Stokes I fit flags to the list of columns
+
 
 # Jennifer's ideas for source validation metrics:
 # Stokes I model fit failed
@@ -327,8 +340,24 @@ extra_column_descriptions = {
         "description": "Channel flag",
         "ucd": "meta.code.qual",
     },
-    "stokes_I_fit_flag": {
+    "stokesI_fit_flag": {
         "description": "Stokes I fit flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokesI_fit_flag_is_negative": {
+        "description": "Stokes I model is negative flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokesI_fit_flag_is_not_finite": {
+        "description": "Stokes I model is not finite flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokesI_fit_flag_is_not_normal": {
+        "description": "Stokes I model is not normal flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokesI_fit_flag_is_close_to_zero": {
+        "description": "Stokes I model is close to zero flag",
         "ucd": "meta.code.qual",
     },
     "complex_sigma_add_flag": {

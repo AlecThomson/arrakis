@@ -1,27 +1,24 @@
 #!/bin/bash -l
-
 #SBATCH --job-name=SPICE-CASDA
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
 #SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/casda_prep_slurm-%j.log
 #SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/casda_prep_slurm-%j.log
-
-#SBATCH --cluster=zeus
+#SBATCH --cluster=galaxy
 #SBATCH --account=askap
-#SBATCH --ntasks=48
-#SBATCH --time=1-00:00:00
-#SBATCH --partition=highmemq
-#SBATCH --mem=1000GB
+#SBATCH --ntasks=1000
+#SBATCH --ntasks-per-node=10
+##SBATCH --time=0-00:45:00 # For cut
+#SBATCH --time=0-00:10:00 # For test
+##SBATCH --time=0-01:45:00 # For full
 
 # conda activate spice
-module load intel-mpi
-conda activate spice-zeus
-
-data_dir=/askapbuffer/processing/tho822/spice-racs/DR1/full_spica
-polcat=/askapbuffer/processing/tho822/spice-racs/DR1/spice-racs.dr1.corrected.xml
+conda activate spice
+data_dir=/group/askap/athomson/projects/spiceracs/DR1/full_spica
+polcat=/group/askap/athomson/projects/spiceracs/DR1/spice-racs.dr1.corrected.xml
+prep_type=test
 
 cd $data_dir
+srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat $prep_type --convert-spectra --convert-cubes --convert-plots -v --mpi --batch_size 10_000
 
-srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat --convert-spectra -v --mpi --batch_size 10_000 --interface ib0 --outdir /scratch/ja3/athomson/spica
-srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat --update-cubes --convert-plots -v --mpi --batch_size 10_000 --interface ib0 --outdir /scratch/ja3/athomson/spica

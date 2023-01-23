@@ -37,7 +37,9 @@ from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner, is_kernel
 from FRion.correct import find_freq_axis
+from pymongo.collection import Collection
 from scipy.optimize import curve_fit
+from scipy.stats import normaltest
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tornado.ioloop import IOLoop
@@ -49,7 +51,21 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 print = functools.partial(print, flush=True)
 
 
-def best_aic_func(aics, n_param):
+def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float:
+    """Calculate chi squared.
+
+    Args:
+        model (np.ndarray): Model flux.
+        data (np.ndarray): Data flux.
+        error (np.ndarray): Data error.
+
+    Returns:
+        np.ndarray: Chi squared.
+    """
+    return np.sum(((model - data) / error) ** 2)
+
+
+def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, int]:
     """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
     best_aic_idx = np.nanargmin(aics)
@@ -100,7 +116,7 @@ def flat_power_law(nu: np.ndarray, norm: float, ref_nu: float) -> np.ndarray:
     Returns:
         np.ndarray: Model flux.
     """
-    x = nu / ref_nu
+    x = ref_nu * np.ones_like(nu)
     return norm * x
 
 
@@ -149,13 +165,28 @@ def fit_pl(
             1: partial(power_law, ref_nu=ref_nu),
             2: partial(curved_power_law, ref_nu=ref_nu),
         }
-        aics = []
-        params = []
-        errors = []
-        models = []
-        highs = []
-        lows = []
-        fit_flags = []
+
+        # Initialise the save dict
+        save_dict = {
+            n: {} for n in range(nterms + 1)
+        }  # type: Dict[int, Dict[str, Any]]
+        for n in range(nterms + 1):
+            p0 = p0_long[: n + 1]
+            save_dict[n]["aics"] = np.nan
+            save_dict[n]["params"] = np.ones_like(p0) * np.nan
+            save_dict[n]["errors"] = np.ones_like(p0) * np.nan
+            save_dict[n]["models"] = np.ones_like(freq)
+            save_dict[n]["highs"] = np.ones_like(freq)
+            save_dict[n]["lows"] = np.ones_like(freq)
+            # 4 possible flags
+            save_dict[n]["fit_flags"] = {
+                "is_negative": True,
+                "is_not_finite": True,
+                "is_not_normal": True,
+                "is_close_to_zero": True,
+            }
+
+        # Now iterate over the number of terms
         for n in range(nterms + 1):
             p0 = p0_long[: n + 1]
             model_func = model_func_dict[n]
@@ -170,27 +201,25 @@ def fit_pl(
                 )
             except RuntimeError:
                 log.critical(f"Failed to fit {n}-term power law")
-                aics.append(np.nan)
-                params.append(np.ones_like(p0) * np.nan)
-                errors.append(np.ones_like(p0) * np.nan)
-                models.append(np.ones_like(freq))
-                highs.append(np.ones_like(freq))
-                lows.append(np.ones_like(freq))
-                fit_flags.append(True)
                 continue
-            best_p, covar = fit_res
-            model_arr = model_func(freq, *best_p)
-            model_high = model_func(freq, *(best_p + np.sqrt(np.diag(covar))))
-            model_low = model_func(freq, *(best_p - np.sqrt(np.diag(covar))))
+
+            best, covar = fit_res
+            model_arr = model_func(freq, *best)
+            model_high = model_func(freq, *(best + np.sqrt(np.diag(covar))))
+            model_low = model_func(freq, *(best - np.sqrt(np.diag(covar))))
             model_err = model_high - model_low
             ssr = np.sum((flux[goodchan] - model_arr[goodchan]) ** 2)
             aic = akaike_info_criterion_lsq(ssr, len(p0), goodchan.sum())
-            aics.append(aic)
-            params.append(best_p)
-            errors.append(np.sqrt(np.diag(covar)))
-            models.append(model_arr)
-            highs.append(model_high)
-            lows.append(model_low)
+
+            # Save the results
+            save_dict[n]["aics"] = aic
+            save_dict[n]["params"] = best
+            save_dict[n]["errors"] = np.sqrt(np.diag(covar))
+            save_dict[n]["models"] = model_arr
+            save_dict[n]["highs"] = model_high
+            save_dict[n]["lows"] = model_low
+
+            # Calculate the flags
             # Flag if model is negative
             is_negative = (model_arr < 0).any()
             if is_negative:
@@ -200,38 +229,51 @@ def fit_pl(
             if is_not_finite:
                 log.warning(f"Stokes I flag: Model {n} is not finite")
             # # Flag if model and data are statistically different
-            # residuals = flux[goodchan] - model_arr[goodchan]
-            # residuals_err = np.hypot(fluxerr[goodchan], model_err[goodchan])
-            # n_sigma = 3
-            # is_outside_sigma = (np.abs(residuals) > n_sigma*residuals_err).any()
-            # if is_outside_sigma:
-            #     log.warning(f"Stokes I flag: Model {n} is outside {n_sigma} sigma of data")
+            residuals = flux[goodchan] - model_arr[goodchan]
+            # Assume errors on resdiuals are the same as the data
+            # i.e. assume the model has no error
+            residuals_err = fluxerr[goodchan]
+            residuals_norm = residuals / residuals_err
+            # Test if the residuals are normally distributed
+            ks, pval = normaltest(residuals_norm)
+            is_not_normal = pval < 1e-6  # 1 in a million chance of being unlucky
+            if is_not_normal:
+                log.warning(
+                    f"Stokes I flag: Model {n} is not normally distributed - {pval=}, {ks=}"
+                )
 
-            # This is the old method, which is not as good as the new one above.
-            is_low_snr = (model_arr[goodchan] < fluxerr[goodchan]).any()
-            if is_low_snr:
-                log.warning(f"Stokes I flag: Model {n} is low SNR")
-            fit_flag = any(
-                [
-                    is_negative,
-                    is_not_finite,
-                    # is_outside_sigma,
-                    is_low_snr,
-                ]
-            )
-            fit_flags.append(fit_flag)
+            # Test if model is close to 0 within 1 sigma
+            is_close_to_zero = (model_arr[goodchan] / fluxerr[goodchan] < 1).any()
+            if is_close_to_zero:
+                log.warning(f"Stokes I flag: Model {n} is close (1sigma) to 0")
+            fit_flag = {
+                "is_negative": is_negative,
+                "is_not_finite": is_not_finite,
+                "is_not_normal": is_not_normal,
+                "is_close_to_zero": is_close_to_zero,
+            }
+            save_dict[n]["fit_flags"] = fit_flag
             log.debug(f"{n}: {aic}")
+
+        # Now find the best model
         best_aic, best_n, best_aic_idx = best_aic_func(
-            aics, np.array([n for n in range(nterms + 1)])
+            np.array([save_dict[n]["aics"] for n in range(nterms + 1)]),
+            np.array([n for n in range(nterms + 1)]),
         )
         log.debug(f"Best fit: {best_n}, {best_aic}")
-        best_p = params[best_n]
-        best_e = errors[best_n]
-        best_m = models[best_n]
+        best_p = save_dict[best_n]["params"]
+        best_e = save_dict[best_n]["errors"]
+        best_m = save_dict[best_n]["models"]
         best_f = model_func_dict[best_n]
-        best_flag = fit_flags[best_n]
-        best_h = highs[best_n]
-        best_l = lows[best_n]
+        best_flag = save_dict[best_n]["fit_flags"]
+        best_h = save_dict[best_n]["highs"]
+        best_l = save_dict[best_n]["lows"]
+        chi_sq = chi_squared(
+            model=best_m[goodchan],
+            data=flux[goodchan],
+            error=fluxerr[goodchan],
+        )
+        chi_sq_red = chi_sq / (goodchan.sum() - len(best_p))
         return dict(
             best_n=best_n,
             best_p=best_p,
@@ -242,19 +284,28 @@ def fit_pl(
             best_f=best_f,
             fit_flag=best_flag,
             ref_nu=ref_nu,
+            chi_sq=chi_sq,
+            chi_sq_red=chi_sq_red,
         )
     except Exception as e:
         log.critical(f"Failed to fit power law: {e}")
         return dict(
             best_n=np.nan,
             best_p=[np.nan],
-            best_e=np.nan,
+            best_e=[np.nan],
             best_m=np.ones_like(freq),
             best_h=np.ones_like(freq),
             best_l=np.ones_like(freq),
             best_f=None,
-            fit_flag=True,
+            fit_flag={
+                "is_negative": True,
+                "is_not_finite": True,
+                "is_not_normal": True,
+                "is_close_to_zero": True,
+            },
             ref_nu=np.nan,
+            chi_sq=np.nan,
+            chi_sq_red=np.nan,
         )
 
 
@@ -499,12 +550,8 @@ def test_db(
 
 
 def get_db(
-    host: str, username: str = None, password: str = None
-) -> Tuple[
-    pymongo.collection.Collection,
-    pymongo.collection.Collection,
-    pymongo.collection.Collection,
-]:
+    host: str, username: Union[str, None] = None, password: Union[str, None] = None
+) -> Tuple[Collection, Collection, Collection,]:
     """Get MongoDBs
 
     Args:
@@ -513,7 +560,7 @@ def get_db(
         password (str, optional): Password. Defaults to None.
 
     Returns:
-        Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]: beams_col, island_col, comp_col
+        Tuple[Collection, Collection, Collection]: beams_col, island_col, comp_col
     """
     dbclient = pymongo.MongoClient(
         host=host,

@@ -64,12 +64,14 @@ graphviz = "*"
 bokeh = "*"
 prefect = "<2"
 RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
+PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git@spiceracs"}
 setuptools = "*"
 
 [tool.poetry.dev-dependencies]
 black = "^22.10"
 flake8 = "^5"
 isort = "^5"
+mypy = "^0.991"
 
 [tool.poetry.extras]
 docs = [
@@ -107,9 +109,10 @@ copy_data = { reference="scripts/copy_data.py", type="file"}
 find_row = { reference="scripts/find_row.py", type="file"}
 find_sbid = { reference="scripts/find_sbid.py", type="file"}
 fix_dr1_cat = { reference="scripts/fix_dr1_cat.py", type="file"}
-helloworld = { reference="scripts/helloworld.py", type="file"}
+hello_mpi_world = { reference="scripts/hello_mpi_world.py", type="file"}
 make_links = { reference="scripts/make_links.py", type="file"}
 spica = { reference="scripts/spica.py", type="file"}
+tar_cubelets = { reference="scripts/tar_cubelets.py", type="file"}
 
 [tool.isort]
 profile = "black"

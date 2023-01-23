@@ -9,11 +9,17 @@ import numpy as np
 import pkg_resources
 from astropy.coordinates import SkyCoord
 from astropy.table import Column, Table
+from astropy.time import Time
 from IPython import embed
 from rmtable import RMTable
 from spica import SPICA
 
-from spiceracs.makecat import get_fit_func, is_leakage, write_votable
+from spiceracs.makecat import (
+    compute_local_rm_flag,
+    get_fit_func,
+    is_leakage,
+    write_votable,
+)
 
 
 def fix_fields(tab: Table) -> Table:
@@ -35,6 +41,8 @@ def fix_fields(tab: Table) -> Table:
     spica_field_coords = SkyCoord(
         spica_field["RA_DEG"], spica_field["DEC_DEG"], unit=(u.deg, u.deg), frame="icrs"
     )
+    start_times = Time(spica_field["SCAN_START"] * u.second, format="mjd")
+    spica_field["start_time"] = start_times
     # These are the sources to update
     sources_to_fix = tab.loc[fields_not_in_spica]
     log.info(f"Found {len(sources_to_fix)} sources to fix")
@@ -53,7 +61,8 @@ def fix_fields(tab: Table) -> Table:
     closest_fields = np.array(fields_in_spica)[min_idx]
     new_tab = tab.copy()
     idx = new_tab.loc_indices[fields_not_in_spica]
-    # Update tile_id and field sep
+
+    # Update tile_id, SBID, start time, and field sep
     new_tab.remove_indices("tile_id")
 
     all_fields = new_tab["tile_id"].value
@@ -64,18 +73,27 @@ def fix_fields(tab: Table) -> Table:
         new_tab["separation_tile_centre"].value * new_tab["separation_tile_centre"].unit
     )
     all_seps[idx] = min_seps
+
+    all_sbids = new_tab["sbid"].value
+    all_sbids[idx] = spica_field["SBID"][min_idx].value
+
+    all_start_times = new_tab["start_time"].value
+    all_start_times[idx] = spica_field["start_time"][min_idx].value
+
+    # Update the columns
     new_tab["separation_tile_centre"] = Column(
         data=all_seps,
     )
     new_tab["beamdist"] = Column(
         data=all_seps,
     )
-    all_seps[idx] = min_seps
-    new_tab["separation_tile_centre"] = Column(
-        data=all_seps,
+
+    new_tab["sbid"] = Column(
+        data=all_sbids,
     )
-    new_tab["beamdist"] = Column(
-        data=all_seps,
+
+    new_tab["start_time"] = Column(
+        data=all_start_times,
     )
 
     # Fix the units - Why does VOTable do this?? Thanks I hate it
@@ -94,15 +112,22 @@ def main(cat: str):
     log.debug(f"Reading {cat}")
     tab = RMTable.read(cat)
     log.debug(f"Fixing {cat}")
-    tab = fix_fields(tab)
-    fit, fig = get_fit_func(tab, do_plot=True, nbins=16, degree=4)
+    fix_tab = fix_fields(tab)
+    fit, fig = get_fit_func(fix_tab, do_plot=True, nbins=16, degree=4)
     fig.savefig("leakage_fit_dr1_fix.pdf")
     leakage_flag = is_leakage(
-        tab["fracpol"].value, tab["beamdist"].to(u.deg).value, fit
+        fix_tab["fracpol"].value, fix_tab["beamdist"].to(u.deg).value, fit
     )
-    tab["leakage_flag"] = leakage_flag
-    leakage = fit(tab["separation_tile_centre"].to(u.deg).value)
-    tab["leakage"] = leakage
+    fix_tab["leakage_flag"] = leakage_flag
+    leakage = fit(fix_tab["separation_tile_centre"].to(u.deg).value)
+    fix_tab["leakage"] = leakage
+
+    goodI = ~fix_tab["stokesI_fit_flag"] & ~fix_tab["channel_flag"]
+    goodL = goodI & ~fix_tab["leakage_flag"] & (fix_tab["snr_polint"] > 5)
+    goodRM = goodL & ~fix_tab["snr_flag"]
+    good_fix_tab = fix_tab[goodRM]
+    fix_flag_tab = compute_local_rm_flag(good_cat=good_fix_tab, big_cat=fix_tab)
+
     _, ext = os.path.splitext(cat)
     outfile = cat.replace(ext, f".corrected{ext}")
 
@@ -114,10 +139,9 @@ def main(cat: str):
     # outplot = cat.replace(ext, f'.corrected.leakage.pdf')
     # log.info(f"Writing leakage plot to {outplot}")
     # fig.savefig(outplot, dpi=300, bbox_inches='tight')
-
     log.info(f"Writing corrected catalogue to {outfile}")
     if ext == ".xml" or ext == ".vot":
-        write_votable(tab, outfile)
+        write_votable(fix_flag_tab, outfile)
     else:
         tab.write(outfile, overwrite=True)
     log.info(f"{outfile} written to disk")
