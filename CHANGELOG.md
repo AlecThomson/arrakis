@@ -12,13 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - This changelog!
 - `scripts/tar_cubelets.py`
 
+### Fixed
+
+- `columns_possum.py`: Add new Stokes I fit flags and UCDs (plus others)
+- `scripts/casda_prepare.py`: Refactor to make considated products and make CASDA happy
+- `scripts/fix_dr1_cat.py`: Added extra columns that needed to be fixed in DR1 e.g. sbid, start_time
+
 ### Changed
 
-- `columns_possum.py`: Add `stokesI_fit_flag_is_close_to_zero` UCD
+- Renamed `scripts/helloworld.py` to `scripts/hellow_mpi_world.py`
+- `makecat.py`: Added `compute_local_rm_flag` function
+- `rmsynth_oncuts.py` Added new Stokes I fit flags
+- `utils.py`: Refactored Stokes I fitting to use dicts to track values
 
 ### Removed
 
-### Fixed
+- `submit/casda_pre_prep.sh`
+- `submit/casda_prep_test.sh`
+
 
 ## [0.2.0] - 2019-12-01
 
