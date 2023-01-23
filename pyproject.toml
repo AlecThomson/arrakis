@@ -112,6 +112,7 @@ fix_dr1_cat = { reference="scripts/fix_dr1_cat.py", type="file"}
 hello_mpi_world = { reference="scripts/hello_mpi_world.py", type="file"}
 make_links = { reference="scripts/make_links.py", type="file"}
 spica = { reference="scripts/spica.py", type="file"}
+tar_cubelets = { reference="scripts/tar_cubelets.py", type="file"}
 
 [tool.isort]
 profile = "black"
