@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "casda-dar", help="CASDA directory containing cublets/ to tar", type=str
+        "casda-dir", help="CASDA directory containing cublets/ to tar", type=str
     )
     args = parser.parse_args()
     # with Client() as client:
