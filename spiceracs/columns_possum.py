@@ -356,6 +356,10 @@ extra_column_descriptions = {
         "description": "Stokes I model is not normal flag",
         "ucd": "meta.code.qual",
     },
+    "stokesI_fit_flag_is_close_to_zero": {
+        "description": "Stokes I model is close to zero flag",
+        "ucd": "meta.code.qual",
+    },
     "complex_sigma_add_flag": {
         "description": "Sigma_add complexity flag",
         "ucd": "meta.code",
