@@ -14,7 +14,7 @@ If you use SPICE-RACS in your research, please cite [Thomson et al. (in prep)](h
 
 ### 3rd party software
 
-Please also consider acknowledging the following software packages outlines in [docs](https://spice-racs.readthedocs.io/acknowledging.html).
+Please also consider acknowledging the following software packages outlines in [docs](https://spiceracs.readthedocs.io/acknowledging.html).
 
 ## Contibuting
 
