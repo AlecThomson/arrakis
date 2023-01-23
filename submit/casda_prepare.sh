@@ -9,8 +9,8 @@
 #SBATCH --account=askap
 #SBATCH --ntasks=1000
 #SBATCH --ntasks-per-node=10
-#SBATCH --time=0-00:45:00 # For cut
-##SBATCH --time=0-00:10:00 # For test
+##SBATCH --time=0-00:45:00 # For cut
+#SBATCH --time=0-00:10:00 # For test
 ##SBATCH --time=0-01:45:00 # For full
 
 # conda activate spice
