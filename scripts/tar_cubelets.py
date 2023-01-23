@@ -9,20 +9,40 @@ from dask import delayed
 from dask.distributed import Client
 
 @delayed
-def tar_cubelets(out_dir, casda_dir, source):
-    print(f"Tarring {source}...")
+def tar_cubelets(out_dir: str, casda_dir: str, prefix: str) -> None:
+    """Find and tar cubelets for a given source with a given prefix.
+
+    Args:
+        out_dir (str): Output directory
+        casda_dir (str): CASDA directory containing cubelets/
+        prefix (str): Prefix of cubelets to tar
+    """
+    print(f"Tarring {prefix}...")
     with tarfile.open(
-        os.path.join(out_dir, f"{source}_cubelets.tar"), "w"
+        os.path.join(out_dir, f"{prefix}_cubelets.tar"), "w"
     ) as tar:
         _cube_list = glob(
-            os.path.join(casda_dir, "cubelets", f"{source}*.fits")
+            os.path.join(casda_dir, "cubelets", f"{prefix}*.fits")
         )
         for cube in _cube_list:
             tar.add(cube, arcname=os.path.basename(cube))
-    print(f"...done {source}!")
+    print(f"...done {prefix}!")
 
-def main(thing):
-    casda_dir = os.path.abspath(f"casda_{thing}")
+def main(casda_dir: str):
+    """Find cublets with unique prefixes and tar them.
+
+    Args:
+        casda_dir (str): CASDA directory containing cubelets/
+
+    Raises:
+        FileNotFoundError: If casda_dir does not exist or does not contain cubelets/
+    """
+    casda_dir = os.path.abspath(casda_dir)
+    if not os.path.exists(casda_dir):
+        raise FileNotFoundError(f"Directory {casda_dir} does not exist")
+    if not os.path.exists(os.path.join(casda_dir, "cubelets")):
+        raise FileNotFoundError(f"Directory {casda_dir} does not contain cubelets/")
+
     cube_list = glob(
         os.path.join(casda_dir, "cubelets", "*.fits")
     )
@@ -44,7 +64,7 @@ def main(thing):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("thing", help="Thing to tar")
+    parser.add_argument("casda-dar", help="CASDA directory containing cublets/ to tar", type=str)
     args = parser.parse_args()
     # with Client() as client:
-    main(args.thing)
+    main(args.cadsa_dir)
