@@ -10,14 +10,14 @@
 #SBATCH --ntasks=1000
 #SBATCH --ntasks-per-node=10
 ##SBATCH --time=0-00:45:00 # For cut
-#SBATCH --time=0-00:10:00 # For test
-##SBATCH --time=0-01:45:00 # For full
+##SBATCH --time=0-00:10:00 # For test
+#SBATCH --time=0-01:45:00 # For full
 
 # conda activate spice
 conda activate spice
 data_dir=/group/askap/athomson/projects/spiceracs/DR1/full_spica
 polcat=/group/askap/athomson/projects/spiceracs/DR1/spice-racs.dr1.corrected.xml
-prep_type=test
+prep_type=full
 
 cd $data_dir
 srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat $prep_type --convert-spectra --convert-cubes --convert-plots -v --mpi --batch_size 10_000
