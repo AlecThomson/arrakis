@@ -6,8 +6,9 @@ import time
 from functools import partial
 import warnings
 from pprint import pformat
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Tuple, TypeVar
 
+from astropy.coordinates import SkyCoord
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,10 +27,33 @@ from vorbin.voronoi_2d_binning import voronoi_2d_binning
 from spiceracs import columns_possum
 from spiceracs.utils import get_db, get_field_db, latexify, test_db
 
+ArrayLike = TypeVar("ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, u.Quantity)
 
-def flag_primary_components(cat: RMTable) -> RMTable:
+def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
+    """Return all combinations of data with itself
 
-    def is_max_component(sub_df: pd.DataFrame) -> pd.Series:
+    Args:
+        data (ArrayLike): Data to combine.
+
+    Returns:
+        Tuple[ArrayLike, ArrayLike]: Data_1 matched with Data_2
+    """
+    ix, iy = np.triu_indices(data.shape[0], k=1)
+    idx = np.vstack((ix, iy)).T
+    dx, dy = data[idx].swapaxes(0, 1)
+    return dx, dy
+
+
+def flag_minor_components(cat: RMTable) -> RMTable:
+    """Identify minor components in a catalogue and flag them.
+
+    Args:
+        cat (RMTable): Input catalogue
+
+    Returns:
+        RMTable: Output catalogue with minor components flagged
+    """
+    def is_minor_component(sub_df: pd.DataFrame) -> pd.Series:
         """Return a boolean series indicating whether a component is the maximum
         component in a source.
 
@@ -40,18 +64,39 @@ def flag_primary_components(cat: RMTable) -> RMTable:
             pd.Series: Boolean series indicating whether a component is the maximum
                 component in a source
         """
-        return sub_df.peak_I_flux == sub_df.peak_I_flux.max()
+        # Skip single-component sources
+        if any(sub_df.N_Gaus == 1):
+            return sub_df.N_Gaus != 1 # Must be False
+        # Look up all separations between components
+        coords = SkyCoord(sub_df.ra, sub_df.dec, unit="deg")
+        c1, c2 = combinate(coords) # Type: Tuple[SkyCoord, SkyCoord]
+        id1, id2 = combinate(np.arange(len(sub_df)))
+        peak_1, peak_2 = combinate(sub_df.peak_I_flux.values)
+
+        # Get coordinate separations
+        seps = c1.separation(c2)
+        beam_min = sub_df.beam_min.min() * u.deg
+        sep_flag = seps < beam_min
+        if not any(sep_flag):
+            return sub_df.cat_id != sub_df.cat_id # Must be False
+
+        # If any components are close, flag the component with the lower peak flux
+        # as a minor component
+        is_minor = np.zeros_like(sub_df.cat_id, dtype=bool)
+        is_minor[id1[sep_flag]] = peak_1[sep_flag] < peak_2[sep_flag]
+        is_minor[id2[sep_flag]] = peak_2[sep_flag] < peak_1[sep_flag]
+        return pd.Series(is_minor, index=sub_df.cat_id)
 
     df = cat.to_pandas()
     grp = df.groupby("source_id")
-    tqdm.pandas(desc="Identifying primary components")
-    is_max = grp.progress_apply(is_max_component)
+    tqdm.pandas(desc="Identifying minor components")
+    is_minor = grp.progress_apply(is_minor_component)
     cat.add_column(
         Column(
-            is_max,
-            name="is_primary_component",
+            is_minor,
+            name="is_close_flag",
             dtype=bool,
-            description="Is this component the primary in the source",
+            description="Compoent is within beamwidth of another component and has lower peak flux",
             meta={"ucd": "meta.code"},
         ),
         index=-1,
@@ -342,7 +387,7 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     cat_out = compute_local_rm_flag(good_cat=good_cat, big_cat=cat)
 
     # Flag primary components
-    cat_out = flag_primary_components(cat_out)
+    cat_out = flag_minor_components(cat_out)
 
     # Restre units and metadata
     for col in cat.colnames:
