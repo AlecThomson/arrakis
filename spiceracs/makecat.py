@@ -3,6 +3,7 @@
 import logging as log
 import os
 import time
+from functools import partial
 import warnings
 from pprint import pformat
 from typing import Callable, Optional, Union
@@ -19,11 +20,43 @@ from corner import hist2d
 from IPython import embed
 from rmtable import RMTable
 from scipy.stats import lognorm, norm
-from tqdm import tqdm, trange
+from tqdm import tqdm, trange, tqdm_pandas
 from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
 from spiceracs import columns_possum
 from spiceracs.utils import get_db, get_field_db, latexify, test_db
+
+
+def flag_primary_components(cat: RMTable) -> RMTable:
+
+    def is_max_component(sub_df: pd.DataFrame) -> pd.Series:
+        """Return a boolean series indicating whether a component is the maximum
+        component in a source.
+
+        Args:
+            sub_df (pd.DataFrame): DataFrame containing all components for a source
+
+        Returns:
+            pd.Series: Boolean series indicating whether a component is the maximum
+                component in a source
+        """
+        return sub_df.peak_I_flux == sub_df.peak_I_flux.max()
+
+    df = cat.to_pandas()
+    grp = df.groupby("source_id")
+    tqdm.pandas(desc="Identifying primary components")
+    is_max = grp.progress_apply(is_max_component)
+    cat.add_column(
+        Column(
+            is_max,
+            name="is_primary_component",
+            dtype=bool,
+            description="Is this component the primary in the source",
+            meta={"ucd": "meta.code"},
+        ),
+        index=-1,
+    )
+    return cat
 
 
 def lognorm_from_percentiles(x1, p1, x2, p2):
@@ -263,7 +296,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     return cat_out
 
 
-def cuts_and_flags(cat):
+def cuts_and_flags(cat: RMTable) -> RMTable:
     """Cut out bad sources, and add flag columns
 
     A flag of 'True' means the source is bad.
@@ -307,6 +340,9 @@ def cuts_and_flags(cat):
     good_cat = cat[goodRM]
 
     cat_out = compute_local_rm_flag(good_cat=good_cat, big_cat=cat)
+
+    # Flag primary components
+    cat_out = flag_primary_components(cat_out)
 
     # Restre units and metadata
     for col in cat.colnames:
