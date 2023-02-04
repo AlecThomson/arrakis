@@ -10,6 +10,8 @@ from typing import Callable, Optional, Union, Tuple, TypeVar
 
 from astropy.coordinates import SkyCoord
 import astropy.units as u
+import dask.dataframe as dd
+from dask.diagnostics import ProgressBar
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -66,7 +68,12 @@ def flag_minor_components(cat: RMTable) -> RMTable:
         """
         # Skip single-component sources
         if any(sub_df.N_Gaus == 1):
-            return sub_df.N_Gaus != 1 # Must be False
+            return pd.Series(
+                (sub_df.cat_id != sub_df.cat_id).values,
+                index=sub_df.cat_id,
+                name="is_minor",
+                dtype=bool,
+            ) # Must be False
         # Look up all separations between components
         coords = SkyCoord(sub_df.ra, sub_df.dec, unit="deg")
         c1, c2 = combinate(coords) # Type: Tuple[SkyCoord, SkyCoord]
@@ -78,19 +85,34 @@ def flag_minor_components(cat: RMTable) -> RMTable:
         beam_min = sub_df.beam_min.min() * u.deg
         sep_flag = seps < beam_min
         if not any(sep_flag):
-            return sub_df.cat_id != sub_df.cat_id # Must be False
+            return pd.Series(
+                (sub_df.cat_id != sub_df.cat_id).values,
+                index=sub_df.cat_id,
+                name="is_minor",
+                dtype=bool,
+            ) # Must be False
 
         # If any components are close, flag the component with the lower peak flux
         # as a minor component
         is_minor = np.zeros_like(sub_df.cat_id, dtype=bool)
         is_minor[id1[sep_flag]] = peak_1[sep_flag] < peak_2[sep_flag]
         is_minor[id2[sep_flag]] = peak_2[sep_flag] < peak_1[sep_flag]
-        return pd.Series(is_minor, index=sub_df.cat_id)
+        return pd.Series(
+            is_minor,
+            index=sub_df.cat_id,
+            name="is_minor",
+            dtype=bool,
+        )
 
     df = cat.to_pandas()
-    grp = df.groupby("source_id")
-    tqdm.pandas(desc="Identifying minor components")
-    is_minor = grp.progress_apply(is_minor_component)
+    ddf = dd.from_pandas(df, chunksize=1000)
+    grp = ddf.groupby("source_id")
+    log.info("Identifying minor components...")
+    with ProgressBar():
+        is_minor = grp.apply(
+            is_minor_component,
+            meta=("is_minor", bool),
+        ).compute()
     cat.add_column(
         Column(
             is_minor,
