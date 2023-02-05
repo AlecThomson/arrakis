@@ -69,7 +69,7 @@ def flag_minor_components(cat: RMTable) -> RMTable:
         # Skip single-component sources
         if any(sub_df.N_Gaus == 1):
             return pd.Series(
-                (sub_df.cat_id != sub_df.cat_id).values,
+                [False],
                 index=sub_df.cat_id,
                 name="is_minor",
                 dtype=bool,
@@ -86,7 +86,7 @@ def flag_minor_components(cat: RMTable) -> RMTable:
         sep_flag = seps < beam_min
         if not any(sep_flag):
             return pd.Series(
-                (sub_df.cat_id != sub_df.cat_id).values,
+                [False] * len(sub_df),
                 index=sub_df.cat_id,
                 name="is_minor",
                 dtype=bool,
@@ -113,6 +113,8 @@ def flag_minor_components(cat: RMTable) -> RMTable:
             is_minor_component,
             meta=("is_minor", bool),
         ).compute()
+    # Match is_minor.index to cat["cat_id"]
+    is_minor = is_minor.reindex(cat["cat_id"])
     cat.add_column(
         Column(
             is_minor,
@@ -123,6 +125,8 @@ def flag_minor_components(cat: RMTable) -> RMTable:
         ),
         index=-1,
     )
+    # Sanity check - no single-component sources should be flagged
+    assert not any(cat["is_close_flag"] & (cat["N_Gaus"] == 1)), "Single-component sources are flagged as minor components"
     return cat
 
 
