@@ -169,6 +169,7 @@ def beam_database(
     host: str,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
+    epoch: int = 0,
 ) -> InsertManyResult:
     """Insert beams into the database
 
@@ -177,12 +178,15 @@ def beam_database(
         host (str): MongoDB host IP.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo host. Defaults to None.
+        epoch (int, optional): RACS epoch to use. Defaults to 0.
 
     Returns:
         InsertManyResult: Result of the insert.
     """
     # Get pointing info from RACS database
-    racs_fields = get_catalogue()
+    racs_fields = get_catalogue(
+        epoch=epoch,
+    )
 
     # Get beams
     beam_list = get_beams(islandcat, racs_fields)
@@ -342,6 +346,7 @@ def main(
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     field: bool = False,
+    epoch: int = 0,
 ) -> None:
     """Main script
 
@@ -353,6 +358,7 @@ def main(
         username (Union[str, None], optional): Mongo username. Defaults to None.
         password (Union[str, None], optional): Mongo password. Defaults to None.
         field (bool, optional): Load the field database. Defaults to False.
+        epoch (int, optional): RACS epoch to load. Defaults to 0.
 
     Raises:
         ValueError: If load is True and islandcat or compcat are None.
@@ -391,6 +397,7 @@ def main(
                 host=host,
                 username=username,
                 password=password,
+                epoch=epoch,
             )
     if field:
         log.critical("This will overwrite the field database!")
@@ -451,11 +458,11 @@ def cli():
     )
 
     parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
+        "-u", "--username", type=str, default=None, help="Username of mongodb."
     )
 
     parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
+        "-p", "--password", type=str, default=None, help="Password of mongodb."
     )
 
     parser.add_argument(
@@ -475,9 +482,16 @@ def cli():
     )
 
     parser.add_argument(
-        "--field",
+        "-f", "--field",
         action="store_true",
         help="Load field table into database [False].",
+    )
+
+    parser.add_argument(
+        "-e", "--epoch",
+        type=int,
+        default=0,
+        help="RACS epoch to load [0].",
     )
 
     args = parser.parse_args()
@@ -505,6 +519,7 @@ def cli():
         username=args.username,
         password=args.password,
         field=args.field,
+        epoch=args.epoch,
     )
 
 
