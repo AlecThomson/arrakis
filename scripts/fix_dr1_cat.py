@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Post process DR1 catalog"""
+import logging
 from spiceracs.logger import logger
 import os
 import pickle
@@ -156,10 +157,10 @@ def cli():
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
     args = parser.parse_args()
 
-    logger.setLevel(logger.INFO)
+    logger.setLevel(logging.INFO)
 
     if args.debug:
-        logger.setLevel(logger.DEBUG)
+        logger.setLevel(logging.DEBUG)
     main(cat=args.catalogue)
 
 

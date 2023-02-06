@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 from spiceracs.logger import logger
+import logging
 import os
 import pickle
 import subprocess as sp
@@ -816,9 +817,9 @@ def cli():
     )
     args = parser.parse_args()
     if args.verbose:
-        logger.setLevel(logger.INFO)
+        logger.setLevel(logging.INFO)
     elif args.debug:
-        logger.setLevel(logger.DEBUG)
+        logger.setLevel(logging.DEBUG)
     else:
         logger.basicConfig(
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
