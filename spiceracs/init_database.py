@@ -8,26 +8,26 @@ import sys
 import time
 from functools import partial
 from glob import glob
-from typing import List, Tuple, Union, Dict
+from typing import Dict, List, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pkg_resources
 import psutil
 import pymongo
-from pymongo.results import InsertManyResult
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, search_around_sky
 from astropy.io import fits
 from astropy.table import Table, vstack
 from astropy.wcs import WCS
 from IPython import embed
+from pymongo.results import InsertManyResult
 from tqdm import tqdm, trange
 
 from spiceracs.utils import MyEncoder, get_db, get_field_db, getdata, test_db, yes_or_no
 
 
-def source2beams(ra: float, dec: float, database: Table, max_sep:float=1) -> Table:
+def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> Table:
     """Find RACS beams that contain a given source position
 
     Args:
@@ -67,7 +67,7 @@ def ndix_unique(x: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
 
 
 def cat2beams(
-    mastercat: Table, database: Table, max_sep:float=1
+    mastercat: Table, database: Table, max_sep: float = 1
 ) -> Tuple[np.ndarray, np.ndarray, Angle]:
     """Find the separations between sources in the master catalogue and the RACS beams
 
@@ -98,8 +98,8 @@ def source_database(
     islandcat: Table,
     compcat: Table,
     host: str,
-    username: Union[str,None] = None,
-    password: Union[str,None] = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
 ) -> Tuple[InsertManyResult, InsertManyResult]:
     """Insert sources into the database
 
@@ -132,7 +132,9 @@ def source_database(
         host=host, username=username, password=password
     )
     island_delete_res = island_col.delete_many({})  # Delete previous database
-    log.warning(f"Deleted {island_delete_res.deleted_count} documents from island collection")
+    log.warning(
+        f"Deleted {island_delete_res.deleted_count} documents from island collection"
+    )
     island_insert_res = island_col.insert_many(source_dict_list)
 
     count = island_col.count_documents({})
@@ -151,7 +153,9 @@ def source_database(
 
     log.info("Loading components into mongo...")
     comp_delete_res = comp_col.delete_many({})  # Delete previous database
-    log.warning(f"Deleted {comp_delete_res.deleted_count} documents from component collection")
+    log.warning(
+        f"Deleted {comp_delete_res.deleted_count} documents from component collection"
+    )
     comp_insert_res = comp_col.insert_many(source_dict_list)
     count = comp_col.count_documents({})
     log.info("Done loading")
@@ -160,7 +164,12 @@ def source_database(
     return island_insert_res, comp_insert_res
 
 
-def beam_database(islandcat: Table, host: str, username:Union[str,None]=None, password:Union[str,None]=None) -> InsertManyResult:
+def beam_database(
+    islandcat: Table,
+    host: str,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
+) -> InsertManyResult:
     """Insert beams into the database
 
     Args:
@@ -192,7 +201,7 @@ def beam_database(islandcat: Table, host: str, username:Union[str,None]=None, pa
     return insert_res
 
 
-def get_catalogue(epoch: int=0) -> Table:
+def get_catalogue(epoch: int = 0) -> Table:
     """Get the RACS catalogue for a given epoch
 
     Args:
@@ -261,9 +270,7 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
 
     beam_list = []
     for i, (val, idx) in enumerate(
-        tqdm(
-            zip(vals, ixs), total=len(vals), desc="Getting beams"
-        )
+        tqdm(zip(vals, ixs), total=len(vals), desc="Getting beams")
     ):
         beam_dict = {}
         ra = mastercat[val]["RA"]
@@ -296,7 +303,9 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
     return beam_list
 
 
-def field_database(host: str, username: Union[str, None], password: Union[str, None]) -> InsertManyResult:
+def field_database(
+    host: str, username: Union[str, None], password: Union[str, None]
+) -> InsertManyResult:
     """Reset and load the field database
 
     Args:
@@ -486,8 +495,7 @@ def cli():
             datefmt="%Y-%m-%d %H:%M:%S",
             force=True,
         )
-    test_db(
-        host=args.host, username=args.username, password=args.password)
+    test_db(host=args.host, username=args.username, password=args.password)
 
     main(
         load=args.load,
