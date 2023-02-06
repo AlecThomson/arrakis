@@ -143,4 +143,4 @@ setup.py.bak
 *.bin
 
 # Test data
-test/data/testdb
+test/data/testdb/*
