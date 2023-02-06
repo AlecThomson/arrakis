@@ -33,13 +33,14 @@ class CustomFormatter(logging.Formatter):
         logging.INFO: f"{green}SPICE-%(levelname)s{reset} {format_str}",
         logging.WARNING: f"{yellow}SPICE-%(levelname)s{reset} {format_str}",
         logging.ERROR: f"{red}SPICE-%(levelname)s{reset} {format_str}",
-        logging.CRITICAL: f"{bold_red}SPICE-%(levelname)s{reset} {format_str}"
+        logging.CRITICAL: f"{bold_red}SPICE-%(levelname)s{reset} {format_str}",
     }
 
     def format(self, record):
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt, "%Y-%m-%d %H:%M:%S")
         return formatter.format(record)
+
 
 # Add formatter to ch
 ch.setFormatter(CustomFormatter())
