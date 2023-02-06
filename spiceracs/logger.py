@@ -20,19 +20,20 @@ ch.setLevel(logging.DEBUG)
 class CustomFormatter(logging.Formatter):
 
     grey = "\x1b[38;20m"
+    blue = "\x1b[34;20m"
     green = "\x1b[32;20m"
     yellow = "\x1b[33;20m"
     red = "\x1b[31;20m"
     bold_red = "\x1b[31;1m"
     reset = "\x1b[0m"
-    format_str = "SPICE: %(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s"
+    format_str = "%(asctime)s.%(msecs)03d %(module)s - %(funcName)s: %(message)s"
 
     FORMATS = {
-        logging.DEBUG: grey + format_str + reset,
-        logging.INFO: green + format_str + reset,
-        logging.WARNING: yellow + format_str + reset,
-        logging.ERROR: red + format_str + reset,
-        logging.CRITICAL: bold_red + format_str + reset
+        logging.DEBUG: f"{blue}SPICE-%(levelname)s{reset} {format_str}",
+        logging.INFO: f"{green}SPICE-%(levelname)s{reset} {format_str}",
+        logging.WARNING: f"{yellow}SPICE-%(levelname)s{reset} {format_str}",
+        logging.ERROR: f"{red}SPICE-%(levelname)s{reset} {format_str}",
+        logging.CRITICAL: f"{bold_red}SPICE-%(levelname)s{reset} {format_str}"
     }
 
     def format(self, record):
