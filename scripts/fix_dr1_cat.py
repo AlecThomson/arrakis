@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Post process DR1 catalog"""
 import logging
-from spiceracs.logger import logger
 import os
 import pickle
 
@@ -15,6 +14,7 @@ from IPython import embed
 from rmtable import RMTable
 from spica import SPICA
 
+from spiceracs.logger import logger
 from spiceracs.makecat import (
     compute_local_rm_flag,
     get_fit_func,

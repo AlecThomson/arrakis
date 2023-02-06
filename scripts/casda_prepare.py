@@ -2,7 +2,6 @@
 """Prepare files for CASDA upload"""
 import argparse
 import hashlib
-from spiceracs.logger import logger
 import logging
 import os
 import pickle
@@ -47,6 +46,7 @@ from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm, trange
 
+from spiceracs.logger import logger
 from spiceracs.makecat import write_votable
 from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 
