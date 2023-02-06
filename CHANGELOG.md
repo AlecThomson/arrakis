@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - This changelog!
 - `scripts/tar_cubelets.py` and CLI hook
-- `makecat.py`: Added `flag_minor_components` to identify and flag minor components. Adds `is_close_flag` to the catalogue.
+- `makecat.py`: Added `flag_blended_components` to identify and flag blended components. Adds `is_blended_flag` and `total_flux_ratio` to the catalogue.
 
 ### Fixed
 

@@ -46,8 +46,8 @@ def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
     return dx, dy
 
 
-def flag_minor_components(cat: RMTable) -> RMTable:
-    """Identify minor components in a catalogue and flag them.
+def flag_blended_components(cat: RMTable) -> RMTable:
+    """Identify blended components in a catalogue and flag them.
 
     Args:
         cat (RMTable): Input catalogue
@@ -55,7 +55,7 @@ def flag_minor_components(cat: RMTable) -> RMTable:
     Returns:
         RMTable: Output catalogue with minor components flagged
     """
-    def is_minor_component(sub_df: pd.DataFrame) -> pd.Series:
+    def is_blended_component(sub_df: pd.DataFrame) -> pd.DataFrame:
         """Return a boolean series indicating whether a component is the maximum
         component in a source.
 
@@ -63,70 +63,79 @@ def flag_minor_components(cat: RMTable) -> RMTable:
             sub_df (pd.DataFrame): DataFrame containing all components for a source
 
         Returns:
-            pd.Series: Boolean series indicating whether a component is the maximum
-                component in a source
+            pd.DataFrame: DataFrame with a boolean column indicating whether a component
+                is blended and a float column indicating the ratio of the total flux.
+
         """
+        flux_ratio = sub_df.total_I_flux / sub_df.total_I_flux.sum()
         # Skip single-component sources
         if any(sub_df.N_Gaus == 1):
-            return pd.Series(
+            is_blended =  pd.Series(
                 [False],
                 index=sub_df.cat_id,
                 name="is_minor",
                 dtype=bool,
-            ) # Must be False
-        # Look up all separations between components
-        coords = SkyCoord(sub_df.ra, sub_df.dec, unit="deg")
-        c1, c2 = combinate(coords) # Type: Tuple[SkyCoord, SkyCoord]
-        id1, id2 = combinate(np.arange(len(sub_df)))
-        peak_1, peak_2 = combinate(sub_df.peak_I_flux.values)
+            )
+        else:
+            # Look up all separations between components
+            coords = SkyCoord(sub_df.ra, sub_df.dec, unit="deg")
+            beam = sub_df.beam_maj.max() * u.deg
+            is_blended_arr = np.zeros_like(sub_df.cat_id, dtype=bool)
+            for i, coord in enumerate(coords):
+                seps = coord.separation(coords)
+                sep_flag = (seps < beam) & (seps > 0 * u.deg)
+                is_blended_arr[i] = np.any(sep_flag)
 
-        # Get coordinate separations
-        seps = c1.separation(c2)
-        beam_min = sub_df.beam_min.min() * u.deg
-        sep_flag = seps < beam_min
-        if not any(sep_flag):
-            return pd.Series(
-                [False] * len(sub_df),
+            is_blended =  pd.Series(
+                is_blended_arr,
                 index=sub_df.cat_id,
-                name="is_minor",
+                name="is_blended_flag",
                 dtype=bool,
-            ) # Must be False
-
-        # If any components are close, flag the component with the lower peak flux
-        # as a minor component
-        is_minor = np.zeros_like(sub_df.cat_id, dtype=bool)
-        is_minor[id1[sep_flag]] = peak_1[sep_flag] < peak_2[sep_flag]
-        is_minor[id2[sep_flag]] = peak_2[sep_flag] < peak_1[sep_flag]
-        return pd.Series(
-            is_minor,
-            index=sub_df.cat_id,
-            name="is_minor",
-            dtype=bool,
+            )
+        df = pd.DataFrame(
+            {
+                "is_blended_flag": is_blended,
+                "total_flux_ratio": flux_ratio,
+            },
         )
+        return df
 
     df = cat.to_pandas()
     ddf = dd.from_pandas(df, chunksize=1000)
     grp = ddf.groupby("source_id")
-    log.info("Identifying minor components...")
+    log.info("Identifying blended components...")
     with ProgressBar():
-        is_minor = grp.apply(
-            is_minor_component,
-            meta=("is_minor", bool),
+        is_blended = grp.apply(
+            is_blended_component,
+            meta={
+                "is_blended_flag": bool,
+                "total_flux_ratio": float,
+            },
         ).compute()
     # Match is_minor.index to cat["cat_id"]
-    is_minor = is_minor.reindex(cat["cat_id"])
+    is_blended = is_blended.reindex(cat["cat_id"])
     cat.add_column(
         Column(
-            is_minor,
-            name="is_close_flag",
+            is_blended["is_blended_flag"],
+            name="is_blended_flag",
             dtype=bool,
-            description="Compoent is within beamwidth of another component and has lower peak flux",
+            description="Compoent is within beamwidth of another component.",
             meta={"ucd": "meta.code"},
         ),
         index=-1,
     )
+    cat.add_column(
+        Column(
+            is_blended["total_flux_ratio"],
+            name="total_flux_ratio",
+            dtype=float,
+            description="Ratio of total flux of component to total flux of source.",
+            meta={"ucd": "phot.flux.density;arith.ratio"},
+        ),
+        index=-1,
+    )
     # Sanity check - no single-component sources should be flagged
-    assert not any(cat["is_close_flag"] & (cat["N_Gaus"] == 1)), "Single-component sources are flagged as minor components"
+    assert not any(cat["is_blended_flag"] & (cat["N_Gaus"] == 1)), "Single-component sources cannot be flagged as blended."
     return cat
 
 
@@ -413,7 +422,7 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     cat_out = compute_local_rm_flag(good_cat=good_cat, big_cat=cat)
 
     # Flag primary components
-    cat_out = flag_minor_components(cat_out)
+    cat_out = flag_blended_components(cat_out)
 
     # Restre units and metadata
     for col in cat.colnames:
