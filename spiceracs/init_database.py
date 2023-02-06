@@ -8,13 +8,14 @@ import sys
 import time
 from functools import partial
 from glob import glob
-from typing import List, Tuple
+from typing import List, Tuple, Union, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pkg_resources
 import psutil
 import pymongo
+from pymongo.results import InsertManyResult
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, search_around_sky
 from astropy.io import fits
@@ -26,14 +27,14 @@ from tqdm import tqdm, trange
 from spiceracs.utils import MyEncoder, get_db, get_field_db, getdata, test_db, yes_or_no
 
 
-def source2beams(ra: float, dec: float, database: Table, max_sep=1) -> Table:
+def source2beams(ra: float, dec: float, database: Table, max_sep:float=1) -> Table:
     """Find RACS beams that contain a given source position
 
     Args:
         ra (float): RA of source in degrees.
         dec (float): DEC of source in degrees.
         database (dict): RACS database table.
-        max_sep (int, optional): Maximum seperation of source to beam centre in degrees. Defaults to 1.
+        max_sep (float, optional): Maximum seperation of source to beam centre in degrees. Defaults to 1.
 
     Returns:
         Table: Subset of RACS databsae table containing beams that contain the source.
@@ -66,15 +67,14 @@ def ndix_unique(x: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
 
 
 def cat2beams(
-    mastercat: Table, database: Table, max_sep=1, verbose=True
+    mastercat: Table, database: Table, max_sep:float=1
 ) -> Tuple[np.ndarray, np.ndarray, Angle]:
     """Find the separations between sources in the master catalogue and the RACS beams
 
     Args:
         mastercat (Table): Master catalogue table.
         database (Table): RACS database table.
-        max_sep (int, optional): Maxium source separation in degrees. Defaults to 1.
-        verbose (bool, optional): Verbose output. Defaults to True.
+        max_sep (float, optional): Maxium source separation in degrees. Defaults to 1.
 
     Returns:
         Tuple[np.ndarray, np.ndarray, Angle]: Output of astropy.coordinates.search_around_sky
@@ -98,10 +98,9 @@ def source_database(
     islandcat: Table,
     compcat: Table,
     host: str,
-    username: str = None,
-    password: str = None,
-    verbose=True,
-):
+    username: Union[str,None] = None,
+    password: Union[str,None] = None,
+) -> Tuple[InsertManyResult, InsertManyResult]:
     """Insert sources into the database
 
     Following https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
@@ -112,7 +111,9 @@ def source_database(
         host (str): MongoDB host IP.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo host. Defaults to None.
-        verbose (bool, optional): Verbose output. Defaults to True.
+
+    Returns:
+        Tuple[InsertManyResult, InsertManyResult]: Results for the islands and components inserts.
     """
     # Read in main catalogues
     # Use pandas and follow
@@ -130,8 +131,10 @@ def source_database(
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
-    island_col.delete_many({})  # Delete previous database
-    island_col.insert_many(source_dict_list)
+    island_delete_res = island_col.delete_many({})  # Delete previous database
+    log.warning(f"Deleted {island_delete_res.deleted_count} documents from island collection")
+    island_insert_res = island_col.insert_many(source_dict_list)
+
     count = island_col.count_documents({})
     log.info("Done loading")
     log.info(f"Total documents: {count}")
@@ -147,37 +150,60 @@ def source_database(
     source_dict_list = df_c.to_dict("records")
 
     log.info("Loading components into mongo...")
-    beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
-    )
-    comp_col.delete_many({})  # Delete previous database
-    comp_col.insert_many(source_dict_list)
+    comp_delete_res = comp_col.delete_many({})  # Delete previous database
+    log.warning(f"Deleted {comp_delete_res.deleted_count} documents from component collection")
+    comp_insert_res = comp_col.insert_many(source_dict_list)
     count = comp_col.count_documents({})
     log.info("Done loading")
     log.info(f"Total documents: {count}")
 
+    return island_insert_res, comp_insert_res
 
-def beam_database(islandcat, host, username=None, password=None, verbose=True):
+
+def beam_database(islandcat: Table, host: str, username:Union[str,None]=None, password:Union[str,None]=None) -> InsertManyResult:
+    """Insert beams into the database
+
+    Args:
+        islandcat (Table): Island catalogue table.
+        host (str): MongoDB host IP.
+        username (str, optional): Mongo username. Defaults to None.
+        password (str, optional): Mongo host. Defaults to None.
+
+    Returns:
+        InsertManyResult: Result of the insert.
+    """
     # Get pointing info from RACS database
-    racs_fields = get_catalogue(verbose=verbose)
+    racs_fields = get_catalogue()
 
     # Get beams
-    beam_list = get_beams(islandcat, racs_fields, verbose=verbose)
+    beam_list = get_beams(islandcat, racs_fields)
     log.info("Loading into mongo...")
     json_data = json.loads(json.dumps(beam_list, cls=MyEncoder))
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
-    beams_col.delete_many({})  # Delete previous databas
-    beams_col.insert_many(json_data)
+    delete_res = beams_col.delete_many({})  # Delete previous databas
+    log.warning(f"Deleted {delete_res.deleted_count} documents from beam collection")
+    insert_res = beams_col.insert_many(json_data)
     count = beams_col.count_documents({})
     log.info("Done loading")
     log.info(f"Total documents: {count}")
 
+    return insert_res
 
-def get_catalogue(verbose=True):
+
+def get_catalogue(epoch: int=0) -> Table:
+    """Get the RACS catalogue for a given epoch
+
+    Args:
+        epoch (int, optional): Epoch number. Defaults to 0.
+
+    Returns:
+        Table: RACS catalogue table.
+
+    """
     survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
-    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
+    basedir = os.path.join(survey_dir, "racs", "db", f"epoch_{epoch}")
     beamfiles = glob(os.path.join(basedir, "beam_inf*"))
 
     # Init first field
@@ -210,9 +236,19 @@ def get_catalogue(verbose=True):
     return racs_fields
 
 
-def get_beams(mastercat, database, verbose=True):
+def get_beams(mastercat: Table, database: Table) -> List[Dict]:
+    """Get beams from the master catalogue
+
+    Args:
+        mastercat (Table): Master catalogue table.
+        database (Table): RACS database table.
+
+    Returns:
+        List[Dict]: List of beam dictionaries.
+
+    """
     # Get seperations on sky
-    seps = cat2beams(mastercat, database, max_sep=1, verbose=verbose)
+    seps = cat2beams(mastercat, database, max_sep=1)
     vals, ixs = ndix_unique(seps[1])
 
     # Get DR1 fields
@@ -226,7 +262,7 @@ def get_beams(mastercat, database, verbose=True):
     beam_list = []
     for i, (val, idx) in enumerate(
         tqdm(
-            zip(vals, ixs), total=len(vals), desc="Getting beams", disable=(not verbose)
+            zip(vals, ixs), total=len(vals), desc="Getting beams"
         )
     ):
         beam_dict = {}
@@ -253,14 +289,24 @@ def get_beams(mastercat, database, verbose=True):
                 "Source_Name": name,
                 "Source_ID": isl_id,
                 "n_fields": len(beam_dict.keys()),
-                "n_fields_DR1": sum([val["DR1"] for val in beam_dict.values()]),
+                "n_fields_DR1": np.sum([val["DR1"] for val in beam_dict.values()]),
                 "beams": beam_dict,
             }
         )
     return beam_list
 
 
-def field_database(host, username, password, verbose=True):
+def field_database(host: str, username: Union[str, None], password: Union[str, None]) -> InsertManyResult:
+    """Reset and load the field database
+
+    Args:
+        host (str): Mongo host
+        username (Union[str, None]): Mongo username
+        password (Union[str, None]): Mongo password
+
+    Returns:
+        InsertManyResult: Field insert object.
+    """
     survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
     basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
     data_file = os.path.join(basedir, "field_data.csv")
@@ -269,32 +315,49 @@ def field_database(host, username, password, verbose=True):
     field_list_dict = df.to_dict("records")
     log.info("Loading fields into mongo...")
     field_col = get_field_db(host, username=username, password=password)
-    field_col.delete_many({})
-    field_col.insert_many(field_list_dict)
+    delete_res = field_col.delete_many({})
+    log.warning(f"Deleted documents: {delete_res.deleted_count}")
+    insert_res = field_col.insert_many(field_list_dict)
     count = field_col.count_documents({})
     log.info("Done loading")
     log.info(f"Total documents: {count}")
 
+    return insert_res
 
-def main(args, verbose=True):
+
+def main(
+    load: bool = False,
+    islandcat: Union[str, None] = None,
+    compcat: Union[str, None] = None,
+    host: str = "localhost",
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
+    field: bool = False,
+) -> None:
     """Main script
 
-    Arguments:
-        args -- commandline args
+    Args:
+        load (bool, optional): Load the database. Defaults to False.
+        islandcat (Union[str, None], optional): Island catalogue. Defaults to None.
+        compcat (Union[str, None], optional): Component catalogue. Defaults to None.
+        host (str, optional): Mongo host. Defaults to "localhost".
+        username (Union[str, None], optional): Mongo username. Defaults to None.
+        password (Union[str, None], optional): Mongo password. Defaults to None.
+        field (bool, optional): Load the field database. Defaults to False.
+
+    Raises:
+        ValueError: If load is True and islandcat or compcat are None.
+
     """
 
-    if args.load:
+    if load:
         # Get database from master cat
-        if args.islandcat is None:
+        if islandcat is None:
             log.critical("Island catalogue is required!")
             islandcat = input("Enter catalogue file:")
-        else:
-            islandcat = args.islandcat
-        if args.compcat is None:
+        if compcat is None:
             log.critical("Component catalogue is required!")
             compcat = input("Enter catalogue file:")
-        else:
-            compcat = args.compcat
 
         # Get the master cat
         log.info(f"Reading {islandcat}")
@@ -309,32 +372,31 @@ def main(args, verbose=True):
             source_database(
                 islandcat=island_cat,
                 compcat=comp_cat,
-                host=args.host,
-                username=args.username,
-                password=args.password,
-                verbose=verbose,
+                host=host,
+                username=username,
+                password=password,
             )
         if check_beam:
             beam_database(
                 islandcat=island_cat,
-                host=args.host,
-                username=args.username,
-                password=args.password,
-                verbose=verbose,
+                host=host,
+                username=username,
+                password=password,
             )
-    if args.field:
+    if field:
         log.critical("This will overwrite the field database!")
         check_field = yes_or_no("Are you sure you wish to proceed?")
         if check_field:
-            field_database(
-                host=args.host,
-                username=args.username,
-                password=args.password,
-                verbose=verbose,
+            field_res = field_database(
+                host=host,
+                username=username,
+                password=password,
             )
 
     else:
         log.info("Nothing to do!")
+
+    log.info("Done!")
 
 
 def cli():
@@ -411,8 +473,7 @@ def cli():
 
     args = parser.parse_args()
 
-    verbose = args.verbose
-    if verbose:
+    if args.verbose:
         log.basicConfig(
             level=log.INFO,
             format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
@@ -426,10 +487,17 @@ def cli():
             force=True,
         )
     test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
-    )
+        host=args.host, username=args.username, password=args.password)
 
-    main(args, verbose=verbose)
+    main(
+        load=args.load,
+        islandcat=args.islandcat,
+        compcat=args.compcat,
+        host=args.host,
+        username=args.username,
+        password=args.password,
+        field=args.field,
+    )
 
 
 if __name__ == "__main__":
