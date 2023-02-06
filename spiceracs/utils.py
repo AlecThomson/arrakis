@@ -68,9 +68,9 @@ def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float
 def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, int]:
     """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
-    best_aic_idx = np.nanargmin(aics)
-    best_aic = aics[best_aic_idx]
-    best_n = n_param[best_aic_idx]
+    best_aic_idx = int(np.nanargmin(aics))
+    best_aic = float(aics[best_aic_idx])
+    best_n = int(n_param[best_aic_idx])
     log.debug(f"Lowest AIC is {best_aic}, with {best_n} params.")
     # Check if lower have diff < 2 in AIC
     aic_abs_diff = np.abs(aics - best_aic)
@@ -79,14 +79,16 @@ def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, in
     potential_idx = (aic_abs_diff[~bool_min_idx] < 2) & (
         n_param[~bool_min_idx] < best_n
     )
-    if any(potential_idx):
-        best_n = np.min(n_param[~bool_min_idx][potential_idx])
-        best_aic_idx = np.where(n_param == best_n)[0][0]
-        best_aic = aics[best_aic_idx]
-        log.debug(
-            f"Model within 2 of lowest AIC found. Occam says to take AIC of {best_aic}, with {best_n} params."
-        )
-    return best_aic, best_n, best_aic_idx
+    if not any(potential_idx):
+        return best_aic, best_n, best_aic_idx
+
+    bestest_n = int(np.min(n_param[~bool_min_idx][potential_idx]))
+    bestest_aic_idx = int(np.where(n_param == bestest_n)[0][0])
+    bestest_aic = float(aics[bestest_aic_idx])
+    log.debug(
+        f"Model within 2 of lowest AIC found. Occam says to take AIC of {bestest_aic}, with {bestest_n} params."
+    )
+    return bestest_aic, bestest_n, bestest_aic_idx
 
 
 # Stolen from GLEAM-X - thanks Uncle Timmy!
@@ -399,7 +401,7 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     matplotlib.rcParams.update(params)
 
 
-def delayed_to_da(list_of_delayed: List[Delayed], chunk: int = None) -> da.Array:
+def delayed_to_da(list_of_delayed: List[Delayed], chunk: Union[int,None] = None) -> da.Array:
     """Convert list of delayed arrays to a dask array
 
     Args:
@@ -519,8 +521,7 @@ def coord_to_string(coord: SkyCoord) -> Tuple[str, str]:
 
 
 def test_db(
-    host: str, username: str = None, password: str = None, verbose=True
-) -> None:
+    host: str, username: Union[str,None] = None, password: Union[str,None] = None) -> bool:
     """Test connection to MongoDB
 
     Args:
@@ -528,6 +529,10 @@ def test_db(
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
         verbose (bool, optional): Verbose output. Defaults to True.
+
+
+    Returns:
+        bool: True if connection succesful
 
     Raises:
         Exception: If connection fails.
@@ -545,8 +550,10 @@ def test_db(
             dbclient.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
             raise Exception("Please ensure 'mongod' is running")
-        else:
-            log.info("MongoDB connection succesful!")
+
+        log.info("MongoDB connection succesful!")
+
+    return True
 
 
 def get_db(
@@ -578,7 +585,7 @@ def get_db(
 
 def get_field_db(
     host: str, username=None, password=None
-) -> pymongo.collection.Collection:
+) -> Collection:
     """Get MongoDBs
 
     Args:
@@ -752,7 +759,7 @@ def cpu_to_use(max_cpu: int, count: int) -> int:
     return np.max(factors_arr[factors_arr <= max_cpu])
 
 
-def getfreq(cube: str, outdir: str = None, filename: str = None):
+def getfreq(cube: str, outdir: Union[str,None] = None, filename: Union[str,None] = None):
     """Get list of frequencies from FITS data.
 
     Gets the frequency list from a given cube. Can optionally save
