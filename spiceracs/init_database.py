@@ -2,7 +2,7 @@
 """Create the SPICE-RACS database"""
 import functools
 import json
-import logging as log
+import logging
 import os
 import sys
 import time
@@ -24,6 +24,7 @@ from IPython import embed
 from pymongo.results import InsertManyResult
 from tqdm import tqdm, trange
 
+from spiceracs.logger import logger
 from spiceracs.utils import MyEncoder, get_db, get_field_db, getdata, test_db, yes_or_no
 
 
@@ -79,7 +80,7 @@ def cat2beams(
     Returns:
         Tuple[np.ndarray, np.ndarray, Angle]: Output of astropy.coordinates.search_around_sky
     """
-    log.info("Getting separations from beam centres...")
+    logger.info("Getting separations from beam centres...")
     c1 = SkyCoord(database["RA_DEG"] * u.deg, database["DEC_DEG"] * u.deg, frame="icrs")
 
     m_ra = mastercat["RA"]
@@ -120,30 +121,30 @@ def source_database(
     # https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
     df_i = islandcat.to_pandas()
     if type(df_i["Source_ID"][0]) is bytes:
-        log.info("Decoding strings!")
+        logger.info("Decoding strings!")
         str_df = df_i.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
         for col in str_df:
             df_i[col] = str_df[col]
 
     source_dict_list = df_i.to_dict("records")
-    log.info("Loading islands into mongo...")
+    logger.info("Loading islands into mongo...")
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
     island_delete_res = island_col.delete_many({})  # Delete previous database
-    log.warning(
+    logger.warning(
         f"Deleted {island_delete_res.deleted_count} documents from island collection"
     )
     island_insert_res = island_col.insert_many(source_dict_list)
 
     count = island_col.count_documents({})
-    log.info("Done loading")
-    log.info(f"Total documents: {count}")
+    logger.info("Done loading")
+    logger.info(f"Total documents: {count}")
 
     df_c = compcat.to_pandas()
     if type(df_c["Source_ID"][0]) is bytes:
-        log.info("Decoding strings!")
+        logger.info("Decoding strings!")
         str_df = df_c.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
         for col in str_df:
@@ -151,15 +152,15 @@ def source_database(
 
     source_dict_list = df_c.to_dict("records")
 
-    log.info("Loading components into mongo...")
+    logger.info("Loading components into mongo...")
     comp_delete_res = comp_col.delete_many({})  # Delete previous database
-    log.warning(
+    logger.warning(
         f"Deleted {comp_delete_res.deleted_count} documents from component collection"
     )
     comp_insert_res = comp_col.insert_many(source_dict_list)
     count = comp_col.count_documents({})
-    log.info("Done loading")
-    log.info(f"Total documents: {count}")
+    logger.info("Done loading")
+    logger.info(f"Total documents: {count}")
 
     return island_insert_res, comp_insert_res
 
@@ -190,17 +191,17 @@ def beam_database(
 
     # Get beams
     beam_list = get_beams(islandcat, racs_fields)
-    log.info("Loading into mongo...")
+    logger.info("Loading into mongo...")
     json_data = json.loads(json.dumps(beam_list, cls=MyEncoder))
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
     delete_res = beams_col.delete_many({})  # Delete previous databas
-    log.warning(f"Deleted {delete_res.deleted_count} documents from beam collection")
+    logger.warning(f"Deleted {delete_res.deleted_count} documents from beam collection")
     insert_res = beams_col.insert_many(json_data)
     count = beams_col.count_documents({})
-    log.info("Done loading")
-    log.info(f"Total documents: {count}")
+    logger.info("Done loading")
+    logger.info(f"Total documents: {count}")
 
     return insert_res
 
@@ -244,7 +245,7 @@ def get_catalogue(epoch: int = 0) -> Table:
                 tab.add_column(int(SBID), name="SBID", index=0)
                 racs_fields = vstack([racs_fields, tab])
             except TypeError:
-                log.warning(f"{SBID} failed...")
+                logger.warning(f"{SBID} failed...")
                 continue
     return racs_fields
 
@@ -326,14 +327,14 @@ def field_database(
     database = Table.read(data_file)
     df = database.to_pandas()
     field_list_dict = df.to_dict("records")
-    log.info("Loading fields into mongo...")
+    logger.info("Loading fields into mongo...")
     field_col = get_field_db(host, username=username, password=password)
     delete_res = field_col.delete_many({})
-    log.warning(f"Deleted documents: {delete_res.deleted_count}")
+    logger.warning(f"Deleted documents: {delete_res.deleted_count}")
     insert_res = field_col.insert_many(field_list_dict)
     count = field_col.count_documents({})
-    log.info("Done loading")
-    log.info(f"Total documents: {count}")
+    logger.info("Done loading")
+    logger.info(f"Total documents: {count}")
 
     return insert_res
 
@@ -368,20 +369,20 @@ def main(
     if load:
         # Get database from master cat
         if islandcat is None:
-            log.critical("Island catalogue is required!")
+            logger.critical("Island catalogue is required!")
             islandcat = input("Enter catalogue file:")
         if compcat is None:
-            log.critical("Component catalogue is required!")
+            logger.critical("Component catalogue is required!")
             compcat = input("Enter catalogue file:")
 
         # Get the master cat
-        log.info(f"Reading {islandcat}")
+        logger.info(f"Reading {islandcat}")
         island_cat = Table.read(islandcat)
-        log.info(f"Reading {compcat}")
+        logger.info(f"Reading {compcat}")
         comp_cat = Table.read(compcat)
-        log.critical("This will overwrite the source database!")
+        logger.critical("This will overwrite the source database!")
         check_source = yes_or_no("Are you sure you wish to proceed?")
-        log.critical("This will overwrite the beams database!")
+        logger.critical("This will overwrite the beams database!")
         check_beam = yes_or_no("Are you sure you wish to proceed?")
         if check_source:
             source_database(
@@ -400,7 +401,7 @@ def main(
                 epoch=epoch,
             )
     if field:
-        log.critical("This will overwrite the field database!")
+        logger.critical("This will overwrite the field database!")
         check_field = yes_or_no("Are you sure you wish to proceed?")
         if check_field:
             field_res = field_database(
@@ -410,9 +411,9 @@ def main(
             )
 
     else:
-        log.info("Nothing to do!")
+        logger.info("Nothing to do!")
 
-    log.info("Done!")
+    logger.info("Done!")
 
 
 def cli():
@@ -499,18 +500,8 @@ def cli():
     args = parser.parse_args()
 
     if args.verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-    else:
-        log.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
+        logger.setLevel(logging.INFO)
+
     test_db(host=args.host, username=args.username, password=args.password)
 
     main(

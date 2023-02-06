@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Post process DR1 catalog"""
-import logging as log
+from spiceracs.logger import logger
 import os
 import pickle
 
@@ -34,8 +34,8 @@ def fix_fields(tab: Table) -> Table:
     # Compare the fields we have to those we want
     fields_in_cat = list(set(tab["tile_id"]))
     fields_in_spica = [f"RACS_{name}" for name in SPICA]
-    log.debug(f"Fields in catalogue: {fields_in_cat}")
-    log.debug(f"Fields in spica: {fields_in_spica}")
+    logger.debug(f"Fields in catalogue: {fields_in_cat}")
+    logger.debug(f"Fields in spica: {fields_in_spica}")
     fields_not_in_spica = [f for f in fields_in_cat if f not in fields_in_spica]
     spica_field = field.loc[fields_in_spica]
     spica_field_coords = SkyCoord(
@@ -45,7 +45,7 @@ def fix_fields(tab: Table) -> Table:
     spica_field["start_time"] = start_times
     # These are the sources to update
     sources_to_fix = tab.loc[fields_not_in_spica]
-    log.info(f"Found {len(sources_to_fix)} sources to fix")
+    logger.info(f"Found {len(sources_to_fix)} sources to fix")
 
     source_coords = SkyCoord(sources_to_fix["ra"], sources_to_fix["dec"])
 
@@ -109,9 +109,9 @@ def fix_fields(tab: Table) -> Table:
 
 
 def main(cat: str):
-    log.debug(f"Reading {cat}")
+    logger.debug(f"Reading {cat}")
     tab = RMTable.read(cat)
-    log.debug(f"Fixing {cat}")
+    logger.debug(f"Fixing {cat}")
     fix_tab = fix_fields(tab)
     fit, fig = get_fit_func(fix_tab, do_plot=True, nbins=16, degree=4)
     fig.savefig("leakage_fit_dr1_fix.pdf")
@@ -134,18 +134,18 @@ def main(cat: str):
     outfit = cat.replace(ext, f".corrected.leakage.pkl")
     with open(outfit, "wb") as f:
         pickle.dump(fit, f)
-        log.info(f"Wrote leakage fit to {outfit}")
+        logger.info(f"Wrote leakage fit to {outfit}")
 
     # outplot = cat.replace(ext, f'.corrected.leakage.pdf')
-    # log.info(f"Writing leakage plot to {outplot}")
+    # logger.info(f"Writing leakage plot to {outplot}")
     # fig.savefig(outplot, dpi=300, bbox_inches='tight')
-    log.info(f"Writing corrected catalogue to {outfile}")
+    logger.info(f"Writing corrected catalogue to {outfile}")
     if ext == ".xml" or ext == ".vot":
         write_votable(fix_flag_tab, outfile)
     else:
         tab.write(outfile, overwrite=True)
-    log.info(f"{outfile} written to disk")
-    log.info("Done!")
+    logger.info(f"{outfile} written to disk")
+    logger.info("Done!")
 
 
 def cli():
@@ -156,21 +156,10 @@ def cli():
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
     args = parser.parse_args()
 
-    log.basicConfig(
-        level=log.INFO,
-        format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        force=True,
-    )
+    logger.setLevel(logger.INFO)
 
     if args.debug:
-        log.basicConfig(
-            level=log.DEBUG,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-
+        logger.setLevel(logger.DEBUG)
     main(cat=args.catalogue)
 
 

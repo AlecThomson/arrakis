@@ -1,33 +1,35 @@
 #!/usr/bin/env python3
 """Make a SPICE-RACS catalogue"""
-import logging as log
 import os
 import time
-from functools import partial
+import logging
 import warnings
+from functools import partial
 from pprint import pformat
-from typing import Callable, Optional, Union, Tuple, TypeVar
+from typing import Callable, Optional, Tuple, TypeVar, Union
 
-from astropy.coordinates import SkyCoord
 import astropy.units as u
 import dask.dataframe as dd
-from dask.diagnostics import ProgressBar
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.io import votable as vot
 from astropy.stats import mad_std, sigma_clip
 from astropy.table import Column, Table
 from corner import hist2d
+from dask.diagnostics import ProgressBar
 from IPython import embed
 from rmtable import RMTable
 from scipy.stats import lognorm, norm
-from tqdm import tqdm, trange, tqdm_pandas
+from tqdm import tqdm, tqdm_pandas, trange
 from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
 from spiceracs import columns_possum
+from spiceracs.logger import logger
 from spiceracs.utils import get_db, get_field_db, latexify, test_db
+
 
 ArrayLike = TypeVar("ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, u.Quantity)
 
@@ -72,7 +74,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
         if any(sub_df.N_Gaus == 1):
             is_blended =  pd.Series(
                 [False],
-                index=sub_df.cat_id,
+                index=sub_df.index,
                 name="is_minor",
                 dtype=bool,
             )
@@ -80,7 +82,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             # Look up all separations between components
             coords = SkyCoord(sub_df.ra, sub_df.dec, unit="deg")
             beam = sub_df.beam_maj.max() * u.deg
-            is_blended_arr = np.zeros_like(sub_df.cat_id, dtype=bool)
+            is_blended_arr = np.zeros_like(sub_df.index, dtype=bool)
             for i, coord in enumerate(coords):
                 seps = coord.separation(coords)
                 sep_flag = (seps < beam) & (seps > 0 * u.deg)
@@ -88,7 +90,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
 
             is_blended =  pd.Series(
                 is_blended_arr,
-                index=sub_df.cat_id,
+                index=sub_df.index,
                 name="is_blended_flag",
                 dtype=bool,
             )
@@ -97,13 +99,15 @@ def flag_blended_components(cat: RMTable) -> RMTable:
                 "is_blended_flag": is_blended,
                 "total_flux_ratio": flux_ratio,
             },
+            index=sub_df.index,
         )
         return df
 
     df = cat.to_pandas()
+    df.set_index("cat_id", inplace=True)
     ddf = dd.from_pandas(df, chunksize=1000)
     grp = ddf.groupby("source_id")
-    log.info("Identifying blended components...")
+    logger.info("Identifying blended components...")
     with ProgressBar():
         is_blended = grp.apply(
             is_blended_component,
@@ -135,6 +139,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
         index=-1,
     )
     # Sanity check - no single-component sources should be flagged
+    assert np.array_equal(is_blended.index.values, cat["cat_id"].data), "Index mismatch"
     assert not any(cat["is_blended_flag"] & (cat["N_Gaus"] == 1)), "Single-component sources cannot be flagged as blended."
     return cat
 
@@ -320,7 +325,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     Returns:
         Table: Table with local RM flag
     """
-    log.info("Computing voronoi bins and finding bad RMs")
+    logger.info("Computing voronoi bins and finding bad RMs")
 
     def sn_func(index, signal=None, noise=None):
         try:
@@ -342,7 +347,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
         quiet=True,
         wvt=False,
     )
-    log.info(f"Found {len(set(bin_number))} bins")
+    logger.info(f"Found {len(set(bin_number))} bins")
     df = good_cat.to_pandas()
     df.reset_index(inplace=True)
     df.set_index("cat_id", inplace=True)
@@ -519,7 +524,7 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
 
     # Add params for CASDA
     if len(vo_table.params) > 0:
-        log.warning(f"{filename} already has params - not adding")
+        logger.warning(f"{filename} already has params - not adding")
         return vo_table
     _, ext = os.path.splitext(filename)
     cat_name = (
@@ -612,16 +617,16 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
-    log.info("Starting beams collection query")
+    logger.info("Starting beams collection query")
     tick = time.time()
     query = {
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
     tock = time.time()
-    log.info(f"Finished beams collection query - {tock-tick:.2f}s")
+    logger.info(f"Finished beams collection query - {tock-tick:.2f}s")
 
-    log.info("Starting component collection query")
+    logger.info("Starting component collection query")
     tick = time.time()
     query = {
         "$and": [
@@ -642,7 +647,7 @@ def main(
 
     comps = list(comp_col.find(query, fields))
     tock = time.time()
-    log.info(f"Finished component collection query - {tock-tick:.2f}s")
+    logger.info(f"Finished component collection query - {tock-tick:.2f}s")
 
     rmtab = RMTable()  # type: RMTable
     # Add items to main cat using RMtable standard
@@ -764,18 +769,18 @@ def main(
     rmtab.verify_ucds()
 
     if outfile is None:
-        log.info(pformat(rmtab))
+        logger.info(pformat(rmtab))
 
     if outfile is not None:
-        log.info(f"Writing {outfile} to disk")
+        logger.info(f"Writing {outfile} to disk")
         _, ext = os.path.splitext(outfile)
         if ext == ".xml" or ext == ".vot":
             write_votable(rmtab, outfile)
         else:
             rmtab.write(outfile, overwrite=True)
-        log.info(f"{outfile} written to disk")
+        logger.info(f"{outfile} written to disk")
 
-    log.info("Done!")
+    logger.info("Done!")
 
 
 def cli():
@@ -852,22 +857,11 @@ def cli():
     verbose = args.verbose
 
     if verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-    else:
-        log.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
+        logger.setLevel(logging.INFO)
 
     host = args.host
     test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
+        host=args.host, username=args.username, password=args.password
     )
 
     main(
