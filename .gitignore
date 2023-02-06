@@ -141,3 +141,6 @@ conda-lock.yml
 poetry.lock
 setup.py.bak
 *.bin
+
+# Test data
+test/data/testdb
