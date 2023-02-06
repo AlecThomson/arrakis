@@ -18,8 +18,8 @@ from prefect import Flow, Task, task
 from prefect.engine import signals
 from prefect.engine.executors import DaskExecutor
 
-from spiceracs.logger import logger
 from spiceracs import merge_fields, process_spice
+from spiceracs.logger import logger
 from spiceracs.utils import port_forward, test_db
 
 

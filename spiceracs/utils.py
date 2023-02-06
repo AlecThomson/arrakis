@@ -403,7 +403,9 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     matplotlib.rcParams.update(params)
 
 
-def delayed_to_da(list_of_delayed: List[Delayed], chunk: Union[int,None] = None) -> da.Array:
+def delayed_to_da(
+    list_of_delayed: List[Delayed], chunk: Union[int, None] = None
+) -> da.Array:
     """Convert list of delayed arrays to a dask array
 
     Args:
@@ -523,7 +525,8 @@ def coord_to_string(coord: SkyCoord) -> Tuple[str, str]:
 
 
 def test_db(
-    host: str, username: Union[str,None] = None, password: Union[str,None] = None) -> bool:
+    host: str, username: Union[str, None] = None, password: Union[str, None] = None
+) -> bool:
     """Test connection to MongoDB
 
     Args:
@@ -585,9 +588,7 @@ def get_db(
     return beams_col, island_col, comp_col
 
 
-def get_field_db(
-    host: str, username=None, password=None
-) -> Collection:
+def get_field_db(host: str, username=None, password=None) -> Collection:
     """Get MongoDBs
 
     Args:
@@ -761,7 +762,9 @@ def cpu_to_use(max_cpu: int, count: int) -> int:
     return np.max(factors_arr[factors_arr <= max_cpu])
 
 
-def getfreq(cube: str, outdir: Union[str,None] = None, filename: Union[str,None] = None):
+def getfreq(
+    cube: str, outdir: Union[str, None] = None, filename: Union[str, None] = None
+):
     """Get list of frequencies from FITS data.
 
     Gets the frequency list from a given cube. Can optionally save

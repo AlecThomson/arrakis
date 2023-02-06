@@ -12,8 +12,8 @@ from dask import delayed, distributed
 from dask.distributed import Client, LocalCluster
 from tqdm import tqdm
 
-from spiceracs.logger import logger
 from spiceracs.linmos import get_yanda, linmos
+from spiceracs.logger import logger
 from spiceracs.utils import chunk_dask, get_db, test_db, tqdm_dask, try_mkdir
 
 
@@ -216,8 +216,8 @@ def main(
     output_dir: str,
     client: Client,
     host: str,
-    username: Union[str,None] = None,
-    password: Union[str,None] = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
     yanda="1.3.0",
     verbose: bool = True,
 ) -> str:

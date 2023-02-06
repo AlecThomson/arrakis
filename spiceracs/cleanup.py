@@ -30,7 +30,10 @@ def cleanup(workdir: str, stoke: str) -> None:
 
 
 def main(
-    datadir: str, client: Client, stokeslist: Union[List[str], None] = None, verbose=True
+    datadir: str,
+    client: Client,
+    stokeslist: Union[List[str], None] = None,
+    verbose=True,
 ) -> None:
     """Clean up beam images
 

@@ -322,10 +322,10 @@ def cutout_islands(
     client: Client,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
-    pad:float=3,
+    pad: float = 3,
     stokeslist: Union[List[str], None] = None,
-    verbose_worker:bool=False,
-    dryrun:bool=True,
+    verbose_worker: bool = False,
+    dryrun: bool = True,
 ) -> None:
     """Perform cutouts of RACS islands in parallel.
 
@@ -397,9 +397,7 @@ def cutout_islands(
 
     flat_args = unpack(args)
     flat_args = client.compute(flat_args)
-    tqdm_dask(
-        flat_args, desc="Getting args", total=len(islands) + 1
-    )
+    tqdm_dask(flat_args, desc="Getting args", total=len(islands) + 1)
     flat_args = flat_args.result()
     cuts = []
     for arg in flat_args:
@@ -559,7 +557,9 @@ def cli() -> None:
         logger.setLevel(logging.INFO)
 
     test_db(
-        host=args.host, username=args.username, password=args.password,
+        host=args.host,
+        username=args.username,
+        password=args.password,
     )
 
     main(args, verbose=verbose)

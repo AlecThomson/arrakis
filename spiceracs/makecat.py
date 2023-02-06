@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Make a SPICE-RACS catalogue"""
+import logging
 import os
 import time
-import logging
 import warnings
 from functools import partial
 from pprint import pformat
@@ -30,8 +30,10 @@ from spiceracs import columns_possum
 from spiceracs.logger import logger
 from spiceracs.utils import get_db, get_field_db, latexify, test_db
 
+ArrayLike = TypeVar(
+    "ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, u.Quantity
+)
 
-ArrayLike = TypeVar("ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, u.Quantity)
 
 def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
     """Return all combinations of data with itself
@@ -57,6 +59,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
     Returns:
         RMTable: Output catalogue with minor components flagged
     """
+
     def is_blended_component(sub_df: pd.DataFrame) -> pd.DataFrame:
         """Return a boolean series indicating whether a component is the maximum
         component in a source.
@@ -72,7 +75,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
         flux_ratio = sub_df.total_I_flux / sub_df.total_I_flux.sum()
         # Skip single-component sources
         if any(sub_df.N_Gaus == 1):
-            is_blended =  pd.Series(
+            is_blended = pd.Series(
                 [False],
                 index=sub_df.index,
                 name="is_minor",
@@ -88,7 +91,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
                 sep_flag = (seps < beam) & (seps > 0 * u.deg)
                 is_blended_arr[i] = np.any(sep_flag)
 
-            is_blended =  pd.Series(
+            is_blended = pd.Series(
                 is_blended_arr,
                 index=sub_df.index,
                 name="is_blended_flag",
@@ -140,7 +143,9 @@ def flag_blended_components(cat: RMTable) -> RMTable:
     )
     # Sanity check - no single-component sources should be flagged
     assert np.array_equal(is_blended.index.values, cat["cat_id"].data), "Index mismatch"
-    assert not any(cat["is_blended_flag"] & (cat["N_Gaus"] == 1)), "Single-component sources cannot be flagged as blended."
+    assert not any(
+        cat["is_blended_flag"] & (cat["N_Gaus"] == 1)
+    ), "Single-component sources cannot be flagged as blended."
     return cat
 
 
@@ -860,9 +865,7 @@ def cli():
         logger.setLevel(logging.INFO)
 
     host = args.host
-    test_db(
-        host=args.host, username=args.username, password=args.password
-    )
+    test_db(host=args.host, username=args.username, password=args.password)
 
     main(
         field=args.field,

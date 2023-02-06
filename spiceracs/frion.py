@@ -141,8 +141,8 @@ def main(
     outdir: str,
     host: str,
     client: Client,
-    username: Union[str,None] = None,
-    password: Union[str,None] = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
     database=False,
     verbose=True,
 ):

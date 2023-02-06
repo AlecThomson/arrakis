@@ -117,7 +117,7 @@ def genparset(
     stoke: str,
     datadir: str,
     septab: Table,
-    holofile: Union[str,None] = None,
+    holofile: Union[str, None] = None,
 ) -> str:
     """Generate parset for LINMOS
 
@@ -281,11 +281,11 @@ def main(
     datadir: str,
     client: Client,
     host: str,
-    holofile: Union[str,None] = None,
-    username: Union[str,None] = None,
-    password: Union[str,None] = None,
+    holofile: Union[str, None] = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
     yanda="1.3.0",
-    stokeslist: Union[List[str],None] = None,
+    stokeslist: Union[List[str], None] = None,
     verbose=True,
 ) -> None:
     """Main script
