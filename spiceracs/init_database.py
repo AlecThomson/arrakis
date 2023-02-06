@@ -482,13 +482,15 @@ def cli():
     )
 
     parser.add_argument(
-        "-f", "--field",
+        "-f",
+        "--field",
         action="store_true",
         help="Load field table into database [False].",
     )
 
     parser.add_argument(
-        "-e", "--epoch",
+        "-e",
+        "--epoch",
         type=int,
         default=0,
         help="RACS epoch to load [0].",
