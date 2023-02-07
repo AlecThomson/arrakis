@@ -9,6 +9,8 @@ from dask import delayed
 from dask.distributed import Client
 from tqdm.auto import tqdm
 
+from spiceracs.logger import logger
+
 
 @delayed
 def tar_cubelets(out_dir: str, casda_dir: str, prefix: str) -> None:
@@ -19,12 +21,12 @@ def tar_cubelets(out_dir: str, casda_dir: str, prefix: str) -> None:
         casda_dir (str): CASDA directory containing cubelets/
         prefix (str): Prefix of cubelets to tar
     """
-    print(f"Tarring {prefix}...")
+    logger.info(f"Tarring {prefix}...")
     with tarfile.open(os.path.join(out_dir, f"{prefix}_cubelets.tar"), "w") as tar:
         _cube_list = glob(os.path.join(casda_dir, "cubelets", f"{prefix}*.fits"))
         for cube in _cube_list:
             tar.add(cube, arcname=os.path.basename(cube))
-    print(f"...done {prefix}!")
+    logger.info(f"...done {prefix}!")
 
 
 def main(casda_dir: str):
@@ -43,21 +45,21 @@ def main(casda_dir: str):
         raise FileNotFoundError(f"Directory {casda_dir} does not contain cubelets/")
 
     cube_list = glob(os.path.join(casda_dir, "cubelets", "*.fits"))
-    print(f"{len(cube_list)} cublets to tar...")
+    logger.info(f"{len(cube_list)} cublets to tar...")
     sources = set(
         [os.path.basename(cube)[:13] for cube in tqdm(cube_list, desc="Sources")]
     )
-    print(f"...into {len(sources)} sources")
+    logger.info(f"...into {len(sources)} sources")
     out_dir = os.path.join(casda_dir, "cubelets_tar")
     os.makedirs(out_dir, exist_ok=True)
-    print(f"Output directory: {out_dir}")
+    logger.info(f"Output directory: {out_dir}")
     outputs = []
     for source in tqdm(sources, desc="Tarring"):
         outputs.append(tar_cubelets(out_dir, casda_dir, source))
 
     dask.compute(*outputs)
 
-    print("Done!")
+    logger.info("Done!")
 
 
 if __name__ == "__main__":
@@ -67,6 +69,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "casda_dir", help="CASDA directory containing cublets/ to tar", type=str
     )
+    parser.add_argument(
+        "-v", "--verbose", help="Increase output verbosity", action="store_true"
+    )
     args = parser.parse_args()
-    # with Client() as client:
+
+    if args.verbose:
+        logger.setLevel("INFO")
+
     main(args.casda_dir)
