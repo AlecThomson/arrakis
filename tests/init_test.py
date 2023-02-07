@@ -5,6 +5,8 @@ import subprocess as sp
 import socket
 import time
 from typing import Tuple, Union
+import os
+import shutil
 
 import pymongo
 from spiceracs.logger import logger
@@ -30,7 +32,12 @@ FIELD = "data/RACS_1237+12A"
 
 def start_mongodb(port: int = 27017) -> Tuple[str, int]:
     """Start a local MongoDB instance."""
-    cmd = f"mongod --dbpath data/testdb --port {port} --fork --logpath data/testdb/mongodb.log"
+    if os.path.exists("data/testdb"):
+        shutil.rmtree("data/testdb")
+
+    os.makedirs("data/testdb")
+
+    cmd = f"mongod --dbpath data/testdb --port {port} --fork --auth --logpath data/testdb/mongodb.log"
     logger.debug("Starting mongo...")
     sp.run(cmd.split(), check=True)
     logger.debug("Mongo started. Sleeping for 5 seconds...")
