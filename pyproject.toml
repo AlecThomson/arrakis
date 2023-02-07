@@ -71,7 +71,7 @@ setuptools = "*"
 black = "^22.10"
 flake8 = "^5"
 isort = "^5"
-mypy = "^0.991"
+mypy = "^1"
 
 [tool.poetry.extras]
 docs = [
@@ -81,12 +81,6 @@ docs = [
     "sphinx-autoapi",
     "m2r2",
     "numpydoc",
-]
-
-dev = [
-    "black>=22.10",
-    "flake8>=5",
-    "isort>=5",
 ]
 
 [build-system]
