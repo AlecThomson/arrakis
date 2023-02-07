@@ -85,7 +85,7 @@ def predict_worker(
         plotdir (str): Plot directory
 
     Returns:
-        str: Prediction file name
+        Tuple[str, pymongo.UpdateOne]: FRion prediction file and pymongo update query
     """
     ifile = os.path.join(cutdir, beam["beams"][field]["i_file"])
     i_dir = os.path.dirname(ifile)
