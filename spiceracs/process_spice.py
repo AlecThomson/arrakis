@@ -29,6 +29,7 @@ from spiceracs import (
     rmclean_oncuts,
     rmsynth_oncuts,
 )
+from spiceracs.logger import logger
 from spiceracs.utils import port_forward, test_db
 
 
@@ -221,7 +222,6 @@ def main(args: configargparse.Namespace) -> None:
         host=args.host,
         username=args.username,
         password=args.password,
-        verbose=args.verbose,
     )
 
     args_yaml = yaml.dump(vars(args))
@@ -652,18 +652,7 @@ def cli():
 
     verbose = args.verbose
     if verbose:
-        logger.basicConfig(
-            level=logger.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-    else:
-        logger.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
+        logger.setLevel(logger.INFO)
 
     main(args)
 
