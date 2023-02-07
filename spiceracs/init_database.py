@@ -309,7 +309,7 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
 
 
 def field_database(
-    host: str, username: Union[str, None], password: Union[str, None]
+    host: str, username: Union[str, None], password: Union[str, None], epoch: int = 0
 ) -> InsertManyResult:
     """Reset and load the field database
 
@@ -317,12 +317,13 @@ def field_database(
         host (str): Mongo host
         username (Union[str, None]): Mongo username
         password (Union[str, None]): Mongo password
+        epoch (int, optional): RACS epoch number. Defaults to 0.
 
     Returns:
         InsertManyResult: Field insert object.
     """
     survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
-    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
+    basedir = os.path.join(survey_dir, "racs", "db", f"epoch_{epoch}")
     data_file = os.path.join(basedir, "field_data.csv")
     database = Table.read(data_file)
     df = database.to_pandas()
