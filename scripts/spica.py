@@ -149,7 +149,9 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
         for row in spica_tab:
             if row["Leakage cal"]:
                 if row["Cube imaging"]:
-                    logger.info(f"Cube imaging done for {row['Field name']}. Skipping...")
+                    logger.info(
+                        f"Cube imaging done for {row['Field name']}. Skipping..."
+                    )
                     continue
                 else:
                     copy_data.main(

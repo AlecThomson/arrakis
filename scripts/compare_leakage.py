@@ -18,7 +18,6 @@ import warnings
 from glob import glob
 from shutil import copyfile
 
-
 import astropy
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -33,8 +32,8 @@ from dask.distributed import Client, LocalCluster
 from IPython import embed
 from IPython.core.pylabtools import figsize
 
-from spiceracs.logger import logger, logging
 from spiceracs.linmos import gen_seps
+from spiceracs.logger import logger, logging
 from spiceracs.utils import (
     chunk_dask,
     coord_to_string,
