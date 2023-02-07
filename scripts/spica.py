@@ -9,7 +9,10 @@ import numpy as np
 import pkg_resources
 from astropy.table import Table
 
+from spiceracs.logger import logger, logging
 from spiceracs.utils import try_mkdir
+
+logger.setLevel(logging.INFO)
 
 racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")
 # spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')
@@ -51,11 +54,8 @@ SPICA = [
 
 
 def mslist(cal_sb, name):
-    # os.system('module unload askapsoft')
-    # os.system('module load askapsoft')
     try:
         ms = glob(f"{racs_area}/{cal_sb}/RACS_test4_1.05_{name}/*beam00_*.ms")[0]
-        # print('ms',ms)
     except:
         raise Exception(
             f"Can't find '{racs_area}/{cal_sb}/RACS_test4_1.05_{name}/*beam00_*.ms'"
@@ -65,15 +65,14 @@ def mslist(cal_sb, name):
         shlex.split(f"mslist --full {ms}"), capture_output=True, check=False
     )
     if mslist_out.returncode > 0:
-        print(mslist_out.stderr.decode("utf-8"))
-        print(mslist_out.stdout.decode("utf-8"))
+        logger.error(mslist_out.stderr.decode("utf-8"))
+        logger.error(mslist_out.stdout.decode("utf-8"))
         mslist_out.check_returncode()
     date_out = sb.run(
         shlex.split("date +%Y-%m-%d-%H%M%S"), capture_output=True, check=True
     )
 
     out = mslist_out.stderr.decode() + f"METADATA_IS_GOOD {date_out.stdout.decode()}"
-    # print(out)
     return out
 
 
@@ -120,25 +119,22 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
     spica_tab.sort("SBID")
     spica_tab.pprint_all()
     if cal:
-        print("The following row indcies are ready to image:")
+        logger.info("The following row indcies are ready to image:")
         sub_tab = spica_tab[spica_tab["Leakage cal"]]
         indxs = []
         for row in sub_tab:
             indxs.append(row["Row index"])
         indxs = np.array(indxs)
-        print(" ".join(indxs.astype(str)))
+        logger.info(" ".join(indxs.astype(str)))
 
     if mslist_dir is not None:
         mslist_dir = os.path.abspath(mslist_dir)
-        # print('mslist_dir',mslist_dir)
         for row in spica_tab:
             try:
                 out = mslist(
                     name=row["Field name"].replace("RACS_", ""), cal_sb=row["CAL SBID"]
                 )
-                # print('out',out)
                 sbdir = f"{mslist_dir}/{row['SBID']}"
-                # print('sbdir',sbdir)
                 try_mkdir(sbdir, verbose=False)
                 outdir = f"{sbdir}/metadata"
                 try_mkdir(outdir, verbose=False)
@@ -146,14 +142,14 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
                 with open(outfile, "w") as f:
                     f.write(out)
             except Exception as e:
-                print(e)
+                logger.error(e)
                 continue
 
     if copy:
         for row in spica_tab:
             if row["Leakage cal"]:
                 if row["Cube imaging"]:
-                    print(f"Cube imaging done for {row['Field name']}. Skipping...")
+                    logger.info(f"Cube imaging done for {row['Field name']}. Skipping...")
                     continue
                 else:
                     copy_data.main(
@@ -171,7 +167,7 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
         for row in spica_tab:
             cmd = f"start_pipeline.py -e 0 -p /group/askap/athomson/projects/spiceracs/spica/racs_pipeline_cube.parset -o -m /group/askap/athomson/projects/spiceracs/spica/modules.txt -t /group/askap/athomson/projects/spiceracs/MSlists/{row['SBID']}/metadata/ -i {row['SBID']} -c {row['CAL SBID']} -f {row['Field name'].replace('RACS_', 'RACS_test4_1.05_')} -a ja3 -s"
             cmds.append(cmd)
-        print(f"Written imaging commands to '{cube_image}'")
+        logger.info(f"Written imaging commands to '{cube_image}'")
         with open(cube_image, "w") as f:
             f.write("\n".join(cmds))
     return spica_tab
