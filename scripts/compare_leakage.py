@@ -45,7 +45,6 @@ from spiceracs.utils import (
 
 
 def make_plot(data, comp, imfile):
-
     fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(10, 10))
     fig.suptitle(f"{comp['Gaussian_ID']} leakage")
     for i, s in enumerate(["q", "u"]):

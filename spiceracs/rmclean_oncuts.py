@@ -64,7 +64,6 @@ def rmclean1d(
 
     logger.debug(f"Working on {comp}")
     try:
-
         rm1dfiles = comp["rm1dfiles"]
         fdfFile = os.path.join(outdir, f"{rm1dfiles['FDF_dirty']}")
         rmsfFile = os.path.join(outdir, f"{rm1dfiles['RMSF']}")

@@ -181,7 +181,6 @@ def merge_multiple_fields(
     merge_name: str,
     image: str,
 ) -> list:
-
     # Find all islands with the given fields that overlap another field
     query = {
         "$or": [
@@ -221,7 +220,6 @@ def main(
     yanda="1.3.0",
     verbose: bool = True,
 ) -> str:
-
     logger.debug(f"{fields=}")
 
     assert len(fields) == len(

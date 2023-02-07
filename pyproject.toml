@@ -68,7 +68,7 @@ PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git@spiceracs"}
 setuptools = "*"
 
 [tool.poetry.dev-dependencies]
-black = "^22.10"
+black = "^23"
 flake8 = "^5"
 isort = "^5"
 mypy = "^1"

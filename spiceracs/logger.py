@@ -13,12 +13,12 @@ logger.setLevel(logging.WARNING)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 
+
 # Create formatter
 # formatter = logging.Formatter(
 #     "SPICE: %(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s"
 # )
 class CustomFormatter(logging.Formatter):
-
     grey = "\x1b[38;20m"
     blue = "\x1b[34;20m"
     green = "\x1b[32;20m"

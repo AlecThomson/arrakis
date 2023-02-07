@@ -724,7 +724,6 @@ def main(
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> None:
-
     outdir = os.path.abspath(outdir)
     outdir = os.path.join(outdir, "cutouts")
 

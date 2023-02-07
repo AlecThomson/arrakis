@@ -377,7 +377,7 @@ def cutout_islands(
     try_mkdir(outdir)
 
     args = []
-    for (island_id, island, comp, beam) in zip(island_ids, islands, comps, beams):
+    for island_id, island, comp, beam in zip(island_ids, islands, comps, beams):
         if len(comp) == 0:
             warnings.warn(f"Skipping island {island_id} -- no components found")
             continue

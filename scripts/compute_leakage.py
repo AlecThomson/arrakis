@@ -30,7 +30,6 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     ras, decs, freqs, stokeis, stokeqs, stokeus = [], [], [], [], [], []
     specs = []
     for i, comp in enumerate(tqdm(components)):
-
         iname = comp["Source_ID"]
         cname = comp["Gaussian_ID"]
         spectra = f"{datadir}/cutouts/{iname}/{cname}.dat"
@@ -127,7 +126,6 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
 
     logger.info("\nDeriving robust leakage estimates for interpolation grid...")
     for row_idx, row in enumerate(tqdm(pair_dist)):
-
         # Guide to where we're at
         # if row_idx%100==0:
         # 	logger.info('Processing row %d of %d'%(row_idx,len(pair_dist)))
