@@ -9,11 +9,11 @@
 #SBATCH --account=askap
 #SBATCH --ntasks=1000
 #SBATCH --ntasks-per-node=10
-#SBATCH --time=0-00:45:00 # For cut
+##SBATCH --time=0-00:45:00 # For cut
 ##SBATCH --time=0-00:10:00 # For test
-##SBATCH --time=0-01:45:00 # For full
+#SBATCH --time=0-01:45:00 # For full
 
-prep_type=cut
+prep_type=full
 conda activate spice
 data_dir=/group/askap/athomson/projects/spiceracs/DR1/full_spica
 polcat=/group/askap/athomson/projects/spiceracs/DR1/spice-racs.dr1.corrected.xml
