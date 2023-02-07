@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `columns_possum.py`: Add new Stokes I fit flags and UCDs (plus others)
 - `scripts/casda_prepare.py`: Refactor to make considated products and make CASDA happy
 - `scripts/fix_dr1_cat.py`: Added extra columns that needed to be fixed in DR1 e.g. sbid, start_time
+- Typing in various places
 
 ### Changed
 
