@@ -374,7 +374,6 @@ def main(
         time.sleep(30)
         logger.critical("Continuing...you have been warned!")
 
-
     if load:
         # Get database from master cat
         if islandcat is None:
@@ -390,9 +389,13 @@ def main(
         logger.info(f"Reading {compcat}")
         comp_cat = Table.read(compcat)
         logger.critical("This will overwrite the source database!")
-        check_source = yes_or_no("Are you sure you wish to proceed?") if not force else True
+        check_source = (
+            yes_or_no("Are you sure you wish to proceed?") if not force else True
+        )
         logger.critical("This will overwrite the beams database!")
-        check_beam = yes_or_no("Are you sure you wish to proceed?") if not force else True
+        check_beam = (
+            yes_or_no("Are you sure you wish to proceed?") if not force else True
+        )
         if check_source:
             source_database(
                 islandcat=island_cat,
@@ -411,7 +414,9 @@ def main(
             )
     if field:
         logger.critical("This will overwrite the field database!")
-        check_field = yes_or_no("Are you sure you wish to proceed?") if not force else True
+        check_field = (
+            yes_or_no("Are you sure you wish to proceed?") if not force else True
+        )
         if check_field:
             field_res = field_database(
                 host=host,
