@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """SPICE-RACS single-field pipeline"""
-import logging
 import os
-import socket
 from time import sleep
 
 import configargparse
@@ -19,6 +17,7 @@ from IPython import embed
 from prefect import Flow, Task, task
 from prefect.engine import signals
 from prefect.engine.executors import DaskExecutor
+from prefect_dask import DaskTaskExecutor
 
 from spiceracs import (
     cleanup,
