@@ -24,7 +24,6 @@ from spiceracs import (
 from spiceracs.logger import logger
 from spiceracs.utils import port_forward, test_db
 
-
 # Defining tasks
 cut_task = task(cutout.cutout_islands, name="Cutout")
 linmos_task = task(linmos.main, name="LINMOS")
@@ -36,13 +35,12 @@ cat_task = task(makecat.main, name="Catalogue")
 
 @flow(name="Process the Spice")
 def process_spice(
-    args: configargparse.Namespac, client: Client, host: str
+    args: configargparse.Namespac, host: str
 ) -> None:
     """Workflow to process the SPIRCE-RACS data
 
     Args:
         args (configargparse.Namespac): Configuration parameters for this run
-        client (Client): Client spun to service the task submissions and workflow
         host (str): Host address of the mongoDB. 
     """
         
@@ -52,7 +50,6 @@ def process_spice(
             host=host,
             username=args.username,
             password=args.password,
-            client=client,
             verbose=args.verbose,
             pad=args.pad,
             stokeslist=["I", "Q", "U"],
@@ -63,7 +60,6 @@ def process_spice(
     mosaics = linmos_task.submit(
             field=args.field,
             datadir=args.datadir,
-            client=client,
             host=host,
             holofile=args.holofile,
             username=args.username,
@@ -77,7 +73,6 @@ def process_spice(
         
     tidy = cleanup_task.submit(
         datadir=args.datadir,
-        client=client,
         stokeslist=["I", "Q", "U"],
         verbose=True,
         wait_for=[mosaics],
@@ -88,7 +83,6 @@ def process_spice(
         field=args.field,
         outdir=args.datadir,
         host=host,
-        client=client,
         username=args.username,
         password=args.password,
         database=args.database,
@@ -102,7 +96,6 @@ def process_spice(
         host=host,
         username=args.username,
         password=args.password,
-        client=client,
         dimension=args.dimension,
         verbose=args.verbose,
         database=args.database,
@@ -134,7 +127,6 @@ def process_spice(
         host=host,
         username=args.username,
         password=args.password,
-        client=client,
         dimension=args.dimension,
         verbose=args.verbose,
         database=args.database,
@@ -233,7 +225,7 @@ def main(args: configargparse.Namespace) -> None:
     process_spice.with_options(
         name=f"SPICE-RACS {args.field}",
         task_runner=dask_runner
-    )(args)
+    )(args, host)
 
     with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
         flow.run()

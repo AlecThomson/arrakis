@@ -21,12 +21,11 @@ from spiceracs.utils import port_forward, test_db
 merge_task = task(merge_fields.main, name="Merge fields")
 
 @flow
-def process_merge(args: configargparse.Namespace, client: Client, host: str, inter_dir:str) -> None:
+def process_merge(args: configargparse.Namespace, host: str, inter_dir:str) -> None:
     """Workflow to merge spectra from overlapping fields together
 
     Args:
         args (configargparse.Namespace): Parameters to use for this process
-        client (Client): Client object spun up to service the submitted tasks
         host (str): Address of the mongoDB servicing the processing
         inter_dir (str): Location to store data from merged fields
     """
@@ -35,7 +34,6 @@ def process_merge(args: configargparse.Namespace, client: Client, host: str, int
         field_dirs=args.datadirs,
         merge_name=args.merge_name,
         output_dir=args.output_dir,
-        client=client,
         host=host,
         username=args.username,
         password=args.password,
@@ -49,7 +47,6 @@ def process_merge(args: configargparse.Namespace, client: Client, host: str, int
         host=host,
         username=args.username,
         password=args.password,
-        client=client,
         dimension=args.dimension,
         verbose=args.verbose,
         database=args.database,
@@ -81,7 +78,6 @@ def process_merge(args: configargparse.Namespace, client: Client, host: str, int
         host=host,
         username=args.username,
         password=args.password,
-        client=client,
         dimension=args.dimension,
         verbose=args.verbose,
         database=args.database,
@@ -180,7 +176,7 @@ def main(args: configargparse.Namespace) -> None:
     process_merge.with_options(
         name=f"SPICE-RACS: {args.merge_name}",
         task_runner=dask_runner
-    )(args, client, host, inter_dir)
+    )(args, host, inter_dir)
     
     with performance_report(f"{args.merge_name}-report-{Time.now().fits}.html"):
         flow.run()

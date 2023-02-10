@@ -8,47 +8,38 @@ import pickle
 import subprocess as sp
 import tarfile
 import time
-import traceback
 from glob import glob
-from typing import Dict, List, Tuple
+from typing import Dict
 
 import astropy.units as u
-import dask.array as da
-import dask.bag as db
-import h5py
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import polspectra
 from astropy.io import fits
-from astropy.table import Column, Row, Table, vstack
+from astropy.table import Column, Table
 from astropy.units.core import get_current_unit_registry
 from astropy.visualization import (
     ImageNormalize,
-    LogStretch,
     MinMaxInterval,
     SqrtStretch,
-    ZScaleInterval,
 )
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
-from dask.delayed import Delayed
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
-from distributed.protocol.serialize import (
-    pickle_dumps,
-    pickle_loads,
-    register_serialization_family,
-)
+from prefect_dask import get_dask_client
+
 from IPython import embed
 from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
-from tqdm.auto import tqdm, trange
+from tqdm.auto import tqdm
 
 from spiceracs.logger import logger
 from spiceracs.makecat import write_votable
-from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
+from spiceracs.utils import chunk_dask, try_mkdir, try_symlink
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -487,7 +478,6 @@ def find_plots(data_dir: str = ".") -> list:
 
 def main(
     polcatf: str,
-    client: Client,
     data_dir: str = ".",
     prep_type: str = "test",
     do_update_cubes: bool = False,
@@ -502,7 +492,6 @@ def main(
     for unit in (u.deg, u.hour, u.hourangle, u.Jy, u.arcsec, u.arcmin, u.beam):
         get_current_unit_registry().add_enabled_units([unit])
     logger.info("Starting")
-    logger.info(f"Dask client: {client}")
     logger.info(f"Reading {polcatf}")
 
     polcat = Table.read(polcatf)
@@ -722,13 +711,13 @@ def main(
 
         futures = chunk_dask(
             outputs=outputs,
-            client=client,
             task_name=name,
             progress_text=f"Preparing {name} for CASDA",
             verbose=verbose,
             batch_size=batch_size,
         )
         if name == "spectra" and len(outputs) > 0:
+            client = get_dask_client()
             # Get concrete results
             spectrum_tables = client.gather(client.compute(futures))
             # Add all spectrum_tables to a tar ball
@@ -846,7 +835,6 @@ def cli():
         logger.debug(f"{client=}")
         main(
             polcatf=args.polcat,
-            client=client,
             data_dir=args.data_dir,
             prep_type=args.prep_type,
             do_update_cubes=args.convert_cubes,
@@ -856,6 +844,8 @@ def cli():
             batch_size=args.batch_size,
             outdir=args.outdir,
         )
+        
+    
 
 
 if __name__ == "__main__":

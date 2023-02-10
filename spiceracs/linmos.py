@@ -1,29 +1,22 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
-import ast
-import logging
 import os
 import shlex
-import subprocess
-import sys
-import time
 import warnings
 from glob import glob
 from logging import disable
 from pprint import pformat
-from typing import List, Tuple, Union
+from typing import List,Union
 
 import astropy
 import astropy.units as u
-import dask
 import numpy as np
 import pkg_resources
 import pymongo
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
-from dask import delayed, distributed
-from dask.diagnostics import ProgressBar
+from dask import delayed
 from dask.distributed import Client, LocalCluster
 from IPython import embed
 from spectral_cube.utils import SpectralCubeWarning
@@ -279,7 +272,6 @@ def get_yanda(version="1.3.0") -> str:
 def main(
     field: str,
     datadir: str,
-    client: Client,
     host: str,
     holofile: Union[str, None] = None,
     username: Union[str, None] = None,
@@ -372,7 +364,6 @@ def main(
 
     futures = chunk_dask(
         outputs=results,
-        client=client,
         task_name="LINMOS",
         progress_text="Runing LINMOS",
         verbose=verbose,
@@ -464,7 +455,6 @@ def cli():
     main(
         field=args.field,
         datadir=args.datadir,
-        client=client,
         host=args.host,
         holofile=args.holofile,
         username=args.username,

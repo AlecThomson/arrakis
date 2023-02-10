@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
-import logging
 import os
-import time
-from pprint import pformat, pprint
+from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 import pymongo
-from dask import delayed, distributed
+from dask import delayed
 from dask.distributed import Client, LocalCluster
-from tqdm import tqdm
 
 from spiceracs.linmos import get_yanda, linmos
 from spiceracs.logger import logger
@@ -213,7 +210,6 @@ def main(
     field_dirs: List[str],
     merge_name: str,
     output_dir: str,
-    client: Client,
     host: str,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
@@ -260,7 +256,6 @@ def main(
 
     singleton_futures = chunk_dask(
         outputs=singleton_updates,
-        client=client,
         task_name="singleton islands",
         progress_text="Copying singleton islands",
         verbose=verbose,
@@ -269,7 +264,6 @@ def main(
 
     multiple_futures = chunk_dask(
         outputs=mutilple_updates,
-        client=client,
         task_name="overlapping islands",
         progress_text="Running LINMOS on overlapping islands",
         verbose=verbose,
@@ -367,13 +361,15 @@ def cli():
         field_dirs=args.datadirs,
         merge_name=args.merge_name,
         output_dir=args.output_dir,
-        client=client,
         host=args.host,
         username=args.username,
         password=args.password,
         yanda=args.yanda,
         verbose=verbose,
     )
+    
+    client.close()
+    cluster.close()
 
 
 if __name__ == "__main__":

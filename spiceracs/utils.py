@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import astropy.units as u
-import dask
 import dask.array as da
 import dask.distributed as distributed
 import numpy as np
@@ -37,6 +36,7 @@ from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner, is_kernel
 from FRion.correct import find_freq_axis
+from prefect_dask import get_dask_client
 from pymongo.collection import Collection
 from scipy.optimize import curve_fit
 from scipy.stats import normaltest
@@ -324,12 +324,14 @@ def zip_equal(*iterables):
 
 def chunk_dask(
     outputs: list,
-    client: distributed.Client,
     batch_size: int = 10_000,
     task_name="",
     progress_text="",
     verbose=True,
 ) -> list:
+    client = get_dask_client()
+    logger.debug(f"Obtained {client=}")
+    
     chunk_outputs = []
     for i in trange(
         0, len(outputs), batch_size, desc=f"Chunking {task_name}", disable=(not verbose)

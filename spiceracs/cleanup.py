@@ -2,7 +2,6 @@
 """DANGER ZONE: Purge directories of un-needed FITS files."""
 import logging
 import os
-import time
 from glob import glob
 from typing import List, Union
 
@@ -31,7 +30,6 @@ def cleanup(workdir: str, stoke: str) -> None:
 
 def main(
     datadir: str,
-    client: Client,
     stokeslist: Union[List[str], None] = None,
     verbose=True,
 ) -> None:
@@ -69,7 +67,6 @@ def main(
 
     futures = chunk_dask(
         outputs=outputs,
-        client=client,
         task_name="cleanup",
         progress_text="Running cleanup",
         verbose=verbose,
@@ -123,12 +120,12 @@ def cli():
     verbose = args.verbose
 
     if verbose:
-        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
 
     cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
 
-    main(datadir=args.outdir, client=client, stokeslist=None, verbose=verbose)
+    main(datadir=args.outdir, stokeslist=None, verbose=verbose)
 
     client.close()
     cluster.close()
