@@ -1,21 +1,16 @@
 #!/usr/bin/env python3
 """SPICE-RACS single-field pipeline"""
 import os
-from time import sleep
 
 import configargparse
 import pkg_resources
-import pymongo
 import yaml
 from astropy.time import Time
-from dask import delayed, distributed
-from dask.diagnostics import ProgressBar
-from dask.distributed import Client, LocalCluster, performance_report, progress
+from dask.distributed import Client, performance_report
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
-from IPython import embed
 from prefect import flow, task
-from prefect_dask import DaskTaskExecutor
+from prefect_dask import DaskTaskRunner
 
 from spiceracs import (
     cleanup,
@@ -232,7 +227,7 @@ def main(args: configargparse.Namespace) -> None:
     # Prin out Dask client info
     logger.info(client.scheduler_info()["services"])
 
-    dask_runner = DaskTaskExecutor(address=client.scheduler.address)
+    dask_runner = DaskTaskRunner(address=client.scheduler.address)
 
     # Define flow
     process_spice.with_options(

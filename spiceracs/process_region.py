@@ -7,14 +7,12 @@ import configargparse
 import pkg_resources
 import yaml
 from astropy.time import Time
-from dask import delayed, distributed
-from dask.diagnostics import ProgressBar
-from dask.distributed import Client, LocalCluster, performance_report, progress
+from dask.distributed import Client, performance_report
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
 from IPython import embed
 from prefect import flow, task
-from prefect_dask import DaskTaskExecutor
+from prefect_dask import DaskTaskRunner
 
 from spiceracs import merge_fields, process_spice
 from spiceracs.logger import logger
@@ -24,7 +22,15 @@ merge_task = task(merge_fields.main, name="Merge fields")
 
 @flow
 def process_merge(args: configargparse.Namespace, client: Client, host: str, inter_dir:str) -> None:
-    merge = merge_task(
+    """Workflow to merge spectra from overlapping fields together
+
+    Args:
+        args (configargparse.Namespace): Parameters to use for this process
+        client (Client): Client object spun up to service the submitted tasks
+        host (str): Address of the mongoDB servicing the processing
+        inter_dir (str): Location to store data from merged fields
+    """
+    merge = merge_task.submit(
         fields=args.fields,
         field_dirs=args.datadirs,
         merge_name=args.merge_name,
@@ -37,7 +43,7 @@ def process_merge(args: configargparse.Namespace, client: Client, host: str, int
         verbose=args.verbose,
     ) if not args.skip_merge else None
     
-    dirty_spec = process_spice.rmsynth_task(
+    dirty_spec = process_spice.rmsynth_task.submit(
         field=args.merge_name,
         outdir=inter_dir,
         host=host,
@@ -69,7 +75,7 @@ def process_merge(args: configargparse.Namespace, client: Client, host: str, int
         wait_for=[merge],
     ) if not args.skip_rmsynth else None
     
-    clean_spec = process_spice.rmclean_task(
+    clean_spec = process_spice.rmclean_task.submit(
         field=args.merge_name,
         outdir=inter_dir,
         host=host,
@@ -90,7 +96,7 @@ def process_merge(args: configargparse.Namespace, client: Client, host: str, int
         wait_for=[dirty_spec],
     ) if not args.skip_rmclean else None
     
-    catalogue = process_spice.cat_task(
+    catalogue = process_spice.cat_task.submit(
         field=args.merge_name,
         host=host,
         username=args.username,
@@ -167,9 +173,8 @@ def main(args: configargparse.Namespace) -> None:
     # Prin out Dask client info
     logger.info(client.scheduler_info()["services"])
     
-    dask_runner = DaskTaskExecutor(address=client.scheduler.address)
+    dask_runner = DaskTaskRunner(address=client.scheduler.address)
 
-    # Define flow
     inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
     
     process_merge.with_options(
