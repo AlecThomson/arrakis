@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """SPICE-RACS multi-field pipeline"""
-import logging
 import os
 from time import sleep
 
@@ -14,34 +13,92 @@ from dask.distributed import Client, LocalCluster, performance_report, progress
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
 from IPython import embed
-from prefect import Flow, Task, task
-from prefect.engine import signals
-from prefect.engine.executors import DaskExecutor
+from prefect import flow, task
+from prefect_dask import DaskTaskExecutor
 
 from spiceracs import merge_fields, process_spice
 from spiceracs.logger import logger
 from spiceracs.utils import port_forward, test_db
 
+merge_task = task(merge_fields.main, name="Merge fields")
 
-@task(name="Merge fields", skip_on_upstream_skip=False)
-def merge_task(skip: bool, **kwargs) -> Task:
-    """Cutout task
-
-    Kwargs passed to merge_fields.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs merge_fields.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping merge task")
-    return merge_fields.main(**kwargs)
-
+@flow
+def process_merge(args: configargparse.Namespace, client: Client, host: str, inter_dir:str) -> None:
+    merge = merge_task(
+        fields=args.fields,
+        field_dirs=args.datadirs,
+        merge_name=args.merge_name,
+        output_dir=args.output_dir,
+        client=client,
+        host=host,
+        username=args.username,
+        password=args.password,
+        yanda=args.yanda,
+        verbose=args.verbose,
+    ) if not args.skip_merge else None
+    
+    dirty_spec = process_spice.rmsynth_task(
+        field=args.merge_name,
+        outdir=inter_dir,
+        host=host,
+        username=args.username,
+        password=args.password,
+        client=client,
+        dimension=args.dimension,
+        verbose=args.verbose,
+        database=args.database,
+        validate=args.validate,
+        limit=args.limit,
+        savePlots=args.savePlots,
+        weightType=args.weightType,
+        fitRMSF=args.fitRMSF,
+        phiMax_radm2=args.phiMax_radm2,
+        dPhi_radm2=args.dPhi_radm2,
+        nSamples=args.nSamples,
+        polyOrd=args.polyOrd,
+        noStokesI=args.noStokesI,
+        showPlots=args.showPlots,
+        not_RMSF=args.not_RMSF,
+        rm_verbose=args.rm_verbose,
+        debug=args.debug,
+        fit_function=args.fit_function,
+        tt0=args.tt0,
+        tt1=args.tt1,
+        ion=False,
+        do_own_fit=args.do_own_fit,
+        wait_for=[merge],
+    ) if not args.skip_rmsynth else None
+    
+    clean_spec = process_spice.rmclean_task(
+        field=args.merge_name,
+        outdir=inter_dir,
+        host=host,
+        username=args.username,
+        password=args.password,
+        client=client,
+        dimension=args.dimension,
+        verbose=args.verbose,
+        database=args.database,
+        validate=args.validate,
+        limit=args.limit,
+        cutoff=args.cutoff,
+        maxIter=args.maxIter,
+        gain=args.gain,
+        window=args.window,
+        showPlots=args.showPlots,
+        rm_verbose=args.rm_verbose,
+        wait_for=[dirty_spec],
+    ) if not args.skip_rmclean else None
+    
+    catalogue = process_spice.cat_task(
+        field=args.merge_name,
+        host=host,
+        username=args.username,
+        password=args.password,
+        verbose=args.verbose,
+        outfile=args.outfile,
+        wait_for=[clean_spec],
+    ) if not args.skip_cat else None
 
 def main(args: configargparse.Namespace) -> None:
     """Main script
@@ -109,86 +166,17 @@ def main(args: configargparse.Namespace) -> None:
 
     # Prin out Dask client info
     logger.info(client.scheduler_info()["services"])
+    
+    dask_runner = DaskTaskExecutor(address=client.scheduler.address)
+
     # Define flow
     inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
-    with Flow(f"SPICE-RACS: {args.merge_name}") as flow:
-        merge = merge_task(
-            args.skip_merge,
-            fields=args.fields,
-            field_dirs=args.datadirs,
-            merge_name=args.merge_name,
-            output_dir=args.output_dir,
-            client=client,
-            host=host,
-            username=args.username,
-            password=args.password,
-            yanda=args.yanda,
-            verbose=args.verbose,
-        )
-        dirty_spec = process_spice.rmsynth_task(
-            args.skip_rmsynth,
-            field=args.merge_name,
-            outdir=inter_dir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            client=client,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            savePlots=args.savePlots,
-            weightType=args.weightType,
-            fitRMSF=args.fitRMSF,
-            phiMax_radm2=args.phiMax_radm2,
-            dPhi_radm2=args.dPhi_radm2,
-            nSamples=args.nSamples,
-            polyOrd=args.polyOrd,
-            noStokesI=args.noStokesI,
-            showPlots=args.showPlots,
-            not_RMSF=args.not_RMSF,
-            rm_verbose=args.rm_verbose,
-            debug=args.debug,
-            fit_function=args.fit_function,
-            tt0=args.tt0,
-            tt1=args.tt1,
-            ion=False,
-            do_own_fit=args.do_own_fit,
-            upstream_tasks=[merge],
-        )
-        clean_spec = process_spice.rmclean_task(
-            args.skip_rmclean,
-            field=args.merge_name,
-            outdir=inter_dir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            client=client,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            cutoff=args.cutoff,
-            maxIter=args.maxIter,
-            gain=args.gain,
-            window=args.window,
-            showPlots=args.showPlots,
-            rm_verbose=args.rm_verbose,
-            upstream_tasks=[dirty_spec],
-        )
-        catalogue = process_spice.cat_task(
-            args.skip_cat,
-            field=args.merge_name,
-            host=host,
-            username=args.username,
-            password=args.password,
-            verbose=args.verbose,
-            outfile=args.outfile,
-            upstream_tasks=[clean_spec],
-        )
-
+    
+    process_merge.with_options(
+        name=f"SPICE-RACS: {args.merge_name}",
+        task_runner=dask_runner
+    )(args, client, host, inter_dir)
+    
     with performance_report(f"{args.merge_name}-report-{Time.now().fits}.html"):
         flow.run()
 
