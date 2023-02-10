@@ -29,7 +29,8 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir:str) -> N
         host (str): Address of the mongoDB servicing the processing
         inter_dir (str): Location to store data from merged fields
     """
-    merge = merge_task.submit(
+    previous_future = None
+    previous_future = merge_task.submit(
         fields=args.fields,
         field_dirs=args.datadirs,
         merge_name=args.merge_name,
@@ -39,7 +40,7 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir:str) -> N
         password=args.password,
         yanda=args.yanda,
         verbose=args.verbose,
-    ) if not args.skip_merge else None
+    ) if not args.skip_merge else previous_future
     
     dirty_spec = process_spice.rmsynth_task.submit(
         field=args.merge_name,
@@ -69,10 +70,10 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir:str) -> N
         tt1=args.tt1,
         ion=False,
         do_own_fit=args.do_own_fit,
-        wait_for=[merge],
-    ) if not args.skip_rmsynth else None
+        wait_for=[previous_future],
+    ) if not args.skip_rmsynth else previous_future
     
-    clean_spec = process_spice.rmclean_task.submit(
+    previous_future = process_spice.rmclean_task.submit(
         field=args.merge_name,
         outdir=inter_dir,
         host=host,
@@ -89,18 +90,18 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir:str) -> N
         window=args.window,
         showPlots=args.showPlots,
         rm_verbose=args.rm_verbose,
-        wait_for=[dirty_spec],
-    ) if not args.skip_rmclean else None
+        wait_for=[previous_future],
+    ) if not args.skip_rmclean else previous_future
     
-    catalogue = process_spice.cat_task.submit(
+    previous_future = process_spice.cat_task.submit(
         field=args.merge_name,
         host=host,
         username=args.username,
         password=args.password,
         verbose=args.verbose,
         outfile=args.outfile,
-        wait_for=[clean_spec],
-    ) if not args.skip_cat else None
+        wait_for=[previous_future],
+    ) if not args.skip_cat else previous_future
 
 def main(args: configargparse.Namespace) -> None:
     """Main script

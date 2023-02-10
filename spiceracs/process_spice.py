@@ -43,8 +43,9 @@ def process_spice(
         args (configargparse.Namespac): Configuration parameters for this run
         host (str): Host address of the mongoDB. 
     """
-        
-    cuts = cut_task.submit(
+    
+    previous_future = None
+    previous_future = cut_task.submit(
             field=args.field,
             directory=args.datadir,
             host=host,
@@ -55,9 +56,9 @@ def process_spice(
             stokeslist=["I", "Q", "U"],
             verbose_worker=args.verbose_worker,
             dryrun=args.dryrun,
-        ) if not args.skip_cuts else None
+        ) if not args.skip_cuts else previous_future
     
-    mosaics = linmos_task.submit(
+    previous_future = linmos_task.submit(
             field=args.field,
             datadir=args.datadir,
             host=host,
@@ -67,18 +68,18 @@ def process_spice(
             yanda=args.yanda,
             stokeslist=["I", "Q", "U"],
             verbose=True,
-            wait_for=[cuts],
-        ) if not args.skip_linmos else None
+            wait_for=[previous_future],
+        ) if not args.skip_linmos else previous_future
     
         
-    tidy = cleanup_task.submit(
+    previous_future = cleanup_task.submit(
         datadir=args.datadir,
         stokeslist=["I", "Q", "U"],
         verbose=True,
-        wait_for=[mosaics],
-    ) if not args.skip_cleanup else None
+        wait_for=[previous_future],
+    ) if not args.skip_cleanup else previous_future
     
-    frion_run = frion_task.submit(
+    previous_future = frion_task.submit(
         args.skip_frion,
         field=args.field,
         outdir=args.datadir,
@@ -87,10 +88,10 @@ def process_spice(
         password=args.password,
         database=args.database,
         verbose=args.verbose,
-        wait_for=[mosaics],
-    ) if not args.skip_frion else None
+        wait_for=[previous_future],
+    ) if not args.skip_frion else previous_future
     
-    dirty_spec = rmsynth_task.submit(
+    previous_future = rmsynth_task.submit(
         field=args.field,
         outdir=args.datadir,
         host=host,
@@ -118,10 +119,10 @@ def process_spice(
         tt1=args.tt1,
         ion=True,
         do_own_fit=args.do_own_fit,
-        wait_for=[frion_run],
-    ) if not args.skip_rmsynth else None
+        wait_for=[previous_future],
+    ) if not args.skip_rmsynth else previous_future
     
-    clean_spec = rmclean_task.submit(
+    previous_future = rmclean_task.submit(
         field=args.field,
         outdir=args.datadir,
         host=host,
@@ -138,18 +139,18 @@ def process_spice(
         window=args.window,
         showPlots=args.showPlots,
         rm_verbose=args.rm_verbose,
-        wait_for=[dirty_spec],
-    ) if not args.skip_rmclean else None 
+        wait_for=[previous_future],
+    ) if not args.skip_rmclean else previous_future 
     
-    catalogue = cat_task.submit(
+    previous_future = cat_task.submit(
         field=args.field,
         host=host,
         username=args.username,
         password=args.password,
         verbose=args.verbose,
         outfile=args.outfile,
-        wait_for=[clean_spec],
-    ) if not args.skip_cat else None
+        wait_for=[previous_future],
+    ) if not args.skip_cat else previous_future
 
 
 def main(args: configargparse.Namespace) -> None:
