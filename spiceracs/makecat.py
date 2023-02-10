@@ -119,7 +119,6 @@ def flag_blended_components(cat: RMTable) -> RMTable:
                 "total_flux_ratio": float,
             },
         ).compute()
-    # Match is_minor.index to cat["cat_id"]
     is_blended = is_blended.reindex(cat["cat_id"])
     cat.add_column(
         Column(
@@ -146,6 +145,8 @@ def flag_blended_components(cat: RMTable) -> RMTable:
     assert not any(
         cat["is_blended_flag"] & (cat["N_Gaus"] == 1)
     ), "Single-component sources cannot be flagged as blended."
+    if "index" in cat.colnames:
+        cat.remove_column("index")
     return cat
 
 
