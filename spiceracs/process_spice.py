@@ -14,9 +14,7 @@ from dask.distributed import Client, LocalCluster, performance_report, progress
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
 from IPython import embed
-from prefect import Flow, Task, task
-from prefect.engine import signals
-from prefect.engine.executors import DaskExecutor
+from prefect import flow, task
 from prefect_dask import DaskTaskExecutor
 
 from spiceracs import (
@@ -32,144 +30,139 @@ from spiceracs.logger import logger
 from spiceracs.utils import port_forward, test_db
 
 
-@task(name="Cutout", skip_on_upstream_skip=False)
-def cut_task(skip: bool, **kwargs) -> Task:
-    """Cutout task
+# Defining tasks
+cut_task = task(cutout.cutout_islands, name="Cutout")
+linmos_task = task(linmos.main, name="LINMOS")
+frion_task = task(frion.main, name="FRion")
+cleanup_task = task(cleanup.main, name="Clean up")
+rmsynth_task = task(rmsynth_oncuts.main, name="RM Synthesis")
+rmclean_task = task(rmclean_oncuts.main, name="RM-CLEAN")
+cat_task = task(makecat.main, name="Catalogue")
 
-    Kwargs passed to cutout.cutout_islands
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs cutout.cutout_islands
-    """
-    if skip:
-        raise signals.SKIP("Skipping cutout task")
-    return cutout.cutout_islands(**kwargs)
-
-
-@task(name="LINMOS", skip_on_upstream_skip=False)
-def linmos_task(skip: bool, **kwargs) -> Task:
-    """LINOS task
-
-    Kwargs passed to linmos.main
+@flow(name="Process the Spice")
+def process_spice(
+    args: configargparse.Namespac, client: Client, host: str
+) -> None:
+    """Workflow to process the SPIRCE-RACS data
 
     Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs linmos.main
+        args (configargparse.Namespac): Configuration parameters for this run
+        client (Client): Client spun to service the task submissions and workflow
+        host (str): Host address of the mongoDB. 
     """
-    if skip:
-        raise signals.SKIP("Skipping LINMOS task")
-    return linmos.main(**kwargs)
-
-
-@task(name="FRion", skip_on_upstream_skip=False)
-def frion_task(skip: bool, **kwargs) -> Task:
-    """FRion task
-
-    Kwargs passed to frion.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs frion.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping FRion task")
-    return frion.main(**kwargs)
-
-
-@task(name="Clean up", skip_on_upstream_skip=False)
-def cleanup_task(skip: bool, **kwargs) -> Task:
-    """Cleanup task
-
-    Kwargs passed to cleanup.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs cleanup.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping cleanup task")
-    return cleanup.main(**kwargs)
-
-
-@task(name="RM Synthesis", skip_on_upstream_skip=False)
-def rmsynth_task(skip: bool, **kwargs) -> Task:
-    """RM synth task
-
-    Kwargs passed to rmsynth_oncuts.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs rmsynth_oncuts.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping RM Synthesis task")
-    return rmsynth_oncuts.main(**kwargs)
-
-
-@task(name="RM-CLEAN", skip_on_upstream_skip=False)
-def rmclean_task(skip: bool, **kwargs) -> Task:
-    """RM-CLEAN task
-
-    Kwargs passed to rmclean_oncuts.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs rmclean_oncuts.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping RM-CLEAN task")
-    return rmclean_oncuts.main(**kwargs)
-
-
-@task(name="Catalogue", skip_on_upstream_skip=False)
-def cat_task(skip: bool, **kwargs) -> Task:
-    """Catalogue task
-
-    Kwargs passed to makecat.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs makecat.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping catalogue task")
-    return makecat.main(**kwargs)
+        
+    cuts = cut_task.submit(
+            field=args.field,
+            directory=args.datadir,
+            host=host,
+            username=args.username,
+            password=args.password,
+            client=client,
+            verbose=args.verbose,
+            pad=args.pad,
+            stokeslist=["I", "Q", "U"],
+            verbose_worker=args.verbose_worker,
+            dryrun=args.dryrun,
+        ) if not args.skip_cuts else None
+    
+    mosaics = linmos_task.submit(
+            field=args.field,
+            datadir=args.datadir,
+            client=client,
+            host=host,
+            holofile=args.holofile,
+            username=args.username,
+            password=args.password,
+            yanda=args.yanda,
+            stokeslist=["I", "Q", "U"],
+            verbose=True,
+            wait_for=[cuts],
+        ) if not args.skip_linmos else None
+    
+        
+    tidy = cleanup_task.submit(
+        datadir=args.datadir,
+        client=client,
+        stokeslist=["I", "Q", "U"],
+        verbose=True,
+        wait_for=[mosaics],
+    ) if not args.skip_cleanup else None
+    
+    frion_run = frion_task.submit(
+        args.skip_frion,
+        field=args.field,
+        outdir=args.datadir,
+        host=host,
+        client=client,
+        username=args.username,
+        password=args.password,
+        database=args.database,
+        verbose=args.verbose,
+        wait_for=[mosaics],
+    ) if not args.skip_frion else None
+    
+    dirty_spec = rmsynth_task.submit(
+        field=args.field,
+        outdir=args.datadir,
+        host=host,
+        username=args.username,
+        password=args.password,
+        client=client,
+        dimension=args.dimension,
+        verbose=args.verbose,
+        database=args.database,
+        validate=args.validate,
+        limit=args.limit,
+        savePlots=args.savePlots,
+        weightType=args.weightType,
+        fitRMSF=args.fitRMSF,
+        phiMax_radm2=args.phiMax_radm2,
+        dPhi_radm2=args.dPhi_radm2,
+        nSamples=args.nSamples,
+        polyOrd=args.polyOrd,
+        noStokesI=args.noStokesI,
+        showPlots=args.showPlots,
+        not_RMSF=args.not_RMSF,
+        rm_verbose=args.rm_verbose,
+        debug=args.debug,
+        fit_function=args.fit_function,
+        tt0=args.tt0,
+        tt1=args.tt1,
+        ion=True,
+        do_own_fit=args.do_own_fit,
+        wait_for=[frion_run],
+    ) if not args.skip_rmsynth else None
+    
+    clean_spec = rmclean_task.submit(
+        field=args.field,
+        outdir=args.datadir,
+        host=host,
+        username=args.username,
+        password=args.password,
+        client=client,
+        dimension=args.dimension,
+        verbose=args.verbose,
+        database=args.database,
+        validate=args.validate,
+        limit=args.limit,
+        cutoff=args.cutoff,
+        maxIter=args.maxIter,
+        gain=args.gain,
+        window=args.window,
+        showPlots=args.showPlots,
+        rm_verbose=args.rm_verbose,
+        wait_for=[dirty_spec],
+    ) if not args.skip_rmclean else None 
+    
+    catalogue = cat_task.submit(
+        field=args.field,
+        host=host,
+        username=args.username,
+        password=args.password,
+        verbose=args.verbose,
+        outfile=args.outfile,
+        wait_for=[clean_spec],
+    ) if not args.skip_cat else None
 
 
 def main(args: configargparse.Namespace) -> None:
@@ -239,119 +232,13 @@ def main(args: configargparse.Namespace) -> None:
     # Prin out Dask client info
     logger.info(client.scheduler_info()["services"])
 
+    dask_runner = DaskTaskExecutor(address=client.scheduler.address)
+
     # Define flow
-    with Flow(f"SPICE-RACS: {args.field}") as flow:
-        cuts = cut_task(
-            args.skip_cutout,
-            field=args.field,
-            directory=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            client=client,
-            verbose=args.verbose,
-            pad=args.pad,
-            stokeslist=["I", "Q", "U"],
-            verbose_worker=args.verbose_worker,
-            dryrun=args.dryrun,
-        )
-        mosaics = linmos_task(
-            args.skip_linmos,
-            field=args.field,
-            datadir=args.datadir,
-            client=client,
-            host=host,
-            holofile=args.holofile,
-            username=args.username,
-            password=args.password,
-            yanda=args.yanda,
-            stokeslist=["I", "Q", "U"],
-            verbose=True,
-            upstream_tasks=[cuts],
-        )
-        tidy = cleanup_task(
-            args.skip_cleanup,
-            datadir=args.datadir,
-            client=client,
-            stokeslist=["I", "Q", "U"],
-            verbose=True,
-            upstream_tasks=[mosaics],
-        )
-        frion_run = frion_task(
-            args.skip_frion,
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            client=client,
-            username=args.username,
-            password=args.password,
-            database=args.database,
-            verbose=args.verbose,
-            upstream_tasks=[mosaics],
-        )
-        dirty_spec = rmsynth_task(
-            args.skip_rmsynth,
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            client=client,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            savePlots=args.savePlots,
-            weightType=args.weightType,
-            fitRMSF=args.fitRMSF,
-            phiMax_radm2=args.phiMax_radm2,
-            dPhi_radm2=args.dPhi_radm2,
-            nSamples=args.nSamples,
-            polyOrd=args.polyOrd,
-            noStokesI=args.noStokesI,
-            showPlots=args.showPlots,
-            not_RMSF=args.not_RMSF,
-            rm_verbose=args.rm_verbose,
-            debug=args.debug,
-            fit_function=args.fit_function,
-            tt0=args.tt0,
-            tt1=args.tt1,
-            ion=True,
-            do_own_fit=args.do_own_fit,
-            upstream_tasks=[frion_run],
-        )
-        clean_spec = rmclean_task(
-            args.skip_rmclean,
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            client=client,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            cutoff=args.cutoff,
-            maxIter=args.maxIter,
-            gain=args.gain,
-            window=args.window,
-            showPlots=args.showPlots,
-            rm_verbose=args.rm_verbose,
-            upstream_tasks=[dirty_spec],
-        )
-        catalogue = cat_task(
-            args.skip_cat,
-            field=args.field,
-            host=host,
-            username=args.username,
-            password=args.password,
-            verbose=args.verbose,
-            outfile=args.outfile,
-            upstream_tasks=[clean_spec],
-        )
+    process_spice.with_options(
+        name=f"SPICE-RACS {args.field}",
+        task_runner=dask_runner
+    )(args)
 
     with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
         flow.run()
