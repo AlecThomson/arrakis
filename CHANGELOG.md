@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `makecat.py`: Added `compute_local_rm_flag` function
 - `rmsynth_oncuts.py` Added new Stokes I fit flags
 - `utils.py`: Refactored Stokes I fitting to use dicts to track values
+- Use local installs of customised packages
 
 ### Removed
 
