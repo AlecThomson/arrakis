@@ -28,7 +28,7 @@ include = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-rm-tools = {git = "https://github.com/AlecThomson/RM-Tools.git@spiceracs_dev"}
+rm-tools = {path = "./RM-Tools"}
 astropy = "^5"
 bilby = "*"
 casatasks = "*"
@@ -63,8 +63,8 @@ vorbin = "*"
 graphviz = "*"
 bokeh = "*"
 prefect = "<2"
-RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
-PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git@spiceracs"}
+RMTable = { path = "./RMTable" }
+PolSpectra = { path = "./PolSpectra"}
 setuptools = "*"
 
 [tool.poetry.dev-dependencies]
