@@ -114,7 +114,6 @@ def flag_blended_components(cat: RMTable) -> RMTable:
                 blend_total_flux = sub_df.total_I_flux[sep_flag].sum()
                 blend_ratio_arr[i] = sub_df.total_I_flux[i] / blend_total_flux
 
-
             is_blended = pd.Series(
                 is_blended_arr,
                 index=sub_df.index,
@@ -469,12 +468,7 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
         + cat["stokesI_fit_flag_is_close_to_zero"]
         + cat["stokesI_fit_flag_is_not_finite"]
     )
-    cat.add_column(
-        Column(
-            data=stokesI_fit_flag,
-            name="stokesI_fit_flag"
-        )
-    )
+    cat.add_column(Column(data=stokesI_fit_flag, name="stokesI_fit_flag"))
 
     # sigma_add flag
     sigma_flag = cat["sigma_add"] > 10 * cat["sigma_add_err"]
@@ -760,7 +754,6 @@ def main(
         new_col = Column(data=data, name=selcol)
         rmtab.add_column(new_col)
 
-
     # Fix sigma_add
     rmtab = sigma_add_fix(rmtab)
 
@@ -829,7 +822,9 @@ def main(
             rmtab[col] = rmtab[col].to(u.Jy)
             rmtab.units[col] = u.Jy
         if rmtab[col].unit == u.mJy / u.beam:
-            logger.debug(f"Converting {col} unit from {rmtab[col].unit} to {u.Jy / u.beam}")
+            logger.debug(
+                f"Converting {col} unit from {rmtab[col].unit} to {u.Jy / u.beam}"
+            )
             rmtab[col] = rmtab[col].to(u.Jy / u.beam)
             rmtab.units[col] = u.Jy / u.beam
 
