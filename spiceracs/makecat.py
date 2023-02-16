@@ -384,6 +384,13 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
         "local_rm_flag"
     ].description = "RM is statistically different from nearby RMs"
 
+    # Bring back the units
+    for col in cat_out.colnames:
+        if col in big_cat.colnames:
+            logger.debug(f"Resetting unit for {col}")
+            cat_out[col].unit = big_cat[col].unit
+            cat_out.units[col] = big_cat.units[col]
+
     return cat_out
 
 
@@ -700,6 +707,7 @@ def main(
         new_col = Column(data=data, name=selcol)
         rmtab.add_column(new_col)
 
+
     # Fix sigma_add
     rmtab = sigma_add_fix(rmtab)
 
@@ -760,6 +768,17 @@ def main(
         # Check if column is a float
         if type(rmtab[col][0]) == np.float_:
             rmtab[col][np.isinf(rmtab[col])] = np.nan
+
+    # Convert all mJy to Jy
+    for col in rmtab.colnames:
+        if rmtab[col].unit == u.mJy:
+            logger.debug(f"Converting {col} unit from {rmtab[col].unit} to {u.Jy}")
+            rmtab[col] = rmtab[col].to(u.Jy)
+            rmtab.units[col] = u.Jy
+        if rmtab[col].unit == u.mJy / u.beam:
+            logger.debug(f"Converting {col} unit from {rmtab[col].unit} to {u.Jy / u.beam}")
+            rmtab[col] = rmtab[col].to(u.Jy / u.beam)
+            rmtab.units[col] = u.Jy / u.beam
 
     # Verify table
     rmtab.add_missing_columns()
