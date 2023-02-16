@@ -101,18 +101,34 @@ def fix_fields(tab: Table) -> Table:
     dumb_units = {
         "Jy.beam-1": u.Jy / u.beam,
         "mJy.beam-1": u.mJy / u.beam,
+        "day": u.d,
     }
     for col in new_tab.colnames:
         if str(new_tab[col].unit) in dumb_units.keys():
-            new_tab[col].unit = dumb_units[str(new_tab[col].unit)]
+            new_unit =  dumb_units[str(new_tab[col].unit)]
+            logger.debug(f"Fixing {col} unit from {new_tab[col].unit} to {new_unit}")
+            new_tab[col].unit = new_unit
+            new_tab.units[col] = new_unit
+
+    # Convert all mJy to Jy
+    for col in new_tab.colnames:
+        if new_tab[col].unit == u.mJy:
+            logger.debug(f"Converting {col} unit from {new_tab[col].unit} to {u.Jy}")
+            new_tab[col] = new_tab[col].to(u.Jy)
+            new_tab.units[col] = u.Jy
+        if new_tab[col].unit == u.mJy / u.beam:
+            logger.debug(f"Converting {col} unit from {new_tab[col].unit} to {u.Jy / u.beam}")
+            new_tab[col] = new_tab[col].to(u.Jy / u.beam)
+            new_tab.units[col] = u.Jy / u.beam
 
     return new_tab
 
 
 def main(cat: str):
-    logger.debug(f"Reading {cat}")
+    logger.info(f"Reading {cat}")
     tab = RMTable.read(cat)
-    logger.debug(f"Fixing {cat}")
+    logger.info(f"Fixing {cat}")
+
     fix_tab = fix_fields(tab)
     fit, fig = get_fit_func(fix_tab, do_plot=True, nbins=16, degree=4)
     fig.savefig("leakage_fit_dr1_fix.pdf")
@@ -129,6 +145,7 @@ def main(cat: str):
     good_fix_tab = fix_tab[goodRM]
     fix_flag_tab = compute_local_rm_flag(good_cat=good_fix_tab, big_cat=fix_tab)
 
+
     _, ext = os.path.splitext(cat)
     outfile = cat.replace(ext, f".corrected{ext}")
 
@@ -137,9 +154,6 @@ def main(cat: str):
         pickle.dump(fit, f)
         logger.info(f"Wrote leakage fit to {outfit}")
 
-    # outplot = cat.replace(ext, f'.corrected.leakage.pdf')
-    # logger.info(f"Writing leakage plot to {outplot}")
-    # fig.savefig(outplot, dpi=300, bbox_inches='tight')
     logger.info(f"Writing corrected catalogue to {outfile}")
     if ext == ".xml" or ext == ".vot":
         write_votable(fix_flag_tab, outfile)
