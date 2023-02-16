@@ -654,6 +654,21 @@ def write_votable(rmtab: RMTable, outfile: str) -> None:
     replace_nans(outfile)
 
 
+def fix_blank_units(rmtab: RMTable) -> RMTable:
+    """Fix blank units in RMTable
+
+    Args:
+        rmtab (RMTable): RMTable
+    """
+    for col in rmtab.colnames:
+        if rmtab[col].unit is None:
+            rmtab[col].unit = u.Unit("")
+            rmtab.units[col] = u.Unit("")
+        if rmtab[col].unit is None:
+            rmtab[col].unit = u.Unit("")
+            rmtab.units[col] = u.Unit("")
+    return rmtab
+
 def main(
     field: str,
     host: str,
@@ -840,6 +855,9 @@ def main(
     rmtab["cat_id"].description = "Gaussian ID"
     # Check ucds
     rmtab.verify_ucds()
+
+    # Fix blank units
+    rmtab = fix_blank_units(rmtab)
 
     if outfile is None:
         logger.info(pformat(rmtab))
