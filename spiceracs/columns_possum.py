@@ -368,4 +368,16 @@ extra_column_descriptions = {
         "description": "Second moment complexity flag",
         "ucd": "meta.code",
     },
+    "is_blended_flag": {
+        "description": "Compoent is within beamwidth of another component.",
+        "ucd": "meta.code",
+    },
+    "blend_ratio": {
+        "description": "Ratio of total flux of this component to total flux of compoents that blend with it.",
+        "ucd": "phot.flux.density;arith.ratio",
+    },
+    "N_blended": {
+        "description": "Number of components that blend with this component.",
+        "ucd": "meta.number",
+    },
 }
