@@ -96,11 +96,11 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             # Look up all separations between components
             # We'll store:
             # - is_blended: boolean array indicating whether a component
-            # is blended
+            #   is blended
             # - n_blended: integer array indicating the number of components
-            # blended into a component
+            #   blended into a component
             # - blend_ratio: float array indicating the ratio of the flux of a
-            # component to the total flux of all blended components
+            #   component to the total flux of all blended components
             coords = SkyCoord(sub_df.ra, sub_df.dec, unit="deg")
             beam = sub_df.beam_maj.max() * u.deg
             is_blended_arr = np.zeros_like(sub_df.index, dtype=bool)
@@ -163,8 +163,6 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             is_blended["is_blended_flag"],
             name="is_blended_flag",
             dtype=bool,
-            description="Compoent is within beamwidth of another component.",
-            meta={"ucd": "meta.code"},
         ),
         index=-1,
     )
@@ -173,8 +171,6 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             is_blended["blend_ratio"],
             name="blend_ratio",
             dtype=float,
-            description="Ratio of total flux of this component to total flux of compoents that blend with it.",
-            meta={"ucd": "phot.flux.density;arith.ratio"},
         ),
         index=-1,
     )
@@ -183,8 +179,6 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             is_blended["N_blended"],
             name="N_blended",
             dtype=int,
-            description="Number of components that blend with this component.",
-            meta={"ucd": "meta.number"},
         ),
         index=-1,
     )
@@ -246,7 +240,12 @@ def sigma_add_fix(tab):
             med[i] = np.nan
             std[i] = np.nan
 
-    tab.add_column(Column(data=med, name="sigma_add"))
+    tab.add_column(
+        Column(
+            data=med,
+            name="sigma_add",
+        )
+    )
     tab.add_column(Column(data=std, name="sigma_add_err"))
     tab.remove_columns(
         [
@@ -465,14 +464,20 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     cat.add_column(Column(data=chan_flag, name="channel_flag"))
 
     # Stokes I flag
-    cat["stokesI_fit_flag"] = (
+    stokesI_fit_flag = (
         cat["stokesI_fit_flag_is_negative"]
         + cat["stokesI_fit_flag_is_close_to_zero"]
         + cat["stokesI_fit_flag_is_not_finite"]
     )
+    cat.add_column(
+        Column(
+            data=stokesI_fit_flag,
+            name="stokesI_fit_flag"
+        )
+    )
 
     # sigma_add flag
-    sigma_flag = cat["sigma_add"] > 1
+    sigma_flag = cat["sigma_add"] > 10 * cat["sigma_add_err"]
     cat.add_column(Column(data=sigma_flag, name="complex_sigma_add_flag"))
     # M2_CC flag
     m2_flag = cat["rm_width"] > cat["rmsf_fwhm"]
@@ -766,10 +771,10 @@ def main(
     alpha_dict = get_alpha(rmtab)
     rmtab.add_column(Column(data=alpha_dict["alphas"], name="spectral_index"))
     rmtab.add_column(Column(data=alpha_dict["alphas_err"], name="spectral_index_err"))
-    rmtab.add_column(Column(data=alpha_dict["betas"], name="spectral_curvature"))
-    rmtab.add_column(
-        Column(data=alpha_dict["betas_err"], name="spectral_curvature_err")
-    )
+    # rmtab.add_column(Column(data=alpha_dict["betas"], name="spectral_curvature"))
+    # rmtab.add_column(
+    #     Column(data=alpha_dict["betas_err"], name="spectral_curvature_err")
+    # )
 
     # Add integration time
     field_col = get_field_db(host=host, username=username, password=password)
