@@ -72,24 +72,48 @@ def flag_blended_components(cat: RMTable) -> RMTable:
                 is blended and a float column indicating the ratio of the total flux.
 
         """
-        flux_ratio = sub_df.total_I_flux / sub_df.total_I_flux.sum()
         # Skip single-component sources
         if any(sub_df.N_Gaus == 1):
             is_blended = pd.Series(
                 [False],
                 index=sub_df.index,
-                name="is_minor",
+                name="is_blended_flag",
                 dtype=bool,
+            )
+            n_blended = pd.Series(
+                [0],
+                index=sub_df.index,
+                name="N_blended",
+                dtype=int,
+            )
+            blend_ratio = pd.Series(
+                [np.nan],
+                index=sub_df.index,
+                name="blend_ratio",
+                dtype=float,
             )
         else:
             # Look up all separations between components
+            # We'll store:
+            # - is_blended: boolean array indicating whether a component
+            # is blended
+            # - n_blended: integer array indicating the number of components
+            # blended into a component
+            # - blend_ratio: float array indicating the ratio of the flux of a
+            # component to the total flux of all blended components
             coords = SkyCoord(sub_df.ra, sub_df.dec, unit="deg")
             beam = sub_df.beam_maj.max() * u.deg
             is_blended_arr = np.zeros_like(sub_df.index, dtype=bool)
+            n_blended_arr = np.zeros_like(sub_df.index, dtype=int)
+            blend_ratio_arr = np.ones_like(sub_df.index, dtype=float) * np.nan
             for i, coord in enumerate(coords):
                 seps = coord.separation(coords)
                 sep_flag = (seps < beam) & (seps > 0 * u.deg)
                 is_blended_arr[i] = np.any(sep_flag)
+                n_blended_arr[i] = np.sum(sep_flag)
+                blend_total_flux = sub_df.total_I_flux[sep_flag].sum()
+                blend_ratio_arr[i] = sub_df.total_I_flux[i] / blend_total_flux
+
 
             is_blended = pd.Series(
                 is_blended_arr,
@@ -97,10 +121,23 @@ def flag_blended_components(cat: RMTable) -> RMTable:
                 name="is_blended_flag",
                 dtype=bool,
             )
+            n_blended = pd.Series(
+                n_blended_arr,
+                index=sub_df.index,
+                name="N_blended",
+                dtype=int,
+            )
+            blend_ratio = pd.Series(
+                blend_ratio_arr,
+                index=sub_df.index,
+                name="blend_ratio",
+                dtype=float,
+            )
         df = pd.DataFrame(
             {
                 "is_blended_flag": is_blended,
-                "total_flux_ratio": flux_ratio,
+                "N_blended": n_blended,
+                "blend_ratio": blend_ratio,
             },
             index=sub_df.index,
         )
@@ -116,7 +153,8 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             is_blended_component,
             meta={
                 "is_blended_flag": bool,
-                "total_flux_ratio": float,
+                "N_blended": int,
+                "blend_ratio": float,
             },
         ).compute()
     is_blended = is_blended.reindex(cat["cat_id"])
@@ -132,11 +170,21 @@ def flag_blended_components(cat: RMTable) -> RMTable:
     )
     cat.add_column(
         Column(
-            is_blended["total_flux_ratio"],
-            name="total_flux_ratio",
+            is_blended["blend_ratio"],
+            name="blend_ratio",
             dtype=float,
-            description="Ratio of total flux of component to total flux of source.",
+            description="Ratio of total flux of this component to total flux of compoents that blend with it.",
             meta={"ucd": "phot.flux.density;arith.ratio"},
+        ),
+        index=-1,
+    )
+    cat.add_column(
+        Column(
+            is_blended["N_blended"],
+            name="N_blended",
+            dtype=int,
+            description="Number of components that blend with this component.",
+            meta={"ucd": "meta.number"},
         ),
         index=-1,
     )
