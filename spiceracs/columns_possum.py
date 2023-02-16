@@ -380,4 +380,24 @@ extra_column_descriptions = {
         "description": "Number of components that blend with this component.",
         "ucd": "meta.number",
     },
+    "catalog_name": {
+        "description": "Name of catalog",
+        "ucd": "meta.note",
+    },
+    "obs_interval": {
+        "description": "Interval of observation",
+        "ucd": "time.interval",
+    },
+    "stokesI_chi2_red": {
+        "description": "Reduced chi-squared of Stokes I fit",
+        "ucd": "stat.fit.chi2;phot.flux.density;phys.polarization.stokes.I",
+    },
+    "stokesI_model_order": {
+        "description": "Order of Stokes I model",
+        "ucd": "stat.fit;meta.number",
+    },
+    "stokesI_model_coef_err": {
+        "description": "Error in Stokes I model coefficients",
+        "ucd": "stat.error;stat.fit.param;phys.polarization.stokes.I",
+    }
 }
