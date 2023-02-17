@@ -636,6 +636,22 @@ def replace_nans(filename: str):
     #     f.write(xml)
 
 
+def fix_blank_units(rmtab: RMTable) -> RMTable:
+    """Fix blank units in RMTable
+
+    Args:
+        rmtab (RMTable): RMTable
+    """
+    for col in rmtab.colnames:
+        if rmtab[col].unit is None or rmtab[col].unit == u.Unit(""):
+            rmtab[col].unit = u.Unit("---")
+            rmtab.units[col] = u.Unit("---")
+        if rmtab[col].unit is None or rmtab[col].unit == u.Unit(""):
+            rmtab[col].unit = u.Unit("---")
+            rmtab.units[col] = u.Unit("---")
+    return rmtab
+
+
 def write_votable(rmtab: RMTable, outfile: str) -> None:
     # Replace bad column names
     fix_columns = {
@@ -646,6 +662,8 @@ def write_votable(rmtab: RMTable, outfile: str) -> None:
     for col_name, new_name in fix_columns.items():
         if col_name in rmtab.colnames:
             rmtab.rename_column(col_name, new_name)
+    # Fix blank units
+    rmtab = fix_blank_units(rmtab)
     vo_table = vot.from_table(rmtab)
     vo_table.version = "1.3"
     vo_table = add_metadata(vo_table, outfile)
@@ -653,21 +671,6 @@ def write_votable(rmtab: RMTable, outfile: str) -> None:
     # Fix NaNs for CASDA
     replace_nans(outfile)
 
-
-def fix_blank_units(rmtab: RMTable) -> RMTable:
-    """Fix blank units in RMTable
-
-    Args:
-        rmtab (RMTable): RMTable
-    """
-    for col in rmtab.colnames:
-        if rmtab[col].unit is None:
-            rmtab[col].unit = u.Unit("")
-            rmtab.units[col] = u.Unit("")
-        if rmtab[col].unit is None:
-            rmtab[col].unit = u.Unit("")
-            rmtab.units[col] = u.Unit("")
-    return rmtab
 
 def main(
     field: str,
@@ -855,9 +858,6 @@ def main(
     rmtab["cat_id"].description = "Gaussian ID"
     # Check ucds
     rmtab.verify_ucds()
-
-    # Fix blank units
-    rmtab = fix_blank_units(rmtab)
 
     if outfile is None:
         logger.info(pformat(rmtab))
