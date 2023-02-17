@@ -5,6 +5,7 @@ import os
 import pickle
 
 import astropy.units as u
+from astropy.units import cds
 import numpy as np
 import pkg_resources
 from astropy.coordinates import SkyCoord
@@ -43,7 +44,13 @@ def fix_fields(tab: Table) -> Table:
         spica_field["RA_DEG"], spica_field["DEC_DEG"], unit=(u.deg, u.deg), frame="icrs"
     )
     start_times = Time(spica_field["SCAN_START"] * u.second, format="mjd")
-    spica_field["start_time"] = start_times
+    spica_field.add_column(
+        Column(
+            start_times.to_value('mjd'),
+            name="start_time",
+            unit=cds.MJD,
+        ),
+    )
     # These are the sources to update
     sources_to_fix = tab.loc[fields_not_in_spica]
     logger.info(f"Found {len(sources_to_fix)} sources to fix")
@@ -68,7 +75,13 @@ def fix_fields(tab: Table) -> Table:
 
     all_fields = new_tab["tile_id"].value
     all_fields[idx] = closest_fields
-    new_tab["tile_id"] = all_fields
+    new_tab.replace_column(
+        "tile_id",
+        Column(
+            all_fields,
+            name="tile_id",
+        )
+    )
 
     all_seps = (
         new_tab["separation_tile_centre"].value * new_tab["separation_tile_centre"].unit
@@ -78,23 +91,42 @@ def fix_fields(tab: Table) -> Table:
     all_sbids = new_tab["sbid"].value
     all_sbids[idx] = spica_field["SBID"][min_idx].value
 
-    all_start_times = new_tab["start_time"].value
-    all_start_times[idx] = spica_field["start_time"][min_idx].value
+    all_start_times = new_tab["start_time"]
+    all_start_times[idx] = spica_field["start_time"][min_idx]
 
     # Update the columns
-    new_tab["separation_tile_centre"] = Column(
-        data=all_seps,
+    new_tab.replace_column(
+        "separation_tile_centre",
+        Column(
+            data=all_seps,
+            name="separation_tile_centre",
+            unit=all_seps.unit,
+        ),
     )
-    new_tab["beamdist"] = Column(
-        data=all_seps,
+    new_tab.replace_column(
+        "beamdist",
+        Column(
+            data=all_seps,
+            name="beamdist",
+            unit=all_seps.unit,
+        ),
     )
 
-    new_tab["sbid"] = Column(
-        data=all_sbids,
+    new_tab.replace_column(
+        "sbid",
+        Column(
+            data=all_sbids,
+            name="sbid",
+        ),
     )
 
-    new_tab["start_time"] = Column(
-        data=all_start_times,
+    new_tab.replace_column(
+        "start_time",
+        Column(
+            data=all_start_times,
+            name="start_time",
+            unit=all_start_times.unit,
+        ),
     )
 
     # Fix the units - Why does VOTable do this?? Thanks I hate it
@@ -135,9 +167,21 @@ def main(cat: str):
     leakage_flag = is_leakage(
         fix_tab["fracpol"].value, fix_tab["beamdist"].to(u.deg).value, fit
     )
-    fix_tab["leakage_flag"] = leakage_flag
+    fix_tab.replace_column(
+        "leakage_flag",
+        Column(
+            leakage_flag,
+            name="leakage_flag",
+        ),
+    )
     leakage = fit(fix_tab["separation_tile_centre"].to(u.deg).value)
-    fix_tab["leakage"] = leakage
+    fix_tab.replace_column(
+        "leakage",
+        Column(
+            leakage,
+            name="leakage",
+        ),
+    )
 
     goodI = ~fix_tab["stokesI_fit_flag"] & ~fix_tab["channel_flag"]
     goodL = goodI & ~fix_tab["leakage_flag"] & (fix_tab["snr_polint"] > 5)
