@@ -369,11 +369,11 @@ extra_column_descriptions = {
         "ucd": "meta.code",
     },
     "is_blended_flag": {
-        "description": "Compoent is within beamwidth of another component.",
+        "description": "Component is within beamwidth of another component.",
         "ucd": "meta.code",
     },
     "blend_ratio": {
-        "description": "Ratio of total flux of this component to total flux of compoents that blend with it.",
+        "description": "Ratio of total flux of this component to total flux of components that blend with it.",
         "ucd": "phot.flux.density;arith.ratio",
     },
     "N_blended": {
@@ -399,5 +399,5 @@ extra_column_descriptions = {
     "stokesI_model_coef_err": {
         "description": "Error in Stokes I model coefficients",
         "ucd": "stat.error;stat.fit.param;phys.polarization.stokes.I",
-    }
+    },
 }
