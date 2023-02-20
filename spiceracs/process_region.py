@@ -42,7 +42,7 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir:str) -> N
         verbose=args.verbose,
     ) if not args.skip_merge else previous_future
     
-    dirty_spec = process_spice.rmsynth_task.submit(
+    previous_future = process_spice.rmsynth_task.submit(
         field=args.merge_name,
         outdir=inter_dir,
         host=host,
@@ -143,9 +143,6 @@ def main(args: configargparse.Namespace) -> None:
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        # Request 15 nodes
-        cluster.scale(jobs=15)
-        # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
         client = Client(cluster)
 
     test_db(

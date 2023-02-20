@@ -6,6 +6,7 @@ memory: "60GB"
 project: 'askaprt'
 queue: 'workq'
 walltime: '6:00:00'
+n_workers: 1000
 job_extra: ['-M galaxy']
 # interface for the workers
 interface: "ipogif0"

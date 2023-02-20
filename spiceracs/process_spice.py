@@ -193,8 +193,6 @@ def main(args: configargparse.Namespace) -> None:
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        # Request 15 nodes
-        cluster.scale(jobs=15)
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
         client = Client(cluster)
 
