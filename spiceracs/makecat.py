@@ -33,6 +33,7 @@ from spiceracs.utils import get_db, get_field_db, latexify, test_db
 ArrayLike = TypeVar(
     "ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, u.Quantity
 )
+TableLike = TypeVar("TableLike", RMTable, Table)
 
 
 def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
@@ -636,23 +637,25 @@ def replace_nans(filename: str):
     #     f.write(xml)
 
 
-def fix_blank_units(rmtab: RMTable) -> RMTable:
-    """Fix blank units in RMTable
+def fix_blank_units(rmtab: TableLike) -> TableLike:
+    """Fix blank units in table
 
     Args:
-        rmtab (RMTable): RMTable
+        rmtab (TableLike): TableLike
     """
     for col in rmtab.colnames:
         if rmtab[col].unit is None or rmtab[col].unit == u.Unit(""):
             rmtab[col].unit = u.Unit("---")
-            rmtab.units[col] = u.Unit("---")
+            if isinstance(rmtab, RMTable):
+                rmtab.units[col] = u.Unit("---")
         if rmtab[col].unit is None or rmtab[col].unit == u.Unit(""):
             rmtab[col].unit = u.Unit("---")
-            rmtab.units[col] = u.Unit("---")
+            if isinstance(rmtab, RMTable):
+                rmtab.units[col] = u.Unit("---")
     return rmtab
 
 
-def write_votable(rmtab: RMTable, outfile: str) -> None:
+def write_votable(rmtab: TableLike, outfile: str) -> None:
     # Replace bad column names
     fix_columns = {
         "catalog": "catalog_name",

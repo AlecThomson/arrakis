@@ -505,26 +505,13 @@ def cli():
     )
 
     if rmv:
-        logger.basicConfig(
+        logger.setLevel(
             level=logger.DEBUG,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
         )
     elif verbose:
-        logger.basicConfig(
+        logger.setLevel(
             level=logger.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
         )
-    else:
-        logger.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-
     main(
         field=args.field,
         outdir=args.outdir,

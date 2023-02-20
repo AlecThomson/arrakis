@@ -820,11 +820,6 @@ def cli():
         logger.setLevel(logging.INFO)
     elif args.debug:
         logger.setLevel(logging.DEBUG)
-    else:
-        logger.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
 
     if args.mpi:
         initialize(
