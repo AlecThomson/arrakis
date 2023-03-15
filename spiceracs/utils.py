@@ -223,6 +223,7 @@ def wsclean(
     threshold: float = None,
     auto_threshold: float = None,
     auto_mask: float = None,
+    force_mask_rounds: int = None,
     local_rms: bool = False,
     local_rms_window: bool = False,
     local_rms_method: bool = False,
@@ -611,6 +612,8 @@ def wsclean(
         auto_mask (float, optional): Construct a mask from found components
             and when a threshold of sigma is reached, continue cleaning with
             the mask down to the normal threshold. Defaults to None.
+        force_mask_rounds (int, optional): Will force the derivation of the
+            mask to be carried out across a set number of major cleaning rounds.
         local_rms (bool, optional): Instead of using a single RMS for auto
             thresholding/masking, use a spatially varying RMS image.
             Defaults to False.

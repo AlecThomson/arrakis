@@ -84,6 +84,7 @@ def image_beam(
     mgain: float = 0.7,
     niter: int = 100_000,
     auto_mask: float = 3,
+    force_mask_rounds: Union[int, None] = None,
     auto_threshold: float = 1,
     use_wgridder: bool = True,
     robust: float = -0.5,
@@ -122,6 +123,7 @@ def image_beam(
         mgain=mgain,
         niter=niter,
         auto_mask=auto_mask,
+        force_mask_rounds=force_mask_rounds,
         auto_threshold=auto_threshold,
         use_wgridder=use_wgridder,
         weight=f"briggs {robust}",
@@ -360,6 +362,7 @@ def main(
     mgain: float = 0.8,
     niter: int = 100_000,
     auto_mask: float = 3,
+    force_mask_rounds: Union[int, None] = None,
     auto_threshold: float = 1,
     taper: Union[float, None] = None,
     reimage: bool = False,
@@ -410,6 +413,7 @@ def main(
             mgain=mgain,
             niter=niter,
             auto_mask=auto_mask,
+            force_mask_rounds=force_mask_rounds,
             auto_threshold=auto_threshold,
             taper=taper,
             reimage=reimage,
@@ -581,6 +585,11 @@ def cli():
         default=1.0,
     )
     parser.add_argument(
+        "--force-mask-rounds",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
         "--taper",
         type=float,
         default=None,
@@ -639,6 +648,7 @@ def cli():
             mgain=args.mgain,
             niter=args.niter,
             auto_mask=args.auto_mask,
+            force_mask_rounds=args.force_mask_rounds,
             auto_threshold=args.auto_threshold,
             minuv=args.minuv,
             purge=args.purge,
