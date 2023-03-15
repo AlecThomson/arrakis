@@ -663,6 +663,7 @@ def cli():
             taper=args.taper,
             reimage=args.reimage,
             parallel_deconvolution=args.parallel,
+            gridder=args.gridder,
         )
 
 
