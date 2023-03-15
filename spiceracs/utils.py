@@ -86,7 +86,7 @@ def inspect_client(
     """Inspect a client"""
     if client is None:
         client = get_client()
-    log.debug(f"Client: {client}")
+    logger.debug(f"Client: {client}")
     info = client._scheduler_identity
     addr = info.get("address")
     workers = info.get("workers", {})
@@ -789,7 +789,7 @@ def wsclean(
 
     # Check for square channels and multiscale
     if arguments["squared_channel_joining"] and arguments["multiscale"]:
-        log.info("CAUTION - square channel joining and multiscale is unstable!")
+        logger.info("CAUTION - square channel joining and multiscale is unstable!")
 
     for key, value in arguments.items():
         if type(value) is bool:
