@@ -86,7 +86,7 @@ def image_beam(
     auto_mask: float = 3,
     force_mask_rounds: Union[int, None] = None,
     auto_threshold: float = 1,
-    use_wgridder: bool = True,
+    gridder: Union[str, None] = None,
     robust: float = -0.5,
     mem: float = 90,
     taper: float = None,
@@ -125,7 +125,7 @@ def image_beam(
         auto_mask=auto_mask,
         force_mask_rounds=force_mask_rounds,
         auto_threshold=auto_threshold,
-        use_wgridder=use_wgridder,
+        gridder=gridder,
         weight=f"briggs {robust}",
         log_time=False,
         # abs_mem=abs_mem,
@@ -369,6 +369,7 @@ def main(
     purge: bool = False,
     minuv: float = 0.0,
     parallel_deconvolution: Union[int, None] = None,
+    gridder: Union[str, None] = None,
 ):
     simage = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
@@ -419,6 +420,7 @@ def main(
             reimage=reimage,
             minuv_l=minuv,
             parallel_deconvolution=parallel_deconvolution,
+            gridder=gridder,
         )
         # Get images
         image_lists = {}
@@ -588,6 +590,12 @@ def cli():
         "--force-mask-rounds",
         type=int,
         default=None,
+    )
+    parser.add_argument(
+        "--gridder",
+        type=str,
+        default=None,
+        choices=["direct-ft", "idg", "wgridder", "tuned-wgridder", "wstacking"],
     )
     parser.add_argument(
         "--taper",
