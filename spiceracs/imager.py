@@ -30,6 +30,7 @@ from schwimmbad import SerialPool
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
+from spiceracs.logger import logger
 from spiceracs import fix_ms_dir
 from spiceracs.utils import (
     beam_from_ms,
@@ -93,16 +94,6 @@ def image_beam(
     parallel_deconvolution=None,
 ):
     """Image a single beam"""
-    import logging
-
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        force=True,
-    )
-    log = logging.getLogger(__name__)
-
     if not reimage:
         # Look for existing images
         checkvals = np.array(
@@ -110,11 +101,11 @@ def image_beam(
         )
         checks = np.array([os.path.exists(f) for f in checkvals])
         if all(checks):
-            log.critical("Images already exist, skipping imaging")
+            logger.critical("Images already exist, skipping imaging")
             return True
         else:
-            log.critical(f"At least some images do not exist: {checkvals[~checks]}")
-            log.critical("starting imaging...")
+            logger.critical(f"At least some images do not exist: {checkvals[~checks]}")
+            logger.critical("starting imaging...")
 
     command = wsclean(
         mslist=[ms],
@@ -148,7 +139,7 @@ def image_beam(
     root_dir = os.path.dirname(ms)
 
     # for command in (command_1, command_2):
-    log.info(f"Running wsclean with command: {command}")
+    logger.info(f"Running wsclean with command: {command}")
     output = sclient.execute(
         image=simage,
         command=command.split(),
@@ -158,13 +149,13 @@ def image_beam(
         stream=True,
     )
     for line in output:
-        log.info(line)
+        logger.info(line)
 
     # Check rms of image to check for divergence
     mfs_image = f"{prefix}-MFS-I-image.fits"
     rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
     if rms > 1:
-        log.critical(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
+        logger.critical(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
         return False
 
     return True
@@ -264,7 +255,7 @@ def make_cube(
         common_beam = pickle.load(f)
     new_header = common_beam.attach_to_header(new_header)
     fits.writeto(new_name, data_cube, new_header, overwrite=True)
-    log.info(f"Written {new_name}")
+    logger.info(f"Written {new_name}")
 
     # Copy image cube
     new_w_name = new_name.replace("image.restored", "weights").replace(".fits", ".txt")
@@ -332,22 +323,22 @@ def cleanup(
     sm_image_list,
 ):
     if not purge:
-        log.info("Not purging intermediate files")
+        logger.info("Not purging intermediate files")
         return
     for image in image_list:
-        log.critical(f"Removing {image}")
+        logger.critical(f"Removing {image}")
         os.remove(image)
     for sm_image in sm_image_list:
-        log.critical(f"Removing {sm_image}")
+        logger.critical(f"Removing {sm_image}")
         os.remove(sm_image)
     for aux in aux_list.keys():
         for aux_image in aux_list[aux]:
             try:
-                log.critical(f"Removing {aux_image}")
+                logger.critical(f"Removing {aux_image}")
                 os.remove(aux_image)
             except FileNotFoundError:
-                log.error(f"Could not find {aux_image}")
-                log.error(f"aux_lists: {aux_list}")
+                logger.error(f"Could not find {aux_image}")
+                logger.error(f"aux_lists: {aux_list}")
     return
 
 
@@ -388,7 +379,7 @@ def main(
     ), f"Incorrect number of MS files found: {len(mslist)} / 36"
 
     mslist = [mslist[0]]
-    log.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
+    logger.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []  # type: List[Delayed]
 
     # Do this in serial since CASA gets upset
@@ -401,7 +392,7 @@ def main(
 
     ms_dict = {}
     for ms in mslist:
-        log.info(f"Imaging {ms}")
+        logger.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
         ms_fix = fix_ms(ms)
         # Image with wsclean
@@ -634,8 +625,8 @@ def cli():
         )
 
     with Client(cluster) as client:
-        log.debug(f"{cluster=}")
-        log.debug(f"{client=}")
+        logger.debug(f"{cluster=}")
+        logger.debug(f"{client=}")
         main(
             msdir=args.msdir,
             out_dir=args.outdir,
@@ -658,8 +649,8 @@ def cli():
 
 
 if __name__ == "__main__":
-    log.basicConfig(
-        level=log.DEBUG,
+    logger.basicConfig(
+        level=logger.DEBUG,
         format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         force=True,
