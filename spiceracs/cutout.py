@@ -345,7 +345,7 @@ def cutout_islands(
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
     client = get_client()
-    log.debug(f"Client is {client}")
+    logger.debug(f"Client is {client}")
     directory = os.path.abspath(directory)
     outdir = os.path.join(directory, "cutouts")
 

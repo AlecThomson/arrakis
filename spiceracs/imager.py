@@ -9,7 +9,7 @@ import shutil
 import traceback
 from argparse import Namespace
 from glob import glob
-from typing import List
+from typing import List, Union
 
 import astropy.units as u
 import numpy as np
@@ -351,7 +351,7 @@ def fix_ms(ms):
 def main(
     msdir: str,
     out_dir: str,
-    cutoff: float = None,
+    cutoff: Union[float, None] = None,
     robust: float = -0.5,
     pols: str = "IQU",
     nchan: int = 36,
@@ -361,11 +361,11 @@ def main(
     niter: int = 100_000,
     auto_mask: float = 3,
     auto_threshold: float = 1,
-    taper: float = None,
+    taper: Union[float, None] = None,
     reimage: bool = False,
     purge: bool = False,
     minuv: float = 0.0,
-    parallel_deconvolution: int = None,
+    parallel_deconvolution: Union[int, None] = None,
 ):
     simage = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
