@@ -172,6 +172,7 @@ def wsclean(
     predict: bool = False,
     ws_continue: bool = False,
     subtract_model: bool = False,
+    gridder: str = None,
     channels_out: int = None,
     shift: str = None,
     gap_channel_division: bool = False,
@@ -191,10 +192,7 @@ def wsclean(
     baseline_averaging: float = None,
     simulate_noise: float = None,
     simulate_baseline_noise: str = None,
-    direct_ft: bool = False,
-    use_idg: bool = False,
     idg_mode: str = None,
-    use_wgridder: bool = False,
     wgridder_accuracy: float = None,
     aterm_config: str = None,
     grid_with_beam: bool = False,
@@ -453,6 +451,8 @@ def wsclean(
             data column in the first iteration. This can be used to reimage
             an already cleaned image, e.g. at a different resolution.
             Defaults to False.
+        gridder (str): Set gridder type: direct-ft, idg, wgridder,
+            tuned-wgridder, or wstacking.
         channels_out (int, optional): Splits the bandwidth and makes count
             nr. of images. Default: 1. Defaults to None.
         shift (str, optional): Shift the phase centre to the given location.
@@ -518,16 +518,8 @@ def wsclean(
             stddevs are provided per baseline, in a text file with antenna1 and
             antenna2 indices and the stddev per line, separated by spaces,
             e.g. "0 1 3.14". Defaults to None.
-        direct_ft (bool, optional): Do not grid the visibilities on the uv
-            grid, but instead perform a fully accurate direct
-            Fourier transform (slow!). Defaults to False.
-        use_idg (bool, optional): Use the 'image-domain gridder'
-            (Van der Tol et al.) to do the inversions and predictions.
-            Defaults to False.
         idg_mode (str, optional): Sets the IDG mode. Default: cpu. Hybrid is
             recommended when a GPU is available. Defaults to None.
-        use_wgridder (bool, optional): Use the w-gridding gridder developed by
-            Martin Reinecke. Defaults to False.
         wgridder_accuracy (float, optional): Set the w-gridding accuracy.
             Default: 1e-4 Useful range: 1e-2 to 1e-. Defaults to None.
         aterm_config (str, optional): Specify a parameter set describing how
