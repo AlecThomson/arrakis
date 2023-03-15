@@ -4,6 +4,10 @@ import os
 
 from astropy.table import Table
 
+from spiceracs.logger import logger, logging
+
+logger.setLevel(logging.INFO)
+
 
 def main(name: str, sbid: int):
     scriptdir = os.path.dirname(os.path.realpath(__file__))
@@ -13,7 +17,7 @@ def main(name: str, sbid: int):
     tab.add_index("CAL_SBID")
     row = tab.loc["FIELD_NAME", f"RACS_{name}"].loc["CAL_SBID", sbid]["INDEX"]
 
-    print(f"Row in RACS database is {row}")
+    logger.info(f"Row in RACS database is {row}")
 
 
 def cli():

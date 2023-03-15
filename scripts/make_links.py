@@ -5,6 +5,10 @@ import subprocess
 from glob import glob
 from shlex import split
 
+from spiceracs.logger import logger, logging
+
+logger.setLevel(logging.INFO)
+
 
 def main(indir, outdir):
     images = glob(f"{os.path.abspath(indir)}/image.restored.*.contcube.*.fits")
@@ -13,13 +17,13 @@ def main(indir, outdir):
         name = os.path.basename(f)
         link = name.replace(".fits", ".conv.fits")
         cmd = f"ln -s {f} {os.path.abspath(outdir)}/{link}"
-        print(cmd)
+        logger.info(cmd)
         subprocess.run(split(cmd))
 
     for f in weights:
         name = os.path.basename(f)
         cmd = f"ln -s {f} {os.path.abspath(outdir)}/{name}"
-        print(cmd)
+        logger.info(cmd)
         subprocess.run(split(cmd))
 
 

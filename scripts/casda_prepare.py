@@ -2,7 +2,7 @@
 """Prepare files for CASDA upload"""
 import argparse
 import hashlib
-import logging as log
+import logging
 import os
 import pickle
 import subprocess as sp
@@ -46,6 +46,7 @@ from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm, trange
 
+from spiceracs.logger import logger
 from spiceracs.makecat import write_votable
 from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 
@@ -82,7 +83,7 @@ def make_thumbnail(cube_f: str, cube_dir: str):
     ax.set_ylabel("Dec")
     fig.colorbar(im, ax=ax, label=f"{convert_bunit(head['BUNIT']):latex_inline}")
     outf = os.path.join(cube_dir, os.path.basename(cube_f).replace(".fits", ".png"))
-    log.info(f"Saving thumbnail to {outf}")
+    logger.info(f"Saving thumbnail to {outf}")
     fig.savefig(outf, dpi=300)
     plt.close(fig)
 
@@ -97,9 +98,9 @@ def find_spectra(data_dir: str = ".") -> list:
         list: List of spectra in ascii format
     """
     cut_dir = os.path.join(data_dir, "cutouts")
-    log.info(f"Globbing for spectra in {cut_dir}")
+    logger.info(f"Globbing for spectra in {cut_dir}")
     spectra = glob(os.path.join(os.path.join(cut_dir, "*"), "*[0-9].dat"))
-    log.info(f"Found {len(spectra)} spectra (in frequency space)")
+    logger.info(f"Found {len(spectra)} spectra (in frequency space)")
     return spectra
 
 
@@ -255,7 +256,7 @@ def convert_spectra(
     outf = os.path.join(
         spec_dir, os.path.basename(spectrum).replace(".dat", f"_polspec.fits")
     )
-    log.info(f"Saving to {outf}")
+    logger.info(f"Saving to {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)
     # Add object to header
     # Hard code the pixel size for now
@@ -339,7 +340,7 @@ def update_cube(cube: str, cube_dir: str) -> None:
                 "image.restored.i.", f"{imtype}.{''.join(stokes)}."
             ),
         ).replace("RACS_test4_1.05_", "RACS_")
-        log.info(f"Writing {outf} cubelet")
+        logger.info(f"Writing {outf} cubelet")
         fits.writeto(outf, data, header, overwrite=True)
 
         # Move cube to cubelets directory
@@ -356,11 +357,11 @@ def find_cubes(data_dir: str = ".") -> list:
         list: List of cubelets
     """
     cut_dir = os.path.join(data_dir, "cutouts")
-    log.info(f"Globbing for cubes in {cut_dir}")
+    logger.info(f"Globbing for cubes in {cut_dir}")
     cubes = glob(
         os.path.join(os.path.join(cut_dir, "*"), "*.image.restored.i.*.linmos.fits")
     )
-    log.info(f"Found {len(cubes)} Stokes I image cubes")
+    logger.info(f"Found {len(cubes)} Stokes I image cubes")
     return cubes
 
 
@@ -374,11 +375,11 @@ def init_polspec(
         outdir = casda_dir
     polspec_0 = polspectra.from_FITS(spectrum_table_0)
     out_fits = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.fits")
-    log.info(f"Saving to {out_fits}")
+    logger.info(f"Saving to {out_fits}")
     polspec_0.write_FITS(out_fits, overwrite=True)
 
     out_hdf = os.path.join(os.path.abspath(outdir), "spice_racs_dr1_polspec.hdf5")
-    # log.info(f"Saving to {out_hdf}")
+    # logger.info(f"Saving to {out_hdf}")
     # polspec_0.write_HDF5(out_hdf, overwrite=True, compress=True)
 
     return out_fits, out_hdf
@@ -434,10 +435,10 @@ def convert_pdf(pdf_file: str, plots_dir: str, spec_dir: str) -> None:
     """
     png_file = pdf_file.replace(".pdf", "")
     png_file = os.path.join(plots_dir, os.path.basename(png_file))
-    log.info(f"Converting {pdf_file} to {png_file}")
+    logger.info(f"Converting {pdf_file} to {png_file}")
 
     cmd = f"pdftoppm {pdf_file} {png_file} -png"
-    log.info(cmd)
+    logger.info(cmd)
     sp.run(cmd.split(), check=True)
     # Grr, pdftoppm doesn't preserve the file name
     actual_name = f"{png_file}-1.png"
@@ -478,9 +479,9 @@ def find_plots(data_dir: str = ".") -> list:
         list: List of plots
     """
     cut_dir = os.path.join(data_dir, "cutouts")
-    log.info(f"Globbing for plots in {cut_dir}")
+    logger.info(f"Globbing for plots in {cut_dir}")
     plots = glob(os.path.join(os.path.join(cut_dir, "RACS_*"), "*.pdf"))
-    log.info(f"Found {len(plots)} plots")
+    logger.info(f"Found {len(plots)} plots")
     return plots
 
 
@@ -500,9 +501,9 @@ def main(
     # Re-register astropy units
     for unit in (u.deg, u.hour, u.hourangle, u.Jy, u.arcsec, u.arcmin, u.beam):
         get_current_unit_registry().add_enabled_units([unit])
-    log.info("Starting")
-    log.info(f"Dask client: {client}")
-    log.info(f"Reading {polcatf}")
+    logger.info("Starting")
+    logger.info(f"Dask client: {client}")
+    logger.info(f"Reading {polcatf}")
 
     polcat = Table.read(polcatf)
     df = polcat.to_pandas()
@@ -512,7 +513,7 @@ def main(
 
     test = prep_type == "test"
 
-    log.info(f"Preparing data for {prep_type} CASDA upload")
+    logger.info(f"Preparing data for {prep_type} CASDA upload")
 
     if prep_type == "full":
         pass
@@ -527,16 +528,16 @@ def main(
     else:
         raise ValueError(f"Unknown prep_type: {prep_type}")
 
-    casda_dir = (
-        os.path.join(data_dir, f"casda_{prep_type}")
-    )
+    casda_dir = os.path.join(data_dir, f"casda_{prep_type}")
     try_mkdir(casda_dir)
 
     # Link catalgoue to casda directory
     cat_dir = os.path.join(casda_dir, "catalogues")
     try_mkdir(cat_dir)
     if prep_type != "full":
-        out_cat = os.path.join(cat_dir, os.path.basename(polcatf).replace(".xml", f".{prep_type}.xml"))
+        out_cat = os.path.join(
+            cat_dir, os.path.basename(polcatf).replace(".xml", f".{prep_type}.xml")
+        )
         write_votable(polcat, out_cat)
     else:
         try_symlink(
@@ -545,7 +546,7 @@ def main(
 
     cube_outputs = []
     if do_update_cubes:
-        log.info("Updating cubelets")
+        logger.info("Updating cubelets")
         cube_dir = os.path.join(casda_dir, "cubelets")
         try_mkdir(cube_dir)
 
@@ -556,14 +557,14 @@ def main(
                 set(polcat["source_id"])
             ), "Number of cubes does not match number of sources"
         except AssertionError:
-            log.warning(
+            logger.warning(
                 f"Found {len(cubes)} cubes, expected {len(set(polcat['source_id']))}"
             )
             if len(cubes) < len(set(polcat["source_id"])):
-                log.critical("Some cubes are missing on disk!")
+                logger.critical("Some cubes are missing on disk!")
                 raise
             else:
-                log.warning("Need to exclude some cubes")
+                logger.warning("Need to exclude some cubes")
                 source_ids = []
                 for i, cube in enumerate(cubes):
                     basename = os.path.basename(cube)
@@ -572,17 +573,19 @@ def main(
                     source_ids.append(source_id)
                 in_idx = np.isin(source_ids, polcat["source_id"])
                 cubes = list(np.array(cubes)[in_idx])
-                log.warning(
+                logger.warning(
                     f"I had to exclude {np.sum(~in_idx)} sources that were not in the catalogue"
                 )
                 # Write missing source IDs to disk
                 rem_ids = list(set(np.array(source_ids)[~in_idx]))
                 outf = os.path.join(casda_dir, "excluded_sources.txt")
-                log.info(f"Writing excluded source IDs to {outf}")
+                logger.info(f"Writing excluded source IDs to {outf}")
                 with open(outf, "w") as f:
                     for rid in rem_ids:
                         f.write(f"{rid}\n")
-                assert len(cubes) == len(set(polcat["source_id"])), f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
+                assert len(cubes) == len(
+                    set(polcat["source_id"])
+                ), f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
 
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -609,7 +612,7 @@ def main(
 
     spectra_outputs = []
     if do_convert_spectra:
-        log.info("Converting spectra")
+        logger.info("Converting spectra")
         spec_dir = os.path.join(casda_dir, "spectra")
         try_mkdir(spec_dir)
         spectra = find_spectra(data_dir=data_dir)
@@ -623,8 +626,9 @@ def main(
                 cat_ids.append(cat_id)
             in_idx = np.isin(cat_ids, polcat["cat_id"])
             spectra = list(np.array(spectra)[in_idx])
-        assert len(spectra) == len(polcat), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
-
+        assert len(spectra) == len(
+            polcat
+        ), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
 
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -646,7 +650,9 @@ def main(
         ]
         polcat = polcat.loc[gauss_ids]
         # hash filename using current time and hashlib
-        fname_polcat_hash = f"polcat_{hashlib.sha256(str(time.time()).encode()).hexdigest()}.pkl"
+        fname_polcat_hash = (
+            f"polcat_{hashlib.sha256(str(time.time()).encode()).hexdigest()}.pkl"
+        )
         with open(fname_polcat_hash, "wb") as f:
             pickle.dump(polcat, f)
         for i, (spectrum, gauss_id, row) in enumerate(
@@ -667,7 +673,7 @@ def main(
 
     plot_outputs = []
     if do_convert_plots:
-        log.info("Converting plots")
+        logger.info("Converting plots")
         plots_dir = os.path.join(casda_dir, "plots")
         try_mkdir(plots_dir)
         spec_dir = os.path.join(casda_dir, "spectra")
@@ -688,7 +694,9 @@ def main(
             in_idx = np.isin(cat_ids, polcat["cat_id"])
             plots = list(np.array(plots)[in_idx])
 
-        assert len(plots) == len(polcat)*3, f"{len(plots)=} and {len(polcat)=}" # Sanity check
+        assert (
+            len(plots) == len(polcat) * 3
+        ), f"{len(plots)=} and {len(polcat)=}"  # Sanity check
 
         with tqdm(total=len(plots), desc="Sorting plots") as pbar:
 
@@ -710,7 +718,7 @@ def main(
     for name, outputs in zip(
         ("cubes", "spectra", "plots"), (cube_outputs, spectra_outputs, plot_outputs)
     ):
-        log.info(f"Starting work on {len(outputs)} {name}")
+        logger.info(f"Starting work on {len(outputs)} {name}")
 
         futures = chunk_dask(
             outputs=outputs,
@@ -725,18 +733,17 @@ def main(
             spectrum_tables = client.gather(client.compute(futures))
             # Add all spectrum_tables to a tar ball
             tarball = os.path.join(casda_dir, f"spice_racs_dr1_polspec_{prep_type}.tar")
-            log.info(f"Adding spectra to tarball {tarball}")
+            logger.info(f"Adding spectra to tarball {tarball}")
             with tarfile.open(tarball, "w") as tar:
-                for spectrum_table in tqdm(spectrum_tables, "Adding spectra to tarball"):
+                for spectrum_table in tqdm(
+                    spectrum_tables, "Adding spectra to tarball"
+                ):
                     tar.add(spectrum_table, arcname=os.path.basename(spectrum_table))
-
-
-
 
     if do_convert_spectra:
         os.remove(fname_polcat_hash)
 
-    log.info("Done")
+    logger.info("Done")
 
 
 def cli():
@@ -810,22 +817,9 @@ def cli():
     )
     args = parser.parse_args()
     if args.verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
+        logger.setLevel(logging.INFO)
     elif args.debug:
-        log.basicConfig(
-            level=log.DEBUG,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-    else:
-        log.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
+        logger.setLevel(logging.DEBUG)
 
     if args.mpi:
         initialize(
@@ -844,7 +838,7 @@ def cli():
     with Client(
         cluster,
     ) as client:
-        log.debug(f"{client=}")
+        logger.debug(f"{client=}")
         main(
             polcatf=args.polcat,
             client=client,

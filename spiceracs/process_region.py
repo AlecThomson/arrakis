@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """SPICE-RACS multi-field pipeline"""
-import logging as log
+import logging
 import os
 from time import sleep
 
@@ -19,6 +19,7 @@ from prefect.engine import signals
 from prefect.engine.executors import DaskExecutor
 
 from spiceracs import merge_fields, process_spice
+from spiceracs.logger import logger
 from spiceracs.utils import port_forward, test_db
 
 
@@ -80,7 +81,7 @@ def main(args: configargparse.Namespace) -> None:
         cluster = SLURMCluster(
             **config,
         )
-        log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
+        logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
         # Request 15 nodes
         cluster.scale(jobs=15)
@@ -91,12 +92,11 @@ def main(args: configargparse.Namespace) -> None:
         host=args.host,
         username=args.username,
         password=args.password,
-        verbose=args.verbose,
     )
 
     args_yaml = yaml.dump(vars(args))
     args_yaml_f = os.path.abspath(f"{args.merge_name}-config-{Time.now().fits}.yaml")
-    log.info(f"Saving config to '{args_yaml_f}'")
+    logger.info(f"Saving config to '{args_yaml_f}'")
     with open(args_yaml_f, "w") as f:
         f.write(args_yaml)
 
@@ -108,7 +108,7 @@ def main(args: configargparse.Namespace) -> None:
             port_forward(port, p)
 
     # Prin out Dask client info
-    log.info(client.scheduler_info()["services"])
+    logger.info(client.scheduler_info()["services"])
     # Define flow
     inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
     with Flow(f"SPICE-RACS: {args.merge_name}") as flow:
@@ -477,25 +477,9 @@ def cli():
 
     verbose = args.verbose
     if verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
+        logger.setLevel(logger.INFO)
     if args.debugger:
-        log.basicConfig(
-            level=log.DEBUG,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-    else:
-        log.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
+        logger.setLevel(logger.DEBUG)
 
     main(args)
 

@@ -3,7 +3,7 @@
 import dataclasses
 import functools
 import json
-import logging as log
+import logging
 import os
 import shlex
 import stat
@@ -40,12 +40,15 @@ from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner, is_kernel
 from FRion.correct import find_freq_axis
+from pymongo.collection import Collection
 from scipy.optimize import curve_fit
 from scipy.stats import normaltest
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tornado.ioloop import IOLoop
 from tqdm.auto import tqdm, trange
+
+from spiceracs.logger import logger
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -808,10 +811,10 @@ def wsclean(
 def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, int]:
     """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
-    best_aic_idx = np.nanargmin(aics)
-    best_aic = aics[best_aic_idx]
-    best_n = n_param[best_aic_idx]
-    log.debug(f"Lowest AIC is {best_aic}, with {best_n} params.")
+    best_aic_idx = int(np.nanargmin(aics))
+    best_aic = float(aics[best_aic_idx])
+    best_n = int(n_param[best_aic_idx])
+    logger.debug(f"Lowest AIC is {best_aic}, with {best_n} params.")
     # Check if lower have diff < 2 in AIC
     aic_abs_diff = np.abs(aics - best_aic)
     bool_min_idx = np.zeros_like(aics).astype(bool)
@@ -819,14 +822,16 @@ def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, in
     potential_idx = (aic_abs_diff[~bool_min_idx] < 2) & (
         n_param[~bool_min_idx] < best_n
     )
-    if any(potential_idx):
-        best_n = np.min(n_param[~bool_min_idx][potential_idx])
-        best_aic_idx = np.where(n_param == best_n)[0][0]
-        best_aic = aics[best_aic_idx]
-        log.debug(
-            f"Model within 2 of lowest AIC found. Occam says to take AIC of {best_aic}, with {best_n} params."
-        )
-    return best_aic, best_n, best_aic_idx
+    if not any(potential_idx):
+        return best_aic, best_n, best_aic_idx
+
+    bestest_n = int(np.min(n_param[~bool_min_idx][potential_idx]))
+    bestest_aic_idx = int(np.where(n_param == bestest_n)[0][0])
+    bestest_aic = float(aics[bestest_aic_idx])
+    logger.debug(
+        f"Model within 2 of lowest AIC found. Occam says to take AIC of {bestest_aic}, with {bestest_n} params."
+    )
+    return bestest_aic, bestest_n, bestest_aic_idx
 
 
 # Stolen from GLEAM-X - thanks Uncle Timmy!
@@ -940,7 +945,7 @@ def fit_pl(
                     absolute_sigma=True,
                 )
             except RuntimeError:
-                log.critical(f"Failed to fit {n}-term power law")
+                logger.critical(f"Failed to fit {n}-term power law")
                 continue
 
             best, covar = fit_res
@@ -963,11 +968,11 @@ def fit_pl(
             # Flag if model is negative
             is_negative = (model_arr < 0).any()
             if is_negative:
-                log.warning(f"Stokes I flag: Model {n} is negative")
+                logger.warning(f"Stokes I flag: Model {n} is negative")
             # Flag if model is NaN or Inf
             is_not_finite = ~np.isfinite(model_arr).all()
             if is_not_finite:
-                log.warning(f"Stokes I flag: Model {n} is not finite")
+                logger.warning(f"Stokes I flag: Model {n} is not finite")
             # # Flag if model and data are statistically different
             residuals = flux[goodchan] - model_arr[goodchan]
             # Assume errors on resdiuals are the same as the data
@@ -978,14 +983,14 @@ def fit_pl(
             ks, pval = normaltest(residuals_norm)
             is_not_normal = pval < 1e-6  # 1 in a million chance of being unlucky
             if is_not_normal:
-                log.warning(
+                logger.warning(
                     f"Stokes I flag: Model {n} is not normally distributed - {pval=}, {ks=}"
                 )
 
             # Test if model is close to 0 within 1 sigma
             is_close_to_zero = (model_arr[goodchan] / fluxerr[goodchan] < 1).any()
             if is_close_to_zero:
-                log.warning(f"Stokes I flag: Model {n} is close (1sigma) to 0")
+                logger.warning(f"Stokes I flag: Model {n} is close (1sigma) to 0")
             fit_flag = {
                 "is_negative": is_negative,
                 "is_not_finite": is_not_finite,
@@ -993,14 +998,14 @@ def fit_pl(
                 "is_close_to_zero": is_close_to_zero,
             }
             save_dict[n]["fit_flags"] = fit_flag
-            log.debug(f"{n}: {aic}")
+            logger.debug(f"{n}: {aic}")
 
         # Now find the best model
         best_aic, best_n, best_aic_idx = best_aic_func(
             np.array([save_dict[n]["aics"] for n in range(nterms + 1)]),
             np.array([n for n in range(nterms + 1)]),
         )
-        log.debug(f"Best fit: {best_n}, {best_aic}")
+        logger.debug(f"Best fit: {best_n}, {best_aic}")
         best_p = save_dict[best_n]["params"]
         best_e = save_dict[best_n]["errors"]
         best_m = save_dict[best_n]["models"]
@@ -1028,7 +1033,7 @@ def fit_pl(
             chi_sq_red=chi_sq_red,
         )
     except Exception as e:
-        log.critical(f"Failed to fit power law: {e}")
+        logger.critical(f"Failed to fit power law: {e}")
         return dict(
             best_n=np.nan,
             best_p=[np.nan],
@@ -1074,9 +1079,9 @@ def chunk_dask(
         futures = client.persist(outputs_chunk)
         # dumb solution for https://github.com/dask/distributed/issues/4831
         if i == 0:
-            log.debug("I sleep!")
+            logger.debug("I sleep!")
             time.sleep(10)
-            log.debug("I awake!")
+            logger.debug("I awake!")
         tqdm_dask(futures, desc=progress_text, disable=(not verbose))
         chunk_outputs.extend(futures)
     return chunk_outputs
@@ -1114,8 +1119,8 @@ def latexify(fig_width=None, fig_height=None, columns=1):
 
     MAX_HEIGHT_INCHES = 8.0
     if fig_height > MAX_HEIGHT_INCHES:
-        print(
-            "WARNING: fig_height too large:"
+        logger.waning(
+            "fig_height too large:"
             + fig_height
             + "so will reduce to"
             + MAX_HEIGHT_INCHES
@@ -1139,7 +1144,9 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     matplotlib.rcParams.update(params)
 
 
-def delayed_to_da(list_of_delayed: List[Delayed], chunk: int = None) -> da.Array:
+def delayed_to_da(
+    list_of_delayed: List[Delayed], chunk: Union[int, None] = None
+) -> da.Array:
     """Convert list of delayed arrays to a dask array
 
     Args:
@@ -1259,8 +1266,8 @@ def coord_to_string(coord: SkyCoord) -> Tuple[str, str]:
 
 
 def test_db(
-    host: str, username: str = None, password: str = None, verbose=True
-) -> None:
+    host: str, username: Union[str, None] = None, password: Union[str, None] = None
+) -> bool:
     """Test connection to MongoDB
 
     Args:
@@ -1269,10 +1276,14 @@ def test_db(
         password (str, optional): Mongo password. Defaults to None.
         verbose (bool, optional): Verbose output. Defaults to True.
 
+
+    Returns:
+        bool: True if connection succesful
+
     Raises:
         Exception: If connection fails.
     """
-    log.info("Testing MongoDB connection...")
+    logger.info("Testing MongoDB connection...")
     # default connection (ie, local)
     with pymongo.MongoClient(
         host=host,
@@ -1285,17 +1296,15 @@ def test_db(
             dbclient.list_database_names()
         except pymongo.errors.ServerSelectionTimeoutError:
             raise Exception("Please ensure 'mongod' is running")
-        else:
-            log.info("MongoDB connection succesful!")
+
+        logger.info("MongoDB connection succesful!")
+
+    return True
 
 
 def get_db(
-    host: str, username: str = None, password: str = None
-) -> Tuple[
-    pymongo.collection.Collection,
-    pymongo.collection.Collection,
-    pymongo.collection.Collection,
-]:
+    host: str, username: Union[str, None] = None, password: Union[str, None] = None
+) -> Tuple[Collection, Collection, Collection,]:
     """Get MongoDBs
 
     Args:
@@ -1304,7 +1313,7 @@ def get_db(
         password (str, optional): Password. Defaults to None.
 
     Returns:
-        Tuple[pymongo.Collection, pymongo.Collection, pymongo.Collection]: beams_col, island_col, comp_col
+        Tuple[Collection, Collection, Collection]: beams_col, island_col, comp_col
     """
     dbclient = pymongo.MongoClient(
         host=host,
@@ -1320,9 +1329,7 @@ def get_db(
     return beams_col, island_col, comp_col
 
 
-def get_field_db(
-    host: str, username=None, password=None
-) -> pymongo.collection.Collection:
+def get_field_db(host: str, username=None, password=None) -> Collection:
     """Get MongoDBs
 
     Args:
@@ -1390,7 +1397,7 @@ def port_forward(port: int, target: str) -> None:
         port (int): port to forward
         target (str): Target host
     """
-    log.info(f"Forwarding {port} from localhost to {target}")
+    logger.info(f"Forwarding {port} from localhost to {target}")
     cmd = f"ssh -N -f -R {port}:localhost:{port} {target}"
     command = shlex.split(cmd)
     output = subprocess.Popen(command)
@@ -1406,9 +1413,9 @@ def try_mkdir(dir_path: str, verbose=True):
     # Create output dir if it doesn't exist
     try:
         os.mkdir(dir_path)
-        log.info(f"Made directory '{dir_path}'.")
+        logger.info(f"Made directory '{dir_path}'.")
     except FileExistsError:
-        log.info(f"Directory '{dir_path}' exists.")
+        logger.info(f"Directory '{dir_path}' exists.")
 
 
 def try_symlink(src: str, dst: str, verbose=True):
@@ -1422,9 +1429,9 @@ def try_symlink(src: str, dst: str, verbose=True):
     # Create output dir if it doesn't exist
     try:
         os.symlink(src, dst)
-        log.info(f"Made symlink '{dst}'.")
+        logger.info(f"Made symlink '{dst}'.")
     except FileExistsError:
-        log.info(f"Symlink '{dst}' exists.")
+        logger.info(f"Symlink '{dst}' exists.")
 
 
 def head2dict(h: fits.Header) -> Dict[str, Any]:
@@ -1496,7 +1503,9 @@ def cpu_to_use(max_cpu: int, count: int) -> int:
     return np.max(factors_arr[factors_arr <= max_cpu])
 
 
-def getfreq(cube: str, outdir: str = None, filename: str = None):
+def getfreq(
+    cube: str, outdir: Union[str, None] = None, filename: Union[str, None] = None
+):
     """Get list of frequencies from FITS data.
 
     Gets the frequency list from a given cube. Can optionally save
@@ -1534,7 +1543,7 @@ def getfreq(cube: str, outdir: str = None, filename: str = None):
             outfile = f"{outdir}/frequencies.txt"
         else:
             outfile = f"{outdir}/{filename}"
-        log.info(f"Saving to {outfile}")
+        logger.info(f"Saving to {outfile}")
         np.savetxt(outfile, np.array(freq))
         return freq, outfile  # Type: Tuple[u.Quantity, str]
 
@@ -1555,7 +1564,7 @@ def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:
     # Glob out the necessary files
     files = glob(f"{tabledir}/*.{keyword}*.xml")  # Selvay VOTab
     filename = files[0]
-    log.info(f"Getting table data from {filename}...")
+    logger.info(f"Getting table data from {filename}...")
 
     # Get selvay data from VOTab
     table = Table.read(filename, format="votable")
@@ -1602,8 +1611,8 @@ def getdata(cubedir="./", tabledir="./", mapdata=None, verbose=True):
     i_tab, voisle = gettable(tabledir, "islands", verbose=verbose)  # Selvay VOTab
     components, tablename = gettable(tabledir, "components", verbose=verbose)
 
-    log.info(f"Getting spectral data from: {cubes}\n")
-    log.info(f"Getting source location data from: {selavyfits}\n")
+    logger.info(f"Getting spectral data from: {cubes}\n")
+    logger.info(f"Getting source location data from: {selavyfits}\n")
 
     # Read data using Spectral cube
     i_taylor = SpectralCube.read(selavyfits, mode="denywrite")

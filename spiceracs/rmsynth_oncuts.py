@@ -2,7 +2,7 @@
 """Run RM-CLEAN on cutouts in parallel"""
 import functools
 import json
-import logging as log
+import logging
 import os
 import pdb
 import subprocess
@@ -13,6 +13,7 @@ import warnings
 from glob import glob
 from pprint import pformat, pprint
 from shutil import copyfile
+from typing import List, Optional, Tuple, Union
 
 import astropy.units as u
 import dask
@@ -37,6 +38,7 @@ from RMutils.util_plotTk import plot_rmsf_fdf_fig
 from spectral_cube import SpectralCube
 from tqdm import tqdm, trange
 
+from spiceracs.logger import logger
 from spiceracs.utils import (
     MyEncoder,
     chunk_dask,
@@ -51,19 +53,19 @@ from spiceracs.utils import (
 
 @delayed
 def rmsynthoncut3d(
-    island_id,
-    beam,
-    outdir,
-    freq,
-    field,
-    phiMax_radm2=None,
-    dPhi_radm2=None,
-    nSamples=5,
-    weightType="variance",
-    fitRMSF=True,
-    not_RMSF=False,
-    rm_verbose=False,
-    ion=False,
+    island_id: str,
+    beam: dict,
+    outdir: str,
+    freq: np.ndarray,
+    field: str,
+    phiMax_radm2: Union[None, float] = None,
+    dPhi_radm2: Union[None, float] = None,
+    nSamples: int = 5,
+    weightType: str = "variance",
+    fitRMSF: bool = True,
+    not_RMSF: bool = False,
+    rm_verbose: bool = False,
+    ion: bool = False,
 ):
     """3D RM-synthesis
 
@@ -102,7 +104,7 @@ def rmsynthoncut3d(
     dataI = np.squeeze(dataI)
 
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
-        log.critical(f"Cubelet {iname} is entirely NaN")
+        logger.critical(f"Cubelet {iname} is entirely NaN")
         myquery = {"Source_ID": iname}
         badvalues = {
             "$set": {
@@ -257,8 +259,8 @@ def rmsynthoncut1d(
     freq: np.ndarray,
     field: str,
     polyOrd: int = 3,
-    phiMax_radm2: float = None,
-    dPhi_radm2: float = None,
+    phiMax_radm2: Union[float, None] = None,
+    dPhi_radm2: Union[float, None] = None,
     nSamples: int = 5,
     weightType: str = "variance",
     fitRMSF: bool = True,
@@ -268,8 +270,8 @@ def rmsynthoncut1d(
     debug: bool = False,
     rm_verbose: bool = False,
     fit_function: str = "log",
-    tt0: str = None,
-    tt1: str = None,
+    tt0: Union[str, None] = None,
+    tt1: Union[str, None] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> pymongo.UpdateOne:
@@ -313,7 +315,7 @@ def rmsynthoncut1d(
     dataI = np.squeeze(dataI)
 
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
-        log.critical(f"Entire data is NaN for {iname}")
+        logger.critical(f"Entire data is NaN for {iname}")
         myquery = {"Gaussian_ID": cname}
         badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
@@ -377,13 +379,13 @@ def rmsynthoncut1d(
         amplitude = tt0_p
         x_0 = mfs_head["RESTFREQ"]
 
-        log.debug(f"alpha is {alpha}")
+        logger.debug(f"alpha is {alpha}")
         model_I = models.PowerLaw1D(amplitude=amplitude, x_0=x_0, alpha=alpha)
         modStokesI = model_I(freq)
         model_repr = model_I.__repr__()
 
     elif do_own_fit:
-        log.debug(f"Doing own fit")
+        logger.debug(f"Doing own fit")
         fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
         alpha = None
         amplitude = None
@@ -399,7 +401,7 @@ def rmsynthoncut1d(
         modStokesI = None
 
     if np.sum(np.isfinite(qarr)) < 2 or np.sum(np.isfinite(uarr)) < 2:
-        log.critical(f"{cname} QU data is all NaNs.")
+        logger.critical(f"{cname} QU data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
         badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
@@ -409,7 +411,7 @@ def rmsynthoncut1d(
         data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
 
     if np.isnan(iarr).all():
-        log.critical(f"{cname} I data is all NaNs.")
+        logger.critical(f"{cname} I data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
         badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
@@ -417,7 +419,7 @@ def rmsynthoncut1d(
     # Run 1D RM-synthesis on the spectra
     np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
     try:
-        log.debug(f"Using {fit_function} to fit Stokes I")
+        logger.debug(f"Using {fit_function} to fit Stokes I")
         mDict, aDict = do_RMsynth_1D.run_rmsynth(
             data=data,
             polyOrd=polyOrd,
@@ -560,17 +562,17 @@ def rmsynthoncut1d(
 
 @delayed
 def rmsynthoncut_i(
-    comp_id,
-    outdir,
-    freq,
-    host,
-    field,
-    username=None,
-    password=None,
-    nSamples=5,
-    phiMax_radm2=None,
-    verbose=False,
-    rm_verbose=False,
+    comp_id: str,
+    outdir: str,
+    freq: np.ndarray,
+    host: str,
+    field: str,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
+    nSamples: int = 5,
+    phiMax_radm2: Union[float, None] = None,
+    verbose: bool = False,
+    rm_verbose: bool = False,
 ):
     """RMsynth on Stokes I
 
@@ -592,10 +594,16 @@ def rmsynthoncut_i(
     myquery = {"Gaussian_ID": comp_id}
     doc = comp_col.find_one(myquery)
 
+    if doc is None:
+        raise ValueError(f"Component {comp_id} not found")
+
     iname = doc["Source_ID"]
     cname = doc["Gaussian_ID"]
 
     beams = beams_col.find_one({"Source_ID": iname})
+    if beams is None:
+        raise ValueError(f"Beams for {iname} not found")
+
     ifile = os.path.join(outdir, beams["beams"][field]["i_file"])
     outdir = os.path.dirname(ifile)
 
@@ -690,18 +698,18 @@ def main(
     field: str,
     outdir: str,
     host: str,
-    username: str = None,
-    password: str = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
     dimension: str = "1d",
     verbose: bool = True,
     database: bool = False,
     validate: bool = False,
-    limit: int = None,
+    limit: Union[int, None] = None,
     savePlots: bool = False,
     weightType: str = "variance",
     fitRMSF: bool = True,
-    phiMax_radm2: float = None,
-    dPhi_radm2: float = None,
+    phiMax_radm2: Union[float, None] = None,
+    dPhi_radm2: Union[float, None] = None,
     nSamples: int = 5,
     polyOrd: int = 3,
     noStokesI: bool = False,
@@ -710,12 +718,11 @@ def main(
     rm_verbose: bool = False,
     debug: bool = False,
     fit_function: str = "log",
-    tt0: str = None,
-    tt1: str = None,
+    tt0: Union[str, None] = None,
+    tt1: Union[str, None] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> None:
-
     outdir = os.path.abspath(outdir)
     outdir = os.path.join(outdir, "cutouts")
 
@@ -784,7 +791,7 @@ def main(
     outputs = []
 
     if validate:
-        log.info(f"Running RMsynth on {n_comp} components")
+        logger.info(f"Running RMsynth on {n_comp} components")
         # We don't run this in parallel!
         for i, comp_id in enumerate(component_ids):
             output = rmsynthoncut_i(
@@ -803,7 +810,7 @@ def main(
             output.compute()
 
     elif dimension == "1d":
-        log.info(f"Running RMsynth on {n_comp} components")
+        logger.info(f"Running RMsynth on {n_comp} components")
         for i, (_, comp) in tqdm(
             enumerate(components.iterrows()),
             total=n_comp,
@@ -840,7 +847,7 @@ def main(
                 outputs.append(output)
 
     elif dimension == "3d":
-        log.info(f"Running RMsynth on {n_island} islands")
+        logger.info(f"Running RMsynth on {n_island} islands")
 
         for i, island_id in enumerate(island_ids):
             if i > n_island + 1:
@@ -872,18 +879,18 @@ def main(
     )
 
     if database:
-        log.info("Updating database...")
+        logger.info("Updating database...")
         updates = [f.compute() for f in futures]
         # Remove None values
         updates = [u for u in updates if u is not None]
-        log.info("Sending updates to database...")
+        logger.info("Sending updates to database...")
         if dimension == "1d":
             db_res = comp_col.bulk_write(updates, ordered=False)
-            log.info(pformat(db_res.bulk_api_result))
+            logger.info(pformat(db_res.bulk_api_result))
         elif dimension == "3d":
             db_res = island_col.bulk_write(updates, ordered=False)
-            log.info(pformat(db_res.bulk_api_result))
-    log.info("RMsynth done!")
+            logger.info(pformat(db_res.bulk_api_result))
+    logger.info("RMsynth done!")
 
 
 def cli():
@@ -1091,29 +1098,16 @@ def cli():
     verbose = args.verbose
     rmv = args.rm_verbose
     if rmv:
-        log.basicConfig(
-            level=log.DEBUG,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
+        logger.setLevel(logger.DEBUG)
     elif verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-    else:
-        log.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
+        logger.setLevel(logger.INFO)
 
     cluster = LocalCluster(
         # n_workers=12, processes=True, threads_per_worker=1,
         local_directory="/dev/shm"
     )
     client = Client(cluster)
-    log.debug(client)
+    logger.debug(client)
 
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose

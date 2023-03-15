@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Correct for the ionosphere in parallel"""
-import logging as log
+import logging
 import os
 import time
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import astropy.units as u
 import dask
@@ -17,6 +17,7 @@ from dask import delayed
 from dask.distributed import Client, LocalCluster, progress, wait
 from FRion import correct, predict
 
+from spiceracs.logger import logger
 from spiceracs.utils import get_db, get_field_db, getfreq, test_db, tqdm_dask, try_mkdir
 
 
@@ -84,7 +85,7 @@ def predict_worker(
         plotdir (str): Plot directory
 
     Returns:
-        str: Prediction file name
+        Tuple[str, pymongo.UpdateOne]: FRion prediction file and pymongo update query
     """
     ifile = os.path.join(cutdir, beam["beams"][field]["i_file"])
     i_dir = os.path.dirname(ifile)
@@ -139,8 +140,8 @@ def main(
     field: str,
     outdir: str,
     host: str,
-    username: str = None,
-    password: str = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
     database=False,
     verbose=True,
 ):
@@ -184,7 +185,7 @@ def main(
         field_datas = list(field_col.find({"FIELD_NAME": f"RACS_{field}"}))
         sbids = [f["CAL_SBID"] for f in field_datas]
         max_idx = np.argmax(sbids)
-        log.info(f"Using CAL_SBID {sbids[max_idx]}")
+        logger.info(f"Using CAL_SBID {sbids[max_idx]}")
         field_data = field_datas[max_idx]
     else:
         field_data = field_col.find_one({"FIELD_NAME": f"RACS_{field}"})
@@ -235,16 +236,16 @@ def main(
         futures, desc="Running FRion", disable=(not verbose), total=len(islands) * 3
     )
     if database:
-        log.info("Updating beams database...")
+        logger.info("Updating beams database...")
         updates = [f.compute() for f in futures]
         db_res = beams_col.bulk_write(updates, ordered=False)
-        log.info(pformat(db_res.bulk_api_result))
+        logger.info(pformat(db_res.bulk_api_result))
 
-        log.info("Updating island database...")
+        logger.info("Updating island database...")
         updates_arrays_cmp = [f.compute() for f in future_arrays]
 
         db_res = island_col.bulk_write(updates_arrays_cmp, ordered=False)
-        log.info(pformat(db_res.bulk_api_result))
+        logger.info(pformat(db_res.bulk_api_result))
 
 
 def cli():
@@ -323,25 +324,13 @@ def cli():
 
     verbose = args.verbose
     if verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-    else:
-        log.basicConfig(
-            level=log.WARNING,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
+        logger.setLevel(logging.INFO)
 
     cluster = LocalCluster(
         n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm"
     )
     client = Client(cluster)
-    log.info(client)
+    logger.info(client)
 
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose

@@ -6,6 +6,7 @@ from shutil import SameFileError, copyfile
 
 from astropy.table import Table
 
+from spiceracs.logger import logger
 from spiceracs.utils import try_mkdir
 
 
@@ -85,7 +86,7 @@ def main(
             copyfile(abspath, newpath)
         except SameFileError:
             pass
-        print(os.path.basename(newpath))
+        logger.debug(os.path.basename(newpath))
 
     if clean:
         if yes:

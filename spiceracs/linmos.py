@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
 import ast
-import logging as log
+import logging
 import os
 import shlex
 import subprocess
@@ -11,7 +11,7 @@ import warnings
 from glob import glob
 from logging import disable
 from pprint import pformat
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import astropy
 import astropy.units as u
@@ -29,6 +29,7 @@ from IPython import embed
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
+from spiceracs.logger import logger
 from spiceracs.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
@@ -116,7 +117,7 @@ def genparset(
     stoke: str,
     datadir: str,
     septab: Table,
-    holofile: str = None,
+    holofile: Union[str, None] = None,
 ) -> str:
     """Generate parset for LINMOS
 
@@ -186,7 +187,7 @@ linmos.weightstate      = Inherent
 """
 
     if holofile is not None:
-        log.info(f"Using holography file {holofile} -- setting removeleakge to true")
+        logger.info(f"Using holography file {holofile} -- setting removeleakge to true")
 
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
@@ -194,7 +195,7 @@ linmos.primarybeam.ASKAP_PB.image = {holofile}
 linmos.removeleakage    = true
 """
     else:
-        log.warning("No holography file provided - not correcting leakage!")
+        logger.warning("No holography file provided - not correcting leakage!")
 
     with open(parset_file, "w") as f:
         f.write(parset)
@@ -253,7 +254,7 @@ def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.Up
     inner = os.path.basename(new_file)
     new_file = os.path.join(outer, inner)
 
-    log.info(f"Cube now in {workdir}/{inner}")
+    logger.info(f"Cube now in {workdir}/{inner}")
 
     query = {"Source_ID": source}
     newvalues = {"$set": {f"beams.{fieldname}.{stoke.lower()}_file": new_file}}
@@ -279,11 +280,11 @@ def main(
     field: str,
     datadir: str,
     host: str,
-    holofile: str = None,
-    username: str = None,
-    password: str = None,
+    holofile: Union[str, None] = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
     yanda="1.3.0",
-    stokeslist: List[str] = None,
+    stokeslist: Union[List[str], None] = None,
     verbose=True,
 ) -> None:
     """Main script
@@ -317,7 +318,7 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
-    log.debug(f"{beams_col = }")
+    logger.debug(f"{beams_col = }")
     # Query the DB
     query = {
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
@@ -372,11 +373,11 @@ def main(
     )
 
     updates = [f.compute() for f in futures]
-    log.info("Updating database...")
+    logger.info("Updating database...")
     db_res = beams_col.bulk_write(updates, ordered=False)
-    log.info(pformat(db_res.bulk_api_result))
+    logger.info(pformat(db_res.bulk_api_result))
 
-    log.info("LINMOS Done!")
+    logger.info("LINMOS Done!")
 
 
 def cli():

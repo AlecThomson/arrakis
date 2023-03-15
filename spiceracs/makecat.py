@@ -1,29 +1,195 @@
 #!/usr/bin/env python3
 """Make a SPICE-RACS catalogue"""
-import logging as log
+import logging
 import os
 import time
 import warnings
+from functools import partial
 from pprint import pformat
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Tuple, TypeVar, Union
 
 import astropy.units as u
+import dask.dataframe as dd
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.io import votable as vot
 from astropy.stats import mad_std, sigma_clip
 from astropy.table import Column, Table
 from corner import hist2d
+from dask.diagnostics import ProgressBar
 from IPython import embed
 from rmtable import RMTable
 from scipy.stats import lognorm, norm
-from tqdm import tqdm, trange
+from tqdm import tqdm, tqdm_pandas, trange
 from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
 from spiceracs import columns_possum
+from spiceracs.logger import logger
 from spiceracs.utils import get_db, get_field_db, latexify, test_db
+
+ArrayLike = TypeVar(
+    "ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, u.Quantity
+)
+TableLike = TypeVar("TableLike", RMTable, Table)
+
+
+def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
+    """Return all combinations of data with itself
+
+    Args:
+        data (ArrayLike): Data to combine.
+
+    Returns:
+        Tuple[ArrayLike, ArrayLike]: Data_1 matched with Data_2
+    """
+    ix, iy = np.triu_indices(data.shape[0], k=1)
+    idx = np.vstack((ix, iy)).T
+    dx, dy = data[idx].swapaxes(0, 1)
+    return dx, dy
+
+
+def flag_blended_components(cat: RMTable) -> RMTable:
+    """Identify blended components in a catalogue and flag them.
+
+    Args:
+        cat (RMTable): Input catalogue
+
+    Returns:
+        RMTable: Output catalogue with minor components flagged
+    """
+
+    def is_blended_component(sub_df: pd.DataFrame) -> pd.DataFrame:
+        """Return a boolean series indicating whether a component is the maximum
+        component in a source.
+
+        Args:
+            sub_df (pd.DataFrame): DataFrame containing all components for a source
+
+        Returns:
+            pd.DataFrame: DataFrame with a boolean column indicating whether a component
+                is blended and a float column indicating the ratio of the total flux.
+
+        """
+        # Skip single-component sources
+        if any(sub_df.N_Gaus == 1):
+            is_blended = pd.Series(
+                [False],
+                index=sub_df.index,
+                name="is_blended_flag",
+                dtype=bool,
+            )
+            n_blended = pd.Series(
+                [0],
+                index=sub_df.index,
+                name="N_blended",
+                dtype=int,
+            )
+            blend_ratio = pd.Series(
+                [np.nan],
+                index=sub_df.index,
+                name="blend_ratio",
+                dtype=float,
+            )
+        else:
+            # Look up all separations between components
+            # We'll store:
+            # - is_blended: boolean array indicating whether a component
+            #   is blended
+            # - n_blended: integer array indicating the number of components
+            #   blended into a component
+            # - blend_ratio: float array indicating the ratio of the flux of a
+            #   component to the total flux of all blended components
+            coords = SkyCoord(sub_df.ra, sub_df.dec, unit="deg")
+            beam = sub_df.beam_maj.max() * u.deg
+            is_blended_arr = np.zeros_like(sub_df.index, dtype=bool)
+            n_blended_arr = np.zeros_like(sub_df.index, dtype=int)
+            blend_ratio_arr = np.ones_like(sub_df.index, dtype=float) * np.nan
+            for i, coord in enumerate(coords):
+                seps = coord.separation(coords)
+                sep_flag = (seps < beam) & (seps > 0 * u.deg)
+                is_blended_arr[i] = np.any(sep_flag)
+                n_blended_arr[i] = np.sum(sep_flag)
+                blend_total_flux = sub_df.total_I_flux[sep_flag].sum() + sub_df.total_I_flux[i]
+                blend_ratio_arr[i] = sub_df.total_I_flux[i] / blend_total_flux
+
+            is_blended = pd.Series(
+                is_blended_arr,
+                index=sub_df.index,
+                name="is_blended_flag",
+                dtype=bool,
+            )
+            n_blended = pd.Series(
+                n_blended_arr,
+                index=sub_df.index,
+                name="N_blended",
+                dtype=int,
+            )
+            blend_ratio = pd.Series(
+                blend_ratio_arr,
+                index=sub_df.index,
+                name="blend_ratio",
+                dtype=float,
+            )
+        df = pd.DataFrame(
+            {
+                "is_blended_flag": is_blended,
+                "N_blended": n_blended,
+                "blend_ratio": blend_ratio,
+            },
+            index=sub_df.index,
+        )
+        return df
+
+    df = cat.to_pandas()
+    df.set_index("cat_id", inplace=True)
+    ddf = dd.from_pandas(df, chunksize=1000)
+    grp = ddf.groupby("source_id")
+    logger.info("Identifying blended components...")
+    with ProgressBar():
+        is_blended = grp.apply(
+            is_blended_component,
+            meta={
+                "is_blended_flag": bool,
+                "N_blended": int,
+                "blend_ratio": float,
+            },
+        ).compute()
+    is_blended = is_blended.reindex(cat["cat_id"])
+    cat.add_column(
+        Column(
+            is_blended["is_blended_flag"],
+            name="is_blended_flag",
+            dtype=bool,
+        ),
+        index=-1,
+    )
+    cat.add_column(
+        Column(
+            is_blended["blend_ratio"],
+            name="blend_ratio",
+            dtype=float,
+        ),
+        index=-1,
+    )
+    cat.add_column(
+        Column(
+            is_blended["N_blended"],
+            name="N_blended",
+            dtype=int,
+        ),
+        index=-1,
+    )
+    # Sanity check - no single-component sources should be flagged
+    assert np.array_equal(is_blended.index.values, cat["cat_id"].data), "Index mismatch"
+    assert not any(
+        cat["is_blended_flag"] & (cat["N_Gaus"] == 1)
+    ), "Single-component sources cannot be flagged as blended."
+    if "index" in cat.colnames:
+        cat.remove_column("index")
+    return cat
 
 
 def lognorm_from_percentiles(x1, p1, x2, p2):
@@ -74,7 +240,12 @@ def sigma_add_fix(tab):
             med[i] = np.nan
             std[i] = np.nan
 
-    tab.add_column(Column(data=med, name="sigma_add"))
+    tab.add_column(
+        Column(
+            data=med,
+            name="sigma_add",
+        )
+    )
     tab.add_column(Column(data=std, name="sigma_add_err"))
     tab.remove_columns(
         [
@@ -197,7 +368,80 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     return fit, fig
 
 
-def cuts_and_flags(cat):
+def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
+    """Compute the local RM flag
+
+    Args:
+        good_cat (Table): Table with just good RMs
+        big_cat (Table): Overall table
+
+    Returns:
+        Table: Table with local RM flag
+    """
+    logger.info("Computing voronoi bins and finding bad RMs")
+
+    def sn_func(index, signal=None, noise=None):
+        try:
+            sn = len(np.array(index))
+        except TypeError:
+            sn = 1
+        return sn
+
+    bin_number, x_gen, y_gen, x_bar, y_bar, sn, nPixels, scale = voronoi_2d_binning(
+        x=good_cat["ra"],
+        y=good_cat["dec"],
+        signal=np.ones_like(good_cat["polint"]),
+        noise=np.ones_like(good_cat["polint_err"]),
+        target_sn=50,
+        sn_func=sn_func,
+        cvt=False,
+        pixelsize=10,
+        plot=False,
+        quiet=True,
+        wvt=False,
+    )
+    logger.info(f"Found {len(set(bin_number))} bins")
+    df = good_cat.to_pandas()
+    df.reset_index(inplace=True)
+    df.set_index("cat_id", inplace=True)
+    df["bin_number"] = bin_number
+    # Use sigma clipping to find outliers
+
+    def masker(x):
+        return pd.Series(
+            sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
+            index=x.index,
+        )
+
+    perc_g = df.groupby("bin_number").apply(
+        masker,
+    )
+    # Put flag into the catalogue
+    df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
+    df.drop(columns=["bin_number"], inplace=True)
+    df_out = big_cat.to_pandas()
+    df_out.reset_index(inplace=True)
+    df_out.set_index("cat_id", inplace=True)
+    df_out["local_rm_flag"] = False
+    df_out.update(df["local_rm_flag"])
+    df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
+    cat_out = RMTable.from_pandas(df_out.reset_index())
+    cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
+    cat_out[
+        "local_rm_flag"
+    ].description = "RM is statistically different from nearby RMs"
+
+    # Bring back the units
+    for col in cat_out.colnames:
+        if col in big_cat.colnames:
+            logger.debug(f"Resetting unit for {col}")
+            cat_out[col].unit = big_cat[col].unit
+            cat_out.units[col] = big_cat.units[col]
+
+    return cat_out
+
+
+def cuts_and_flags(cat: RMTable) -> RMTable:
     """Cut out bad sources, and add flag columns
 
     A flag of 'True' means the source is bad.
@@ -220,14 +464,15 @@ def cuts_and_flags(cat):
     cat.add_column(Column(data=chan_flag, name="channel_flag"))
 
     # Stokes I flag
-    cat["stokesI_fit_flag"] = (
+    stokesI_fit_flag = (
         cat["stokesI_fit_flag_is_negative"]
         + cat["stokesI_fit_flag_is_close_to_zero"]
         + cat["stokesI_fit_flag_is_not_finite"]
     )
+    cat.add_column(Column(data=stokesI_fit_flag, name="stokesI_fit_flag"))
 
     # sigma_add flag
-    sigma_flag = cat["sigma_add"] > 1
+    sigma_flag = cat["sigma_add"] > 10 * cat["sigma_add_err"]
     cat.add_column(Column(data=sigma_flag, name="complex_sigma_add_flag"))
     # M2_CC flag
     m2_flag = cat["rm_width"] > cat["rmsf_fwhm"]
@@ -235,57 +480,16 @@ def cuts_and_flags(cat):
 
     # Flag RMs which are very diffent from RMs nearby
     # Set up voronoi bins, trying to obtain 50 sources per bin
-    good_cat = cat[~snr_flag & ~leakage_flag & ~chan_flag & ~cat["stokesI_fit_flag"]]
-    log.info("Computing voronoi bins and finding bad RMs")
+    goodI = ~cat["stokesI_fit_flag"] & ~cat["channel_flag"]
+    goodL = goodI & ~cat["leakage_flag"] & (cat["snr_polint"] > 5)
+    goodRM = goodL & ~cat["snr_flag"]
+    good_cat = cat[goodRM]
 
-    def sn_func(index, signal=None, noise=None):
-        try:
-            sn = len(np.array(index))
-        except TypeError:
-            sn = 1
-        return sn
+    cat_out = compute_local_rm_flag(good_cat=good_cat, big_cat=cat)
 
-    bin_number, x_gen, y_gen, x_bar, y_bar, sn, nPixels, scale = voronoi_2d_binning(
-        x=good_cat["ra"],
-        y=good_cat["dec"],
-        signal=np.ones_like(good_cat["polint"]),
-        noise=np.ones_like(good_cat["polint_err"]),
-        target_sn=50,
-        sn_func=sn_func,
-        cvt=False,
-        pixelsize=10,
-        plot=False,
-        quiet=True,
-        wvt=False,
-    )
-    log.info(f"Found {len(bin_number)} bins")
-    df = good_cat.to_pandas()
-    df.set_index("cat_id", inplace=True)
-    df["bin_number"] = bin_number
-    # Use sigma clipping to find outliers
+    # Flag primary components
+    cat_out = flag_blended_components(cat_out)
 
-    def masker(x):
-        return pd.Series(
-            sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
-            index=x.index,
-        )
-
-    perc_g = df.groupby("bin_number").apply(
-        masker,
-    )
-    # Put flag into the catalogue
-    df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
-    df.drop(columns=["bin_number"], inplace=True)
-    df_out = cat.to_pandas()
-    df_out.set_index("cat_id", inplace=True)
-    df_out["local_rm_flag"] = False
-    df_out.update(df["local_rm_flag"])
-    df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
-    cat_out = RMTable.from_pandas(df_out.reset_index())
-    cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
-    cat_out[
-        "local_rm_flag"
-    ].description = "RM is statistically different from nearby RMs"
     # Restre units and metadata
     for col in cat.colnames:
         cat_out[col].unit = cat[col].unit
@@ -381,7 +585,7 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
 
     # Add params for CASDA
     if len(vo_table.params) > 0:
-        log.warning(f"{filename} already has params - not adding")
+        logger.warning(f"{filename} already has params - not adding")
         return vo_table
     _, ext = os.path.splitext(filename)
     cat_name = (
@@ -433,7 +637,25 @@ def replace_nans(filename: str):
     #     f.write(xml)
 
 
-def write_votable(rmtab: RMTable, outfile: str) -> None:
+def fix_blank_units(rmtab: TableLike) -> TableLike:
+    """Fix blank units in table
+
+    Args:
+        rmtab (TableLike): TableLike
+    """
+    for col in rmtab.colnames:
+        if rmtab[col].unit is None or rmtab[col].unit == u.Unit(""):
+            rmtab[col].unit = u.Unit("---")
+            if isinstance(rmtab, RMTable):
+                rmtab.units[col] = u.Unit("---")
+        if rmtab[col].unit is None or rmtab[col].unit == u.Unit(""):
+            rmtab[col].unit = u.Unit("---")
+            if isinstance(rmtab, RMTable):
+                rmtab.units[col] = u.Unit("---")
+    return rmtab
+
+
+def write_votable(rmtab: TableLike, outfile: str) -> None:
     # Replace bad column names
     fix_columns = {
         "catalog": "catalog_name",
@@ -443,6 +665,8 @@ def write_votable(rmtab: RMTable, outfile: str) -> None:
     for col_name, new_name in fix_columns.items():
         if col_name in rmtab.colnames:
             rmtab.rename_column(col_name, new_name)
+    # Fix blank units
+    rmtab = fix_blank_units(rmtab)
     vo_table = vot.from_table(rmtab)
     vo_table.version = "1.3"
     vo_table = add_metadata(vo_table, outfile)
@@ -454,10 +678,10 @@ def write_votable(rmtab: RMTable, outfile: str) -> None:
 def main(
     field: str,
     host: str,
-    username: str = None,
-    password: str = None,
-    verbose=True,
-    outfile: str = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
+    verbose: bool = True,
+    outfile: Union[str, None] = None,
 ) -> None:
     """Main
 
@@ -474,16 +698,16 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
-    log.info("Starting beams collection query")
+    logger.info("Starting beams collection query")
     tick = time.time()
     query = {
         "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
     }
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
     tock = time.time()
-    log.info(f"Finished beams collection query - {tock-tick:.2f}s")
+    logger.info(f"Finished beams collection query - {tock-tick:.2f}s")
 
-    log.info("Starting component collection query")
+    logger.info("Starting component collection query")
     tick = time.time()
     query = {
         "$and": [
@@ -504,7 +728,7 @@ def main(
 
     comps = list(comp_col.find(query, fields))
     tock = time.time()
-    log.info(f"Finished component collection query - {tock-tick:.2f}s")
+    logger.info(f"Finished component collection query - {tock-tick:.2f}s")
 
     rmtab = RMTable()  # type: RMTable
     # Add items to main cat using RMtable standard
@@ -561,10 +785,10 @@ def main(
     alpha_dict = get_alpha(rmtab)
     rmtab.add_column(Column(data=alpha_dict["alphas"], name="spectral_index"))
     rmtab.add_column(Column(data=alpha_dict["alphas_err"], name="spectral_index_err"))
-    rmtab.add_column(Column(data=alpha_dict["betas"], name="spectral_curvature"))
-    rmtab.add_column(
-        Column(data=alpha_dict["betas_err"], name="spectral_curvature_err")
-    )
+    # rmtab.add_column(Column(data=alpha_dict["betas"], name="spectral_curvature"))
+    # rmtab.add_column(
+    #     Column(data=alpha_dict["betas_err"], name="spectral_curvature_err")
+    # )
 
     # Add integration time
     field_col = get_field_db(host=host, username=username, password=password)
@@ -612,6 +836,19 @@ def main(
         if type(rmtab[col][0]) == np.float_:
             rmtab[col][np.isinf(rmtab[col])] = np.nan
 
+    # Convert all mJy to Jy
+    for col in rmtab.colnames:
+        if rmtab[col].unit == u.mJy:
+            logger.debug(f"Converting {col} unit from {rmtab[col].unit} to {u.Jy}")
+            rmtab[col] = rmtab[col].to(u.Jy)
+            rmtab.units[col] = u.Jy
+        if rmtab[col].unit == u.mJy / u.beam:
+            logger.debug(
+                f"Converting {col} unit from {rmtab[col].unit} to {u.Jy / u.beam}"
+            )
+            rmtab[col] = rmtab[col].to(u.Jy / u.beam)
+            rmtab.units[col] = u.Jy / u.beam
+
     # Verify table
     rmtab.add_missing_columns()
     rmtab.verify_standard_strings()
@@ -626,18 +863,18 @@ def main(
     rmtab.verify_ucds()
 
     if outfile is None:
-        log.info(pformat(rmtab))
+        logger.info(pformat(rmtab))
 
     if outfile is not None:
-        log.info(f"Writing {outfile} to disk")
+        logger.info(f"Writing {outfile} to disk")
         _, ext = os.path.splitext(outfile)
         if ext == ".xml" or ext == ".vot":
             write_votable(rmtab, outfile)
         else:
             rmtab.write(outfile, overwrite=True)
-        log.info(f"{outfile} written to disk")
+        logger.info(f"{outfile} written to disk")
 
-    log.info("Done!")
+    logger.info("Done!")
 
 
 def cli():
@@ -714,23 +951,10 @@ def cli():
     verbose = args.verbose
 
     if verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-    else:
-        log.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
+        logger.setLevel(logging.INFO)
 
     host = args.host
-    test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
-    )
+    test_db(host=args.host, username=args.username, password=args.password)
 
     main(
         field=args.field,

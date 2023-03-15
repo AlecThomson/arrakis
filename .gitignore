@@ -143,3 +143,6 @@ setup.py.bak
 *.bin
 *.sif
 *.pkl
+
+# Test data
+test/data/testdb/*

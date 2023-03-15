@@ -344,6 +344,22 @@ extra_column_descriptions = {
         "description": "Stokes I fit flag",
         "ucd": "meta.code.qual",
     },
+    "stokesI_fit_flag_is_negative": {
+        "description": "Stokes I model is negative flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokesI_fit_flag_is_not_finite": {
+        "description": "Stokes I model is not finite flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokesI_fit_flag_is_not_normal": {
+        "description": "Stokes I model is not normal flag",
+        "ucd": "meta.code.qual",
+    },
+    "stokesI_fit_flag_is_close_to_zero": {
+        "description": "Stokes I model is close to zero flag",
+        "ucd": "meta.code.qual",
+    },
     "complex_sigma_add_flag": {
         "description": "Sigma_add complexity flag",
         "ucd": "meta.code",
@@ -351,5 +367,37 @@ extra_column_descriptions = {
     "complex_M2_CC_flag": {
         "description": "Second moment complexity flag",
         "ucd": "meta.code",
+    },
+    "is_blended_flag": {
+        "description": "Component is within beamwidth of another component.",
+        "ucd": "meta.code",
+    },
+    "blend_ratio": {
+        "description": "Ratio of total flux of this component to total flux of components that blend with it.",
+        "ucd": "phot.flux.density;arith.ratio",
+    },
+    "N_blended": {
+        "description": "Number of components that blend with this component.",
+        "ucd": "meta.number",
+    },
+    "catalog_name": {
+        "description": "Name of catalog",
+        "ucd": "meta.note",
+    },
+    "obs_interval": {
+        "description": "Interval of observation",
+        "ucd": "time.interval",
+    },
+    "stokesI_chi2_red": {
+        "description": "Reduced chi-squared of Stokes I fit",
+        "ucd": "stat.fit.chi2;phot.flux.density;phys.polarization.stokes.I",
+    },
+    "stokesI_model_order": {
+        "description": "Order of Stokes I model",
+        "ucd": "stat.fit;meta.number",
+    },
+    "stokesI_model_coef_err": {
+        "description": "Error in Stokes I model coefficients",
+        "ucd": "stat.error;stat.fit.param;phys.polarization.stokes.I",
     },
 }

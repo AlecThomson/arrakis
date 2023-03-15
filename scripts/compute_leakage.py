@@ -11,6 +11,7 @@ from astropy.io import fits
 from astropy.wcs import WCS
 from tqdm.auto import tqdm, trange
 
+from spiceracs.logger import logger, logging
 from spiceracs.utils import MyEncoder, get_db, getdata
 
 
@@ -29,7 +30,6 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     ras, decs, freqs, stokeis, stokeqs, stokeus = [], [], [], [], [], []
     specs = []
     for i, comp in enumerate(tqdm(components)):
-
         iname = comp["Source_ID"]
         cname = comp["Gaussian_ID"]
         spectra = f"{datadir}/cutouts/{iname}/{cname}.dat"
@@ -38,7 +38,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
                 freq, iarr, qarr, uarr, rmsi, rmsq, rmsu = np.loadtxt(spectra).T
                 specs.append([freq, iarr, qarr, uarr, rmsi, rmsq, rmsu])
             except Exception as e:
-                print(f"Could not find '{spectra}': {e}")
+                logger.warning(f"Could not find '{spectra}': {e}")
                 continue
         else:
             try:
@@ -58,7 +58,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     stokeqs = np.array(stokeqs)
     stokeus = np.array(stokeus)
     freqs = np.nanmean(np.array(freqs))
-    print("freq is ", freqs)
+    logger.debug("freq is ", freqs)
     coords = SkyCoord(ras * units.deg, decs * units.deg)
     wcs = WCS(
         f"/group/askap/athomson/projects/RACS/CI0_mosaic_1.0/RACS_test4_1.05_{field}.fits"
@@ -109,14 +109,14 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     # Positions of grid points to derive leakage estimates at
     xnew = np.arange(np.min(x), np.max(x) + grid_point_sep_deg, grid_point_sep_deg)
     ynew = np.arange(np.min(y), np.max(y) + grid_point_sep_deg, grid_point_sep_deg)
-    print(len(xnew), len(ynew))
+    logger.debug(len(xnew), len(ynew))
     xxnew, yynew = np.meshgrid(xnew, ynew)
     pos_estimator_grid = np.array([[a, b] for a in xnew for b in ynew])
 
     # Calculate pair-wise distances between the two sets of coordinate pairs
-    print("\nDeriving pair-wise distance matrix...")
+    logger.info("\nDeriving pair-wise distance matrix...")
     pair_dist = distance_matrix(pos_estimator_grid, pos_measurements)
-    print("Done.\n")
+    logger.info("Done.\n")
 
     # Collect leakage values nearby each grid point
     q_estimates = []
@@ -124,12 +124,11 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     p_estimates = []
     num_points_in_aperture_list = []  # Init collectors
 
-    print("\nDeriving robust leakage estimates for interpolation grid...")
+    logger.info("\nDeriving robust leakage estimates for interpolation grid...")
     for row_idx, row in enumerate(tqdm(pair_dist)):
-
         # Guide to where we're at
         # if row_idx%100==0:
-        # 	print('Processing row %d of %d'%(row_idx,len(pair_dist)))
+        # 	logger.info('Processing row %d of %d'%(row_idx,len(pair_dist)))
 
         # idxs of poitns within d degs
         idxs_of_points_in_aperture = np.argwhere(row < d)
@@ -159,7 +158,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     u_estimates_arr = np.array(u_estimates)
     p_estimates_arr = np.array(p_estimates)
 
-    print(
+    logger.info(
         "\nThe mean number of points in each aperture of %.2f degs was %d\n"
         % (d, np.nanmean(num_points_in_aperture_list))
     )
