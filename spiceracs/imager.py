@@ -92,7 +92,9 @@ def image_beam(
     taper: float = None,
     reimage: bool = False,
     minuv_l: float = 0.0,
-    parallel_deconvolution=None,
+    parallel_deconvolution: Union[int, None]=None,
+    nmiter: Union[int, None]=None,
+    local_rms: bool = False,
 ):
     """Image a single beam"""
     if not reimage:
@@ -128,14 +130,13 @@ def image_beam(
         gridder=gridder,
         weight=f"briggs {robust}",
         log_time=False,
-        # abs_mem=abs_mem,
         mem=mem,
-        # no_mf_weighting=True,
-        # j=1,
         taper_gaussian=f"{taper}asec" if taper else None,
         field=field_idx,
         parallel_deconvolution=parallel_deconvolution,
         minuv_l=minuv_l,
+        nmiter=nmiter,
+        local_rms=local_rms,
     )
 
     root_dir = os.path.dirname(ms)
@@ -372,6 +373,8 @@ def main(
     minuv: float = 0.0,
     parallel_deconvolution: Union[int, None] = None,
     gridder: Union[str, None] = None,
+    nmiter: Union[int, None] = None,
+    local_rms: bool = False,
 ):
     simage = get_wsclean(tag="latest")
     msdir = os.path.abspath(msdir)
@@ -423,6 +426,8 @@ def main(
             minuv_l=minuv,
             parallel_deconvolution=parallel_deconvolution,
             gridder=gridder,
+            nmiter=nmiter,
+            local_rms=local_rms,
         )
         # Get images
         image_lists = {}
@@ -579,6 +584,11 @@ def cli():
         default=100_000,
     )
     parser.add_argument(
+        "--nmiter",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
         "--auto_mask",
         type=float,
         default=3.0,
@@ -587,6 +597,10 @@ def cli():
         "--auto_threshold",
         type=float,
         default=1.0,
+    )
+    parser.add_argument(
+        "--local-rms",
+        action="store_true",
     )
     parser.add_argument(
         "--force-mask-rounds",

@@ -276,7 +276,9 @@ def main(args: configargparse.Namespace) -> None:
             scale=args.scale,
             mgain=args.mgain,
             niter=args.niter,
+            nmiter=args.nmiter,
             auto_mask=args.auto_mask,
+            local_rms=args.local_rms,
             force_mask_rounds=args.force_mask_rounds,
             auto_threshold=args.auto_threshold,
             minuv=args.minuv,
@@ -569,14 +571,23 @@ def cli():
         default=100_000,
     )
     image_args.add_argument(
+        "--nmiter",
+        type=int,
+        default=None,
+    )
+    image_args.add_argument(
         "--auto_mask",
         type=float,
         default=3.0,
     )
     image_args.add_argument(
-        "--auto_threshold",
+        "--auto-threshold",
         type=float,
         default=1.0,
+    )
+    image_args.add_argument(
+        "--local-rms",
+        action="store_true",
     )
     image_args.add_argument(
         "--force-mask-rounds",
