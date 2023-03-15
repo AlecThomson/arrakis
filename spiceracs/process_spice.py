@@ -5,12 +5,12 @@ import os
 import socket
 from time import sleep
 
+import astropy.units as u
 import configargparse
 import pkg_resources
 import pymongo
 import yaml
 from astropy.time import Time
-import astropy.units as u
 from dask import delayed, distributed
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, LocalCluster, performance_report, progress
@@ -22,10 +22,10 @@ from prefect.engine import signals
 from prefect.engine.executors import DaskExecutor
 
 from spiceracs import (
-    imager,
     cleanup,
     cutout,
     frion,
+    imager,
     linmos,
     makecat,
     rmclean_oncuts,
@@ -33,6 +33,7 @@ from spiceracs import (
 )
 from spiceracs.logger import logger
 from spiceracs.utils import port_forward, test_db
+
 
 @task(name="Imaging", skip_on_upstream_skip=False)
 def imaging_task(skip: bool, **kwargs) -> Task:
@@ -52,6 +53,7 @@ def imaging_task(skip: bool, **kwargs) -> Task:
     if skip:
         raise signals.SKIP("Skipping imaging task")
     return imager.main(**kwargs)
+
 
 @task(name="Cutout", skip_on_upstream_skip=False)
 def cut_task(skip: bool, **kwargs) -> Task:
@@ -530,11 +532,7 @@ def cli():
     )
 
     image_args = parser.add_argument_group("imaging arguments")
-    image_args.add_argument(
-        "--psf_cutoff",
-        type=float,
-        help="Cutoff for smoothing"
-    )
+    image_args.add_argument("--psf_cutoff", type=float, help="Cutoff for smoothing")
     image_args.add_argument(
         "--robust",
         type=float,

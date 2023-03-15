@@ -30,8 +30,8 @@ from schwimmbad import SerialPool
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
-from spiceracs.logger import logger
 from spiceracs import fix_ms_dir
+from spiceracs.logger import logger
 from spiceracs.utils import (
     beam_from_ms,
     chunk_dask,
@@ -157,7 +157,9 @@ def image_beam(
     mfs_image = f"{prefix}-MFS-I-image.fits"
     rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
     if rms > 1:
-        logger.critical(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
+        logger.critical(
+            f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}"
+        )
         return False
 
     return True
