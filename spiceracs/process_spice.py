@@ -10,6 +10,7 @@ import pkg_resources
 import pymongo
 import yaml
 from astropy.time import Time
+import astropy.units as u
 from dask import delayed, distributed
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, LocalCluster, performance_report, progress
@@ -21,6 +22,7 @@ from prefect.engine import signals
 from prefect.engine.executors import DaskExecutor
 
 from spiceracs import (
+    imager,
     cleanup,
     cutout,
     frion,
@@ -32,6 +34,24 @@ from spiceracs import (
 from spiceracs.logger import logger
 from spiceracs.utils import port_forward, test_db
 
+@task(name="Imaging", skip_on_upstream_skip=False)
+def imaging_task(skip: bool, **kwargs) -> Task:
+    """Imaging task
+
+    Kwargs passed to imager.main
+
+    Args:
+        skip (bool): Whether to skip this task
+
+    Raises:
+        signals.SKIP: If task is skipped
+
+    Returns:
+        Task: Runs imager.main
+    """
+    if skip:
+        raise signals.SKIP("Skipping imaging task")
+    return imager.main(**kwargs)
 
 @task(name="Cutout", skip_on_upstream_skip=False)
 def cut_task(skip: bool, **kwargs) -> Task:
@@ -242,6 +262,29 @@ def main(args: configargparse.Namespace) -> None:
 
     # Define flow
     with Flow(f"SPICE-RACS: {args.field}") as flow:
+        images = imaging_task(
+            args.skip_image,
+            msdir=args.msdir,
+            out_dir=args.datadir,
+            cutoff=args.psf_cutoff,
+            robust=args.robust,
+            pols=args.pols,
+            nchan=args.nchan,
+            size=args.size,
+            scale=args.scale,
+            mgain=args.mgain,
+            niter=args.niter,
+            auto_mask=args.auto_mask,
+            force_mask_rounds=args.force_mask_rounds,
+            auto_threshold=args.auto_threshold,
+            minuv=args.minuv,
+            purge=args.purge,
+            taper=args.taper,
+            reimage=args.reimage,
+            parallel_deconvolution=args.parallel,
+            gridder=args.gridder,
+        )
+
         cuts = cut_task(
             args.skip_cutout,
             field=args.field,
@@ -254,6 +297,7 @@ def main(args: configargparse.Namespace) -> None:
             stokeslist=["I", "Q", "U"],
             verbose_worker=args.verbose_worker,
             dryrun=args.dryrun,
+            upstream_tasks=[images],
         )
         mosaics = linmos_task(
             args.skip_linmos,
@@ -450,6 +494,9 @@ def cli():
 
     flowargs = parser.add_argument_group("pipeline flow options")
     flowargs.add_argument(
+        "--skip_imaging", action="store_true", help="Skip imaging stage [False]."
+    )
+    flowargs.add_argument(
         "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
     )
     flowargs.add_argument(
@@ -481,6 +528,100 @@ def cli():
         action="store_true",
         help="Verbose worker output [False].",
     )
+
+    image_args = parser.add_argument_group("imaging arguments")
+    image_args.add_argument(
+        "--psf_cutoff",
+        type=float,
+        help="Cutoff for smoothing"
+    )
+    image_args.add_argument(
+        "--robust",
+        type=float,
+        default=-0.5,
+    )
+    image_args.add_argument(
+        "--nchan",
+        type=int,
+        default=36,
+    )
+    image_args.add_argument(
+        "--pols",
+        type=str,
+        default="IQU",
+    )
+    image_args.add_argument(
+        "--size",
+        type=int,
+        default=4096,
+    )
+    image_args.add_argument(
+        "--scale",
+        type=u.Quantity,
+        default=2.5,
+    )
+    image_args.add_argument(
+        "--mgain",
+        type=float,
+        default=0.8,
+    )
+    image_args.add_argument(
+        "--niter",
+        type=int,
+        default=100_000,
+    )
+    image_args.add_argument(
+        "--auto_mask",
+        type=float,
+        default=3.0,
+    )
+    image_args.add_argument(
+        "--auto_threshold",
+        type=float,
+        default=1.0,
+    )
+    image_args.add_argument(
+        "--force-mask-rounds",
+        type=int,
+        default=None,
+    )
+    image_args.add_argument(
+        "--gridder",
+        type=str,
+        default=None,
+        choices=["direct-ft", "idg", "wgridder", "tuned-wgridder", "wstacking"],
+    )
+    image_args.add_argument(
+        "--taper",
+        type=float,
+        default=None,
+    )
+    image_args.add_argument(
+        "--minuv",
+        type=float,
+        default=0.0,
+    )
+    image_args.add_argument(
+        "--parallel",
+        type=int,
+        default=None,
+    )
+    image_args.add_argument(
+        "--purge",
+        action="store_true",
+        help="Purge intermediate files",
+    )
+    image_args.add_argument(
+        "--mpi",
+        action="store_true",
+        help="Use MPI",
+    )
+    image_args.add_argument(
+        "--reimage",
+        action="store_true",
+        help="Force a new round of imaging. Otherwise, will skip if images already exist.",
+    )
+
     cutargs = parser.add_argument_group("cutout arguments")
     cutargs.add_argument(
         "-p",
