@@ -10,6 +10,7 @@ import traceback
 from argparse import Namespace
 from glob import glob
 from typing import List, Union
+from pathlib import Path
 
 import astropy.units as u
 import numpy as np
@@ -41,18 +42,19 @@ from spiceracs.utils import (
 )
 
 
-def get_wsclean(hub_address: str = "docker://alecthomson/wsclean", tag="3.1") -> str:
+def get_wsclean(wsclean: Union[Path, str]) -> Path:
     """Pull wsclean image from dockerhub (or wherver).
 
     Args:
         version (str, optional): wsclean image tag. Defaults to "3.1".
 
     Returns:
-        str: Path to yandasoft image.
+        str: Path to wsclean image.
     """
-    sclient.load(f"{hub_address}:{tag}")
-    image = os.path.abspath(sclient.pull())
-    return image
+    sclient.load(wsclean)
+    if isinstance(wsclean, str):
+        return Path(sclient.pull(wsclean))
+    return wsclean
 
 
 def get_prefix(
@@ -375,9 +377,9 @@ def main(
     gridder: Union[str, None] = None,
     nmiter: Union[int, None] = None,
     local_rms: bool = False,
-    wsclean_tag: str = "latest",
+    wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest"
 ):
-    simage = get_wsclean(tag=wsclean_tag)
+    simage = get_wsclean(wsclean=wsclean_path)
     msdir = os.path.abspath(msdir)
     out_dir = os.path.abspath(out_dir)
     get_image_task = delayed(get_images, nout=nchan)
@@ -411,7 +413,7 @@ def main(
             field_idx=field_idxs[ms],
             out_dir=out_dir,
             prefix=prefixs[ms],
-            simage=simage,
+            simage=simage.absolute(),
             robust=robust,
             pols=pols,
             nchan=nchan,
@@ -644,12 +646,20 @@ def cli():
         action="store_true",
         help="Force a new round of imaging. Otherwise, will skip if images already exist.",
     )
-    parser.add_argument(
-        "--wsclean-tag",
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--hosted-wsclean",
         type=str,
-        default="latest",
-        help="Docker tag for wsclean [latest]",
+        default="docker://alecthomson/wsclean:latest",
+        help="Docker or Singularity image for wsclean [docker://alecthomson/wsclean:latest]",
     )
+    group.add_argument(
+        "--local-wsclean",
+        type=Path,
+        default=None,
+        help="Path to local wsclean Singularity image",
+    )
+
 
     args = parser.parse_args()
 
@@ -687,15 +697,9 @@ def cli():
             reimage=args.reimage,
             parallel_deconvolution=args.parallel,
             gridder=args.gridder,
-            wsclean_tag=args.wsclean_tag,
+            wsclean_path=Path(args.local_wsclean) if args.local_wsclean else args.hosted_wsclean,
         )
 
 
 if __name__ == "__main__":
-    logger.basicConfig(
-        level=logger.DEBUG,
-        format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        force=True,
-    )
     cli()
