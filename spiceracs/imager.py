@@ -375,8 +375,9 @@ def main(
     gridder: Union[str, None] = None,
     nmiter: Union[int, None] = None,
     local_rms: bool = False,
+    wsclean_tag: str = "latest",
 ):
-    simage = get_wsclean(tag="latest")
+    simage = get_wsclean(tag=wsclean_tag)
     msdir = os.path.abspath(msdir)
     out_dir = os.path.abspath(out_dir)
     get_image_task = delayed(get_images, nout=nchan)
@@ -643,6 +644,12 @@ def cli():
         action="store_true",
         help="Force a new round of imaging. Otherwise, will skip if images already exist.",
     )
+    parser.add_argument(
+        "--wsclean-tag",
+        type=str,
+        default="latest",
+        help="Docker tag for wsclean [latest]",
+    )
 
     args = parser.parse_args()
 
@@ -680,6 +687,7 @@ def cli():
             reimage=args.reimage,
             parallel_deconvolution=args.parallel,
             gridder=args.gridder,
+            wsclean_tag=args.wsclean_tag,
         )
 
 
