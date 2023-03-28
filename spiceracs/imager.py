@@ -9,7 +9,7 @@ import shutil
 import traceback
 from argparse import Namespace
 from glob import glob
-from typing import List, Union
+from typing import List, Union, Dict
 from pathlib import Path
 
 import astropy.units as u
@@ -49,33 +49,33 @@ def get_wsclean(wsclean: Union[Path, str]) -> Path:
         version (str, optional): wsclean image tag. Defaults to "3.1".
 
     Returns:
-        str: Path to wsclean image.
+        Path: Path to wsclean image.
     """
-    sclient.load(wsclean)
+    sclient.load(str(wsclean))
     if isinstance(wsclean, str):
         return Path(sclient.pull(wsclean))
     return wsclean
 
 
 def get_prefix(
-    ms: str,
-    out_dir: str,
-) -> str:
+    ms: Path,
+    out_dir: Path,
+) -> Path:
     """Get prefix for output files"""
-    idx = field_idx_from_ms(ms)
-    field = vishead(vis=ms, mode="list")["field"][0][idx]
-    beam = beam_from_ms(ms)
+    idx = field_idx_from_ms(ms.resolve(strict=True).as_posix())
+    field = vishead(vis=ms.resolve(strict=True).as_posix(), mode="list")["field"][0][idx]
+    beam = beam_from_ms(ms.resolve(strict=True).as_posix())
     prefix = f"image.{field}.contcube.beam{beam:02}"
-    return os.path.join(out_dir, prefix)
+    return out_dir / prefix
 
 
-@delayed
+@delayed()
 def image_beam(
-    ms: str,
+    ms: Path,
     field_idx: int,
-    out_dir: str,
+    out_dir: Path,
     prefix: str,
-    simage: str,
+    simage: Path,
     pols: str = "IQU",
     nchan: int = 36,
     scale: u.Quantity = 2.5 * u.arcsec,
@@ -97,6 +97,7 @@ def image_beam(
     parallel_deconvolution: Union[int, None]=None,
     nmiter: Union[int, None]=None,
     local_rms: bool = False,
+    local_rms_window: Union[float, None] = None,
 ):
     """Image a single beam"""
     if not reimage:
@@ -113,7 +114,7 @@ def image_beam(
             logger.critical("starting imaging...")
 
     command = wsclean(
-        mslist=[ms],
+        mslist=[ms.resolve(strict=True).as_posix()],
         use_mpi=False,
         name=prefix,
         pol=pols,
@@ -139,16 +140,17 @@ def image_beam(
         minuv_l=minuv_l,
         nmiter=nmiter,
         local_rms=local_rms,
+        local_rms_window=local_rms_window,
     )
 
-    root_dir = os.path.dirname(ms)
+    root_dir = ms.parent
 
     # for command in (command_1, command_2):
     logger.info(f"Running wsclean with command: {command}")
     output = sclient.execute(
-        image=simage,
+        image=simage.resolve(strict=True).as_posix(),
         command=command.split(),
-        bind=f"{out_dir}:{out_dir}, {root_dir}:{root_dir}",
+        bind=f"{out_dir}:{out_dir}, {root_dir.resolve(strict=True).as_posix()}:{root_dir.resolve(strict=True).as_posix()}",
         return_result=True,
         quiet=False,
         stream=True,
@@ -168,24 +170,24 @@ def image_beam(
     return True
 
 
-def get_images(image_done: bool, pol, prefix):
+def get_images(image_done: bool, pol: str, prefix: Path) -> List[Path]:
     # image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
     if image_done:
-        image_list = sorted(glob(f"{prefix}*[0-9]-{pol}-image.fits"))
+        image_list = sorted(prefix.glob(f"*[0-9]-{pol}-image.fits"))
         return image_list
     else:
         raise ValueError("Imaging must be done")
 
 
-@delayed
-def get_aux(image_done: bool, pol, prefix):
+@delayed()
+def get_aux(image_done: bool, pol: str, prefix: Path) -> Dict[str, List[Path]]:
     if image_done:
         aux_lists = {
             aux: sorted(
-                glob(
-                    f"{prefix}*[0-9]-{pol}-{aux}.fits"
+                prefix.glob(
+                    f"*[0-9]-{pol}-{aux}.fits"
                     if aux != "psf"
-                    else f"{prefix}*[0-9]-{aux}.fits"
+                    else f"*[0-9]-{aux}.fits"
                 )
             )
             for aux in ["model", "psf", "residual", "dirty"]
@@ -300,7 +302,7 @@ def get_beam(ms_dict, pols, cutoff=None):
     return common_beam_pkl, beam_log
 
 
-@delayed(nout=2)
+@delayed()
 def smooth_image(image, common_beam_pkl, cutoff=None):
     # Smooth image
     # Deserialise the beam
@@ -320,7 +322,7 @@ def smooth_image(image, common_beam_pkl, cutoff=None):
     return sm_image
 
 
-@delayed
+@delayed()
 def cleanup(
     purge: bool,
     im_cube_name,
@@ -349,15 +351,15 @@ def cleanup(
     return
 
 
-@delayed
-def fix_ms(ms):
-    fix_ms_dir.main(ms)
+@delayed()
+def fix_ms(ms: Path) -> Path:
+    fix_ms_dir.main(ms.resolve(strict=True).as_posix())
     return ms
 
 
 def main(
-    msdir: str,
-    out_dir: str,
+    msdir: Path,
+    out_dir: Path,
     cutoff: Union[float, None] = None,
     robust: float = -0.5,
     pols: str = "IQU",
@@ -377,20 +379,18 @@ def main(
     gridder: Union[str, None] = None,
     nmiter: Union[int, None] = None,
     local_rms: bool = False,
+    local_rms_window: Union[float, None] = None,
     wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest"
 ):
     simage = get_wsclean(wsclean=wsclean_path)
-    msdir = os.path.abspath(msdir)
-    out_dir = os.path.abspath(out_dir)
     get_image_task = delayed(get_images, nout=nchan)
 
-    mslist = sorted(glob(os.path.join(msdir, "scienceData*_averaged_cal.leakage.ms")))
+    mslist = sorted(msdir.glob("scienceData*_averaged_cal.leakage.ms"))
 
     assert (len(mslist) > 0) & (
         len(mslist) == 36
     ), f"Incorrect number of MS files found: {len(mslist)} / 36"
 
-    mslist = [mslist[0]]
     logger.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []  # type: List[Delayed]
 
@@ -400,7 +400,7 @@ def main(
     for ms in tqdm(mslist, "Getting metadata"):
         prefix = get_prefix(ms, out_dir)
         prefixs[ms] = prefix
-        field_idxs[ms] = field_idx_from_ms(ms)
+        field_idxs[ms] = field_idx_from_ms(ms.resolve(strict=True).as_posix())
 
     ms_dict = {}
     for ms in mslist:
@@ -412,8 +412,8 @@ def main(
             ms=ms_fix,
             field_idx=field_idxs[ms],
             out_dir=out_dir,
-            prefix=prefixs[ms],
-            simage=simage.absolute(),
+            prefix=prefixs[ms].resolve(strict=False).as_posix(),
+            simage=simage.resolve(strict=True),
             robust=robust,
             pols=pols,
             nchan=nchan,
@@ -431,6 +431,7 @@ def main(
             gridder=gridder,
             nmiter=nmiter,
             local_rms=local_rms,
+            local_rms_window=local_rms_window,
         )
         # Get images
         image_lists = {}
@@ -538,12 +539,12 @@ def cli():
     )
     parser.add_argument(
         "msdir",
-        type=str,
+        type=Path,
         help="Directory containing MS files",
     )
     parser.add_argument(
         "outdir",
-        type=str,
+        type=Path,
         help="Directory to output images",
     )
     parser.add_argument(
@@ -604,6 +605,11 @@ def cli():
     parser.add_argument(
         "--local-rms",
         action="store_true",
+    )
+    parser.add_argument(
+        "--local-rms-window",
+        type=float,
+        default=None,
     )
     parser.add_argument(
         "--force-mask-rounds",
