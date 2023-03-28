@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SPICE-RACS imager"""
 import hashlib
-import logging as log
+import logging
 import multiprocessing as mp
 import os
 import pickle
@@ -100,6 +100,7 @@ def image_beam(
     local_rms_window: Union[float, None] = None,
 ):
     """Image a single beam"""
+    logger = logging.getLogger(__name__)
     if not reimage:
         # Look for existing images
         checkvals = np.array(
@@ -112,6 +113,49 @@ def image_beam(
         else:
             logger.critical(f"At least some images do not exist: {checkvals[~checks]}")
             logger.critical("starting imaging...")
+
+    commands = []
+    # Do any I cleaning separately
+    do_stokes_I = "I" in pols
+    if do_stokes_I:
+        command = wsclean(
+            mslist=[ms.resolve(strict=True).as_posix()],
+            use_mpi=False,
+            name=prefix,
+            pol="I",
+            verbose=True,
+            channels_out=nchan,
+            scale=f"{scale.to(u.arcsec).value}asec",
+            size=f"{npix} {npix}",
+            join_polarizations=join_polarizations,
+            join_channels=join_channels,
+            squared_channel_joining=False,
+            mgain=mgain,
+            niter=niter,
+            auto_mask=auto_mask,
+            force_mask_rounds=force_mask_rounds,
+            auto_threshold=auto_threshold,
+            gridder=gridder,
+            weight=f"briggs {robust}",
+            log_time=False,
+            mem=mem,
+            taper_gaussian=f"{taper}asec" if taper else None,
+            field=field_idx,
+            parallel_deconvolution=parallel_deconvolution,
+            minuv_l=minuv_l,
+            nmiter=nmiter,
+            local_rms=local_rms,
+            local_rms_window=local_rms_window,
+        )
+
+    if squared_channel_joining:
+        logger.info("Using squared channel joining")
+        logger.info("Reducing mask and threshold by sqrt(2) to account for this")
+        auto_mask /= np.sqrt(2)
+        auto_threshold /= np.sqrt(2)
+        logger.debug(f"auto_mask = {auto_mask}")
+        logger.debug(f"auto_threshold = {auto_threshold}")
+
 
     command = wsclean(
         mslist=[ms.resolve(strict=True).as_posix()],
@@ -142,59 +186,57 @@ def image_beam(
         local_rms=local_rms,
         local_rms_window=local_rms_window,
     )
+    commands.append(command)
 
     root_dir = ms.parent
 
-    # for command in (command_1, command_2):
-    logger.info(f"Running wsclean with command: {command}")
-    output = sclient.execute(
-        image=simage.resolve(strict=True).as_posix(),
-        command=command.split(),
-        bind=f"{out_dir}:{out_dir}, {root_dir.resolve(strict=True).as_posix()}:{root_dir.resolve(strict=True).as_posix()}",
-        return_result=True,
-        quiet=False,
-        stream=True,
-    )
-    for line in output:
-        logger.info(line)
+    for command in commands:
+        logger.info(f"Running wsclean with command: {command}")
+        output = sclient.execute(
+            image=simage.resolve(strict=True).as_posix(),
+            command=command.split(),
+            bind=f"{out_dir}:{out_dir}, {root_dir.resolve(strict=True).as_posix()}:{root_dir.resolve(strict=True).as_posix()}",
+            return_result=True,
+            quiet=False,
+            stream=True,
+        )
+        for line in output:
+            logger.info(line)
 
     # Check rms of image to check for divergence
-    mfs_image = f"{prefix}-MFS-I-image.fits"
-    rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
-    if rms > 1:
-        logger.critical(
-            f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}"
-        )
-        return False
-
+    if do_stokes_I:
+        pols += "I"
+    for pol in pols:
+        mfs_image = f"{prefix}-MFS-image.fits" if pol == "I" else f"{prefix}-MFS-{pol}-image.fits"
+        rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
+        if rms > 1:
+            raise ValueError(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
     return True
 
 
 def get_images(image_done: bool, pol: str, prefix: Path) -> List[Path]:
     # image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
-    if image_done:
-        image_list = sorted(prefix.glob(f"*[0-9]-{pol}-image.fits"))
-        return image_list
-    else:
+    if not image_done:
         raise ValueError("Imaging must be done")
+
+    imglob = "*[0-9]-image.fits" if pol=="I" else f"*[0-9]-{pol}-image.fits"
+    image_list = sorted(prefix.glob(imglob))
+    return image_list
+
 
 
 @delayed()
 def get_aux(image_done: bool, pol: str, prefix: Path) -> Dict[str, List[Path]]:
-    if image_done:
-        aux_lists = {
-            aux: sorted(
-                prefix.glob(
-                    f"*[0-9]-{pol}-{aux}.fits"
-                    if aux != "psf"
-                    else f"*[0-9]-{aux}.fits"
-                )
-            )
-            for aux in ["model", "psf", "residual", "dirty"]
-        }
-        return aux_lists
-    else:
+    if not image_done:
         raise ValueError("Imaging must be done")
+    aux_lists = {}
+    for aux in ["model", "psf", "residual", "dirty"]:
+        if pol == "I" or aux == "psf":
+            aux_lists[aux] = sorted(prefix.glob(f"*[0-9]-{aux}.fits"))
+        else:
+            aux_lists[aux] = sorted(prefix.glob(f"*[0-9]-{pol}-{aux}.fits"))
+    return aux_lists
+
 
 
 @delayed(nout=2)
