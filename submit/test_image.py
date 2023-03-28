@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
-#SBATCH --output=/scratch2/tho822/spiceracs/RACS_1213-25A/test_image_%j.log
-#SBATCH --error=/scratch2/tho822/spiceracs/RACS_1213-25A/test_image_%j.log
-#SBATCH --time=3-00:00:00
+#SBATCH --output=/scratch2/tho822/spiceracs/project/pipe_test/test_image_%j.log
+#SBATCH --error=/scratch2/tho822/spiceracs/project/pipe_test/test_image_%j.log
+#SBATCH --time=0-12:00:00
 #SBATCH --tasks=1
+#SBATCH --cpus-per-task=1
 #SBATCH --account=OD-217087
 #SBATCH --qos=express
 
-import logging as log
+import logging
 
 import yaml
 from dask.distributed import Client, LocalCluster
 from dask_jobqueue import SLURMCluster
 from IPython import embed
+from astropy import units as u
+from pathlib import Path
 
 from spiceracs import imager
 from spiceracs.utils import port_forward
+from spiceracs.logger import logger
+logger.setLevel(logging.DEBUG)
 
 
 def main():
-    with open("/scratch2/tho822/spiceracs/spiceracs/spiceracs/configs/petrichor.yaml") as f:
+    with open(
+        "/scratch2/projects/spiceracs/spiceracs/spiceracs/configs/petrichor.yaml"
+    ) as f:
         config = yaml.safe_load(f)
 
     config["job_cpu"] = config["cores"]
@@ -28,8 +35,8 @@ def main():
     cluster = SLURMCluster(
         **config,
     )
-    cluster.scale(1)
-    log.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
+    cluster.scale(36)
+    logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
     # # exit()
     # cluster = LocalCluster(n_workers=10, threads_per_worker=1)
     # cluster.adapt(minimum=1, maximum=36)
@@ -39,27 +46,28 @@ def main():
 
     port = client.scheduler_info()["services"]["dashboard"]
     port_forward(port, "petrichor-i1")
-    log.info(client.scheduler_info()["services"])
+    logger.info(client.scheduler_info()["services"])
 
     results = imager.main(
-        msdir="/scratch2/tho822/spiceracs/RACS_1213-25A",
-        out_dir="/scratch2/tho822/spiceracs/RACS_1213-25A",
-        cutoff=25,
+        msdir=Path("/scratch2/tho822/spiceracs/project/pipe_test"),
+        out_dir=Path("/scratch2/tho822/spiceracs/project/pipe_test"),
+        mgain=0.8,
+        force_mask_rounds=6,
+        nmiter=25,
+        niter=50000000,
+        local_rms=True,
+        auto_mask=1.6,
+        local_rms_window=60,
+        auto_threshold=0.5,
+        size=7500,
+        scale=2.5*u.arcsec,
+        robust=-0.5,
         pols="IQU",
-        nchan=36,
+        gridder="wgridder",
         minuv=200,
-        mgain=0.6,
-        # parallel_deconvolution=3072,
-        reimage=True,
+        wsclean_path=Path("/scratch2/tho822/singularity_images/wsclean_force_mask.sif"),
+        reimage=True
     )
-
-    # log.info(results)
 
 if __name__ == "__main__":
-    log.basicConfig(
-        level=log.DEBUG,
-        format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        force=True,
-    )
     main()

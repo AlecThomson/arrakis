@@ -5,7 +5,7 @@ name: 'spice-worker'
 memory: "512GB"
 account: 'OD-217087'
 #queue: 'workq'
-walltime: '1-18:00:00'
+walltime: '0-12:00:00'
 job_extra_directives: ['--qos express']
 # interface for the workers
 interface: "ib0"
@@ -24,4 +24,4 @@ job_script_prologue: [
 #    "--lifetime-stagger", "5m",
 #]
 death_timeout: 1000
-local_directory: '$LOCALDIR'
+local_directory: $LOCALDIR
