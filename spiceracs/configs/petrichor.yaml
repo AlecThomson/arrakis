@@ -1,8 +1,8 @@
 # Set up for Petrichor
-cores: 64
-processes: 64
+cores: 8
+processes: 8
 name: 'spice-worker'
-memory: "512GB"
+memory: "60GB"
 account: 'OD-217087'
 #queue: 'workq'
 walltime: '0-12:00:00'
