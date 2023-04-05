@@ -18,6 +18,7 @@ from scipy.optimize import curve_fit
 from scipy.interpolate import interp1d
 from typing import NamedTuple
 from functools import partial
+from time import time
 
 class RMSynthParams(NamedTuple):
     phis: np.ndarray
@@ -26,7 +27,7 @@ class RMSynthParams(NamedTuple):
     ays: np.ndarray
     fwhm: float
 
-def get_rmsynth_params(freqs: np.ndarray, weights: np.ndarray) -> RMSynthParams:
+def get_rmsynth_params(freqs: np.ndarray, weights: np.ndarray, nsamp: int=10) -> RMSynthParams:
     """Get parameters for RMSynth
 
     Args:
@@ -45,7 +46,7 @@ def get_rmsynth_params(freqs: np.ndarray, weights: np.ndarray) -> RMSynthParams:
     delta_phi = 3.8 / Delta_lsq
     phi_max = np.abs(np.sqrt(3) / delta_lsq)
 
-    phi_step = int( np.floor(delta_phi) / 10 )
+    phi_step = int( np.floor(delta_phi) / nsamp)
     nphi = int(round(abs((phi_max - 0.0) / phi_step)) * 2.0 + 1.0)
     phi_start = - (nphi-1.0) * phi_step / 2.0
     phi_end = + (nphi-1.0) * phi_step / 2.0
@@ -63,15 +64,7 @@ def get_rmsynth_params(freqs: np.ndarray, weights: np.ndarray) -> RMSynthParams:
     )
 
 
-# @nb.njit(parallel=True, fastmath=True,)
-def _rmsynth_loop(fdf: np.ndarray, stokes_p: np.ndarray, ays: np.ndarray, phis: np.ndarray, kay: float):
-    for i in nb.prange(len(phis)):
-    # for i in range(len(phis)):
-        phi = phis[i]
-        arg = np.exp(-2.0j * phi * ays)
-        fdf[i] = kay * (stokes_p * arg).sum()#(axis=0)
-    return fdf
-
+@nb.njit(parallel=True, fastmath=True,)
 def rmsynth_1d(
         stokes_q: np.ndarray,
         stokes_u: np.ndarray,
@@ -91,12 +84,49 @@ def rmsynth_1d(
     Returns:
         np.ndarray: FDF
     """
-    fdf = np.zeros(phis.shape, dtype='complex')
+    fdf = np.zeros(phis.shape, dtype='complex128')
     stokes_p = stokes_q + 1j * stokes_u
     kay = 1 / np.sum(weights)
 
-    fdf = _rmsynth_loop(fdf, stokes_p, ays, phis, kay)
+    for i in nb.prange(len(phis)):
+        phi = phis[i]
+        arg = np.exp(-2.0j * phi * ays)
+        fdf[i] = kay * (stokes_p * arg).sum()#(axis=0)
     return fdf
+
+@nb.njit(parallel=True, fastmath=True,)
+def rmsynth3d(
+        stokes_q: np.ndarray,
+        stokes_u: np.ndarray,
+        weights: np.ndarray,
+        ays: np.ndarray,
+        phis: np.ndarray,
+) -> np.ndarray:
+    """1D RMSynth
+
+    Args:
+        stokes_q (np.ndarray): Stokes Q [nchan, y, x]
+        stokes_u (np.ndarray): Stokes U [nchan, y, x]
+        weights (np.ndarray): Weights [nchan]
+        ays (np.ndarray): Lsq - Lsq_0 [nchan]
+        phis (np.ndarray): Faraday depths [nphi]
+
+    Returns:
+        np.ndarray: FDF [nphi, y, x]
+    """
+    shape = (len(phis), stokes_q.shape[1], stokes_q.shape[2])
+    fdf = np.zeros(shape, dtype='complex128')
+    stokes_p = stokes_q + 1j * stokes_u
+    kay = 1 / np.sum(weights)
+
+    for i in nb.prange(len(phis)):
+        phi = phis[i]
+        arg = np.exp(-2.0j * phi * ays)
+        arg_mat = arg.repeat(stokes_p.shape[1]).repeat(stokes_p.shape[2]).reshape(stokes_p.shape)
+        fdf[i] = kay * (stokes_p * arg_mat).sum(axis=0)
+
+    return fdf
+
 
 
 def simple_clean(
@@ -147,8 +177,11 @@ def simple_clean(
         x=phis,
         y=fdf.imag,
     )
-    cc = q_interp(peak_phi) + 1j * u_interp(peak_phi)
-    quarr = np.sum(cc * np.exp(2.0j * np.outer(phis, ays)),axis=0)
+    cc_scalar = q_interp(peak_phi) + 1j * u_interp(peak_phi)
+    cc_vec = np.zeros(len(phis)).astype('complex128')
+    # Update the CC at the peak
+    cc_vec[np.argmin(np.abs(phis - peak_phi))] = cc_scalar
+    quarr = np.sum(cc_vec[:, np.newaxis] * np.exp(2.0j * np.outer(phis, ays)),axis=0)
     spec = np.array([quarr.real, quarr.imag]).T
 
     return spec
@@ -170,7 +203,6 @@ def deconvolve(
 
     # residual and model are numpy arrays with dimensions nchan x npol x height x width
     # psf is a numpy array with dimensions nchan x height x width.
-    psf = psf[:, np.newaxis] # Add a dimension for the polarisation axis
 
     # This file demonstrates a very simple deconvolution strategy, which doesn't
     # support multiple polarizations:
@@ -179,10 +211,22 @@ def deconvolve(
     # If there are channels missing (flagged), they will be set to NaN
     # They're here set to zero to make it easy to calculate the integrated image
     residual = np.nan_to_num(residual)
-    residual_pi = np.hypot(residual[:,0], residual[:,1])
 
     # find the largest peak in the integrated image
-    integrated_residual = np.sum(residual_pi, axis=0)
+    freqs = np.array([x.frequency for x in meta.channels])
+    weights_3d = np.ones_like(freqs)
+    params_3d = get_rmsynth_params(freqs, weights_3d, nsamp=3)
+    tick = time()
+    fdf_3d = rmsynth3d(
+        stokes_q=residual[:, 0],
+        stokes_u=residual[:, 1],
+        weights=weights_3d,
+        ays=params_3d.ays,
+        phis=params_3d.phis,
+    )
+    tock = time()
+    print(f"RMSynth3D took {tock - tick:0.2f} seconds")
+    integrated_residual = np.sum(np.abs(fdf_3d), axis=0)
     peak_index = np.unravel_index(
         np.argmax(integrated_residual), integrated_residual.shape
     )
@@ -192,7 +236,6 @@ def deconvolve(
     first_threshold = np.max(
         [meta.major_iter_threshold, meta.final_threshold, mgain_threshold]
     )
-    freqs = np.array([x.frequency for x in meta.channels])
 
     print(
         f"Starting iteration {meta.iteration_number}, peak={peak_value}, first threshold={first_threshold}"
@@ -203,36 +246,56 @@ def deconvolve(
     ):
         y = peak_index[0]
         x = peak_index[1]
-        spectrum = residual[:, :, y, x]
-        weights = (spectrum.sum(axis=1) > 0).astype(int)
+        spectrum_complex = residual[:, :, y, x]
+        if meta.iteration_number < 10:
+            np.savetxt(f"spectrum_iter_{meta.iteration_number}.txt", spectrum_complex)
+        weights = (spectrum_complex.sum(axis=1) > 0).astype(int)
 
         params = get_rmsynth_params(freqs, weights)
         fdf = rmsynth_1d(
-            stokes_q=spectrum[:, 0],
-            stokes_u=spectrum[:, 1],
+            stokes_q=spectrum_complex[:, 0],
+            stokes_u=spectrum_complex[:, 1],
             weights=weights,
             ays=params.ays,
             phis=params.phis,
         )
-        spectrum = simple_clean(
+        model_spectrum = simple_clean(
             phis=params.phis,
             fdf=fdf,
             ays=params.ays,
             fwhm=params.fwhm,
         )
-        model[:, :, y, x] += spectrum
+        if meta.iteration_number < 10:
+            np.savetxt(f"model_spectrum_iter_{meta.iteration_number}.txt", model_spectrum)
+        # Update the model
+        model[:, :, y, x] += model_spectrum
 
+        # Subtract the model from the residual
         psf_shift = (y + height // 2, x + width // 2)
-        residual_pi = np.hypot(residual[:,0], residual[:,1])
-        residual_pi = (
-            residual_pi
-            - np.roll(psf[:,0], psf_shift, axis=(-2, -1))
-            * np.hypot(
-                spectrum[:, 0, np.newaxis, np.newaxis],
-                spectrum[:, 1, np.newaxis, np.newaxis]
-            )
+        residual[:, 0] = (
+            residual[:, 0]
+            - np.roll(psf, psf_shift, axis=(1, 2))
+            * model_spectrum[:, 0, np.newaxis, np.newaxis]
         )
-        integrated_residual = np.nansum(residual_pi, axis=0)
+        residual[:, 1] = (
+            residual[:, 1]
+            - np.roll(psf, psf_shift, axis=(1, 2))
+            * model_spectrum[:, 1, np.newaxis, np.newaxis]
+        )
+
+        ######################
+        # Update the residual
+        tick = time()
+        fdf_3d = rmsynth3d(
+            stokes_q=residual[:, 0],
+            stokes_u=residual[:, 1] ,
+            weights=weights_3d,
+            ays=params_3d.ays,
+            phis=params_3d.phis,
+        )
+        tock = time()
+        print(f"RMSynth3D took {tock - tick:0.2f} seconds")
+        integrated_residual = np.sum(np.abs(fdf_3d), axis=0)
         peak_index = np.unravel_index(
             np.argmax(integrated_residual), integrated_residual.shape
         )
