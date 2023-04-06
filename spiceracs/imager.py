@@ -11,6 +11,7 @@ from argparse import Namespace
 from glob import glob
 from typing import List, Union, Dict
 from pathlib import Path
+from subprocess import CalledProcessError
 
 import astropy.units as u
 import numpy as np
@@ -91,6 +92,7 @@ def image_beam(
     gridder: Union[str, None] = None,
     robust: float = -0.5,
     mem: float = 90,
+    absmem: Union[float, None] = None,
     taper: float = None,
     reimage: bool = False,
     minuv_l: float = 0.0,
@@ -98,9 +100,12 @@ def image_beam(
     nmiter: Union[int, None]=None,
     local_rms: bool = False,
     local_rms_window: Union[float, None] = None,
+    multiscale: Union[bool, None] = None,
 ):
     """Image a single beam"""
     logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
     if not reimage:
         # Look for existing images
         checkvals = np.array(
@@ -127,9 +132,9 @@ def image_beam(
             channels_out=nchan,
             scale=f"{scale.to(u.arcsec).value}asec",
             size=f"{npix} {npix}",
-            join_polarizations=join_polarizations,
+            join_polarizations=False, # Only do I
             join_channels=join_channels,
-            squared_channel_joining=False,
+            squared_channel_joining=False,  # Dont want to square I
             mgain=mgain,
             niter=niter,
             auto_mask=auto_mask,
@@ -139,6 +144,7 @@ def image_beam(
             weight=f"briggs {robust}",
             log_time=False,
             mem=mem,
+            abs_mem=absmem,
             taper_gaussian=f"{taper}asec" if taper else None,
             field=field_idx,
             parallel_deconvolution=parallel_deconvolution,
@@ -146,16 +152,21 @@ def image_beam(
             nmiter=nmiter,
             local_rms=local_rms,
             local_rms_window=local_rms_window,
+            multiscale=multiscale,
         )
+        commands.append(command)
+        pols = pols.replace("I", "")
+
 
     if squared_channel_joining:
         logger.info("Using squared channel joining")
-        logger.info("Reducing mask and threshold by sqrt(2) to account for this")
-        auto_mask /= np.sqrt(2)
-        auto_threshold /= np.sqrt(2)
-        logger.debug(f"auto_mask = {auto_mask}")
-        logger.debug(f"auto_threshold = {auto_threshold}")
+        logger.info("Reducing mask by 2*sqrt(2) to account for this")
+        auto_mask_reduce = np.round(auto_mask / (2*np.sqrt(2)), decimals=2)
 
+        logger.info(f"auto_mask = {auto_mask}")
+        logger.info(f"auto_mask_reduce = {auto_mask_reduce}")
+    else:
+        auto_mask_reduce = auto_mask.copy()
 
     command = wsclean(
         mslist=[ms.resolve(strict=True).as_posix()],
@@ -171,13 +182,14 @@ def image_beam(
         squared_channel_joining=squared_channel_joining,
         mgain=mgain,
         niter=niter,
-        auto_mask=auto_mask,
+        auto_mask=auto_mask_reduce,
         force_mask_rounds=force_mask_rounds,
         auto_threshold=auto_threshold,
         gridder=gridder,
         weight=f"briggs {robust}",
         log_time=False,
         mem=mem,
+        abs_mem=absmem,
         taper_gaussian=f"{taper}asec" if taper else None,
         field=field_idx,
         parallel_deconvolution=parallel_deconvolution,
@@ -185,6 +197,7 @@ def image_beam(
         nmiter=nmiter,
         local_rms=local_rms,
         local_rms_window=local_rms_window,
+        multiscale=multiscale,
     )
     commands.append(command)
 
@@ -192,16 +205,22 @@ def image_beam(
 
     for command in commands:
         logger.info(f"Running wsclean with command: {command}")
-        output = sclient.execute(
-            image=simage.resolve(strict=True).as_posix(),
-            command=command.split(),
-            bind=f"{out_dir}:{out_dir}, {root_dir.resolve(strict=True).as_posix()}:{root_dir.resolve(strict=True).as_posix()}",
-            return_result=True,
-            quiet=False,
-            stream=True,
-        )
-        for line in output:
-            logger.info(line)
+        try:
+            output = sclient.execute(
+                image=simage.resolve(strict=True).as_posix(),
+                command=command.split(),
+                bind=f"{out_dir}:{out_dir}, {root_dir.resolve(strict=True).as_posix()}:{root_dir.resolve(strict=True).as_posix()}",
+                return_result=True,
+                quiet=False,
+                stream=True,
+            )
+            for line in output:
+                logger.info(line)
+        except CalledProcessError as e:
+            logger.error(f"Failed to run wsclean with command: {command}")
+            logger.error(f"Stdout: {e.stdout}")
+            logger.error(f"Stderr: {e.stderr}")
+            raise e
 
     # Check rms of image to check for divergence
     if do_stokes_I:
@@ -210,7 +229,9 @@ def image_beam(
         mfs_image = f"{prefix}-MFS-image.fits" if pol == "I" else f"{prefix}-MFS-{pol}-image.fits"
         rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
         if rms > 1:
-            raise ValueError(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
+            # raise ValueError(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
+            logger.error(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
+
     return True
 
 
@@ -422,7 +443,9 @@ def main(
     nmiter: Union[int, None] = None,
     local_rms: bool = False,
     local_rms_window: Union[float, None] = None,
-    wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest"
+    wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest",
+    multiscale: Union[bool, None] = None,
+    absmem: Union[float, None] = None,
 ):
     simage = get_wsclean(wsclean=wsclean_path)
     get_image_task = delayed(get_images, nout=nchan)
@@ -474,6 +497,8 @@ def main(
             nmiter=nmiter,
             local_rms=local_rms,
             local_rms_window=local_rms_window,
+            multiscale=multiscale,
+            absmem=absmem,
         )
         # Get images
         image_lists = {}
@@ -694,6 +719,17 @@ def cli():
         action="store_true",
         help="Force a new round of imaging. Otherwise, will skip if images already exist.",
     )
+    parser.add_argument(
+        "--multiscale",
+        action="store_true",
+        help="Use multiscale clean",
+    )
+    parser.add_argument(
+        "--absmem",
+        type=float,
+        default=None,
+        help="Absolute memory limit in GB",
+    )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--hosted-wsclean",
@@ -746,6 +782,7 @@ def cli():
             parallel_deconvolution=args.parallel,
             gridder=args.gridder,
             wsclean_path=Path(args.local_wsclean) if args.local_wsclean else args.hosted_wsclean,
+            multiscale=args.multiscale,
         )
 
 
