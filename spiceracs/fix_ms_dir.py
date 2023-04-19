@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 __author__ = "Emil Lenc"
-import logging as log
 import math
 import os
 import re
@@ -10,6 +9,7 @@ import numpy as np
 from casacore.tables import table, tablecopy, tableexists, taql
 
 from spiceracs.utils import beam_from_ms
+from spiceracs.logger import logger
 
 RAD2DEG = 180.0 / math.pi
 DEG2RAD = math.pi / 180.0
@@ -223,25 +223,25 @@ def main(ms):
     beam = beam_from_ms(ms)
 
     if not tableexists("%s/FIELD_OLD" % (ms)):
-        log.info("Making copy of original FIELD table")
+        logger.info("Making copy of original FIELD table")
         tablecopy(tablename="%s/FIELD" % (ms), newtablename="%s/FIELD_OLD" % (ms))
     else:
-        log.info("Original copy of FIELD table is being used")
+        logger.info("Original copy of FIELD table is being used")
 
     if not tableexists("%s/FEED_OLD" % (ms)):
-        log.info("Making copy of original FEED table")
+        logger.info("Making copy of original FEED table")
         tablecopy(tablename="%s/FEED" % (ms), newtablename="%s/FEED_OLD" % (ms))
     else:
-        log.info("Original copy of FEED table is being used")
+        logger.info("Original copy of FEED table is being used")
 
-    log.info("Reading phase directions")
+    logger.info("Reading phase directions")
     tp = table("%s/FIELD_OLD" % (ms), readonly=True, ack=False)
     ms_phase = tp.getcol("PHASE_DIR")
     tp.close()
 
     # Work out how many fields are in the MS.
     n_fields = ms_phase.shape[0]
-    log.info("Found %d fields in FIELD table" % (n_fields))
+    logger.info("Found %d fields in FIELD table" % (n_fields))
 
     # Open up the MS FEED table so we can work out what the offset is for the beam.
     tf = table("%s/FEED" % (ms), readonly=False, ack=False)
@@ -261,10 +261,10 @@ def main(ms):
     n_offsets = t1.getcol("BEAM_OFFSET").shape[0]
     offset_times = t1.getcol("TIME")
     offset_intervals = t1.getcol("INTERVAL")
-    log.info("Found %d offsets in FEED table for beam %d" % (n_offsets, beam))
+    logger.info("Found %d offsets in FEED table for beam %d" % (n_offsets, beam))
     for offset_index in range(n_offsets):
         offset = t1.getcol("BEAM_OFFSET")[offset_index]
-        log.info(
+        logger.info(
             "Offset %d : t=%f-%f : (%fd,%fd)"
             % (
                 offset_index,
@@ -284,7 +284,7 @@ def main(ms):
         )
         time_data = tfdata.getcol("TIME")
         if len(time_data) == 0:
-            #        log.info("Warning: Couldn't find valid data for field %d" %(field))
+            #        logger.info("Warning: Couldn't find valid data for field %d" %(field))
             continue
 
         offset_index = -1
@@ -297,7 +297,7 @@ def main(ms):
                 offset_index = offset
                 break
 
-        #    log.info("Field %d : t=%f : offset=%d" %(field, time_data[0], offset_index))
+        #    logger.info("Field %d : t=%f : offset=%d" %(field, time_data[0], offset_index))
         # Obtain the offset for the current field.
         offset = t1.getcol("BEAM_OFFSET")[offset_index]
 
@@ -310,7 +310,7 @@ def main(ms):
         new_pos.rn = 15
         new_pos.dn = 15
         new_pos_str = "%s" % (new_pos)
-        log.info(
+        logger.info(
             "Setting position of beam %d, field %d to %s (t=%f-%f, offset=%d)"
             % (beam, field, new_pos_str, time_data[0], time_data[-1], offset_index)
         )
@@ -365,27 +365,10 @@ def cli():
     parser.add_argument(
         "ms", help="Measurement set to update", type=str, default=None, nargs="?"
     )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Verbose output [False]."
-    )
-
-    verbose = args.verbose
-    if verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-    else:
-        log.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-
     # Parse the command line
     args = parser.parse_args()
+
+
 
     # Call the main function
     main(args.ms)
