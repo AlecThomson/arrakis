@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-#SBATCH --output=/scratch2/tho822/spiceracs/project/pipe_test/test_image_%j.log
-#SBATCH --error=/scratch2/tho822/spiceracs/project/pipe_test/test_image_%j.log
-#SBATCH --time=0-12:00:00
+#SBATCH --output=/scratch2/tho822/spiceracs/pipe_test/test_image_%j.log
+#SBATCH --error=/scratch2/tho822/spiceracs/pipe_test/test_image_%j.log
+#SBATCH --time=1-00:00:00
 #SBATCH --tasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --account=OD-217087
@@ -19,7 +19,7 @@ from pathlib import Path
 from spiceracs import imager
 from spiceracs.utils import port_forward
 from spiceracs.logger import logger
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 
 def main():
@@ -35,7 +35,7 @@ def main():
     cluster = SLURMCluster(
         **config,
     )
-    cluster.scale(36)
+    cluster.scale(72)
     logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
     # # exit()
     # cluster = LocalCluster(n_workers=10, threads_per_worker=1)
@@ -49,25 +49,29 @@ def main():
     logger.info(client.scheduler_info()["services"])
 
     results = imager.main(
-        msdir=Path("/scratch2/tho822/spiceracs/project/pipe_test"),
-        out_dir=Path("/scratch2/tho822/spiceracs/project/pipe_test"),
+        msdir=Path("/scratch2/tho822/spiceracs/pipe_test"),
+        out_dir=Path("/scratch2/tho822/spiceracs/pipe_test"),
         mgain=0.8,
-        force_mask_rounds=6,
+        force_mask_rounds=8,
         nmiter=25,
         niter=50000000,
         local_rms=True,
-        auto_mask=1.6,
+        auto_mask=3.75,
         local_rms_window=60,
-        auto_threshold=0.5,
-        size=7500,
+        auto_threshold=1,
+        size=6144,
         scale=2.5*u.arcsec,
         robust=-0.5,
         pols="IQU",
         gridder="wgridder",
         minuv=200,
         wsclean_path=Path("/scratch2/tho822/singularity_images/wsclean_force_mask.sif"),
-        reimage=True
+        reimage=True,
+        multiscale=False,
+        # parallel_deconvolution=6144,
+        absmem=float(config["memory"].replace("GB", "").replace("GiB", ""))
     )
+    logs = client.get_worker_logs()
 
 if __name__ == "__main__":
     main()
