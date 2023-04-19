@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Utility functions"""
+import copy
 import dataclasses
 import functools
 import json
@@ -778,14 +779,14 @@ def wsclean(
         str: WSClean command
     """
 
-    arguments = locals()
+    arguments = copy.deepcopy(locals())
     mslist = arguments.pop("mslist")
     use_mpi = arguments.pop("use_mpi")
     # Check for MPI
     if use_mpi:
-        command = f"mpirun wsclean-mp"
+        command = "mpirun wsclean-mp"
     else:
-        command = f"wsclean "
+        command = "wsclean "
 
     # Check for square channels and multiscale
     if arguments["squared_channel_joining"] and arguments["multiscale"]:
@@ -795,7 +796,7 @@ def wsclean(
         if type(value) is bool:
             if value:
                 command += f" -{key.replace('_', '-')}"
-        if type(value) is str or type(value) is int or type(value) is float:
+        elif value:
             if "ws_" in key:  # Catch for ws_continue command
                 key.replace("ws_", "")
             command += f" -{key.replace('_','-')} {value}"
