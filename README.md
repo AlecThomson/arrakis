@@ -6,7 +6,7 @@ Scripts for processing polarized RACS data products.
 
 ## Documentation
 
-The documentation is available at [spice-racs.readthedocs.io](https://spiceracs.readthedocs.io).
+The documentation is available at [spiceracs.readthedocs.io](https://spiceracs.readthedocs.io).
 
 ## Acknowledging
 
