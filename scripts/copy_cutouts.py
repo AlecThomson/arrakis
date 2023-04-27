@@ -10,7 +10,10 @@ import numpy as np
 import spica
 from astropy.table import Table
 
+from spiceracs.logger import logger, logging
 from spiceracs.utils import try_mkdir
+
+logger.setLevel(logging.INFO)
 
 racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")
 # spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')
@@ -29,7 +32,7 @@ def main(field, dry_run=False, ncores=10):
     if not test_cut:
         raise FileNotFoundError(cut_dir)
     else:
-        print(f"Copying '{cut_dir}'")
+        logger.info(f"Copying '{cut_dir}'")
 
     store_dir = os.path.join(
         group_area, f"{row['CAL SBID']}", f"RACS_test4_1.05_{field}", "cutouts"
@@ -39,7 +42,7 @@ def main(field, dry_run=False, ncores=10):
     if not test_cut:
         raise FileNotFoundError(test_store)
     else:
-        print(f"Storing in '{store_dir}'")
+        logger.info(f"Storing in '{store_dir}'")
 
     if not dry_run:
         copy_data.prsync(f"{cut_dir}/*", store_dir, ncores=ncores)

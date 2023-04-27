@@ -33,6 +33,7 @@ from IPython import embed
 from IPython.core.pylabtools import figsize
 
 from spiceracs.linmos import gen_seps
+from spiceracs.logger import logger, logging
 from spiceracs.utils import (
     chunk_dask,
     coord_to_string,
@@ -44,7 +45,6 @@ from spiceracs.utils import (
 
 
 def make_plot(data, comp, imfile):
-
     fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(10, 10))
     fig.suptitle(f"{comp['Gaussian_ID']} leakage")
     for i, s in enumerate(["q", "u"]):
@@ -93,7 +93,7 @@ def interpolate(field, comp, beams, cutdir, septab, holofile, verbose=True):
                 os.path.join(cutdir, f"{comp['Source_ID']}*beam{bm:02d}.conv.fits")
             )[0]
         except:
-            print(f"No image file for source {comp['Source_ID']} beam {bm}")
+            logger.critical(f"No image file for source {comp['Source_ID']} beam {bm}")
             return
 
         freq = getfreq(imfile)
@@ -135,7 +135,7 @@ def interpolate(field, comp, beams, cutdir, septab, holofile, verbose=True):
         # plotdir = os.path.join(os.path.join(cutdir, 'plots'), os.path.basename(outname))
         # copyfile(outname, plotdir)
     except Exception as e:
-        print(f"No plot made : {e}")
+        logger.warning(f"No plot made : {e}")
         return
 
 
@@ -216,7 +216,7 @@ def main(
         verbose=verbose,
     )
 
-    print("Comparing leakge done!")
+    logger.info("Comparing leakge done!")
 
 
 def cli():
@@ -297,6 +297,9 @@ def cli():
         threads_per_worker=1,
     )
     client = Client(cluster)
+
+    if args.verbose:
+        logger.setLevel(logging.INFO)
 
     main(
         field=args.field,

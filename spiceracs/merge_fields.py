@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
-import logging as log
+import logging
 import os
 import time
 from pprint import pformat, pprint
 from shutil import copyfile
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import pymongo
 from dask import delayed, distributed
@@ -13,6 +13,7 @@ from dask.distributed import Client, LocalCluster
 from tqdm import tqdm
 
 from spiceracs.linmos import get_yanda, linmos
+from spiceracs.logger import logger
 from spiceracs.utils import chunk_dask, get_db, test_db, tqdm_dask, try_mkdir
 
 
@@ -180,7 +181,6 @@ def merge_multiple_fields(
     merge_name: str,
     image: str,
 ) -> list:
-
     # Find all islands with the given fields that overlap another field
     query = {
         "$or": [
@@ -215,13 +215,12 @@ def main(
     output_dir: str,
     client: Client,
     host: str,
-    username: str = None,
-    password: str = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
     yanda="1.3.0",
     verbose: bool = True,
 ) -> str:
-
-    log.debug(f"{fields=}")
+    logger.debug(f"{fields=}")
 
     assert len(fields) == len(
         field_dirs
@@ -281,12 +280,12 @@ def main(
         m._doc["$set"].update({f"beams.{merge_name}.DR1": True})
 
     db_res_single = beams_col.bulk_write(singleton_comp, ordered=False)
-    log.info(pformat(db_res_single.bulk_api_result))
+    logger.info(pformat(db_res_single.bulk_api_result))
 
     db_res_multiple = beams_col.bulk_write(multiple_comp, ordered=False)
-    log.info(pformat(db_res_multiple.bulk_api_result))
+    logger.info(pformat(db_res_multiple.bulk_api_result))
 
-    log.info("LINMOS Done!")
+    logger.info("LINMOS Done!")
     return inter_dir
 
 

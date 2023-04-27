@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
 import json
-import logging as log
+import logging
 import os
 import sys
 import time
@@ -9,6 +9,7 @@ import warnings
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
+from typing import List, Union
 
 import dask
 import matplotlib.pyplot as plt
@@ -27,6 +28,7 @@ from RMutils.util_misc import create_frac_spectra
 from spectral_cube import SpectralCube
 from tqdm import tqdm, trange
 
+from spiceracs.logger import logger
 from spiceracs.utils import MyEncoder, chunk_dask, get_db, getfreq, test_db, tqdm_dask
 
 
@@ -60,9 +62,8 @@ def rmclean1d(
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
 
-    log.debug(f"Working on {comp}")
+    logger.debug(f"Working on {comp}")
     try:
-
         rm1dfiles = comp["rm1dfiles"]
         fdfFile = os.path.join(outdir, f"{rm1dfiles['FDF_dirty']}")
         rmsfFile = os.path.join(outdir, f"{rm1dfiles['RMSF']}")
@@ -73,9 +74,9 @@ def rmclean1d(
 
         # Sanity checks
         for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
-            log.debug(f"Checking {os.path.abspath(f)}")
+            logger.debug(f"Checking {os.path.abspath(f)}")
             if not os.path.exists(f):
-                log.fatal("File does not exist: '{:}'.".format(f))
+                logger.fatal("File does not exist: '{:}'.".format(f))
                 sys.exit()
         nBits = 32
         mDict, aDict = do_RMclean_1D.readFiles(
@@ -131,8 +132,8 @@ def rmclean1d(
             },
         }
     except KeyError:
-        log.critical("Failed to load data! RM-CLEAN not applied to component!")
-        log.critical(f"Island is {iname}, component is {cname}")
+        logger.critical("Failed to load data! RM-CLEAN not applied to component!")
+        logger.critical(f"Island is {iname}, component is {cname}")
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
@@ -216,14 +217,14 @@ def main(
     outdir: str,
     host: str,
     client: Client,
-    username: str = None,
-    password: str = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
     dimension="1d",
     verbose=True,
     database=False,
     savePlots=True,
     validate=False,
-    limit: int = None,
+    limit: Union[int, None] = None,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
@@ -309,7 +310,7 @@ def main(
 
     outputs = []
     if dimension == "1d":
-        log.info(f"Running RM-CLEAN on {n_comp} components")
+        logger.info(f"Running RM-CLEAN on {n_comp} components")
         for i, comp in enumerate(tqdm(components, total=n_comp)):
             if i > n_comp + 1:
                 break
@@ -328,7 +329,7 @@ def main(
                 outputs.append(output)
 
     elif dimension == "3d":
-        log.info(f"Running RM-CLEAN on {n_island} islands")
+        logger.info(f"Running RM-CLEAN on {n_island} islands")
 
         for i, island in enumerate(islands):
             if i > n_island + 1:
@@ -352,15 +353,15 @@ def main(
     )
 
     if database:
-        log.info("Updating database...")
+        logger.info("Updating database...")
         updates = [f.compute() for f in futures]
         if dimension == "1d":
             db_res = comp_col.bulk_write(updates, ordered=False)
-            log.info(pformat(db_res.bulk_api_result))
+            logger.info(pformat(db_res.bulk_api_result))
         elif dimension == "3d":
             db_res = island_col.bulk_write(updates, ordered=False)
-            log.info(pformat(db_res.bulk_api_result))
-    log.info("RM-CLEAN done!")
+            logger.info(pformat(db_res.bulk_api_result))
+    logger.info("RM-CLEAN done!")
 
 
 def cli():
@@ -504,26 +505,13 @@ def cli():
     )
 
     if rmv:
-        log.basicConfig(
-            level=log.DEBUG,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
+        logger.setLevel(
+            level=logger.DEBUG,
         )
     elif verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
+        logger.setLevel(
+            level=logger.INFO,
         )
-    else:
-        log.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-
     main(
         field=args.field,
         outdir=args.outdir,

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """DANGER ZONE: Purge directories of un-needed FITS files."""
-import logging as log
+import logging
 import os
 import time
 from glob import glob
-from typing import List
+from typing import List, Union
 
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 
+from spiceracs.logger import logger
 from spiceracs.utils import chunk_dask
 
 
@@ -29,7 +30,10 @@ def cleanup(workdir: str, stoke: str) -> None:
 
 
 def main(
-    datadir: str, client: Client, stokeslist: List[str] = None, verbose=True
+    datadir: str,
+    client: Client,
+    stokeslist: Union[List[str], None] = None,
+    verbose=True,
 ) -> None:
     """Clean up beam images
 
@@ -71,7 +75,7 @@ def main(
         verbose=verbose,
     )
 
-    log.info("Cleanup done!")
+    logger.info("Cleanup done!")
 
 
 def cli():
@@ -119,18 +123,7 @@ def cli():
     verbose = args.verbose
 
     if verbose:
-        log.basicConfig(
-            level=log.INFO,
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-    else:
-        log.basicConfig(
-            format="%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
+        logger.setLevel(logging.INFO)
 
     cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
