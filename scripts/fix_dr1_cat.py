@@ -5,12 +5,12 @@ import os
 import pickle
 
 import astropy.units as u
-from astropy.units import cds
 import numpy as np
 import pkg_resources
 from astropy.coordinates import SkyCoord
 from astropy.table import Column, Table
 from astropy.time import Time
+from astropy.units import cds
 from IPython import embed
 from rmtable import RMTable
 from spica import SPICA
@@ -46,7 +46,7 @@ def fix_fields(tab: Table) -> Table:
     start_times = Time(spica_field["SCAN_START"] * u.second, format="mjd")
     spica_field.add_column(
         Column(
-            start_times.to_value('mjd'),
+            start_times.to_value("mjd"),
             name="start_time",
             unit=cds.MJD,
         ),
@@ -80,7 +80,7 @@ def fix_fields(tab: Table) -> Table:
         Column(
             all_fields,
             name="tile_id",
-        )
+        ),
     )
 
     all_seps = (
@@ -137,7 +137,7 @@ def fix_fields(tab: Table) -> Table:
     }
     for col in new_tab.colnames:
         if str(new_tab[col].unit) in dumb_units.keys():
-            new_unit =  dumb_units[str(new_tab[col].unit)]
+            new_unit = dumb_units[str(new_tab[col].unit)]
             logger.debug(f"Fixing {col} unit from {new_tab[col].unit} to {new_unit}")
             new_tab[col].unit = new_unit
             new_tab.units[col] = new_unit
@@ -149,7 +149,9 @@ def fix_fields(tab: Table) -> Table:
             new_tab[col] = new_tab[col].to(u.Jy)
             new_tab.units[col] = u.Jy
         if new_tab[col].unit == u.mJy / u.beam:
-            logger.debug(f"Converting {col} unit from {new_tab[col].unit} to {u.Jy / u.beam}")
+            logger.debug(
+                f"Converting {col} unit from {new_tab[col].unit} to {u.Jy / u.beam}"
+            )
             new_tab[col] = new_tab[col].to(u.Jy / u.beam)
             new_tab.units[col] = u.Jy / u.beam
 
@@ -188,7 +190,6 @@ def main(cat: str):
     goodRM = goodL & ~fix_tab["snr_flag"]
     good_fix_tab = fix_tab[goodRM]
     fix_flag_tab = compute_local_rm_flag(good_cat=good_fix_tab, big_cat=fix_tab)
-
 
     _, ext = os.path.splitext(cat)
     outfile = cat.replace(ext, f".corrected{ext}")

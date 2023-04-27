@@ -112,7 +112,9 @@ def flag_blended_components(cat: RMTable) -> RMTable:
                 sep_flag = (seps < beam) & (seps > 0 * u.deg)
                 is_blended_arr[i] = np.any(sep_flag)
                 n_blended_arr[i] = np.sum(sep_flag)
-                blend_total_flux = sub_df.total_I_flux[sep_flag].sum() + sub_df.total_I_flux[i]
+                blend_total_flux = (
+                    sub_df.total_I_flux[sep_flag].sum() + sub_df.total_I_flux[i]
+                )
                 blend_ratio_arr[i] = sub_df.total_I_flux[i] / blend_total_flux
 
             is_blended = pd.Series(
