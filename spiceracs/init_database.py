@@ -9,6 +9,7 @@ import time
 from functools import partial
 from glob import glob
 from typing import Dict, List, Tuple, Union
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -166,6 +167,7 @@ def source_database(
 
 
 def beam_database(
+    database_path: Path,
     islandcat: Table,
     host: str,
     username: Union[str, None] = None,
@@ -186,6 +188,7 @@ def beam_database(
     """
     # Get pointing info from RACS database
     racs_fields = get_catalogue(
+        survey_dir=database_path,
         epoch=epoch,
     )
 
@@ -206,7 +209,7 @@ def beam_database(
     return insert_res
 
 
-def get_catalogue(epoch: int = 0) -> Table:
+def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
     """Get the RACS catalogue for a given epoch
 
     Args:
@@ -216,9 +219,8 @@ def get_catalogue(epoch: int = 0) -> Table:
         Table: RACS catalogue table.
 
     """
-    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
-    basedir = os.path.join(survey_dir, "racs", "db", f"epoch_{epoch}")
-    beamfiles = glob(os.path.join(basedir, "beam_inf*"))
+    basedir = survey_dir / "racs" / "db" / f"epoch_{epoch}"
+    beamfiles = basedir.glob("beam_inf*")
 
     # Init first field
     beamfile = beamfiles[0]
@@ -236,7 +238,7 @@ def get_catalogue(epoch: int = 0) -> Table:
             continue
         else:
             tab = Table.read(beamfile)
-            basename = os.path.basename(beamfile)
+            basename = beamfile.name
             idx = basename.find("RACS")
             FIELD = basename[idx:-4]
             SBID = basename[9 : idx - 1]
@@ -309,7 +311,7 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
 
 
 def field_database(
-    host: str, username: Union[str, None], password: Union[str, None], epoch: int = 0
+    survey_dir: Path, host: str, username: Union[str, None], password: Union[str, None], epoch: int = 0
 ) -> InsertManyResult:
     """Reset and load the field database
 
@@ -322,9 +324,8 @@ def field_database(
     Returns:
         InsertManyResult: Field insert object.
     """
-    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
-    basedir = os.path.join(survey_dir, "racs", "db", f"epoch_{epoch}")
-    data_file = os.path.join(basedir, "field_data.csv")
+    basedir = survey_dir / "racs" / "db" / f"epoch_{epoch}"
+    data_file = basedir / "field_data.csv"
     database = Table.read(data_file)
     df = database.to_pandas()
     field_list_dict = df.to_dict("records")
@@ -344,6 +345,7 @@ def main(
     load: bool = False,
     islandcat: Union[str, None] = None,
     compcat: Union[str, None] = None,
+    database_path: Union[Path, None] = None,
     host: str = "localhost",
     username: Union[str, None] = None,
     password: Union[str, None] = None,
@@ -382,6 +384,9 @@ def main(
         if compcat is None:
             logger.critical("Component catalogue is required!")
             compcat = input("Enter catalogue file:")
+        if database_path is None:
+            logger.critical("Database path is required!")
+            database_path = Path(input("Enter database path:"))
 
         # Get the master cat
         logger.info(f"Reading {islandcat}")
@@ -406,6 +411,7 @@ def main(
             )
         if check_beam:
             beam_database(
+                database_path=database_path,
                 islandcat=island_cat,
                 host=host,
                 username=username,
@@ -419,6 +425,7 @@ def main(
         )
         if check_field:
             field_res = field_database(
+                survey_dir=database_path,
                 host=host,
                 username=username,
                 password=password,
@@ -479,6 +486,13 @@ def cli():
     parser.add_argument(
         "-p", "--password", type=str, default=None, help="Password of mongodb."
     )
+    parser.add_argument(
+        "-d"
+        "--database-path",
+        type=str,
+        default=None,
+        help="Path to RACS database (i.e. 'askap_surveys' repo).",
+    )
 
     parser.add_argument(
         "-i", "--islandcat", type=str, help="Master island RACS catalogue."
@@ -519,6 +533,7 @@ def cli():
     test_db(host=args.host, username=args.username, password=args.password)
 
     main(
+        database_path=Path(args.database_path) if args.database_path else None,
         load=args.load,
         islandcat=args.islandcat,
         compcat=args.compcat,
