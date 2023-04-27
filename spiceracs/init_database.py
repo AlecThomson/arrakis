@@ -4,8 +4,8 @@ import json
 import logging
 import os
 import time
-from typing import Dict, List, Tuple, Union
 from pathlib import Path
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 from astropy import units as u
@@ -300,7 +300,11 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
 
 
 def field_database(
-    survey_dir: Path, host: str, username: Union[str, None], password: Union[str, None], epoch: int = 0
+    survey_dir: Path,
+    host: str,
+    username: Union[str, None],
+    password: Union[str, None],
+    epoch: int = 0,
 ) -> InsertManyResult:
     """Reset and load the field database
 
@@ -476,8 +480,7 @@ def cli():
         "-p", "--password", type=str, default=None, help="Password of mongodb."
     )
     parser.add_argument(
-        "-d"
-        "--database-path",
+        "-d" "--database-path",
         type=str,
         default=None,
         help="Path to RACS database (i.e. 'askap_surveys' repo).",
