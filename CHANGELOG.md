@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `submit/casda_pre_prep.sh`
 - `submit/casda_prep_test.sh`
+- ASKAP RACS database as a submodule (changes how `init_databse.py` ingests data)
 
 
 ## [0.2.0] - 2019-12-01
