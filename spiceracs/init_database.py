@@ -1,32 +1,21 @@
 #!/usr/bin/env python3
 """Create the SPICE-RACS database"""
-import functools
 import json
 import logging
 import os
-import sys
 import time
-from functools import partial
-from glob import glob
 from typing import Dict, List, Tuple, Union
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pkg_resources
-import psutil
-import pymongo
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, search_around_sky
-from astropy.io import fits
 from astropy.table import Table, vstack
-from astropy.wcs import WCS
-from IPython import embed
 from pymongo.results import InsertManyResult
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 from spiceracs.logger import logger
-from spiceracs.utils import MyEncoder, get_db, get_field_db, getdata, test_db, yes_or_no
+from spiceracs.utils import MyEncoder, get_db, get_field_db, test_db, yes_or_no
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> Table:
