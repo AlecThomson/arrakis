@@ -26,10 +26,10 @@ from spiceracs.makecat import (
 
 
 def fix_fields(
-        tab: Table,
-        survey_dir: Path,
-        epoch: int = 0,
-    ) -> Table:
+    tab: Table,
+    survey_dir: Path,
+    epoch: int = 0,
+) -> Table:
     # Get field data, and index by field/tile ID
     field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
     field = Table.read(field_path)
@@ -162,7 +162,7 @@ def fix_fields(
     return new_tab
 
 
-def main(cat: str, survey_dir: Path, epoch: int=0):
+def main(cat: str, survey_dir: Path, epoch: int = 0):
     logger.info(f"Reading {cat}")
     tab = RMTable.read(cat)
     logger.info(f"Fixing {cat}")
@@ -235,7 +235,8 @@ def cli():
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
-    main(cat=args.catalogue,
+    main(
+        cat=args.catalogue,
         survey_dir=Path(args.survey),
         epoch=args.epoch,
     )

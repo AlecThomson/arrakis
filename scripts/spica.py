@@ -2,8 +2,8 @@ import os
 import shlex
 import subprocess as sb
 from glob import glob
-from pprint import pprint
 from pathlib import Path
+from pprint import pprint
 
 import copy_data
 import numpy as np
@@ -77,7 +77,15 @@ def mslist(cal_sb, name):
     return out
 
 
-def main(survey_dir: Path, epoch: int = 0, copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
+def main(
+    survey_dir: Path,
+    epoch: int = 0,
+    copy=False,
+    force=False,
+    cal=False,
+    mslist_dir=None,
+    cube_image=False,
+):
     field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
     tab = Table.read(field_path)
     tab.add_index("FIELD_NAME")

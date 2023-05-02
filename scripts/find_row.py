@@ -10,9 +10,12 @@ from spiceracs.logger import logger, logging
 logger.setLevel(logging.INFO)
 
 
-def main(name: str, sbid: int,
-                 survey_dir: Path,
-        epoch: int = 0,):
+def main(
+    name: str,
+    sbid: int,
+    survey_dir: Path,
+    epoch: int = 0,
+):
     field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
     tab = Table.read(field_path)
     tab.add_index("FIELD_NAME")
@@ -51,7 +54,12 @@ def cli():
         help="Epoch to read field data from",
     )
     args = parser.parse_args()
-    main(name=args.field, sbid=args.cal_sbid, survey_dir=Path(args.survey), epoch=args.epoch)
+    main(
+        name=args.field,
+        sbid=args.cal_sbid,
+        survey_dir=Path(args.survey),
+        epoch=args.epoch,
+    )
 
 
 if __name__ == "__main__":

@@ -2,8 +2,8 @@
 import argparse
 import os
 from glob import glob
-from shutil import SameFileError, copyfile
 from pathlib import Path
+from shutil import SameFileError, copyfile
 
 from astropy.table import Table
 
@@ -40,9 +40,7 @@ def main(
     force=False,
 ):
     field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
-    tab = Table.read(
-        field_path
-    )
+    tab = Table.read(field_path)
     tab.add_index("FIELD_NAME")
     tab.add_index("CAL_SBID")
     row = Table(tab.loc["FIELD_NAME", f"RACS_{name}"]).loc["CAL_SBID", sbid]["INDEX"]

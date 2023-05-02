@@ -91,11 +91,9 @@ sorted_weights = [
 ]
 
 
-def main(name: str,
-                 survey_dir: Path,
-        epoch: int = 0,
-         cal=False,
-science=False, weight=False):
+def main(
+    name: str, survey_dir: Path, epoch: int = 0, cal=False, science=False, weight=False
+):
     field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
     tab = Table.read(field_path)
     tab.add_index("FIELD_NAME")

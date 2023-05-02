@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """Post process DR1 source catalog"""
-import numpy as np
-from astropy.table import Table
 from pathlib import Path
-from tqdm.auto import tqdm
-from IPython import embed
-from astropy.coordinates import SkyCoord
 
-from spiceracs.makecat import write_votable
+import numpy as np
+from astropy.coordinates import SkyCoord
+from astropy.table import Table
+from IPython import embed
+from tqdm.auto import tqdm
+
 from spiceracs.logger import logger
+from spiceracs.makecat import write_votable
+
 logger.setLevel("DEBUG")
 
+
 def main(
-        source_cat_pth: Path,
-        spice_cat_pth: Path,
-        survey_dir: Path,
-        epoch: int = 0,
+    source_cat_pth: Path,
+    spice_cat_pth: Path,
+    survey_dir: Path,
+    epoch: int = 0,
 ):
     logger.info(f"Loading source catalog from {source_cat_pth}")
     source_cat = Table.read(source_cat_pth)
@@ -49,9 +52,7 @@ def main(
 
     # Fix the separations
     logger.info("Fixing separations to field centres")
-    field_coords = SkyCoord(
-        field["RA_DEG"], field["DEC_DEG"], unit="deg", frame="icrs"
-    )
+    field_coords = SkyCoord(field["RA_DEG"], field["DEC_DEG"], unit="deg", frame="icrs")
     source_coords = SkyCoord(
         source_cut["RA"], source_cut["Dec"], unit="deg", frame="icrs"
     )
@@ -69,9 +70,9 @@ def main(
     source_cut.write(out_pth, format="votable", overwrite=True)
 
 
-
 def cli():
     import argparse
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -103,6 +104,7 @@ def cli():
         survey_dir=Path(args.survey),
         epoch=args.epoch,
     )
+
 
 if __name__ == "__main__":
     cli()
