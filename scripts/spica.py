@@ -3,6 +3,7 @@ import shlex
 import subprocess as sb
 from glob import glob
 from pprint import pprint
+from pathlib import Path
 
 import copy_data
 import numpy as np
@@ -76,10 +77,9 @@ def mslist(cal_sb, name):
     return out
 
 
-def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
-    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
-    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
-    tab = Table.read(os.path.join(basedir, "field_data.csv"))
+def main(survey_dir: Path, epoch: int = 0, copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
+    field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
+    tab = Table.read(field_path)
     tab.add_index("FIELD_NAME")
 
     cols = [
@@ -121,10 +121,10 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
     if cal:
         logger.info("The following row indcies are ready to image:")
         sub_tab = spica_tab[spica_tab["Leakage cal"]]
-        indxs = []
+        idx_list = []
         for row in sub_tab:
-            indxs.append(row["Row index"])
-        indxs = np.array(indxs)
+            idx_list.append(row["Row index"])
+        indxs = np.array(idx_list)
         logger.info(" ".join(indxs.astype(str)))
 
     if mslist_dir is not None:
@@ -159,6 +159,8 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
                         sbid=row["CAL SBID"],
                         racs_area=racs_area,
                         spice_area=spice_area,
+                        survey_dir=survey_dir,
+                        epoch=epoch,
                         ncores=10,
                         clean=True,
                         force=force,
@@ -183,6 +185,17 @@ def cli():
     """
     parser = argparse.ArgumentParser(
         description=descStr, formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        "survey",
+        type=str,
+        help="Survey directory",
+    )
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch to read field data from",
     )
     parser.add_argument(
         "--copy",
@@ -210,6 +223,8 @@ def cli():
 
     args = parser.parse_args()
     _ = main(
+        survey_dir=Path(args.survey),
+        epoch=args.epoch,
         copy=args.copy,
         force=args.force,
         cal=args.cal,

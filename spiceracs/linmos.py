@@ -12,6 +12,7 @@ from glob import glob
 from logging import disable
 from pprint import pformat
 from typing import List, Tuple, Union
+from pathlib import Path
 
 import astropy
 import astropy.units as u
@@ -39,7 +40,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 
 
 @delayed
-def gen_seps(field: str) -> Table:
+def gen_seps(field: str, survey_dir: Path, epoch: int=0) -> Table:
     """Get separation table for a given RACS field
 
     Args:
@@ -48,12 +49,12 @@ def gen_seps(field: str) -> Table:
     Returns:
         Table: Table of separation for each beam.
     """
-    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
-    offsets = Table.read(os.path.join(survey_dir, "racs_low_offsets.csv"))
+    offsets = Table.read(survey_dir / "racs_low_offsets.csv")
     offsets.add_index("Beam")
 
+    field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
     master_cat = Table.read(
-        os.path.join(survey_dir, "racs", "db", "epoch_0", "field_data.csv"),
+        field_path
     )
     master_cat.add_index("FIELD_NAME")
     master_cat = master_cat.loc[f"RACS_{field}"]
@@ -279,8 +280,10 @@ def get_yanda(version="1.3.0") -> str:
 def main(
     field: str,
     datadir: str,
+    survey_dir: Path,
     client: Client,
     host: str,
+    epoch: int= 0,
     holofile: Union[str, None] = None,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
@@ -308,7 +311,11 @@ def main(
 
     # Use ASKAPcli to get beam separations for PB correction
 
-    beamseps = gen_seps(field)
+    beamseps = gen_seps(
+        field=field,
+        survey_dir=survey_dir,
+        epoch=epoch,
+    )
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
@@ -411,7 +418,17 @@ def cli():
         type=str,
         help="Directory containing cutouts (in subdir outdir/cutouts)..",
     )
-
+    parser.add_argument(
+        "survey",
+        type=str,
+        help="Survey directory",
+    )
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch to read field data from",
+    )
     parser.add_argument(
         "--holofile", type=str, default=None, help="Path to holography image"
     )

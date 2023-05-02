@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
+from pathlib import Path
 
 from astropy.table import Row, Table
 
@@ -90,10 +91,13 @@ sorted_weights = [
 ]
 
 
-def main(name: str, cal=False, science=False, weight=False):
-    scriptdir = os.path.dirname(os.path.realpath(__file__))
-    basedir = f"{scriptdir}/../askap_surveys/racs/db/epoch_0"
-    tab = Table.read(f"{basedir}/field_data.csv")
+def main(name: str,
+                 survey_dir: Path,
+        epoch: int = 0,
+         cal=False,
+science=False, weight=False):
+    field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
+    tab = Table.read(field_path)
     tab.add_index("FIELD_NAME")
     sel_tab = tab[tab["SELECT"] == 1]
     sub_tab = Table(sel_tab.loc["FIELD_NAME", f"RACS_{name}"])
@@ -123,6 +127,17 @@ def cli():
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to find e.g. 2132-50A"
     )
+    parser.add_argument(
+        "survey",
+        type=str,
+        help="Survey directory",
+    )
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch to read field data from",
+    )
     parser.add_argument("--cal", action="store_true", help="Return CAL SBID only")
     parser.add_argument(
         "--science", action="store_true", help="Return Science SBID only"
@@ -130,7 +145,9 @@ def cli():
     parser.add_argument("--weight", action="store_true", help="Return weight SBID only")
     args = parser.parse_args()
     main(
-        args.field,
+        name=args.field,
+        survey_dir=Path(args.survey),
+        epoch=args.epoch,
         cal=args.cal,
         science=args.science,
         weight=args.weight,
