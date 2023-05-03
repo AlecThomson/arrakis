@@ -49,7 +49,10 @@ def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
     Returns:
         Table: Table of separation for each beam.
     """
-    offsets = Table.read(survey_dir / "racs_low_offsets.csv")
+    offset_file = pkg_resources.resource_filename(
+        "arrakis", f"racs_epoch_{epoch}_offsets.csv"
+    )
+    offsets = Table.read(offset_file)
     offsets.add_index("Beam")
 
     field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
