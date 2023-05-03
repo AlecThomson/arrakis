@@ -2,6 +2,7 @@
 import argparse
 import os
 from glob import glob
+from pathlib import Path
 from shutil import SameFileError, copyfile
 
 from astropy.table import Table
@@ -32,13 +33,14 @@ def main(
     sbid: int,
     racs_area: str,
     spice_area: str,
+    survey_dir: Path,
+    epoch: int = 0,
     ncores=1,
     clean=False,
     force=False,
 ):
-    tab = Table.read(
-        "/group/askap/athomson/repos/arrakis/askap_surveys/racs/db/epoch_0/field_data.csv"
-    )
+    field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
+    tab = Table.read(field_path)
     tab.add_index("FIELD_NAME")
     tab.add_index("CAL_SBID")
     row = Table(tab.loc["FIELD_NAME", f"RACS_{name}"]).loc["CAL_SBID", sbid]["INDEX"]
@@ -113,6 +115,17 @@ def cli():
         help="Calibrator SBID for field",
     )
     parser.add_argument(
+        "survey",
+        type=str,
+        help="Survey directory",
+    )
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch to read field data from",
+    )
+    parser.add_argument(
         "--clean",
         action="store_true",
         help="Cleanup Checkfiles",
@@ -148,6 +161,8 @@ def cli():
         sbid=args.cal_sbid,
         racs_area=args.RACS,
         spice_area=args.spice,
+        survey_dir=Path(args.survey),
+        epoch=args.epoch,
         ncores=args.ncores,
         clean=args.clean,
         force=args.force,
