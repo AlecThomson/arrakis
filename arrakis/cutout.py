@@ -481,7 +481,7 @@ def cli() -> None:
 
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage 1:
+    Arrakis Stage 1:
     Produce cubelets from a RACS field using a Selavy table.
     If Stokes V is present, it will be squished into RMS spectra.
 

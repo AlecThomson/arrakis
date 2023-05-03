@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SPICE-RACS multi-field pipeline"""
+"""Arrakis multi-field pipeline"""
 import logging
 import os
 from time import sleep
@@ -111,7 +111,7 @@ def main(args: configargparse.Namespace) -> None:
     logger.info(client.scheduler_info()["services"])
     # Define flow
     inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
-    with Flow(f"SPICE-RACS: {args.merge_name}") as flow:
+    with Flow(f"Arrakis: {args.merge_name}") as flow:
         merge = merge_task(
             args.skip_merge,
             fields=args.fields,
@@ -214,7 +214,7 @@ def cli():
 
     descStr = f"""
     {logostr}
-    SPICE-RACS regional pipeline.
+    Arrakis regional pipeline.
 
     Before running make sure to start a session of mongodb e.g.
         $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)

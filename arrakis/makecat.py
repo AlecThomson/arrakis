@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make a SPICE-RACS catalogue"""
+"""Make a Arrakis catalogue"""
 import logging
 import os
 import time
@@ -815,7 +815,7 @@ def main(
     rmtab["rm_method"] = "RM Synthesis - Fractional polarization"
     rmtab["telescope"] = "ASKAP"
     rmtab["pol_bias"] = "2012PASA...29..214G"
-    rmtab["catalog"] = "SPICE-RACS-DR1"
+    rmtab["catalog"] = "Arrakis-DR1"
     rmtab["ionosphere"] = "FRion"
     rmtab["flux_type"] = "Peak"
     rmtab["aperture"] = 0 * u.deg
@@ -907,7 +907,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage 7:
+    Arrakis Stage 7:
     Make RM catalogue.
 
     """

@@ -99,7 +99,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage:
+    Arrakis Stage:
 
     Clean up after LINMOS
 

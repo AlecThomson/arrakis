@@ -16,7 +16,7 @@
 prep_type=full
 conda activate spice
 data_dir=/group/askap/athomson/projects/arrakis/DR1/full_spica
-polcat=/group/askap/athomson/projects/arrakis/DR1/spice-racs.dr1.corrected.xml
+polcat=/group/askap/athomson/projects/arrakis/DR1/Arrakis.dr1.corrected.xml
 
 
 cd $data_dir

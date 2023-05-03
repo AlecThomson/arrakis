@@ -924,7 +924,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage 5:
+    Arrakis Stage 5:
     Run RMsynthesis on cubelets.
 
     Note: Runs on brightest sources first.

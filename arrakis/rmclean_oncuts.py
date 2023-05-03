@@ -392,7 +392,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage 6:
+    Arrakis Stage 6:
     Run RM-CLEAN on cubelets.
 
     Note: Runs on brightest sources first.

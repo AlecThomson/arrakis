@@ -1,4 +1,4 @@
-# SPICE-RACS
+# Arrakis
 **S**pectra and **P**olarization **I**n **C**utouts of **E**xtragalactic sources from **R**ACS
 
 Scripts for processing polarized RACS data products.
@@ -10,7 +10,7 @@ The documentation is available at [arrakis.readthedocs.io](https://arrakis.readt
 
 ## Acknowledging
 
-If you use SPICE-RACS in your research, please cite [Thomson et al. (in prep)](https://ui.adsabs.harvard.edu/abs/).
+If you use Arrakis in your research, please cite [Thomson et al. (in prep)](https://ui.adsabs.harvard.edu/abs/).
 
 ### 3rd party software
 

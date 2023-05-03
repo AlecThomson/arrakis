@@ -1,6 +1,6 @@
 Running the pipeline
 --------------------
-So you're ready to run the pipeline? The SPICE-RACS pipeline picks up from whatever imaging routine you used to create the image cubes. You'll need to have image cubes in a working directory all convolved to a common spatial resolution. You should also make sure the names of the image cubes are consistent with the naming convention used in the ASKAPsoft pipline i.e. ::
+So you're ready to run the pipeline? The Arrakis pipeline picks up from whatever imaging routine you used to create the image cubes. You'll need to have image cubes in a working directory all convolved to a common spatial resolution. You should also make sure the names of the image cubes are consistent with the naming convention used in the ASKAPsoft pipline i.e. ::
 
     working_directory/image.restored.{i,q,u}*contcube*beam{00..36}.conv.fits
 
@@ -51,7 +51,7 @@ With an initalised database you can call the pipeline on a single field: ::
         |___|   |___|   |___|   |___|
 
 
-        SPICE-RACS pipeline.
+        Arrakis pipeline.
 
         Before running make sure to start a session of mongodb e.g.
             $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
@@ -166,7 +166,7 @@ Similarly, you can merge multiple fields togther using: ::
         |___|   |___|   |___|   |___|
 
 
-        SPICE-RACS regional pipeline.
+        Arrakis regional pipeline.
 
         Before running make sure to start a session of mongodb e.g.
             $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)

@@ -248,7 +248,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS:
+    Arrakis:
     Make leakage comparison plots.
 
     """

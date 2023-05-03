@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the SPICE-RACS database"""
+"""Create the Arrakis database"""
 import json
 import logging
 import os
@@ -451,7 +451,7 @@ def cli():
 
     descStr = f"""
     {logostr}
-    SPICE-RACS Initialisation:
+    Arrakis Initialisation:
 
     Create MongoDB database from RACS catalogues.
 

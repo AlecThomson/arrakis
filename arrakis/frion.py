@@ -280,7 +280,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage:
+    Arrakis Stage:
     Correct for ionospheric Faraday rotation
 
     """

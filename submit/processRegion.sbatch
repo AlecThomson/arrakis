@@ -26,7 +26,7 @@ cd /group/askap/athomson/projects/arrakis/DR1
 conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
-outfile=spice-racs.dr1.multiflag.test.xml
+outfile=Arrakis.dr1.multiflag.test.xml
 
 srun --export=ALL spice_region --dask_config /group/askap/athomson/repos/arrakis/arrakis/configs/galaxy.yaml --config /group/askap/athomson/projects/arrakis/spica/spica_full_region_config.txt --use_mpi --own_fit --outfile $outfile --skip_merge --output_dir /group/askap/athomson/projects/arrakis/DR1 --polyOrd -1
 

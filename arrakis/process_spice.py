@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SPICE-RACS single-field pipeline"""
+"""Arrakis single-field pipeline"""
 import logging
 import os
 import socket
@@ -241,7 +241,7 @@ def main(args: configargparse.Namespace) -> None:
     logger.info(client.scheduler_info()["services"])
 
     # Define flow
-    with Flow(f"SPICE-RACS: {args.field}") as flow:
+    with Flow(f"Arrakis: {args.field}") as flow:
         cuts = cut_task(
             args.skip_cutout,
             field=args.field,
@@ -378,7 +378,7 @@ def cli():
 
     descStr = f"""
     {logostr}
-    SPICE-RACS pipeline.
+    Arrakis pipeline.
 
     Before running make sure to start a session of mongodb e.g.
         $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
