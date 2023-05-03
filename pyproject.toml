@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "arrakis"
 version = "0.2.0"
-description = "Processing polarized RACS data products."
+description = "Processing the SPICE."
 homepage = "https://research.csiro.au/racs/"
 repository = "https://github.com/AlecThomson/arrakis"
 documentation = "https://arrakis.readthedocs.io/en/latest/"
