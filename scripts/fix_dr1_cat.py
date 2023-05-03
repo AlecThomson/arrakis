@@ -16,8 +16,8 @@ from IPython import embed
 from rmtable import RMTable
 from spica import SPICA
 
-from spiceracs.logger import logger
-from spiceracs.makecat import (
+from arrakis.logger import logger
+from arrakis.makecat import (
     compute_local_rm_flag,
     get_fit_func,
     is_leakage,

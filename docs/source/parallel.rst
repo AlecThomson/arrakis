@@ -5,7 +5,7 @@ The pipeline Dask for parallelisation, and optionally for job submission. Dask b
 .. tip ::
     Note that mpi4py needs to point to the same MPI compiler used by the MPI executable. This can be tricky to find on some systems. If in doubt, get in touch with your local sysadmin.
 
-Configuration is specicfied by a configuration file (written in YAML). These are stored in :file:`spiceracs/configs/`. Either use these as is for galaxy or magnus, or add your own configuration by editing the variable (see the dask-jobqueue `docs <https://jobqueue.dask.org/en/latest/configuration.html/>`_).
+Configuration is specicfied by a configuration file (written in YAML). These are stored in :file:`arrakis/configs/`. Either use these as is for galaxy or magnus, or add your own configuration by editing the variable (see the dask-jobqueue `docs <https://jobqueue.dask.org/en/latest/configuration.html/>`_).
 
 .. code-block:: yaml
 

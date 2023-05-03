@@ -2,7 +2,7 @@
 
 import unittest
 
-from spiceracs.rmsynth_oncuts import (
+from arrakis.rmsynth_oncuts import (
     rmsynthoncut3d,
     rms_1d,
     estimate_noise_annulus,
@@ -10,7 +10,7 @@ from spiceracs.rmsynth_oncuts import (
     rmsynthoncut_i,
 )
 
-# Test functions within spiceracs.rmsyth_oncuts
+# Test functions within arrakis.rmsyth_oncuts
 
 class TestRmsynthOncuts(unittest.TestCase):
     """Test rmsynth_oncuts functions."""

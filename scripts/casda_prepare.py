@@ -46,9 +46,9 @@ from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm, trange
 
-from spiceracs.logger import logger
-from spiceracs.makecat import write_votable
-from spiceracs.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
+from arrakis.logger import logger
+from arrakis.makecat import write_votable
+from arrakis.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):

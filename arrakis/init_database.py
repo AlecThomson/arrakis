@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the SPICE-RACS database"""
+"""Create the Arrakis database"""
 import json
 import logging
 import os
@@ -14,8 +14,8 @@ from astropy.table import Table, vstack
 from pymongo.results import InsertManyResult
 from tqdm import tqdm
 
-from spiceracs.logger import logger
-from spiceracs.utils import MyEncoder, get_db, get_field_db, test_db, yes_or_no
+from arrakis.logger import logger
+from arrakis.utils import MyEncoder, get_db, get_field_db, test_db, yes_or_no
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> Table:
@@ -451,7 +451,7 @@ def cli():
 
     descStr = f"""
     {logostr}
-    SPICE-RACS Initialisation:
+    Arrakis Initialisation:
 
     Create MongoDB database from RACS catalogues.
 

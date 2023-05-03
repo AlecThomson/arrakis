@@ -30,8 +30,8 @@ from IPython import embed
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
-from spiceracs.logger import logger
-from spiceracs.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
+from arrakis.logger import logger
+from arrakis.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)

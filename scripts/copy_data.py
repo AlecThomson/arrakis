@@ -7,8 +7,8 @@ from shutil import SameFileError, copyfile
 
 from astropy.table import Table
 
-from spiceracs.logger import logger
-from spiceracs.utils import try_mkdir
+from arrakis.logger import logger
+from arrakis.utils import try_mkdir
 
 
 def yes_or_no(question):

@@ -3,8 +3,8 @@
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
-#SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/casda_prep_slurm-%j.log
-#SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/casda_prep_slurm-%j.log
+#SBATCH -e /group/askap/athomson/projects/arrakis/spica/slurmLogs/casda_prep_slurm-%j.log
+#SBATCH -o /group/askap/athomson/projects/arrakis/spica/slurmLogs/casda_prep_slurm-%j.log
 #SBATCH --cluster=galaxy
 #SBATCH --account=askap
 #SBATCH --ntasks=1000
@@ -15,8 +15,8 @@
 
 prep_type=full
 conda activate spice
-data_dir=/group/askap/athomson/projects/spiceracs/DR1/full_spica
-polcat=/group/askap/athomson/projects/spiceracs/DR1/spice-racs.dr1.corrected.xml
+data_dir=/group/askap/athomson/projects/arrakis/DR1/full_spica
+polcat=/group/askap/athomson/projects/arrakis/DR1/Arrakis.dr1.corrected.xml
 
 
 cd $data_dir

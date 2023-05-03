@@ -9,8 +9,8 @@ from typing import List, Union
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 
-from spiceracs.logger import logger
-from spiceracs.utils import chunk_dask
+from arrakis.logger import logger
+from arrakis.utils import chunk_dask
 
 
 @delayed
@@ -99,7 +99,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage:
+    Arrakis Stage:
 
     Clean up after LINMOS
 

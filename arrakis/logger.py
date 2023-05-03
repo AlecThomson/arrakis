@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Logging module for spiceracs"""
+"""Logging module for arrakis"""
 
 import logging
 
 # Create logger
 logging.captureWarnings(True)
-logger = logging.getLogger("spiceracs")
+logger = logging.getLogger("arrakis")
 logger.setLevel(logging.WARNING)
 
 # Create console handler and set level to debug

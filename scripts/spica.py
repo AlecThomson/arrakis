@@ -10,13 +10,13 @@ import numpy as np
 import pkg_resources
 from astropy.table import Table
 
-from spiceracs.logger import logger, logging
-from spiceracs.utils import try_mkdir
+from arrakis.logger import logger, logging
+from arrakis.utils import try_mkdir
 
 logger.setLevel(logging.INFO)
 
 racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")
-# spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')
+# spice_area = os.path.abspath('/group/askap/athomson/projects/arrakis/spica')
 spice_area = os.path.abspath("/scratch/ja3/athomson/spica")
 group_area = os.path.abspath("/group/ja3/athomson/spica/")
 
@@ -177,7 +177,7 @@ def main(
     if cube_image:
         cmds = [f"cd {spice_area}", "conda activate aces"]
         for row in spica_tab:
-            cmd = f"start_pipeline.py -e 0 -p /group/askap/athomson/projects/spiceracs/spica/racs_pipeline_cube.parset -o -m /group/askap/athomson/projects/spiceracs/spica/modules.txt -t /group/askap/athomson/projects/spiceracs/MSlists/{row['SBID']}/metadata/ -i {row['SBID']} -c {row['CAL SBID']} -f {row['Field name'].replace('RACS_', 'RACS_test4_1.05_')} -a ja3 -s"
+            cmd = f"start_pipeline.py -e 0 -p /group/askap/athomson/projects/arrakis/spica/racs_pipeline_cube.parset -o -m /group/askap/athomson/projects/arrakis/spica/modules.txt -t /group/askap/athomson/projects/arrakis/MSlists/{row['SBID']}/metadata/ -i {row['SBID']} -c {row['CAL SBID']} -f {row['Field name'].replace('RACS_', 'RACS_test4_1.05_')} -a ja3 -s"
             cmds.append(cmd)
         logger.info(f"Written imaging commands to '{cube_image}'")
         with open(cube_image, "w") as f:
