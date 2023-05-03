@@ -39,8 +39,8 @@ from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm import tqdm, trange
 
-from spiceracs.logger import logger
-from spiceracs.utils import (
+from arrakis.logger import logger
+from arrakis.utils import (
     MyEncoder,
     chunk_dask,
     fix_header,
@@ -480,7 +480,7 @@ def cli() -> None:
 
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage 1:
+    Arrakis Stage 1:
     Produce cubelets from a RACS field using a Selavy table.
     If Stokes V is present, it will be squished into RMS spectra.
 

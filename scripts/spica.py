@@ -2,6 +2,7 @@ import os
 import shlex
 import subprocess as sb
 from glob import glob
+from pathlib import Path
 from pprint import pprint
 
 import copy_data
@@ -9,13 +10,13 @@ import numpy as np
 import pkg_resources
 from astropy.table import Table
 
-from spiceracs.logger import logger, logging
-from spiceracs.utils import try_mkdir
+from arrakis.logger import logger, logging
+from arrakis.utils import try_mkdir
 
 logger.setLevel(logging.INFO)
 
 racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")
-# spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')
+# spice_area = os.path.abspath('/group/askap/athomson/projects/arrakis/spica')
 spice_area = os.path.abspath("/scratch/ja3/athomson/spica")
 group_area = os.path.abspath("/group/ja3/athomson/spica/")
 
@@ -76,10 +77,17 @@ def mslist(cal_sb, name):
     return out
 
 
-def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
-    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
-    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
-    tab = Table.read(os.path.join(basedir, "field_data.csv"))
+def main(
+    survey_dir: Path,
+    epoch: int = 0,
+    copy=False,
+    force=False,
+    cal=False,
+    mslist_dir=None,
+    cube_image=False,
+):
+    field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
+    tab = Table.read(field_path)
     tab.add_index("FIELD_NAME")
 
     cols = [
@@ -121,10 +129,10 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
     if cal:
         logger.info("The following row indcies are ready to image:")
         sub_tab = spica_tab[spica_tab["Leakage cal"]]
-        indxs = []
+        idx_list = []
         for row in sub_tab:
-            indxs.append(row["Row index"])
-        indxs = np.array(indxs)
+            idx_list.append(row["Row index"])
+        indxs = np.array(idx_list)
         logger.info(" ".join(indxs.astype(str)))
 
     if mslist_dir is not None:
@@ -159,6 +167,8 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
                         sbid=row["CAL SBID"],
                         racs_area=racs_area,
                         spice_area=spice_area,
+                        survey_dir=survey_dir,
+                        epoch=epoch,
                         ncores=10,
                         clean=True,
                         force=force,
@@ -167,7 +177,7 @@ def main(copy=False, force=False, cal=False, mslist_dir=None, cube_image=False):
     if cube_image:
         cmds = [f"cd {spice_area}", "conda activate aces"]
         for row in spica_tab:
-            cmd = f"start_pipeline.py -e 0 -p /group/askap/athomson/projects/spiceracs/spica/racs_pipeline_cube.parset -o -m /group/askap/athomson/projects/spiceracs/spica/modules.txt -t /group/askap/athomson/projects/spiceracs/MSlists/{row['SBID']}/metadata/ -i {row['SBID']} -c {row['CAL SBID']} -f {row['Field name'].replace('RACS_', 'RACS_test4_1.05_')} -a ja3 -s"
+            cmd = f"start_pipeline.py -e 0 -p /group/askap/athomson/projects/arrakis/spica/racs_pipeline_cube.parset -o -m /group/askap/athomson/projects/arrakis/spica/modules.txt -t /group/askap/athomson/projects/arrakis/MSlists/{row['SBID']}/metadata/ -i {row['SBID']} -c {row['CAL SBID']} -f {row['Field name'].replace('RACS_', 'RACS_test4_1.05_')} -a ja3 -s"
             cmds.append(cmd)
         logger.info(f"Written imaging commands to '{cube_image}'")
         with open(cube_image, "w") as f:
@@ -183,6 +193,17 @@ def cli():
     """
     parser = argparse.ArgumentParser(
         description=descStr, formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        "survey",
+        type=str,
+        help="Survey directory",
+    )
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch to read field data from",
     )
     parser.add_argument(
         "--copy",
@@ -210,6 +231,8 @@ def cli():
 
     args = parser.parse_args()
     _ = main(
+        survey_dir=Path(args.survey),
+        epoch=args.epoch,
         copy=args.copy,
         force=args.force,
         cal=args.cal,

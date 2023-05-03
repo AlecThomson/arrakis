@@ -4,8 +4,8 @@
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
-#SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/backup_slurm-%j.log
-#SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/backup_slurm-%j.log
+#SBATCH -e /group/askap/athomson/projects/arrakis/spica/slurmLogs/backup_slurm-%j.log
+#SBATCH -o /group/askap/athomson/projects/arrakis/spica/slurmLogs/backup_slurm-%j.log
 #SBATCH --cluster=zeus
 #SBATCH --account=askap
 #SBATCH --ntasks=1

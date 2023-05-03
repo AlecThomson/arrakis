@@ -21,12 +21,12 @@ from importlib.metadata import distribution
 
 # -- Project information -----------------------------------------------------
 
-project = 'SPICE-RACS'
+project = 'arrakis'
 copyright = '2021, Alec Thomson'
 author = 'Alec Thomson'
 
 # The full version, including alpha/beta/rc tags
-release = distribution("spiceracs").version
+release = distribution("arrakis").version
 
 
 # -- General configuration ---------------------------------------------------
@@ -43,9 +43,8 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.doctest',
     'sphinx.ext.inheritance_diagram',
-    # 'myst_parser',
+    'myst_parser',
     'autoapi.extension',
-    'm2r2',
 ]
 
 source_suffix = ['.rst']
@@ -55,7 +54,7 @@ napoleon_use_param = False
 napoleon_use_ivar = True
 
 autoapi_type = 'python'
-autoapi_dirs = ['../../spiceracs', "../../scripts"]
+autoapi_dirs = ['../../arrakis', "../../scripts"]
 autoapi_member_order = 'groupwise'
 autoapi_keep_files = False
 autoapi_root = 'autoapi'
@@ -79,7 +78,7 @@ html_theme = 'sphinx_rtd_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 # html_static_path = ['_static']
-html_title = "SPICE-RACS"
+html_title = "arrakis"
 html_logo = "SPICE-RACS_circ.png"
 logo_only=True
 html_favicon="favicon.ico"

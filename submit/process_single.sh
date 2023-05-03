@@ -3,8 +3,8 @@
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
-#SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.err
-#SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.out
+#SBATCH -e /group/askap/athomson/projects/arrakis/spica/slurmLogs/slurm-%j.err
+#SBATCH -o /group/askap/athomson/projects/arrakis/spica/slurmLogs/slurm-%j.out
 #SBATCH --ntasks=500
 #SBATCH --requeue
 #SBATCH --ntasks-per-node=20
@@ -23,18 +23,17 @@ echo Running pipeline on $field
 cal_sbid=`find_sbid.py $field --cal`
 weight=`find_sbid.py $field --weight`
 weight_pad=`printf "%05d\n" $weight`
-zernike=/group/askap/athomson/projects/spiceracs/leakages/${weight_pad}_zernike_holo_cube.fits
-# data_dir=/group/ja3/athomson/spica
-data_dir=/group/askap/athomson/projects/spiceracs/raw_data/13615/RACS_test4_1.05_1600-50A
-config=/group/askap/athomson/projects/spiceracs/spica/spica_config.txt
+zernike=/group/askap/athomson/projects/arrakis/leakages/${weight_pad}_zernike_holo_cube.fits
+data_dir=/group/ja3/athomson/spica
+config=/group/askap/athomson/projects/arrakis/spica/spica_config.txt
 
 # Image dirctory
 cd $data_dir
 
 # Make a copy of this sbatch file for posterity
 sedstr="s/sbatch/${field}.${SLURM_JOB_ID}\.sbatch/g"
-slurmdir="/group/askap/athomson/projects/spiceracs/spica/slurmFiles"
-currentdir="/group/askap/athomson/repos/spiceracs/submit"
+slurmdir="/group/askap/athomson/projects/arrakis/spica/slurmFiles"
+currentdir="/group/askap/athomson/repos/arrakis/submit"
 sedstr2="s+${currentdir}+${slurmdir}+g"
 
 # Correct for leakage with Zernike file

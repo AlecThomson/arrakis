@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "spiceracs"
+name = "arrakis"
 version = "0.2.0"
-description = "Processing polarized RACS data products."
+description = "Processing the SPICE."
 homepage = "https://research.csiro.au/racs/"
-repository = "https://github.com/AlecThomson/spiceracs"
-documentation = "https://spiceracs.readthedocs.io/en/latest/"
+repository = "https://github.com/AlecThomson/arrakis"
+documentation = "https://arrakis.readthedocs.io/en/latest/"
 authors = ["Alec Thomson"]
 license = "BSD-3-Clause"
 readme = "README.md"
@@ -18,12 +18,11 @@ classifiers=[
     "Development Status :: 3 - Alpha",
 ]
 packages = [
-    { include = "spiceracs"},
+    { include = "arrakis"},
 ]
 
 include = [
-    {path='spiceracs/askap_surveys/**/**/*', format=['sdist','wheel']},
-    {path='spiceracs/configs/*', format=['sdist','wheel']},
+    {path='arrakis/configs/*', format=['sdist','wheel']},
 ]
 
 [tool.poetry.dependencies]
@@ -88,10 +87,10 @@ requires = ["poetry-core>=1.2"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-spice_init = "spiceracs.init_database:cli"
-spice_process = "spiceracs.process_spice:cli"
-spice_region = "spiceracs.process_region:cli"
-spice_cat = "spiceracs.makecat:cli"
+spice_init = "arrakis.init_database:cli"
+spice_process = "arrakis.process_spice:cli"
+spice_region = "arrakis.process_region:cli"
+spice_cat = "arrakis.makecat:cli"
 # Unified script script
 casda_prepare = { reference="scripts/casda_prepare.py", type="file"}
 check_cutout = { reference="scripts/check_cutout.py", type="file"}

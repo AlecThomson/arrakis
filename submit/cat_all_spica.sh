@@ -4,8 +4,8 @@
 #SBATCH --export=NONE
 #SBATCH --mail-user=alec.thomson@csiro.au
 #SBATCH --mail-type=ALL
-#SBATCH -e /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.err
-#SBATCH -o /group/askap/athomson/projects/spiceracs/spica/slurmLogs/slurm-%j.out
+#SBATCH -e /group/askap/athomson/projects/arrakis/spica/slurmLogs/slurm-%j.err
+#SBATCH -o /group/askap/athomson/projects/arrakis/spica/slurmLogs/slurm-%j.out
 #SBATCH --ntasks=3
 
 #SBATCH --time=1-00:00:00
@@ -53,7 +53,7 @@ SPICA=(
     1213-25A
 )
 
-config=/group/askap/athomson/projects/spiceracs/spica/spica_config.txt
+config=/group/askap/athomson/projects/arrakis/spica/spica_config.txt
 
 # SPICA=(
 #     1213-18A
@@ -81,7 +81,7 @@ config=/group/askap/athomson/projects/spiceracs/spica/spica_config.txt
 # )
 
 for field in ${SPICA[*]}
-    do 
+    do
         echo Running pipeline on $field
         cal_sbid=`find_sbid.py $field --cal`
         data_dir=/group/ja3/athomson/spica

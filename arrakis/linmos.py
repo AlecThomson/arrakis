@@ -10,6 +10,7 @@ import time
 import warnings
 from glob import glob
 from logging import disable
+from pathlib import Path
 from pprint import pformat
 from typing import List, Tuple, Union
 
@@ -29,8 +30,8 @@ from IPython import embed
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
-from spiceracs.logger import logger
-from spiceracs.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
+from arrakis.logger import logger
+from arrakis.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -39,7 +40,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 
 
 @delayed
-def gen_seps(field: str) -> Table:
+def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
     """Get separation table for a given RACS field
 
     Args:
@@ -48,13 +49,11 @@ def gen_seps(field: str) -> Table:
     Returns:
         Table: Table of separation for each beam.
     """
-    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
-    offsets = Table.read(os.path.join(survey_dir, "racs_low_offsets.csv"))
+    offsets = Table.read(survey_dir / "racs_low_offsets.csv")
     offsets.add_index("Beam")
 
-    master_cat = Table.read(
-        os.path.join(survey_dir, "racs", "db", "epoch_0", "field_data.csv"),
-    )
+    field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
+    master_cat = Table.read(field_path)
     master_cat.add_index("FIELD_NAME")
     master_cat = master_cat.loc[f"RACS_{field}"]
     if type(master_cat) is not astropy.table.row.Row:
@@ -279,7 +278,9 @@ def get_yanda(version="1.3.0") -> str:
 def main(
     field: str,
     datadir: str,
+    survey_dir: Path,
     host: str,
+    epoch: int = 0,
     holofile: Union[str, None] = None,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
@@ -303,7 +304,11 @@ def main(
     # Setup singularity image
     image = get_yanda(version=yanda)
 
-    beamseps = gen_seps(field)
+    beamseps = gen_seps(
+        field=field,
+        survey_dir=survey_dir,
+        epoch=epoch,
+    )
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
@@ -405,7 +410,17 @@ def cli():
         type=str,
         help="Directory containing cutouts (in subdir outdir/cutouts)..",
     )
-
+    parser.add_argument(
+        "survey",
+        type=str,
+        help="Survey directory",
+    )
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch to read field data from",
+    )
     parser.add_argument(
         "--holofile", type=str, default=None, help="Path to holography image"
     )

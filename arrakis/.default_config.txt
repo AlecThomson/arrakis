@@ -1,4 +1,4 @@
-# SPICE-RACS default config
+# Arrakis default config
 [General options]
 # host: # Host of mongodb.
 # username: # Username of mongodb.

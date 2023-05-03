@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make a SPICE-RACS catalogue"""
+"""Make a Arrakis catalogue"""
 import logging
 import os
 import time
@@ -26,9 +26,9 @@ from scipy.stats import lognorm, norm
 from tqdm import tqdm, tqdm_pandas, trange
 from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
-from spiceracs import columns_possum
-from spiceracs.logger import logger
-from spiceracs.utils import get_db, get_field_db, latexify, test_db
+from arrakis import columns_possum
+from arrakis.logger import logger
+from arrakis.utils import get_db, get_field_db, latexify, test_db
 
 ArrayLike = TypeVar(
     "ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, u.Quantity
@@ -815,7 +815,7 @@ def main(
     rmtab["rm_method"] = "RM Synthesis - Fractional polarization"
     rmtab["telescope"] = "ASKAP"
     rmtab["pol_bias"] = "2012PASA...29..214G"
-    rmtab["catalog"] = "SPICE-RACS-DR1"
+    rmtab["catalog"] = "Arrakis-DR1"
     rmtab["ionosphere"] = "FRion"
     rmtab["flux_type"] = "Peak"
     rmtab["aperture"] = 0 * u.deg
@@ -907,7 +907,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage 7:
+    Arrakis Stage 7:
     Make RM catalogue.
 
     """

@@ -38,8 +38,8 @@ from RMutils.util_plotTk import plot_rmsf_fdf_fig
 from spectral_cube import SpectralCube
 from tqdm import tqdm, trange
 
-from spiceracs.logger import logger
-from spiceracs.utils import (
+from arrakis.logger import logger
+from arrakis.utils import (
     MyEncoder,
     chunk_dask,
     fit_pl,
@@ -922,7 +922,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage 5:
+    Arrakis Stage 5:
     Run RMsynthesis on cubelets.
 
     Note: Runs on brightest sources first.

@@ -3,6 +3,7 @@
 import logging
 import os
 import pickle
+from pathlib import Path
 
 import astropy.units as u
 import numpy as np
@@ -15,8 +16,8 @@ from IPython import embed
 from rmtable import RMTable
 from spica import SPICA
 
-from spiceracs.logger import logger
-from spiceracs.makecat import (
+from arrakis.logger import logger
+from arrakis.makecat import (
     compute_local_rm_flag,
     get_fit_func,
     is_leakage,
@@ -24,11 +25,14 @@ from spiceracs.makecat import (
 )
 
 
-def fix_fields(tab: Table) -> Table:
+def fix_fields(
+    tab: Table,
+    survey_dir: Path,
+    epoch: int = 0,
+) -> Table:
     # Get field data, and index by field/tile ID
-    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
-    basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
-    field = Table.read(os.path.join(basedir, "field_data.csv"))
+    field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
+    field = Table.read(field_path)
     field = field[field["SELECT"] == 1]
     field.add_index("FIELD_NAME")
     tab.add_index("tile_id")
@@ -158,12 +162,12 @@ def fix_fields(tab: Table) -> Table:
     return new_tab
 
 
-def main(cat: str):
+def main(cat: str, survey_dir: Path, epoch: int = 0):
     logger.info(f"Reading {cat}")
     tab = RMTable.read(cat)
     logger.info(f"Fixing {cat}")
 
-    fix_tab = fix_fields(tab)
+    fix_tab = fix_fields(tab=tab, survey_dir=survey_dir, epoch=epoch)
     fit, fig = get_fit_func(fix_tab, do_plot=True, nbins=16, degree=4)
     fig.savefig("leakage_fit_dr1_fix.pdf")
     leakage_flag = is_leakage(
@@ -213,6 +217,17 @@ def cli():
 
     parser = argparse.ArgumentParser(description="Fix DR1 catalogs")
     parser.add_argument("catalogue", type=str, help="Input catalog")
+    parser.add_argument(
+        "survey",
+        type=str,
+        help="Survey directory",
+    )
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch to read field data from",
+    )
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
     args = parser.parse_args()
 
@@ -220,7 +235,11 @@ def cli():
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
-    main(cat=args.catalogue)
+    main(
+        cat=args.catalogue,
+        survey_dir=Path(args.survey),
+        epoch=args.epoch,
+    )
 
 
 if __name__ == "__main__":

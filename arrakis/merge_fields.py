@@ -12,9 +12,9 @@ from dask import delayed, distributed
 from dask.distributed import Client, LocalCluster
 from tqdm import tqdm
 
-from spiceracs.linmos import get_yanda, linmos
-from spiceracs.logger import logger
-from spiceracs.utils import chunk_dask, get_db, test_db, tqdm_dask, try_mkdir
+from arrakis.linmos import get_yanda, linmos
+from arrakis.logger import logger
+from arrakis.utils import chunk_dask, get_db, test_db, tqdm_dask, try_mkdir
 
 
 def make_short_name(name: str) -> str:

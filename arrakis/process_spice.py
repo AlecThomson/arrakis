@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SPICE-RACS single-field pipeline"""
+"""Arrakis single-field pipeline"""
 import logging
 import os
 import socket
@@ -21,7 +21,7 @@ from prefect import Flow, Task, task
 from prefect.engine import signals
 from prefect.engine.executors import DaskExecutor
 
-from spiceracs import (
+from arrakis import (
     cleanup,
     cutout,
     frion,
@@ -31,8 +31,8 @@ from spiceracs import (
     rmclean_oncuts,
     rmsynth_oncuts,
 )
-from spiceracs.logger import logger
-from spiceracs.utils import port_forward, test_db
+from arrakis.logger import logger
+from arrakis.utils import port_forward, test_db
 
 
 @task(name="Imaging", skip_on_upstream_skip=False)
@@ -204,7 +204,7 @@ def main(args: configargparse.Namespace) -> None:
     host = args.host
 
     if args.dask_config is None:
-        config_dir = pkg_resources.resource_filename("spiceracs", "configs")
+        config_dir = pkg_resources.resource_filename("arrakis", "configs")
         args.dask_config = f"{config_dir}/default.yaml"
 
     if args.outfile is None:
@@ -263,7 +263,7 @@ def main(args: configargparse.Namespace) -> None:
     logger.info(client.scheduler_info()["services"])
 
     # Define flow
-    with Flow(f"SPICE-RACS: {args.field}") as flow:
+    with Flow(f"Arrakis: {args.field}") as flow:
         images = imaging_task(
             args.skip_image,
             msdir=args.msdir,
@@ -421,7 +421,7 @@ def cli():
 
     descStr = f"""
     {logostr}
-    SPICE-RACS pipeline.
+    Arrakis pipeline.
 
     Before running make sure to start a session of mongodb e.g.
         $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)

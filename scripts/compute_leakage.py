@@ -11,8 +11,8 @@ from astropy.io import fits
 from astropy.wcs import WCS
 from tqdm.auto import tqdm, trange
 
-from spiceracs.logger import logger, logging
-from spiceracs.utils import MyEncoder, get_db, getdata
+from arrakis.logger import logger, logging
+from arrakis.utils import MyEncoder, get_db, getdata
 
 
 def makesurf(start, stop, field, datadir, save_plots=True, data=None):
