@@ -1,7 +1,5 @@
-# Arrakis
-**S**pectra and **P**olarization **I**n **C**utouts of **E**xtragalactic sources from **R**ACS
-
-Scripts for processing polarized RACS data products.
+# _Arrakis_
+Pipeline for extracting the _SPICE_: **S**pectra and **P**olarization **I**n **C**utouts of **E**xtragalactic sources from **R**ACS
 
 
 ## Documentation

@@ -43,9 +43,8 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.doctest',
     'sphinx.ext.inheritance_diagram',
-    # 'myst_parser',
+    'myst_parser',
     'autoapi.extension',
-    'm2r2',
 ]
 
 source_suffix = ['.rst']
@@ -80,7 +79,7 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 # html_static_path = ['_static']
 html_title = "arrakis"
-html_logo = "Arrakis_circ.png"
+html_logo = "SPICE-RACS_circ.png"
 logo_only=True
 html_favicon="favicon.ico"
 

@@ -3,11 +3,11 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Documentation for Arrakis
+Documentation for *Arrakis*
 ============================
 
-**S**\ pectra and **P**\ olarization **I**\ n **C**\ utouts of **E**\ xtragalactic sources from **R**\ ACS
------------------------------------------------------------------------------------------------------------
+A pipeline for the extracting the *SPICE* : **S**\ pectra and **P**\ olarization **I**\ n **C**\ utouts of **E**\ xtragalactic sources from **R**\ ACS
+------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Scripts for processing polarized RACS data products.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
