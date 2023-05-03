@@ -5,7 +5,7 @@ import subprocess
 from glob import glob
 from shlex import split
 
-from spiceracs.logger import logger, logging
+from arrakis.logger import logger, logging
 
 logger.setLevel(logging.INFO)
 

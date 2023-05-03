@@ -10,13 +10,13 @@ import numpy as np
 import spica
 from astropy.table import Table
 
-from spiceracs.logger import logger, logging
-from spiceracs.utils import try_mkdir
+from arrakis.logger import logger, logging
+from arrakis.utils import try_mkdir
 
 logger.setLevel(logging.INFO)
 
 racs_area = os.path.abspath("/askapbuffer/payne/mcc381/RACS")
-# spice_area = os.path.abspath('/group/askap/athomson/projects/spiceracs/spica')
+# spice_area = os.path.abspath('/group/askap/athomson/projects/arrakis/spica')
 spice_area = os.path.abspath("/scratch/ja3/athomson/spica")
 group_area = os.path.abspath("/group/ja3/athomson/spica")
 

@@ -1,6 +1,6 @@
 Getting started
 ---------------
-The SPICE-RACS pipeline relies on a MongoDB database to store and pull the results of the analysis. It is a document-oriented database that stores data in JSON format. MongoDB runs as a server, either locally or on a remote server. However you run MongoDB, you'll just need to know the IP address of the server and provide it to the pipeline. You should also add a user and password to the database with full read/write access. The pipeline will use this user and password to connect to the database.
+The Arrakis pipeline relies on a MongoDB database to store and pull the results of the analysis. It is a document-oriented database that stores data in JSON format. MongoDB runs as a server, either locally or on a remote server. However you run MongoDB, you'll just need to know the IP address of the server and provide it to the pipeline. You should also add a user and password to the database with full read/write access. The pipeline will use this user and password to connect to the database.
 
 .. attention::
 
@@ -43,7 +43,7 @@ Then run the initialisation script: ::
         |___|   |___|   |___|   |___|
 
 
-        SPICE-RACS Initialisation:
+        Arrakis Initialisation:
 
         Create MongoDB database from RACS catalogues.
 
@@ -74,4 +74,4 @@ Then run the initialisation script: ::
                             RACS epoch to load [0].
 For extra information you can refer to the API:
 
-* :py:mod:`spiceracs.init_database`
+* :py:mod:`arrakis.init_database`

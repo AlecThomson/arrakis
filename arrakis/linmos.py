@@ -29,8 +29,8 @@ from IPython import embed
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
-from spiceracs.logger import logger
-from spiceracs.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
+from arrakis.logger import logger
+from arrakis.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -48,7 +48,7 @@ def gen_seps(field: str) -> Table:
     Returns:
         Table: Table of separation for each beam.
     """
-    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
+    survey_dir = pkg_resources.resource_filename("arrakis", "askap_surveys")
     offsets = Table.read(os.path.join(survey_dir, "racs_low_offsets.csv"))
     offsets.add_index("Beam")
 

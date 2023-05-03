@@ -45,7 +45,7 @@ from spectral_cube.utils import SpectralCubeWarning
 from tornado.ioloop import IOLoop
 from tqdm.auto import tqdm, trange
 
-from spiceracs.logger import logger
+from arrakis.logger import logger
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -581,7 +581,7 @@ def get_db(
         password=password,
         authMechanism="SCRAM-SHA-256",
     )  # type: pymongo.MongoClient
-    mydb = dbclient["spiceracs"]  # Create/open database
+    mydb = dbclient["arrakis"]  # Create/open database
     comp_col = mydb["components"]  # Create/open collection
     island_col = mydb["islands"]  # Create/open collection
     beams_col = mydb["beams"]  # Create/open collection
@@ -606,7 +606,7 @@ def get_field_db(host: str, username=None, password=None) -> Collection:
         password=password,
         authMechanism="SCRAM-SHA-256",
     )  # type: pymongo.MongoClient
-    mydb = dbclient["spiceracs"]  # Create/open database
+    mydb = dbclient["arrakis"]  # Create/open database
     field_col = mydb["fields"]  # Create/open collection
     return field_col
 
