@@ -21,7 +21,7 @@ from importlib.metadata import distribution
 
 # -- Project information -----------------------------------------------------
 
-project = 'arrakis'
+project = 'Arrakis'
 copyright = '2021, Alec Thomson'
 author = 'Alec Thomson'
 
