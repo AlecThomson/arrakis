@@ -26,7 +26,7 @@ copyright = '2021, Alec Thomson'
 author = 'Alec Thomson'
 
 # The full version, including alpha/beta/rc tags
-release = distribution("spiceracs").version
+release = distribution("arrakis").version
 
 
 # -- General configuration ---------------------------------------------------
@@ -55,7 +55,7 @@ napoleon_use_param = False
 napoleon_use_ivar = True
 
 autoapi_type = 'python'
-autoapi_dirs = ['../../spiceracs', "../../scripts"]
+autoapi_dirs = ['../../arrakis', "../../scripts"]
 autoapi_member_order = 'groupwise'
 autoapi_keep_files = False
 autoapi_root = 'autoapi'

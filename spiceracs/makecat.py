@@ -26,9 +26,9 @@ from scipy.stats import lognorm, norm
 from tqdm import tqdm, tqdm_pandas, trange
 from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
-from spiceracs import columns_possum
-from spiceracs.logger import logger
-from spiceracs.utils import get_db, get_field_db, latexify, test_db
+from arrakis import columns_possum
+from arrakis.logger import logger
+from arrakis.utils import get_db, get_field_db, latexify, test_db
 
 ArrayLike = TypeVar(
     "ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, u.Quantity

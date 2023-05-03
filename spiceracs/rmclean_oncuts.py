@@ -28,8 +28,8 @@ from RMutils.util_misc import create_frac_spectra
 from spectral_cube import SpectralCube
 from tqdm import tqdm, trange
 
-from spiceracs.logger import logger
-from spiceracs.utils import MyEncoder, chunk_dask, get_db, getfreq, test_db, tqdm_dask
+from arrakis.logger import logger
+from arrakis.utils import MyEncoder, chunk_dask, get_db, getfreq, test_db, tqdm_dask
 
 
 @delayed

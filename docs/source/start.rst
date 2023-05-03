@@ -74,4 +74,4 @@ Then run the initialisation script: ::
                             RACS epoch to load [0].
 For extra information you can refer to the API:
 
-* :py:mod:`spiceracs.init_database`
+* :py:mod:`arrakis.init_database`

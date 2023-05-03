@@ -6,8 +6,8 @@ from shutil import SameFileError, copyfile
 
 from astropy.table import Table
 
-from spiceracs.logger import logger
-from spiceracs.utils import try_mkdir
+from arrakis.logger import logger
+from arrakis.utils import try_mkdir
 
 
 def yes_or_no(question):
@@ -37,7 +37,7 @@ def main(
     force=False,
 ):
     tab = Table.read(
-        "/group/askap/athomson/repos/spiceracs/askap_surveys/racs/db/epoch_0/field_data.csv"
+        "/group/askap/athomson/repos/arrakis/askap_surveys/racs/db/epoch_0/field_data.csv"
     )
     tab.add_index("FIELD_NAME")
     tab.add_index("CAL_SBID")

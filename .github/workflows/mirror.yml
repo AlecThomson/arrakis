@@ -9,7 +9,7 @@ jobs:
 #           fetch-depth: 0
 #       - uses: yesolutions/mirror-action@master
 #         with:
-#           REMOTE: 'https://bitbucket.csiro.au/scm/spice/spiceracs.git'
+#           REMOTE: 'https://bitbucket.csiro.au/scm/spice/arrakis.git'
 #           GIT_USERNAME: tho822@csiro.au
 #           GIT_PASSWORD: ${{ secrets.GIT_PASSWORD }}
     steps:
@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
       - uses: yesolutions/mirror-action@master
         with:
-          REMOTE: ssh://git@bitbucket.csiro.au:7999/spice/spiceracs.git
+          REMOTE: ssh://git@bitbucket.csiro.au:7999/spice/arrakis.git
           GIT_SSH_PRIVATE_KEY: ${{ secrets.GIT_SSH_PRIVATE_KEY }}
           GIT_SSH_NO_VERIFY_HOST: "true"
           PUSH_ALL_REFS: "false"

@@ -38,8 +38,8 @@ from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm import tqdm, trange
 
-from spiceracs.logger import logger
-from spiceracs.utils import (
+from arrakis.logger import logger
+from arrakis.utils import (
     MyEncoder,
     chunk_dask,
     fix_header,

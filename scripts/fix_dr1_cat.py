@@ -15,8 +15,8 @@ from IPython import embed
 from rmtable import RMTable
 from spica import SPICA
 
-from spiceracs.logger import logger
-from spiceracs.makecat import (
+from arrakis.logger import logger
+from arrakis.makecat import (
     compute_local_rm_flag,
     get_fit_func,
     is_leakage,
@@ -26,7 +26,7 @@ from spiceracs.makecat import (
 
 def fix_fields(tab: Table) -> Table:
     # Get field data, and index by field/tile ID
-    survey_dir = pkg_resources.resource_filename("spiceracs", "askap_surveys")
+    survey_dir = pkg_resources.resource_filename("arrakis", "askap_surveys")
     basedir = os.path.join(survey_dir, "racs", "db", "epoch_0")
     field = Table.read(os.path.join(basedir, "field_data.csv"))
     field = field[field["SELECT"] == 1]

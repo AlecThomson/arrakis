@@ -32,9 +32,9 @@ from dask.distributed import Client, LocalCluster
 from IPython import embed
 from IPython.core.pylabtools import figsize
 
-from spiceracs.linmos import gen_seps
-from spiceracs.logger import logger, logging
-from spiceracs.utils import (
+from arrakis.linmos import gen_seps
+from arrakis.logger import logger, logging
+from arrakis.utils import (
     chunk_dask,
     coord_to_string,
     get_db,

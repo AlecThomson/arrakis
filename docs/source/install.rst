@@ -12,7 +12,7 @@ First, ensure you have `anaconda <https://www.anaconda.com/products/individual/>
 
 After cloning this repo, please run: ::
 
-    cd spiceracs/
+    cd arrakis/
 
     conda env create
     # or - if you have mamba:

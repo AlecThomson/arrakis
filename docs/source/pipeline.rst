@@ -4,7 +4,7 @@ So you're ready to run the pipeline? The SPICE-RACS pipeline picks up from whate
 
     working_directory/image.restored.{i,q,u}*contcube*beam{00..36}.conv.fits
 
-:code:`spice_process` and :code:`spice_field` orchestrate the pipeline flow using `Prefect <https://prefect.io>`_ and `Dask <https://dask.org>`_. These script calls the other :code:`spiceracs` modules to do the work. You can control which modules run in the configuration of :code:`spice_process` or :code:`spice_field`. :code:`spice_process` operates on the level of a single RACS fields, whereas :code:`spice_field` merges multiple fields togther. You will need to run :code:`spice_process` on at least two fields before calling :code:`spice_field`. After running :code:`spice_process` or :code:`spice_field` you can run :code:`spice_cat` to produce a just a catalogue from the database values.
+:code:`spice_process` and :code:`spice_field` orchestrate the pipeline flow using `Prefect <https://prefect.io>`_ and `Dask <https://dask.org>`_. These script calls the other :code:`arrakis` modules to do the work. You can control which modules run in the configuration of :code:`spice_process` or :code:`spice_field`. :code:`spice_process` operates on the level of a single RACS fields, whereas :code:`spice_field` merges multiple fields togther. You will need to run :code:`spice_process` on at least two fields before calling :code:`spice_field`. After running :code:`spice_process` or :code:`spice_field` you can run :code:`spice_cat` to produce a just a catalogue from the database values.
 
 .. image:: flow.png
     :alt: Left floating image
@@ -138,11 +138,11 @@ With an initalised database you can call the pipeline on a single field: ::
     details, see syntax at https://goo.gl/R74nmi). If an arg is specified in more than one place, then commandline values override config file values which override defaults.
 
 
-You can optionally pass a configuration file (with the :code:`--config` argument) to set the options you prefer. An example file in contained in :file:`spiceracs/.default_config.txt`.
+You can optionally pass a configuration file (with the :code:`--config` argument) to set the options you prefer. An example file in contained in :file:`arrakis/.default_config.txt`.
 
 For extra information you can refer to the API:
 
-* :py:mod:`spiceracs.process_spice`
+* :py:mod:`arrakis.process_spice`
 
 Similarly, you can merge multiple fields togther using: ::
 
@@ -249,6 +249,6 @@ Similarly, you can merge multiple fields togther using: ::
     Args that start with '--' (eg. --merge_name) can also be set in a config file (.default_field_config.txt or specified via --config). Config file syntax allows: key=value, flag=true,
     stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi). If an arg is specified in more than one place, then commandline values override config file values which override defaults.
 
-* :py:mod:`spiceracs.process_region`
+* :py:mod:`arrakis.process_region`
 
 Helper scripts (mostly for bespoke purposes) are available on the commandline. See the API reference for more details.

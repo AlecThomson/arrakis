@@ -38,8 +38,8 @@ from RMutils.util_plotTk import plot_rmsf_fdf_fig
 from spectral_cube import SpectralCube
 from tqdm import tqdm, trange
 
-from spiceracs.logger import logger
-from spiceracs.utils import (
+from arrakis.logger import logger
+from arrakis.utils import (
     MyEncoder,
     chunk_dask,
     fit_pl,

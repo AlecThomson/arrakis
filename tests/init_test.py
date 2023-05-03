@@ -9,11 +9,11 @@
 # import shutil
 
 # import pymongo
-# from spiceracs.logger import logger
+# from arrakis.logger import logger
 
 # logger.setLevel("DEBUG")
 
-# from spiceracs.init_database import (
+# from arrakis.init_database import (
 #     main,
 #     source2beams,
 #     ndix_unique,
@@ -27,7 +27,7 @@
 
 # SOURCE_CAT = "data/source_RACS_1237+12A_3165.fits"
 # GAUSS = "data/gaussians_RACS_1237+12A_3165.fits"
-# EPOCH = "data/spiceracs_test"
+# EPOCH = "data/arrakis_test"
 # FIELD = "data/RACS_1237+12A"
 
 # def start_mongodb(port: int = 27017) -> Tuple[str, int]:

@@ -18,9 +18,9 @@ from prefect import Flow, Task, task
 from prefect.engine import signals
 from prefect.engine.executors import DaskExecutor
 
-from spiceracs import merge_fields, process_spice
-from spiceracs.logger import logger
-from spiceracs.utils import port_forward, test_db
+from arrakis import merge_fields, process_spice
+from arrakis.logger import logger
+from arrakis.utils import port_forward, test_db
 
 
 @task(name="Merge fields", skip_on_upstream_skip=False)
@@ -52,7 +52,7 @@ def main(args: configargparse.Namespace) -> None:
     host = args.host
 
     if args.dask_config is None:
-        config_dir = pkg_resources.resource_filename("spiceracs", "configs")
+        config_dir = pkg_resources.resource_filename("arrakis", "configs")
         args.dask_config = os.path.join(config_dir, "default.yaml")
 
     if args.outfile is None:
