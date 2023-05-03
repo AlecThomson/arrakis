@@ -21,7 +21,7 @@ from importlib.metadata import distribution
 
 # -- Project information -----------------------------------------------------
 
-project = 'SPICE-RACS'
+project = 'arrakis'
 copyright = '2021, Alec Thomson'
 author = 'Alec Thomson'
 
@@ -79,7 +79,7 @@ html_theme = 'sphinx_rtd_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 # html_static_path = ['_static']
-html_title = "SPICE-RACS"
+html_title = "arrakis"
 html_logo = "SPICE-RACS_circ.png"
 logo_only=True
 html_favicon="favicon.ico"
