@@ -138,7 +138,69 @@ With an initalised database you can call the pipeline on a single field: ::
     details, see syntax at https://goo.gl/R74nmi). If an arg is specified in more than one place, then commandline values override config file values which override defaults.
 
 
-You can optionally pass a configuration file (with the :code:`--config` argument) to set the options you prefer. An example file in contained in :file:`arrakis/.default_config.txt`.
+You can optionally pass a configuration file (with the :code:`--config` argument) to set the options you prefer. An example file in contained in :file:`arrakis/.default_config.txt`:
+
+.. code-block::
+
+    # Arrakis default config
+    [General options]
+    # host: # Host of mongodb.
+    # username: # Username of mongodb.
+    # password: # Password of mongodb.
+    port: 8787 # Port to run Dask dashboard on.
+    # port_forward: # Platform to fowards dask port [None].
+    # dask_config: # Config file for Dask SlurmCLUSTER.
+    # holofile:
+    yanda: "1.3.0"
+
+    [Flow options]
+    skip_cutout: False
+    skip_linmos: False
+    skip_cleanup: False
+    skip_rmsynth: False
+    skip_rmclean: False
+    skip_cat: False
+
+    [Output options]
+    verbose: True # Verbose output
+    verbose_worker: False # Verbose worker output
+
+    [Cutout options]
+    pad: 3 # Number of beamwidths to pad around source
+    dryrun: False # Do a dry-run
+
+    [RM-synth/CLEAN options]
+    dimension: 1d # How many dimensions for RMsynth [1d] or '3d'
+    database: True # Add RMsynth data to MongoDB
+    # tt0: # TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1.
+    # tt1: # TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.
+    validate: False # Run on RMsynth Stokes I
+    # limit: # Limit number of sources
+    own_fit: False # Use own fit for RMsynth Stokes I
+
+    [RM-tools options]
+    savePlots: False # save the plots
+    weightType: variance # weighting [uniform] (all 1s) or 'variance'
+    fit_function: log # Stokes I fitting function
+    fitRMSF: True # Fit a gaussian to the RMSF
+    # phiMax_radm2: # Absolute max Faraday depth sampled (overrides NSAMPLES)
+    # dPhi_radm2: # Width of Faraday depth channel
+    nSamples: 5 # Number of samples across the FWHM RMSF
+    polyOrd: -3 # polynomial order to fit to I spectrum
+    noStokesI: False # ignore the Stokes I spectrum
+    showPlots: False # show the plots
+    not_RMSF: False # Skip calculation of RMSF
+    rm_verbose: False # Verbose RMsynth/CLEAN
+    debug: False # turn on debugging messages & plots
+    cutoff: -3 # CLEAN cutoff (+ve = absolute, -ve = sigma)
+    maxIter: 10000 # maximum number of CLEAN iterations
+    gain: 0.1 # CLEAN loop gain
+    window: False # use a windowed CLEAN
+
+    [Catalogue options]
+    # outfile: # File to save table to
+    format: fits # Format for output file
+
 
 For extra information you can refer to the API:
 

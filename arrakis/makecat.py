@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make a Arrakis catalogue"""
+"""Make an Arrakis catalogue"""
 import logging
 import os
 import time

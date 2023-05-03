@@ -1,7 +1,7 @@
 Acknowledging
 ---------------
 
-Please cite the Arrakis paper - Thomson et al. (in prep.) - if you use this code.
+Please cite the SPICE-RACS paper - Thomson et al. (in prep.) - if you use this code.
 
 Third-party software
 ^^^^^^^^^^^^^^^^^^^^
