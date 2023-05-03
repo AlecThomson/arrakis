@@ -31,13 +31,13 @@ Then run the initialisation script: ::
     usage: spice_init [-h] [-u USERNAME] [-p PASSWORD] [-d--database-path D__DATABASE_PATH] [-i ISLANDCAT] [-c COMPCAT] [-v] [-l] [-f] [-e EPOCH] host
 
 
-        mmm   mmm   mmm   mmm   mmm
-        )-(   )-(   )-(   )-(   )-(
+         mmm   mmm   mmm   mmm   mmm
+         )-(   )-(   )-(   )-(   )-(
         ( S ) ( P ) ( I ) ( C ) ( E )
         |   | |   | |   | |   | |   |
         |___| |___| |___| |___| |___|
-        mmm     mmm     mmm     mmm
-        )-(     )-(     )-(     )-(
+         mmm     mmm     mmm     mmm
+         )-(     )-(     )-(     )-(
         ( R )   ( A )   ( C )   ( S )
         |   |   |   |   |   |   |   |
         |___|   |___|   |___|   |___|
