@@ -5,9 +5,8 @@ import logging
 import multiprocessing as mp
 import os
 import pickle
-from argparse import Namespace
 from glob import glob
-from typing import List, Tuple, Union, Dict, NamedTuple
+from typing import List, Tuple, Union, Dict, NamedTuple, Optional, Any
 from pathlib import Path
 from subprocess import CalledProcessError
 
@@ -18,7 +17,7 @@ from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.wcs import WCS
 from casatasks import vishead
-from dask import compute, delayed
+from dask import compute, delayed, visualize
 from dask.delayed import Delayed
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
@@ -26,10 +25,11 @@ from racs_tools import beamcon_2D
 from schwimmbad import SerialPool
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
+from radio_beam import Beam
 
-from spiceracs import fix_ms_dir
-from spiceracs.logger import logger
-from spiceracs.utils import (
+from arrakis import fix_ms_dir
+from arrakis.logger import logger
+from arrakis.utils import (
     beam_from_ms,
     chunk_dask,
     field_idx_from_ms,
@@ -37,13 +37,14 @@ from spiceracs.utils import (
     wsclean,
 )
 
+
 class ImageSet(NamedTuple):
-    """Container to organise files related to t he imaging of a measurement set. 
-    """
-    ms: Path 
+    """Container to organise files related to t he imaging of a measurement set."""
+
+    ms: Path
     prefix: str
     image_lists: Dict[str, List[str]]
-    aux_lists: Dict[Tuple[str,str], List[str]]
+    aux_lists: Optional[Dict[Tuple[str, str], List[str]]] = None
 
 
 def get_wsclean(wsclean: Union[Path, str]) -> Path:
@@ -61,13 +62,51 @@ def get_wsclean(wsclean: Union[Path, str]) -> Path:
     return wsclean
 
 
+
+def cleanup_imageset(purge: bool, image_set: ImageSet):
+    if not purge:
+        logger.info("Not purging intermediate files")
+        return
+    
+    for pol, image_list in image_set.image_lists.items():
+        logger.critical(f"Removing {pol} images for {image_set.ms}")
+        for image in image_list:
+            logger.critical(f"Removing {image}")
+            os.remove(image)
+
+    # The aux images are the same between the native images and the smoothed images,
+    # they were just copied across directly without modification
+    if image_set.aux_lists:
+        logger.critical(f"Removing auxillary images. ")
+        for (pol, aux), aux_list in image_set.aux_lists.items():
+            for aux_image in aux_list:
+                try:
+                    logger.critical(f"Removing {aux_image}")
+                    os.remove(aux_image)
+                except FileNotFoundError:
+                    logger.error(f"Could not find {aux_image}")
+                    logger.error(f"aux_lists: {aux_list}")
+
+    return
+
+def get_images(image_done: bool, pol: str, prefix: Path) -> List[Path]:
+    # image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
+    if not image_done:
+        raise ValueError("Imaging must be done")
+
+    imglob = "*[0-9]-image.fits" if pol=="I" else f"*[0-9]-{pol}-image.fits"
+    image_list = sorted(prefix.glob(imglob))
+    return image_list
+
 def get_prefix(
     ms: Path,
     out_dir: Path,
 ) -> Path:
     """Get prefix for output files"""
     idx = field_idx_from_ms(ms.resolve(strict=True).as_posix())
-    field = vishead(vis=ms.resolve(strict=True).as_posix(), mode="list")["field"][0][idx]
+    field = vishead(vis=ms.resolve(strict=True).as_posix(), mode="list")["field"][0][
+        idx
+    ]
     beam = beam_from_ms(ms.resolve(strict=True).as_posix())
     prefix = f"image.{field}.contcube.beam{beam:02}"
     return out_dir / prefix
@@ -90,20 +129,20 @@ def image_beam(
     mgain: float = 0.7,
     niter: int = 100_000,
     auto_mask: float = 3,
-    force_mask_rounds: Union[int, None] = None,
+    force_mask_rounds: Optional[int] = None,
     auto_threshold: float = 1,
-    gridder: Union[str, None] = None,
+    gridder: Optional[str] = None,
     robust: float = -0.5,
     mem: float = 90,
-    absmem: Union[float, None] = None,
-    taper: float = None,
+    absmem: Optional[float] = None,
+    taper: Optional[float] = None,
     reimage: bool = False,
     minuv_l: float = 0.0,
-    parallel_deconvolution: Union[int, None]=None,
-    nmiter: Union[int, None]=None,
+    parallel_deconvolution: Optional[int] = None,
+    nmiter: Optional[int] = None,
     local_rms: bool = False,
-    local_rms_window: Union[float, None] = None,
-    multiscale: Union[bool, None] = None,
+    local_rms_window: Optional[float] = None,
+    multiscale: bool = False,
 ) -> ImageSet:
     """Image a single beam"""
     logger = logging.getLogger(__name__)
@@ -111,17 +150,14 @@ def image_beam(
 
     if not reimage:
         # Look for existing images
+        # NOTE: The current format of the I polarisation is different to the expression below. 
+        # Raising an error for visibility. 
         checkvals = np.array(
             [f"{prefix}-{i:04}-{s}-image.fits" for s in pols for i in range(nchan)]
         )
         checks = np.array([os.path.exists(f) for f in checkvals])
-        if all(checks):
-            logger.critical("Images already exist, skipping imaging")
-            return True
-        else:
-            logger.critical(f"At least some images do not exist: {checkvals[~checks]}")
-            logger.critical("starting imaging...")
-
+        raise ValueError("The reimage option is not properly supported. ")
+        
     commands = []
     # Do any I cleaning separately
     do_stokes_I = "I" in pols
@@ -135,7 +171,7 @@ def image_beam(
             channels_out=nchan,
             scale=f"{scale.to(u.arcsec).value}asec",
             size=f"{npix} {npix}",
-            join_polarizations=False, # Only do I
+            join_polarizations=False,  # Only do I
             join_channels=join_channels,
             squared_channel_joining=False,  # Dont want to square I
             mgain=mgain,
@@ -160,16 +196,15 @@ def image_beam(
         commands.append(command)
         pols = pols.replace("I", "")
 
-
     if squared_channel_joining:
         logger.info("Using squared channel joining")
         logger.info("Reducing mask by 2*sqrt(2) to account for this")
-        auto_mask_reduce = np.round(auto_mask / (2*np.sqrt(2)), decimals=2)
+        auto_mask_reduce = np.round(auto_mask / (2 * np.sqrt(2)), decimals=2)
 
         logger.info(f"auto_mask = {auto_mask}")
         logger.info(f"auto_mask_reduce = {auto_mask_reduce}")
     else:
-        auto_mask_reduce = auto_mask.copy()
+        auto_mask_reduce = auto_mask
 
     command = wsclean(
         mslist=[ms.resolve(strict=True).as_posix()],
@@ -218,69 +253,59 @@ def image_beam(
                 stream=True,
             )
             for line in output:
-                logger.info(line)
+                logger.info(line.rstrip())
         except CalledProcessError as e:
             logger.error(f"Failed to run wsclean with command: {command}")
             logger.error(f"Stdout: {e.stdout}")
             logger.error(f"Stderr: {e.stderr}")
+            logger.error(f"{e=}")
             raise e
 
     # Check rms of image to check for divergence
     if do_stokes_I:
         pols += "I"
     for pol in pols:
-        mfs_image = f"{prefix}-MFS-image.fits" if pol == "I" else f"{prefix}-MFS-{pol}-image.fits"
+        mfs_image = (
+            f"{prefix}-MFS-image.fits"
+            if pol == "I"
+            else f"{prefix}-MFS-{pol}-image.fits"
+        )
         rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
         if rms > 1:
             # raise ValueError(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
-            logger.error(f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}")
+            logger.error(
+                f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}"
+            )
 
         # Get images
         image_lists = {}
         aux_lists = {}
         for s in pols:
-            imglob = "*[0-9]-image.fits" if pol=="I" else f"*[0-9]-{pol}-image.fits"
-            image_list = sorted(prefix.glob(imglob))
+            imglob = (
+                f"{prefix}*[0-9]-image.fits"
+                if pol == "I"
+                else f"*[0-9]-{pol}-image.fits"
+            )
+            image_list = sorted(glob(imglob))
             image_lists[s] = image_list
-                        
+
             for aux in ["model", "psf", "residual", "dirty"]:
-                aux_list = sorted(prefix.glob(f"*[0-9]-{aux}.fits")) if pol == "I" or aux == "psf" else sorted(prefix.glob(f"*[0-9]-{pol}-{aux}.fits"))
+                aux_list = (
+                    sorted(glob(f"{prefix}*[0-9]-{aux}.fits"))
+                    if pol == "I" or aux == "psf"
+                    else sorted(glob(f"*[0-9]-{pol}-{aux}.fits"))
+                )
                 aux_lists[(s, aux)] = aux_list
-                
-    logger.info("Constructing ImageSet")       
+
+    logger.info("Constructing ImageSet")
     image_set = ImageSet(
-        ms=ms,
-        prefix=prefix,
-        image_lists=image_lists,
-        aux_lists=aux_lists
+        ms=ms, prefix=prefix, image_lists=image_lists, aux_lists=aux_lists
     )
 
     logger.debug(f"{image_set=}")
 
     return image_set
 
-def get_images(image_done: bool, pol: str, prefix: Path) -> List[Path]:
-    # image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
-    if not image_done:
-        raise ValueError("Imaging must be done")
-
-    imglob = "*[0-9]-image.fits" if pol=="I" else f"*[0-9]-{pol}-image.fits"
-    image_list = sorted(prefix.glob(imglob))
-    return image_list
-
-
-
-@delayed()
-def get_aux(image_done: bool, pol: str, prefix: Path) -> Dict[str, List[Path]]:
-    if not image_done:
-        raise ValueError("Imaging must be done")
-    aux_lists = {}
-    for aux in ["model", "psf", "residual", "dirty"]:
-        if pol == "I" or aux == "psf":
-            aux_lists[aux] = sorted(prefix.glob(f"*[0-9]-{aux}.fits"))
-        else:
-            aux_lists[aux] = sorted(prefix.glob(f"*[0-9]-{pol}-{aux}.fits"))
-    return aux_lists
 
 @delayed(nout=2)
 def make_cube(
@@ -289,8 +314,12 @@ def make_cube(
     common_beam_pkl: str,
 ) -> tuple:
     """Make a cube from the images"""
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    logger.info(f"Creating cube for {pol=} {image_set.ms=}")    
     image_list = image_set.image_lists[pol]
-    
+
     # First combine images into cubes
     freqs = []
     rmss = []
@@ -360,35 +389,36 @@ def make_cube(
     return new_name, new_w_name
 
 
-@delayed(nout=2)
+@delayed
 def get_beam(image_sets: List[ImageSet], pols, cutoff=None):
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
     # convert dict to list
     image_list = []
     for image_set in image_sets:
-        for _, image_list in image_set.image_lists.items():
-            image_list.extend(image_list)
-        
-        
+        for _, sub_image_list in image_set.image_lists.items():
+            image_list.extend(sub_image_list)
+
+    logger.info(f"The length of the image list is: {len(image_list)}")
+
     # Create a unique hash for the beam log filename
-    image_hash = hashlib.md5(''.join(image_list).encode()).hexdigest()
-    beam_log = f"beam_{image_hash}.log"
-    with SerialPool() as pool:
-        common_beam = beamcon_2D.main(
-            pool=pool,
-            infile=image_list,
-            cutoff=cutoff,
-            dryrun=True,
-            log=os.path.join("/tmp", beam_log),
-        )
-    # serialise the beam
-    common_beam_pkl = os.path.abspath(
-        f"beam_{image_hash}.pkl"
+    image_hash = hashlib.md5("".join(image_list).encode()).hexdigest()
+
+    common_beam, _ = beamcon_2D.getmaxbeam(
+        files=image_list
     )
 
+    logger.info(f"The common beam is: {common_beam=}") 
+    
+    # serialise the beam
+    common_beam_pkl = os.path.abspath(f"beam_{image_hash}.pkl")
+
     with open(common_beam_pkl, "wb") as f:
+        logger.info(f"Creating {common_beam_pkl}")
         pickle.dump(common_beam, f)
 
-    return common_beam_pkl, beam_log
+    return common_beam_pkl
 
 
 @delayed()
@@ -412,67 +442,59 @@ def smooth_image(image, common_beam_pkl, cutoff=None):
 
 
 @delayed()
-def smooth_images_in_imageset(image_set: ImageSet, common_beam_pkl, cutoff=None) -> ImageSet:
+def smooth_images_in_imageset(
+    image_set: ImageSet, common_beam_pkl, cutoff=None
+) -> ImageSet:
     # Smooth image
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
     # Deserialise the beam
     with open(common_beam_pkl, "rb") as f:
+        logger.info(f"Loading common beam from {common_beam_pkl}")
         common_beam = pickle.load(f)
-    
-    images = []
+
+    logger.info(f"Smooting {image_set.ms} images")
+
     sm_images = {}
     for pol, pol_images in image_set.image_lists.items():
         logger.info(f"Smoothing {pol=} for {image_set.ms}")
-        with SerialPool() as pool:
-            _ = beamcon_2D.main(
-                pool=pool,
-                infile=pol_images,
-                suffix="conv",
-                bmaj=common_beam.major.to(u.arcsec).value,
-                bmin=common_beam.minor.to(u.arcsec).value,
-                bpa=common_beam.pa.to(u.deg).value,
-                cutoff=cutoff,
+        for img in pol_images:
+            logger.info(f"Smoothing {img}")
+            beamcon_2D.worker(
+                file=img,
+                outdir=None,
+                new_beam=common_beam,
+                conv_mode='robust',
+                suffix='conv',
+                cutoff=cutoff
             )
-    
-        sm_images[pol] = [image.replace(".fits", ".conv.fits") for image in images]
-    
+        
+        sm_images[pol] = [image.replace(".fits", ".conv.fits") for image in pol_images]
+
     return ImageSet(
         ms=image_set.ms,
         prefix=image_set.prefix,
         image_lists=sm_images,
-        aux_lists=image_set.aux_lists
     )
 
 @delayed()
 def cleanup(
     purge: bool,
-    im_cube_name,
-    w_cube_name,
-    image_set: ImageSet,
-    sm_image_set: ImageSet,
+    image_sets: List[ImageSet],
+    ignore_files: List[Any]
 ):
-    logger.warn(f"Ignoring {im_cube_name=} {w_cube_name=}")
-    
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    logger.warn(f"Ignoring files in {ignore_files=}. ")
+
     if not purge:
         logger.info("Not purging intermediate files")
         return
     
-    for subject_set in (image_set, sm_image_set):
-        for pol, image_list in subject_set.image_lists:
-            logger.critical(f"Removing {pol} images for {subject_set.ms}")
-            for image in image_list:
-                logger.critical(f"Removing {image}")
-                os.remove(image)
-        
-    # The aux images are the same between the native images and the smoothed images,
-    # they were just copied across directly without modification
-    for (pol, aux), aux_list in image_set.aux_lists.items():
-        for aux_image in aux_list:
-            try:
-                logger.critical(f"Removing {aux_image}")
-                os.remove(aux_image)
-            except FileNotFoundError:
-                logger.error(f"Could not find {aux_image}")
-                logger.error(f"aux_lists: {aux_list}")
+    for image_set in image_sets:
+        cleanup_imageset(purge=purge, image_set=image_set)
     
     return
 
@@ -567,48 +589,52 @@ def main(
         image_sets.append(image_set)
 
     # Smooth images
-    common_beam_pkl, beam_log = get_beam(
+    common_beam_pkl = get_beam(
         image_sets=image_sets,
         pols=pols,
         cutoff=cutoff,
     )
 
-    sm_image_sets = []
-    for image_set in image_sets:    
+    for image_set in image_sets:
         sm_image_set = smooth_images_in_imageset(
-                    image_set,
-                    common_beam_pkl=common_beam_pkl,
-                    cutoff=cutoff,
-                )
-        sm_image_sets.append(sm_image_set)
-
-        for pol in 'IQU':
-            # Make a cube
-            im_cube_name, w_cube_name = make_cube(
+            image_set,
+            common_beam_pkl=common_beam_pkl,
+            cutoff=cutoff,
+        )
+        
+        # cleans.append(
+        #     cleanup(purge=purge, image_sets=[image_set], ignore_files=[sm_image_set])
+        # )
+        
+        # Make a cube
+        cube_images = [
+            make_cube(
                 pol=pol,
-                image_list=sm_image_set,
+                image_set=sm_image_set,
                 common_beam_pkl=common_beam_pkl,
             )
-        
+            for pol in "IQU"
+        ]
+
         # Clean up
         clean = cleanup(
             purge=purge,
-            im_cube_name=im_cube_name,
-            w_cube_name=w_cube_name,
-            image_list=image_sets,
-            sm_image_list=sm_image_sets,
+            image_sets=[image_set, sm_image_set],
+            ignore_files=cube_images # To keep the dask dependency tracking
         )
         cleans.append(clean)
 
-    futures = chunk_dask(
-        outputs=cleans,
-        task_name="Image and cube",
-        progress_text="Imaging",
-        verbose=True,
-        batch_size=1,
-    )
+    visualize(cleans, filename="compute_graph.pdf", optimize_graph=True)
 
-    return [f.result() for f in futures]
+    # futures = chunk_dask(
+    #     outputs=cleans,
+    #     task_name="Image and cube",
+    #     progress_text="Imaging",
+    #     verbose=True,
+    #     batch_size=1,
+    # )
+
+    return compute(cleans)
 
 
 def cli():
@@ -782,7 +808,6 @@ def cli():
         help="Path to local wsclean Singularity image",
     )
 
-
     args = parser.parse_args()
 
     if args.mpi:
@@ -819,7 +844,9 @@ def cli():
             reimage=args.reimage,
             parallel_deconvolution=args.parallel,
             gridder=args.gridder,
-            wsclean_path=Path(args.local_wsclean) if args.local_wsclean else args.hosted_wsclean,
+            wsclean_path=Path(args.local_wsclean)
+            if args.local_wsclean
+            else args.hosted_wsclean,
             multiscale=args.multiscale,
         )
 
