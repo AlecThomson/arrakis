@@ -225,7 +225,7 @@ def wsclean(
     force_mask_rounds: Optional[int] = None,
     local_rms: bool = False,
     local_rms_window: Optional[float] = False,
-    local_rms_method: Optional[str] = False,
+    local_rms_method: Optional[str] = None,
     gain: Optional[float] = None,
     mgain: Optional[float] = None,
     join_polarizations: bool = False,
@@ -1378,9 +1378,9 @@ class TqdmProgressBar(ProgressBar):
         self.tqdm.close()
 
 
-def tqdm_dask(futures: distributed.Future, **kwargs) -> None:
+def tqdm_dask(futures_in: distributed.Future, **kwargs) -> None:
     """Tqdm for Dask futures"""
-    futures = futures_of(futures)
+    futures = futures_of(futures_in)
     if not isinstance(futures, (set, list)):
         futures = [futures]
     TqdmProgressBar(futures, **kwargs)
