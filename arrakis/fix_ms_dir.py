@@ -8,8 +8,8 @@ import sys
 import numpy as np
 from casacore.tables import table, tablecopy, tableexists, taql
 
-from spiceracs.utils import beam_from_ms
-from spiceracs.logger import logger
+from arrakis.utils import beam_from_ms
+from arrakis.logger import logger
 
 RAD2DEG = 180.0 / math.pi
 DEG2RAD = math.pi / 180.0
