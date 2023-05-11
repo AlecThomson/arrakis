@@ -607,7 +607,7 @@ def main(
         )
         cleans.append(clean)
 
-    visualize(cleans, filename="compute_graph.pdf", optimize_graph=True)
+    visualize(cleans, filename="compute_graph.pdf", optimize_graph=True, rankdir='LR')
 
     return compute(cleans)
 
