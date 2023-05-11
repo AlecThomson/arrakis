@@ -62,7 +62,16 @@ def get_wsclean(wsclean: Union[Path, str]) -> Path:
     return wsclean
 
 
-def cleanup_imageset(purge: bool, image_set: ImageSet):
+def cleanup_imageset(purge: bool, image_set: ImageSet) -> None:
+    """Delete images associated with an input ImageSet
+
+    Args:
+        purge (bool): Whether files will be deleted or skipped. 
+        image_set (ImageSet): Collection of files that will be removed. 
+    """
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
     if not purge:
         logger.info("Not purging intermediate files")
         return
@@ -88,22 +97,19 @@ def cleanup_imageset(purge: bool, image_set: ImageSet):
 
     return
 
-
-def get_images(image_done: bool, pol: str, prefix: Path) -> List[Path]:
-    # image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
-    if not image_done:
-        raise ValueError("Imaging must be done")
-
-    imglob = "*[0-9]-image.fits" if pol == "I" else f"*[0-9]-{pol}-image.fits"
-    image_list = sorted(prefix.glob(imglob))
-    return image_list
-
-
 def get_prefix(
     ms: Path,
     out_dir: Path,
 ) -> Path:
-    """Get prefix for output files"""
+    """Derive a consistent prefix style from a input MS name. 
+
+    Args:
+        ms (Path): Path to a Measurement Set that a prefix will be derived from
+        out_dir (Path): The final location that wsclean output data will be written to
+
+    Returns:
+        Path: The prefix, including the output directory name. 
+    """
     idx = field_idx_from_ms(ms.resolve(strict=True).as_posix())
     field = vishead(vis=ms.resolve(strict=True).as_posix(), mode="list")["field"][0][
         idx
@@ -395,7 +401,15 @@ def make_cube(
 
 
 @delayed
-def get_beam(image_sets: List[ImageSet], pols, cutoff=None):
+def get_beam(image_sets: List[ImageSet]) -> str:
+    """Derive a common resolution across all images within a set of ImageSet
+
+    Args:
+        image_sets (List[ImageSet]): All input beam ImageSets that a common resolution will be derived for
+        
+    Returns:
+        str: Path to the pickled beam object
+    """
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
@@ -404,6 +418,9 @@ def get_beam(image_sets: List[ImageSet], pols, cutoff=None):
     for image_set in image_sets:
         for _, sub_image_list in image_set.image_lists.items():
             image_list.extend(sub_image_list)
+
+    # Consistent hash between runs
+    image_list = sorted(image_list)
 
     logger.info(f"The length of the image list is: {len(image_list)}")
 
@@ -425,9 +442,19 @@ def get_beam(image_sets: List[ImageSet], pols, cutoff=None):
 
 
 @delayed()
-def smooth_images_in_imageset(
-    image_set: ImageSet, common_beam_pkl, cutoff=None
+def smooth_imageset(
+    image_set: ImageSet, common_beam_pkl: str, cutoff: Optional[float]=None
 ) -> ImageSet:
+    """Smooth all images described within an ImageSet to a desired resolution
+
+    Args:
+        image_set (ImageSet): Container whose image_list will be convolved to common resolution
+        common_beam_pkl (str): Location of pickle file with beam description
+        cutoff (Optional[float], optional): PSF cutoff passed to the beamcon_2D worker. Defaults to None.
+
+    Returns:
+        ImageSet: A copy of `image_set` pointing to the smoothed images. Note the `aux_images` property is not carried forward. 
+    """
     # Smooth image
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -463,7 +490,16 @@ def smooth_images_in_imageset(
 
 
 @delayed()
-def cleanup(purge: bool, image_sets: List[ImageSet], ignore_files: List[Any]):
+def cleanup(purge: bool, image_sets: List[ImageSet], ignore_files: List[Any]) -> None:
+    """Utility to remove all images described by an collection of ImageSets. Internally
+    called `cleanup_imageset`. 
+
+    Args:
+        purge (bool): Whether files are actually removed or skipped.
+        image_sets (List[ImageSet]): Collection of ImageSets that would be deleted
+        ignore_files (List[Any]): Collection of items to ignore. Nothing is done with this
+        and is purely used to exploit the dask dependency tracking. 
+    """
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
@@ -481,6 +517,15 @@ def cleanup(purge: bool, image_sets: List[ImageSet], ignore_files: List[Any]):
 
 @delayed()
 def fix_ms(ms: Path) -> Path:
+    """Apply the corrections to the FEED table of a measurement set that
+    is required for the ASKAP measurement sets. 
+
+    Args:
+        ms (Path): Path to the measurement set to fix. 
+
+    Returns:
+        Path: Path to the corrected measurement set. 
+    """
     fix_ms_dir.main(ms.resolve(strict=True).as_posix())
     return ms
 
@@ -513,8 +558,7 @@ def main(
     absmem: Union[float, None] = None,
 ):
     simage = get_wsclean(wsclean=wsclean_path)
-    get_image_task = delayed(get_images, nout=nchan)
-
+    
     mslist = sorted(msdir.glob("scienceData*_averaged_cal.leakage.ms"))
 
     assert (len(mslist) > 0) & (
@@ -585,7 +629,7 @@ def main(
         # Smooth the *images* in an ImageSet across all Stokes. This
         # limits the number of workers to 36, i.e. this is operating
         # beamwise
-        sm_image_set = smooth_images_in_imageset(
+        sm_image_set = smooth_imageset(
             image_set,
             common_beam_pkl=common_beam_pkl,
             cutoff=cutoff,
