@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SPICE-RACS imager"""
+"""Arrkis imager"""
 import hashlib
 import logging
 import multiprocessing as mp
@@ -684,7 +684,7 @@ def cli():
     # Help string to be shown using the -h option
     descStr = f"""
     {logostr}
-    SPICE-RACS Stage X:
+    Arrakis Stage X:
     Image calibrated visibilities
 
     """
