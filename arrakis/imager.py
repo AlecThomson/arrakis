@@ -62,14 +62,13 @@ def get_wsclean(wsclean: Union[Path, str]) -> Path:
     return wsclean
 
 
-
 def cleanup_imageset(purge: bool, image_set: ImageSet):
     if not purge:
         logger.info("Not purging intermediate files")
         return
     
     for pol, image_list in image_set.image_lists.items():
-        logger.critical(f"Removing {pol} images for {image_set.ms}")
+        logger.critical(f"Removing {pol=} images for {image_set.ms}")
         for image in image_list:
             logger.critical(f"Removing {image}")
             os.remove(image)
@@ -198,8 +197,8 @@ def image_beam(
 
     if squared_channel_joining:
         logger.info("Using squared channel joining")
-        logger.info("Reducing mask by 2*sqrt(2) to account for this")
-        auto_mask_reduce = np.round(auto_mask / (2 * np.sqrt(2)), decimals=2)
+        logger.info("Reducing mask by sqrt(2) to account for this")
+        auto_mask_reduce = np.round(auto_mask / (np.sqrt(2)), decimals=2)
 
         logger.info(f"auto_mask = {auto_mask}")
         logger.info(f"auto_mask_reduce = {auto_mask_reduce}")
@@ -280,22 +279,26 @@ def image_beam(
         # Get images
         image_lists = {}
         aux_lists = {}
-        for s in pols:
+        for pol in pols:
             imglob = (
                 f"{prefix}*[0-9]-image.fits"
                 if pol == "I"
-                else f"*[0-9]-{pol}-image.fits"
+                else f"{prefix}*[0-9]-{pol}-image.fits"
             )
             image_list = sorted(glob(imglob))
-            image_lists[s] = image_list
+            image_lists[pol] = image_list
+
+            logger.info(f"Found {len(image_list)} images for {pol=} {ms}.")
 
             for aux in ["model", "psf", "residual", "dirty"]:
                 aux_list = (
                     sorted(glob(f"{prefix}*[0-9]-{aux}.fits"))
                     if pol == "I" or aux == "psf"
-                    else sorted(glob(f"*[0-9]-{pol}-{aux}.fits"))
+                    else sorted(glob(f"{prefix}*[0-9]-{pol}-{aux}.fits"))
                 )
-                aux_lists[(s, aux)] = aux_list
+                aux_lists[(pol, aux)] = aux_list
+
+                logger.info(f"Found {len(aux_list)} images for {pol=} {aux=} {ms}.")
 
     logger.info("Constructing ImageSet")
     image_set = ImageSet(
@@ -419,26 +422,6 @@ def get_beam(image_sets: List[ImageSet], pols, cutoff=None):
         pickle.dump(common_beam, f)
 
     return common_beam_pkl
-
-
-@delayed()
-def smooth_image(image, common_beam_pkl, cutoff=None):
-    # Smooth image
-    # Deserialise the beam
-    with open(common_beam_pkl, "rb") as f:
-        common_beam = pickle.load(f)
-    with SerialPool() as pool:
-        _ = beamcon_2D.main(
-            pool=pool,
-            infile=[image],
-            suffix="conv",
-            bmaj=common_beam.major.to(u.arcsec).value,
-            bmin=common_beam.minor.to(u.arcsec).value,
-            bpa=common_beam.pa.to(u.deg).value,
-            cutoff=cutoff,
-        )
-    sm_image = image.replace(".fits", ".conv.fits")
-    return sm_image
 
 
 @delayed()
@@ -625,14 +608,6 @@ def main(
         cleans.append(clean)
 
     visualize(cleans, filename="compute_graph.pdf", optimize_graph=True)
-
-    # futures = chunk_dask(
-    #     outputs=cleans,
-    #     task_name="Image and cube",
-    #     progress_text="Imaging",
-    #     verbose=True,
-    #     batch_size=1,
-    # )
 
     return compute(cleans)
 
