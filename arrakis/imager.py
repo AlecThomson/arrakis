@@ -120,7 +120,7 @@ def get_prefix(
     return out_dir / prefix
 
 
-@delayed(nout=3)
+@delayed()
 def image_beam(
     ms: Path,
     field_idx: int,
@@ -323,8 +323,8 @@ def image_beam(
 def make_cube(
     pol: str,
     image_set: ImageSet,
-    common_beam_pkl: str,
-) -> tuple:
+    common_beam_pkl: Path,
+) -> Tuple[Path, Path]:
     """Make a cube from the images"""
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -401,15 +401,15 @@ def make_cube(
     return new_name, new_w_name
 
 
-@delayed
-def get_beam(image_sets: List[ImageSet]) -> str:
+@delayed()
+def get_beam(image_sets: List[ImageSet]) -> Path:
     """Derive a common resolution across all images within a set of ImageSet
 
     Args:
         image_sets (List[ImageSet]): All input beam ImageSets that a common resolution will be derived for
 
     Returns:
-        str: Path to the pickled beam object
+        Path: Path to the pickled beam object
     """
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -433,7 +433,7 @@ def get_beam(image_sets: List[ImageSet]) -> str:
     logger.info(f"The common beam is: {common_beam=}")
 
     # serialise the beam
-    common_beam_pkl = os.path.abspath(f"beam_{image_hash}.pkl")
+    common_beam_pkl = Path(f"beam_{image_hash}.pkl")
 
     with open(common_beam_pkl, "wb") as f:
         logger.info(f"Creating {common_beam_pkl}")
@@ -444,13 +444,13 @@ def get_beam(image_sets: List[ImageSet]) -> str:
 
 @delayed()
 def smooth_imageset(
-    image_set: ImageSet, common_beam_pkl: str, cutoff: Optional[float] = None
+    image_set: ImageSet, common_beam_pkl: Path, cutoff: Optional[float] = None
 ) -> ImageSet:
     """Smooth all images described within an ImageSet to a desired resolution
 
     Args:
         image_set (ImageSet): Container whose image_list will be convolved to common resolution
-        common_beam_pkl (str): Location of pickle file with beam description
+        common_beam_pkl (Path): Location of pickle file with beam description
         cutoff (Optional[float], optional): PSF cutoff passed to the beamcon_2D worker. Defaults to None.
 
     Returns:
