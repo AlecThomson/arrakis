@@ -66,7 +66,7 @@ def cleanup_imageset(purge: bool, image_set: ImageSet):
     if not purge:
         logger.info("Not purging intermediate files")
         return
-    
+
     for pol, image_list in image_set.image_lists.items():
         logger.critical(f"Removing {pol=} images for {image_set.ms}")
         for image in image_list:
@@ -88,14 +88,16 @@ def cleanup_imageset(purge: bool, image_set: ImageSet):
 
     return
 
+
 def get_images(image_done: bool, pol: str, prefix: Path) -> List[Path]:
     # image_lists = {s: sorted(glob(f"{prefix}*[0-9]-{s}-image.fits")) for s in pols}
     if not image_done:
         raise ValueError("Imaging must be done")
 
-    imglob = "*[0-9]-image.fits" if pol=="I" else f"*[0-9]-{pol}-image.fits"
+    imglob = "*[0-9]-image.fits" if pol == "I" else f"*[0-9]-{pol}-image.fits"
     image_list = sorted(prefix.glob(imglob))
     return image_list
+
 
 def get_prefix(
     ms: Path,
@@ -149,14 +151,14 @@ def image_beam(
 
     if not reimage:
         # Look for existing images
-        # NOTE: The current format of the I polarisation is different to the expression below. 
-        # Raising an error for visibility. 
+        # NOTE: The current format of the I polarisation is different to the expression below.
+        # Raising an error for visibility.
         checkvals = np.array(
             [f"{prefix}-{i:04}-{s}-image.fits" for s in pols for i in range(nchan)]
         )
         checks = np.array([os.path.exists(f) for f in checkvals])
         raise ValueError("The reimage option is not properly supported. ")
-        
+
     commands = []
     # Do any I cleaning separately
     do_stokes_I = "I" in pols
@@ -320,7 +322,7 @@ def make_cube(
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
-    logger.info(f"Creating cube for {pol=} {image_set.ms=}")    
+    logger.info(f"Creating cube for {pol=} {image_set.ms=}")
     image_list = image_set.image_lists[pol]
 
     # First combine images into cubes
@@ -408,12 +410,10 @@ def get_beam(image_sets: List[ImageSet], pols, cutoff=None):
     # Create a unique hash for the beam log filename
     image_hash = hashlib.md5("".join(image_list).encode()).hexdigest()
 
-    common_beam, _ = beamcon_2D.getmaxbeam(
-        files=image_list
-    )
+    common_beam, _ = beamcon_2D.getmaxbeam(files=image_list)
 
-    logger.info(f"The common beam is: {common_beam=}") 
-    
+    logger.info(f"The common beam is: {common_beam=}")
+
     # serialise the beam
     common_beam_pkl = os.path.abspath(f"beam_{image_hash}.pkl")
 
@@ -448,11 +448,11 @@ def smooth_images_in_imageset(
                 file=img,
                 outdir=None,
                 new_beam=common_beam,
-                conv_mode='robust',
-                suffix='conv',
-                cutoff=cutoff
+                conv_mode="robust",
+                suffix="conv",
+                cutoff=cutoff,
             )
-        
+
         sm_images[pol] = [image.replace(".fits", ".conv.fits") for image in pol_images]
 
     return ImageSet(
@@ -461,12 +461,9 @@ def smooth_images_in_imageset(
         image_lists=sm_images,
     )
 
+
 @delayed()
-def cleanup(
-    purge: bool,
-    image_sets: List[ImageSet],
-    ignore_files: List[Any]
-):
+def cleanup(purge: bool, image_sets: List[ImageSet], ignore_files: List[Any]):
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
@@ -475,10 +472,10 @@ def cleanup(
     if not purge:
         logger.info("Not purging intermediate files")
         return
-    
+
     for image_set in image_sets:
         cleanup_imageset(purge=purge, image_set=image_set)
-    
+
     return
 
 
@@ -535,6 +532,8 @@ def main(
         prefixs[ms] = prefix
         field_idxs[ms] = field_idx_from_ms(ms.resolve(strict=True).as_posix())
 
+    # Image_sets will be a containter that represents the output wsclean image products
+    # produced for each beam. A single ImageSet is a container for a single beam.
     image_sets = []
     for ms in mslist:
         logger.info(f"Imaging {ms}")
@@ -571,25 +570,28 @@ def main(
 
         image_sets.append(image_set)
 
-    # Smooth images
+    # Compute the smallest beam that all images can be convolved to.
+    # This requires all imaging rounds to be completed, so the total
+    # set of ImageSets are first derived before this is called.
     common_beam_pkl = get_beam(
         image_sets=image_sets,
         pols=pols,
         cutoff=cutoff,
     )
 
+    # With the final beam each *image* in the ImageSet across IQU are
+    # smoothed and then form the cube for each stokes.
     for image_set in image_sets:
+        # Smooth the *images* in an ImageSet across all Stokes. This
+        # limits the number of workers to 36, i.e. this is operating
+        # beamwise
         sm_image_set = smooth_images_in_imageset(
             image_set,
             common_beam_pkl=common_beam_pkl,
             cutoff=cutoff,
         )
-        
-        # cleans.append(
-        #     cleanup(purge=purge, image_sets=[image_set], ignore_files=[sm_image_set])
-        # )
-        
-        # Make a cube
+
+        # Make a cube. This is operating across beams and stokes
         cube_images = [
             make_cube(
                 pol=pol,
@@ -599,15 +601,19 @@ def main(
             for pol in "IQU"
         ]
 
-        # Clean up
+        # Clean up all wsclean produced files. The purge variable
+        # is considered within the cleanup function. Not the
+        # ignore_files that is used to preserve the dependency between
+        # dask tasks
         clean = cleanup(
             purge=purge,
             image_sets=[image_set, sm_image_set],
-            ignore_files=cube_images # To keep the dask dependency tracking
+            ignore_files=cube_images,  # To keep the dask dependency tracking
         )
         cleans.append(clean)
 
-    visualize(cleans, filename="compute_graph.pdf", optimize_graph=True, rankdir='LR')
+    # Trust nothing
+    visualize(cleans, filename="compute_graph.pdf", optimize_graph=True, rankdir="LR")
 
     return compute(cleans)
 
