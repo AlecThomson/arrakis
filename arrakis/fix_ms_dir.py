@@ -8,8 +8,8 @@ import sys
 import numpy as np
 from casacore.tables import table, tablecopy, tableexists, taql
 
-from arrakis.utils import beam_from_ms
 from arrakis.logger import logger
+from arrakis.utils import beam_from_ms
 
 RAD2DEG = 180.0 / math.pi
 DEG2RAD = math.pi / 180.0
@@ -367,8 +367,6 @@ def cli():
     )
     # Parse the command line
     args = parser.parse_args()
-
-
 
     # Call the main function
     main(args.ms)
