@@ -618,9 +618,7 @@ def main(
     # This requires all imaging rounds to be completed, so the total
     # set of ImageSets are first derived before this is called.
     common_beam_pkl = get_beam(
-        image_sets=image_sets,
-        pols=pols,
-        cutoff=cutoff,
+        image_sets=image_sets
     )
 
     # With the final beam each *image* in the ImageSet across IQU are
