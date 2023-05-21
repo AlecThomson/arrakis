@@ -80,7 +80,10 @@ def cleanup_imageset(purge: bool, image_set: ImageSet) -> None:
         logger.critical(f"Removing {pol=} images for {image_set.ms}")
         for image in image_list:
             logger.critical(f"Removing {image}")
-            os.remove(image)
+            try:
+                os.remove(image)
+            except FileNotFoundError:
+                logger.critical(f"{image} not available for deletion. ")
 
     # The aux images are the same between the native images and the smoothed images,
     # they were just copied across directly without modification
@@ -94,6 +97,9 @@ def cleanup_imageset(purge: bool, image_set: ImageSet) -> None:
                 except FileNotFoundError:
                     logger.error(f"Could not find {aux_image}")
                     logger.error(f"aux_lists: {aux_list}")
+                except FileNotFoundError:
+                    logger.critical(f"{aux_image} not available for deletion. ")
+
 
     return
 
@@ -151,6 +157,7 @@ def image_beam(
     local_rms: bool = False,
     local_rms_window: Optional[float] = None,
     multiscale: bool = False,
+    multiscale_scale_bias: Optional[float] = None
 ) -> ImageSet:
     """Image a single beam"""
     logger = logging.getLogger(__name__)
@@ -199,6 +206,7 @@ def image_beam(
             nmiter=nmiter,
             local_rms=local_rms,
             local_rms_window=local_rms_window,
+            multiscale_scale_bias=multiscale_scale_bias,
             multiscale=multiscale,
         )
         commands.append(command)
@@ -244,6 +252,7 @@ def image_beam(
         local_rms=local_rms,
         local_rms_window=local_rms_window,
         multiscale=multiscale,
+        multiscale_scale_bias=multiscale_scale_bias
     )
     commands.append(command)
 
@@ -324,6 +333,7 @@ def make_cube(
     pol: str,
     image_set: ImageSet,
     common_beam_pkl: Path,
+    aux_mode: Optional[str] = None
 ) -> Tuple[Path, Path]:
     """Make a cube from the images"""
     logger = logging.getLogger(__name__)
@@ -331,6 +341,8 @@ def make_cube(
 
     logger.info(f"Creating cube for {pol=} {image_set.ms=}")
     image_list = image_set.image_lists[pol]
+
+    image_type = 'restored' if aux_mode is None else aux_mode
 
     # First combine images into cubes
     freqs = []
@@ -367,7 +379,7 @@ def make_cube(
             b_idx = new_base.find("beam") + len("beam") + 2
             sub = new_base[b_idx:]
             new_base = new_base.replace(sub, ".fits")
-            new_base = new_base.replace("image", f"image.restored.{pol.lower()}")
+            new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
             new_name = os.path.join(out_dir, new_base)
 
         plane = fits.getdata(image) / 2  # Divide by 2 because of ASKAP Stokes
@@ -395,18 +407,21 @@ def make_cube(
     logger.info(f"Written {new_name}")
 
     # Copy image cube
-    new_w_name = new_name.replace("image.restored", "weights").replace(".fits", ".txt")
+    new_w_name = new_name.replace(f"image.{image_type}", f"weights.{image_type}").replace(".fits", ".txt")
     np.savetxt(new_w_name, rmss_arr.value, fmt="%s")
 
     return new_name, new_w_name
 
 
 @delayed()
-def get_beam(image_sets: List[ImageSet]) -> Path:
+def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
     """Derive a common resolution across all images within a set of ImageSet
 
     Args:
         image_sets (List[ImageSet]): All input beam ImageSets that a common resolution will be derived for
+        cuttoff (float, optional): The maximum major axis of the restoring beam that is allowed when
+        searching for the lowest common beam. Images whose restoring beam's major acis is larger than 
+        this are ignored. Defaults to None.  
 
     Returns:
         Path: Path to the pickled beam object
@@ -428,7 +443,7 @@ def get_beam(image_sets: List[ImageSet]) -> Path:
     # Create a unique hash for the beam log filename
     image_hash = hashlib.md5("".join(image_list).encode()).hexdigest()
 
-    common_beam, _ = beamcon_2D.getmaxbeam(files=image_list)
+    common_beam, _ = beamcon_2D.getmaxbeam(files=image_list, cutoff=cutoff)
 
     logger.info(f"The common beam is: {common_beam=}")
 
@@ -444,7 +459,7 @@ def get_beam(image_sets: List[ImageSet]) -> Path:
 
 @delayed()
 def smooth_imageset(
-    image_set: ImageSet, common_beam_pkl: Path, cutoff: Optional[float] = None
+    image_set: ImageSet, common_beam_pkl: Path, cutoff: Optional[float] = None, aux_mode: Optional[str] = None
 ) -> ImageSet:
     """Smooth all images described within an ImageSet to a desired resolution
 
@@ -452,7 +467,8 @@ def smooth_imageset(
         image_set (ImageSet): Container whose image_list will be convolved to common resolution
         common_beam_pkl (Path): Location of pickle file with beam description
         cutoff (Optional[float], optional): PSF cutoff passed to the beamcon_2D worker. Defaults to None.
-
+        aux_model (Optional[str], optional): The image type in the `aux_lists` property of `image_set` that contains the images to smooth. If
+        not set then the `image_lists` property of `image_set` is used. Defaults to None. 
     Returns:
         ImageSet: A copy of `image_set` pointing to the smoothed images. Note the `aux_images` property is not carried forward.
     """
@@ -467,8 +483,16 @@ def smooth_imageset(
 
     logger.info(f"Smooting {image_set.ms} images")
 
+    images_to_smooth: Dict[str, List[str]]
+    if aux_mode is None:
+        images_to_smooth = image_set.image_lists
+    else:
+        logger.info(f"Extracting images for {aux_mode=}.")
+        assert image_set.aux_lists is not None, f"{image_set=} has empty aux_lists."
+        images_to_smooth = {pol: images for (pol, img_type), images in image_set.aux_lists.items() if aux_mode == img_type}
+
     sm_images = {}
-    for pol, pol_images in image_set.image_lists.items():
+    for pol, pol_images in images_to_smooth.items():
         logger.info(f"Smoothing {pol=} for {image_set.ms}")
         for img in pol_images:
             logger.info(f"Smoothing {img}")
@@ -534,7 +558,7 @@ def fix_ms(ms: Path) -> Path:
 def main(
     msdir: Path,
     out_dir: Path,
-    cutoff: Union[float, None] = None,
+    cutoff: Optional[float] = None,
     robust: float = -0.5,
     pols: str = "IQU",
     nchan: int = 36,
@@ -555,7 +579,8 @@ def main(
     local_rms: bool = False,
     local_rms_window: Union[float, None] = None,
     wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest",
-    multiscale: Union[bool, None] = None,
+    multiscale: Optional[bool] = None,
+    multiscale_scale_bias: Optional[float] = None,
     absmem: Union[float, None] = None,
 ):
     simage = get_wsclean(wsclean=wsclean_path)
@@ -610,6 +635,7 @@ def main(
             local_rms=local_rms,
             local_rms_window=local_rms_window,
             multiscale=multiscale,
+            multiscale_scale_bias=multiscale_scale_bias,
             absmem=absmem,
         )
 
@@ -619,41 +645,44 @@ def main(
     # This requires all imaging rounds to be completed, so the total
     # set of ImageSets are first derived before this is called.
     common_beam_pkl = get_beam(
-        image_sets=image_sets
+        image_sets=image_sets, cutoff=cutoff
     )
 
     # With the final beam each *image* in the ImageSet across IQU are
     # smoothed and then form the cube for each stokes.
     for image_set in image_sets:
-        # Smooth the *images* in an ImageSet across all Stokes. This
-        # limits the number of workers to 36, i.e. this is operating
-        # beamwise
-        sm_image_set = smooth_imageset(
-            image_set,
-            common_beam_pkl=common_beam_pkl,
-            cutoff=cutoff,
-        )
-
-        # Make a cube. This is operating across beams and stokes
-        cube_images = [
-            make_cube(
-                pol=pol,
-                image_set=sm_image_set,
+        for aux_mode in (None, 'residual'):
+            # Smooth the *images* in an ImageSet across all Stokes. This
+            # limits the number of workers to 36, i.e. this is operating
+            # beamwise
+            sm_image_set = smooth_imageset(
+                image_set,
                 common_beam_pkl=common_beam_pkl,
+                cutoff=cutoff,
+                aux_mode=aux_mode
             )
-            for pol in "IQU"
-        ]
 
-        # Clean up all wsclean produced files. The purge variable
-        # is considered within the cleanup function. Not the
-        # ignore_files that is used to preserve the dependency between
-        # dask tasks
-        clean = cleanup(
-            purge=purge,
-            image_sets=[image_set, sm_image_set],
-            ignore_files=cube_images,  # To keep the dask dependency tracking
-        )
-        cleans.append(clean)
+            # Make a cube. This is operating across beams and stokes
+            cube_images = [
+                make_cube(
+                    pol=pol,
+                    image_set=sm_image_set,
+                    common_beam_pkl=common_beam_pkl,
+                    aux_mode=aux_mode
+                )
+                for pol in "IQU"
+            ]
+
+            # Clean up all wsclean produced files. The purge variable
+            # is considered within the cleanup function. Not the
+            # ignore_files that is used to preserve the dependency between
+            # dask tasks
+            clean = cleanup(
+                purge=purge,
+                image_sets=[image_set, sm_image_set],
+                ignore_files=cube_images,  # To keep the dask dependency tracking
+            )
+            cleans.append(clean)
 
     # Trust nothing
     visualize(cleans, filename="compute_graph.pdf", optimize_graph=True, rankdir="LR")
