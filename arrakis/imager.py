@@ -651,6 +651,9 @@ def main(
     # With the final beam each *image* in the ImageSet across IQU are
     # smoothed and then form the cube for each stokes.
     for image_set in image_sets:
+        # Per loop containers since we are iterating over image modes
+        smooth_image_sets = []
+        clean_sm_image_sets = []
         for aux_mode in (None, 'residual'):
             # Smooth the *images* in an ImageSet across all Stokes. This
             # limits the number of workers to 36, i.e. this is operating
@@ -661,6 +664,7 @@ def main(
                 cutoff=cutoff,
                 aux_mode=aux_mode
             )
+            smooth_image_sets.append(sm_image_set)
 
             # Make a cube. This is operating across beams and stokes
             cube_images = [
@@ -673,16 +677,23 @@ def main(
                 for pol in "IQU"
             ]
 
-            # Clean up all wsclean produced files. The purge variable
-            # is considered within the cleanup function. Not the
-            # ignore_files that is used to preserve the dependency between
-            # dask tasks
+            # Clean up smoothed images files. Note the
+            # ignore_files that is used to preserve the 
+            # dependency between dask tasks
             clean = cleanup(
                 purge=purge,
-                image_sets=[image_set, sm_image_set],
+                image_sets=[sm_image_set],
                 ignore_files=cube_images,  # To keep the dask dependency tracking
             )
-            cleans.append(clean)
+            clean_sm_image_sets.append(clean)
+            
+        # Now clean the original output images from wscean
+        clean = cleanup(
+                purge=purge,
+                image_sets=[image_set],
+                ignore_files=clean_sm_image_sets,  # To keep the dask dependency tracking
+            )
+        cleans.append(clean)
 
     # Trust nothing
     visualize(cleans, filename="compute_graph.pdf", optimize_graph=True, rankdir="LR")
