@@ -95,11 +95,7 @@ def cleanup_imageset(purge: bool, image_set: ImageSet) -> None:
                     logger.critical(f"Removing {aux_image}")
                     os.remove(aux_image)
                 except FileNotFoundError:
-                    logger.error(f"Could not find {aux_image}")
-                    logger.error(f"aux_lists: {aux_list}")
-                except FileNotFoundError:
                     logger.critical(f"{aux_image} not available for deletion. ")
-
 
     return
 
@@ -294,29 +290,29 @@ def image_beam(
                 f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}"
             )
 
-        # Get images
-        image_lists = {}
-        aux_lists = {}
-        for pol in pols:
-            imglob = (
-                f"{prefix}*[0-9]-image.fits"
-                if pol == "I"
-                else f"{prefix}*[0-9]-{pol}-image.fits"
+    # Get images
+    image_lists = {}
+    aux_lists = {}
+    for pol in pols:
+        imglob = (
+            f"{prefix}*[0-9]-image.fits"
+            if pol == "I"
+            else f"{prefix}*[0-9]-{pol}-image.fits"
+        )
+        image_list = sorted(glob(imglob))
+        image_lists[pol] = image_list
+
+        logger.info(f"Found {len(image_list)} images for {pol=} {ms}.")
+
+        for aux in ["model", "psf", "residual", "dirty"]:
+            aux_list = (
+                sorted(glob(f"{prefix}*[0-9]-{aux}.fits"))
+                if pol == "I" or aux == "psf"
+                else sorted(glob(f"{prefix}*[0-9]-{pol}-{aux}.fits"))
             )
-            image_list = sorted(glob(imglob))
-            image_lists[pol] = image_list
+            aux_lists[(pol, aux)] = aux_list
 
-            logger.info(f"Found {len(image_list)} images for {pol=} {ms}.")
-
-            for aux in ["model", "psf", "residual", "dirty"]:
-                aux_list = (
-                    sorted(glob(f"{prefix}*[0-9]-{aux}.fits"))
-                    if pol == "I" or aux == "psf"
-                    else sorted(glob(f"{prefix}*[0-9]-{pol}-{aux}.fits"))
-                )
-                aux_lists[(pol, aux)] = aux_list
-
-                logger.info(f"Found {len(aux_list)} images for {pol=} {aux=} {ms}.")
+            logger.info(f"Found {len(aux_list)} images for {pol=} {aux=} {ms}.")
 
     logger.info("Constructing ImageSet")
     image_set = ImageSet(
