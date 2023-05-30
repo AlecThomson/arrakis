@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Arrakis single-field pipeline"""
 import os
+from pathlib import Path
+from typing import Any
 
 import astropy.units as u
 import configargparse
@@ -27,25 +29,6 @@ from arrakis.logger import logger
 from arrakis.utils import port_forward, test_db
 
 
-@task(name="Imaging", skip_on_upstream_skip=False)
-def imaging_task(skip: bool, **kwargs) -> Task:
-    """Imaging task
-
-    Kwargs passed to imager.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs imager.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping imaging task")
-    return imager.main(**kwargs)
-
 # Defining tasks
 cut_task = task(cutout.cutout_islands, name="Cutout")
 linmos_task = task(linmos.main, name="LINMOS")
@@ -54,6 +37,15 @@ cleanup_task = task(cleanup.main, name="Clean up")
 rmsynth_task = task(rmsynth_oncuts.main, name="RM Synthesis")
 rmclean_task = task(rmclean_oncuts.main, name="RM-CLEAN")
 cat_task = task(makecat.main, name="Catalogue")
+imager_task = task(imager.main, name="Imaging stage")
+
+@flow(name="Imaging Arrakis data")
+def process_imager(*args, **kwargs) -> None: 
+    logger.info("Running the imager stage.")
+    
+    imager_task.submit(*args, **kwargs)
+    
+    return
 
 @flow(name="Process the Spice")
 def process_spice(
@@ -174,35 +166,48 @@ def process_spice(
         wait_for=[previous_future],
     ) if not args.skip_cat else previous_future
 
-
-def main(args: configargparse.Namespace) -> None:
-    """Main script
+def save_args(args: configargparse.Namespace) -> Path:
+    """Helper function to create a record of the input configuration arguments that
+    govern the pipeline instance
 
     Args:
-        args (configargparse.Namespace): Command line arguments.
+        args (configargparse.Namespace): Supplied arguments for the Arrakis pipeline instance
+
+    Returns:
+        Path: Output path of the saved file
     """
-    host = args.host
+    args_yaml = yaml.dump(vars(args))
+    args_yaml_f = os.path.abspath(f"{args.field}-config-{Time.now().fits}.yaml")
+    logger.info(f"Saving config to '{args_yaml_f}'")
+    with open(args_yaml_f, "w") as f:
+        f.write(args_yaml)
+    
+    return Path(args_yaml_f)
 
-    if args.dask_config is None:
+def create_client(
+    host: str, 
+    dask_config: str, 
+    field: str,
+    use_mpi: bool,
+    username: str,
+    password: str,
+    port_forward: Any
+) -> Client: 
+    
+    if dask_config is None:
         config_dir = pkg_resources.resource_filename("arrakis", "configs")
-        args.dask_config = f"{config_dir}/default.yaml"
-
-    if args.outfile is None:
-        args.outfile = f"{args.field}.pipe.test.fits"
+        dask_config = f"{config_dir}/default.yaml"
 
     # Following https://github.com/dask/dask-jobqueue/issues/499
-    with open(args.dask_config) as f:
+    with open(dask_config) as f:
         config = yaml.safe_load(f)
 
     config.update(
         {
-            # 'scheduler_options': {
-            # "dashboard_address": f":{args.port}"
-            # },
-            "log_directory": f"{args.field}_{Time.now().fits}_spice_logs/"
+            "log_directory": f"{field}_{Time.now().fits}_spice_logs/"
         }
     )
-    if args.use_mpi:
+    if use_mpi:
         initialize(
             interface=config["interface"],
             local_directory=config["local_directory"],
@@ -210,6 +215,7 @@ def main(args: configargparse.Namespace) -> None:
         )
         client = Client()
     else:
+        # TODO: load the cluster type and initialise it from field specified in the loaded config
         cluster = SLURMCluster(
             **config,
         )
@@ -219,39 +225,93 @@ def main(args: configargparse.Namespace) -> None:
         client = Client(cluster)
 
     test_db(
-        host=args.host,
-        username=args.username,
-        password=args.password,
+        host=host,
+        username=username,
+        password=password,
     )
-
-    args_yaml = yaml.dump(vars(args))
-    args_yaml_f = os.path.abspath(f"{args.field}-config-{Time.now().fits}.yaml")
-    logger.info(f"Saving config to '{args_yaml_f}'")
-    with open(args_yaml_f, "w") as f:
-        f.write(args_yaml)
 
     port = client.scheduler_info()["services"]["dashboard"]
 
     # Forward ports
-    if args.port_forward is not None:
-        for p in args.port_forward:
+    if port_forward is not None:
+        for p in port_forward:
             port_forward(port, p)
 
     # Prin out Dask client info
     logger.info(client.scheduler_info()["services"])
 
-    dask_runner = DaskTaskRunner(address=client.scheduler.address)
+    return client
 
+def create_dask_runner(*args, **kwargs) -> DaskTaskRunner:
+    """Internally creates a Client object via `create_client`, 
+    and then initialises a DaskTaskRunner. 
+
+    Returns:
+        DaskTaskRunner: A Prefect dask based task runner
+    """
+    client = create_client(*args, **kwargs)
+    
+    return DaskTaskRunner(client=client.schedular.address)
+
+def main(args: configargparse.Namespace) -> None:
+    """Main script
+
+    Args:
+        args (configargparse.Namespace): Command line arguments.
+    """
+    host = args.host
+    
+    # Lets save the args as a record for the ages
+    output_args_path = save_args(args)
+    logger.info(f"Saved arguments to {output_args_path}.")
+    
+    if args.outfile is None:
+        outfile = f"{args.field}.pipe.test.fits"
+
+    if args.skip_imager:
+        # This is the client for the imager component of the arrakis 
+        # pipeline. 
+        dask_runner = create_dask_runner(
+            host=args.host, 
+            dask_config=args.imager_dask_config, 
+            field=args.field,
+            use_mpi=args.use_mpi,
+            username=args.username,
+            password=args.password,
+            port_forward=args.port_forward
+        )
+        
+        process_imager.with_options(
+            name=f"Arrakis {args.field}",
+            task_runner=dask_runner
+        ).submit(args)
+    else:
+        logger.warn(f"Skipping the image creation step. ")
+        
+    # This is the client and pipeline for the RM extraction
+    dask_runner = create_dask_runner(
+        host=args.host, 
+        dask_config=args.dask_config, 
+        field=args.field,
+        use_mpi=args.use_mpi,
+        username=args.username,
+        password=args.password,
+        port_forward=args.port_forward
+    )
+    
     # Define flow
     process_spice.with_options(
         name=f"SPICE-RACS {args.field}",
         task_runner=dask_runner
     )(args, host)
 
-    with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
-        executor = DaskExecutor(address=client.scheduler.address)
-        flow.run(executor=executor)
-    client.close()
+    # TODO: Access the client via the `dask_runner`. Perhaps a 
+    #       way to do this is to extend the DaskTaskRunner's 
+    #       destructor and have it create it then. 
+    # with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
+    #     executor = DaskExecutor(address=client.scheduler.address)
+    #     flow.run(executor=executor)
+    # client.close()
 
 
 def cli():
@@ -333,6 +393,12 @@ def cli():
 
     parser.add_argument(
         "--dask_config",
+        type=str,
+        default=None,
+        help="Config file for Dask SlurmCLUSTER.",
+    )
+    parser.add_argument(
+        "--imager_dask_config",
         type=str,
         default=None,
         help="Config file for Dask SlurmCLUSTER.",
