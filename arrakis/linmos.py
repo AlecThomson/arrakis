@@ -1,30 +1,23 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
-import ast
-import logging
 import os
 import shlex
-import subprocess
-import sys
-import time
 import warnings
 from glob import glob
 from logging import disable
 from pathlib import Path
 from pprint import pformat
-from typing import List, Tuple, Union
+from typing import List,Union
 
 import astropy
 import astropy.units as u
-import dask
 import numpy as np
 import pkg_resources
 import pymongo
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
-from dask import delayed, distributed
-from dask.diagnostics import ProgressBar
+from dask import delayed
 from dask.distributed import Client, LocalCluster
 from IPython import embed
 from spectral_cube.utils import SpectralCubeWarning

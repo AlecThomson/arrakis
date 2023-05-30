@@ -13,10 +13,8 @@ x = sin(offset)*cos(angle)/incx + refx
 y = sin(offset)*sin(angle)/incy + refy
 """
 import os
-import time
 import warnings
 from glob import glob
-from shutil import copyfile
 
 import astropy
 import astropy.units as u
@@ -29,18 +27,14 @@ from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from dask import delayed
 from dask.distributed import Client, LocalCluster
-from IPython import embed
-from IPython.core.pylabtools import figsize
+
 
 from arrakis.linmos import gen_seps
 from arrakis.logger import logger, logging
 from arrakis.utils import (
     chunk_dask,
-    coord_to_string,
     get_db,
     getfreq,
-    test_db,
-    tqdm_dask,
 )
 
 
@@ -142,7 +136,6 @@ def interpolate(field, comp, beams, cutdir, septab, holofile, verbose=True):
 def main(
     field,
     datadir,
-    client,
     host,
     holofile,
     username=None,
@@ -210,7 +203,6 @@ def main(
         outputs.append(out)
     futures = chunk_dask(
         outputs=outputs,
-        client=client,
         task_name="leakage plots",
         progress_text="Making leakage plots",
         verbose=verbose,
@@ -304,7 +296,6 @@ def cli():
     main(
         field=args.field,
         datadir=args.datadir,
-        client=client,
         host=args.host,
         holofile=args.holofile,
         username=args.username,
@@ -312,8 +303,9 @@ def cli():
         verbose=args.verbose,
         snr_cut=args.snr,
     )
-    client.close()
 
+    client.close()
+    cluster.close()
 
 if __name__ == "__main__":
     cli()

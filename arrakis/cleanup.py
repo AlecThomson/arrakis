@@ -2,7 +2,6 @@
 """DANGER ZONE: Purge directories of un-needed FITS files."""
 import logging
 import os
-import time
 from glob import glob
 from typing import List, Union
 
@@ -121,7 +120,7 @@ def cli():
     verbose = args.verbose
 
     if verbose:
-        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
 
     cluster = LocalCluster(n_workers=20)
     client = Client(cluster)

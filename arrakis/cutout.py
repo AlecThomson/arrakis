@@ -1,43 +1,29 @@
 #!/usr/bin/env python
 """Produce cutouts from RACS cubes"""
 import argparse
-import functools
-import json
 import logging
 import os
-import shlex
-import subprocess
-import sys
-import time
 import warnings
-from functools import partial
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 import astropy.units as u
-import dask
-import matplotlib.pyplot as plt
 import numpy as np
-import psutil
 import pymongo
 from astropy import units as u
-from astropy.coordinates import Latitude, Longitude, SkyCoord, search_around_sky
+from astropy.coordinates import Latitude, Longitude, SkyCoord
 from astropy.io import fits
-from astropy.table import Table, vstack
 from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
-from astropy.wcs import WCS
 from astropy.wcs.utils import skycoord_to_pixel
 from dask import delayed
-from dask.diagnostics import ProgressBar
 from dask.distributed import Client, LocalCluster, progress
 from distributed import get_client
 from IPython import embed
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
-from tqdm import tqdm, trange
 
 from arrakis.logger import logger
 from arrakis.utils import (
@@ -45,7 +31,6 @@ from arrakis.utils import (
     chunk_dask,
     fix_header,
     get_db,
-    getdata,
     test_db,
     tqdm_dask,
     try_mkdir,
@@ -441,11 +426,6 @@ def main(args: argparse.Namespace, verbose=True) -> None:
         args (argparse.Namespace): Command-line args
         verbose (bool, optional): Verbose output. Defaults to True.
     """
-    cluster = LocalCluster(
-        n_workers=12, threads_per_worker=1, dashboard_address=":9898"
-    )
-    client = Client(cluster)
-    logger.info(client)
     cutout_islands(
         field=args.field,
         directory=args.datadir,
@@ -555,6 +535,12 @@ def cli() -> None:
     if verbose:
         logger.setLevel(logging.INFO)
 
+    cluster = LocalCluster(
+        n_workers=12, threads_per_worker=1, dashboard_address=":9898"
+    )
+    client = Client(cluster)
+    logger.info(client)
+    
     test_db(
         host=args.host,
         username=args.username,

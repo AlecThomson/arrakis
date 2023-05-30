@@ -1,32 +1,21 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
-import json
-import logging
 import os
 import sys
-import time
 import warnings
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
 from typing import List, Union
 
-import dask
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import pymongo
-from astropy.io import fits
-from astropy.wcs import WCS
 from dask import delayed
-from dask.diagnostics import ProgressBar
-from dask.distributed import Client, LocalCluster, progress
-from IPython import embed
+from dask.distributed import Client, LocalCluster
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D
-from RMutils.util_misc import create_frac_spectra
-from spectral_cube import SpectralCube
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 from arrakis.logger import logger
 from arrakis.utils import MyEncoder, chunk_dask, get_db, getfreq, test_db, tqdm_dask
@@ -528,6 +517,9 @@ def cli():
         showPlots=args.showPlots,
         rm_verbose=args.rm_verbose,
     )
+    
+    client.close()
+    cluster.close()
 
 
 if __name__ == "__main__":

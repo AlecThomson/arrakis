@@ -18,7 +18,7 @@ dependencies:
 - dask
 - dask-jobqueue
 - distributed
-- prefect<2
+- prefect
 - python-graphviz
 - bokeh
 - pymongo

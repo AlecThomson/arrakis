@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
-import logging
 import os
-import time
-from pprint import pformat, pprint
+from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 import pymongo
-from dask import delayed, distributed
+from dask import delayed
 from dask.distributed import Client, LocalCluster
-from tqdm import tqdm
 
 from arrakis.linmos import get_yanda, linmos
 from arrakis.logger import logger
@@ -370,6 +367,9 @@ def cli():
         yanda=args.yanda,
         verbose=verbose,
     )
+    
+    client.close()
+    cluster.close()
 
 
 if __name__ == "__main__":

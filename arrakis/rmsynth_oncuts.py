@@ -1,41 +1,29 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
-import functools
-import json
-import logging
 import os
-import pdb
-import subprocess
-import sys
-import time
 import traceback
 import warnings
 from glob import glob
-from pprint import pformat, pprint
+from pprint import pformat
 from shutil import copyfile
-from typing import List, Optional, Tuple, Union
+from typing import Union
 
 import astropy.units as u
-import dask
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import psutil
 import pymongo
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
-from astropy.modeling import fitting, models
+from astropy.modeling import models
 from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from dask import delayed
-from dask.diagnostics import ProgressBar
-from dask.distributed import Client, LocalCluster, progress, wait
+from dask.distributed import Client, LocalCluster
 from IPython import embed
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
 from RMutils.util_misc import create_frac_spectra
-from RMutils.util_plotTk import plot_rmsf_fdf_fig
-from spectral_cube import SpectralCube
 from tqdm import tqdm, trange
 
 from arrakis.logger import logger
@@ -46,7 +34,6 @@ from arrakis.utils import (
     get_db,
     getfreq,
     test_db,
-    tqdm_dask,
     try_mkdir,
 )
 
