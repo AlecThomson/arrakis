@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Arrkis imager"""
+import argparse
 import hashlib
 import logging
 import multiprocessing as mp
@@ -696,11 +697,15 @@ def main(
 
     return compute(cleans)
 
+def imager_parser(parent_parser: bool=True) -> argparse.ArgumentParser:
+    """Return the argument parser for the imager routine. 
 
-def cli():
-    import argparse
+    Args:
+        parent_parser (bool, optional): Ensure the parser is configured so it can be added as a parent to a new parser. This will disables the -h/--help action from being generated. Defaults to True.
 
-    """Command-line interface"""
+    Returns:
+        argparse.ArgumentParser: Arguments required for the imager routine
+    """    
     # Help string to be shown using the -h option
     logostr = """
      mmm   mmm   mmm   mmm   mmm
@@ -726,7 +731,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        add_help=parent_parser, description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
         "msdir",
@@ -867,6 +872,13 @@ def cli():
         default=None,
         help="Path to local wsclean Singularity image",
     )
+    
+    return parser
+    
+def cli():
+
+    """Command-line interface"""
+    parser = imager_parser()    
 
     args = parser.parse_args()
 
