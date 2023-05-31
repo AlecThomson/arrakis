@@ -671,7 +671,7 @@ def main(
                     common_beam_pkl=common_beam_pkl,
                     aux_mode=aux_mode
                 )
-                for pol in "IQU"
+                for pol in pols
             ]
 
             # Clean up smoothed images files. Note the
