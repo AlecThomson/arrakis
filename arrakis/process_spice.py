@@ -251,7 +251,7 @@ def create_dask_runner(*args, **kwargs) -> DaskTaskRunner:
     """
     client = create_client(*args, **kwargs)
     
-    return DaskTaskRunner(client=client.schedular.address)
+    return DaskTaskRunner(client=client.scheduler.address)
 
 def main(args: configargparse.Namespace) -> None:
     """Main script
