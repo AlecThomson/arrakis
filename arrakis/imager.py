@@ -36,6 +36,7 @@ from arrakis.utils import (
     field_idx_from_ms,
     inspect_client,
     wsclean,
+    logo_str
 )
 
 
@@ -706,33 +707,21 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
     Returns:
         argparse.ArgumentParser: Arguments required for the imager routine
     """    
-    # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
+    
     # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
-    Arrakis Stage X:
-    Image calibrated visibilities
+    {logo_str}
 
+    {__doc__}
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
+    img_parser = argparse.ArgumentParser(
         add_help=not parent_parser, description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
+    
+    parser = img_parser.add_argument_group("imaging arguments")
+
     parser.add_argument(
         "msdir",
         type=Path,
@@ -744,9 +733,9 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
         help="Directory to output images",
     )
     parser.add_argument(
-        "--cutoff",
+        "--psf_cutoff",
         type=float,
-        help="Cutoff for smoothing",
+        help="Cutoff for smoothing in units of arcseconds. ",
     )
     parser.add_argument(
         "--robust",
@@ -859,6 +848,7 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
         default=None,
         help="Absolute memory limit in GB",
     )
+    
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--hosted-wsclean",
@@ -873,7 +863,7 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
         help="Path to local wsclean Singularity image",
     )
     
-    return parser
+    return img_parser
     
 def cli():
 

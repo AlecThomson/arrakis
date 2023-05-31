@@ -26,7 +26,7 @@ from arrakis import (
     rmsynth_oncuts,
 )
 from arrakis.logger import logger
-from arrakis.utils import port_forward, test_db
+from arrakis.utils import port_forward, test_db, logo_str
 
 
 # Defining tasks
@@ -319,22 +319,10 @@ def main(args: configargparse.Namespace) -> None:
 def cli():
     """Command-line interface"""
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
 
     descStr = f"""
-    {logostr}
+    {logo_str}
+    
     Arrakis pipeline.
 
     Before running make sure to start a session of mongodb e.g.
@@ -454,104 +442,6 @@ def cli():
         "--verbose_worker",
         action="store_true",
         help="Verbose worker output [False].",
-    )
-
-    image_args = parser.add_argument_group("imaging arguments")
-    image_args.add_argument("--psf_cutoff", type=float, help="Cutoff for smoothing")
-    image_args.add_argument(
-        "--robust",
-        type=float,
-        default=-0.5,
-    )
-    image_args.add_argument(
-        "--nchan",
-        type=int,
-        default=36,
-    )
-    image_args.add_argument(
-        "--pols",
-        type=str,
-        default="IQU",
-    )
-    image_args.add_argument(
-        "--size",
-        type=int,
-        default=4096,
-    )
-    image_args.add_argument(
-        "--scale",
-        type=u.Quantity,
-        default=2.5,
-    )
-    image_args.add_argument(
-        "--mgain",
-        type=float,
-        default=0.8,
-    )
-    image_args.add_argument(
-        "--niter",
-        type=int,
-        default=100_000,
-    )
-    image_args.add_argument(
-        "--nmiter",
-        type=int,
-        default=None,
-    )
-    image_args.add_argument(
-        "--auto_mask",
-        type=float,
-        default=3.0,
-    )
-    image_args.add_argument(
-        "--auto-threshold",
-        type=float,
-        default=1.0,
-    )
-    image_args.add_argument(
-        "--local-rms",
-        action="store_true",
-    )
-    image_args.add_argument(
-        "--force-mask-rounds",
-        type=int,
-        default=None,
-    )
-    image_args.add_argument(
-        "--gridder",
-        type=str,
-        default=None,
-        choices=["direct-ft", "idg", "wgridder", "tuned-wgridder", "wstacking"],
-    )
-    image_args.add_argument(
-        "--taper",
-        type=float,
-        default=None,
-    )
-    image_args.add_argument(
-        "--minuv",
-        type=float,
-        default=0.0,
-    )
-    image_args.add_argument(
-        "--parallel",
-        type=int,
-        default=None,
-    )
-    image_args.add_argument(
-        "--purge",
-        action="store_true",
-        help="Purge intermediate files",
-    )
-    image_args.add_argument(
-        "--mpi",
-        action="store_true",
-        help="Use MPI",
-    )
-    image_args.add_argument(
-        "--reimage",
-        action="store_true",
-        help="Force a new round of imaging. Otherwise, will skip if images already exist.",
     )
 
     cutargs = parser.add_argument_group("cutout arguments")

@@ -56,6 +56,20 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 print = functools.partial(print, flush=True)
 
+# Help string to be shown using the -h option
+logo_str = """
+    mmm   mmm   mmm   mmm   mmm
+    )-(   )-(   )-(   )-(   )-(
+( S ) ( P ) ( I ) ( C ) ( E )
+|   | |   | |   | |   | |   |
+|___| |___| |___| |___| |___|
+    mmm     mmm     mmm     mmm
+    )-(     )-(     )-(     )-(
+( R )   ( A )   ( C )   ( S )
+|   |   |   |   |   |   |   |
+|___|   |___|   |___|   |___|
+
+"""
 
 def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float:
     """Calculate chi squared.
