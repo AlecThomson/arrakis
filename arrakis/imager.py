@@ -697,11 +697,11 @@ def main(
 
     return compute(cleans)
 
-def imager_parser(parent_parser: bool=True) -> argparse.ArgumentParser:
+def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
     """Return the argument parser for the imager routine. 
 
     Args:
-        parent_parser (bool, optional): Ensure the parser is configured so it can be added as a parent to a new parser. This will disables the -h/--help action from being generated. Defaults to True.
+        parent_parser (bool, optional): Ensure the parser is configured so it can be added as a parent to a new parser. This will disables the -h/--help action from being generated. Defaults to False.
 
     Returns:
         argparse.ArgumentParser: Arguments required for the imager routine
@@ -731,7 +731,7 @@ def imager_parser(parent_parser: bool=True) -> argparse.ArgumentParser:
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        add_help=parent_parser, description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        add_help=not parent_parser, description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
         "msdir",

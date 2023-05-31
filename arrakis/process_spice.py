@@ -49,14 +49,16 @@ def process_imager(*args, **kwargs) -> None:
 
 @flow(name="Process the Spice")
 def process_spice(
-    args: configargparse.Namespac, host: str
+    args, host: str
 ) -> None:
     """Workflow to process the SPIRCE-RACS data
 
     Args:
-        args (configargparse.Namespac): Configuration parameters for this run
+        args (configargparse.Namespace): Configuration parameters for this run
         host (str): Host address of the mongoDB. 
     """
+    #TODO: Fix the type assigned to args. The `configargparse.Namespace` was causing issues
+    # with the pydantic validation used by prefect / flow.     
     
     previous_future = None
     previous_future = cut_task.submit(
