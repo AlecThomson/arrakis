@@ -442,10 +442,11 @@ def yes_or_no(question: str) -> bool:
     while "Please answer 'y' or 'n'":
         reply = str(input(question + " (y/n): ")).lower().strip()
         if reply[:1] == "y":
-            ret = True
-        if reply[:1] == "n":
-            ret = False
-    return ret
+            return True
+        elif reply[:1] == "n":
+            return False
+        else:
+            raise ValueError("Please answer 'y' or 'n'")
 
 
 def fix_header(cutout_header: fits.Header, original_header: fits.Header) -> fits.Header:
