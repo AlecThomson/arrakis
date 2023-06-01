@@ -209,7 +209,7 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
 
     """
     basedir = survey_dir / "racs" / "db" / f"epoch_{epoch}"
-    beamfiles = basedir.glob("beam_inf*")
+    beamfiles = list(basedir.glob("beam_inf*"))
 
     # Init first field
     beamfile = beamfiles[0]
