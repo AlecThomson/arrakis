@@ -260,16 +260,18 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
     points = np.unique(list(mastercat["Tile_ID"]))
     fields = np.array(
         [
-            point.replace("_test4_1.05_","_") if epoch ==0 else point for point in points
+            point.replace("_test4_1.05_", "_") if epoch == 0 else point
+            for point in points
         ]
     )
 
     # Fix for no 'test4' in cat
     in_dr1 = np.isin(
         [
-            field.replace("_test4_1.05_","_") if epoch ==0 else field for field in database["FIELD_NAME"]
-        ], 
-        fields
+            field.replace("_test4_1.05_", "_") if epoch == 0 else field
+            for field in database["FIELD_NAME"]
+        ],
+        fields,
     )
 
     beam_list = []
@@ -488,7 +490,8 @@ def cli():
         "-p", "--password", type=str, default=None, help="Password of mongodb."
     )
     parser.add_argument(
-        "-d", "--database-path",
+        "-d",
+        "--database-path",
         type=str,
         default=None,
         help="Path to RACS database (i.e. 'askap_surveys' repo).",
