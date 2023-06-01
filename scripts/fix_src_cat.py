@@ -10,9 +10,10 @@ from IPython import embed
 from tqdm.auto import tqdm
 
 from arrakis.logger import logger
-from arrakis.makecat import fix_blank_units, vot, replace_nans
+from arrakis.makecat import fix_blank_units, replace_nans, vot
 
 logger.setLevel("DEBUG")
+
 
 def add_metadata(vo_table: vot.tree.Table, filename: str):
     """Add metadata to VO Table for CASDA
@@ -32,9 +33,7 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
         os.path.basename(filename).replace(ext, "").replace(".", "_").replace("-", "_")
     )
     idx_fields = "Source_ID,Source_Name,Peak_flux,Total_flux_Source,RA,Dec"
-    pri_fields = (
-        "Source_ID,Source_Name,Peak_flux,Total_flux_Source,RA,Dec"
-    )
+    pri_fields = "Source_ID,Source_Name,Peak_flux,Total_flux_Source,RA,Dec"
     params = [
         vot.tree.Param(
             vo_table,
@@ -62,6 +61,7 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
 
     return vo_table
 
+
 def write_votable(rmtab: Table, outfile: str) -> None:
     # Replace bad column names
     fix_columns = {
@@ -80,6 +80,7 @@ def write_votable(rmtab: Table, outfile: str) -> None:
     vot.writeto(vo_table, outfile)
     # Fix NaNs for CASDA
     replace_nans(outfile)
+
 
 def main(
     source_cat_pth: Path,
