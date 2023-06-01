@@ -241,7 +241,7 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
     return racs_fields
 
 
-def get_beams(mastercat: Table, database: Table) -> List[Dict]:
+def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
     """Get beams from the master catalogue
 
     Args:
@@ -258,11 +258,19 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
 
     # Get DR1 fields
     points = np.unique(list(mastercat["Tile_ID"]))
-    fields = np.array([point[-8:] for point in points])
+    fields = np.array(
+        [
+            point.replace("_test4_1.05_","_") if epoch ==0 else point for point in points
+        ]
+    )
 
     # Fix for no 'test4' in cat
-    # in_dr1 = np.isin(database['FIELD_NAME'], points)
-    in_dr1 = np.isin([field[-8:] for field in database["FIELD_NAME"]], fields)
+    in_dr1 = np.isin(
+        [
+            field.replace("_test4_1.05_","_") if epoch ==0 else field for field in database["FIELD_NAME"]
+        ], 
+        fields
+    )
 
     beam_list = []
     for i, (val, idx) in enumerate(
