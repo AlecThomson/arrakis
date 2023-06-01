@@ -182,7 +182,7 @@ def beam_database(
     )
 
     # Get beams
-    beam_list = get_beams(islandcat, racs_fields)
+    beam_list = get_beams(islandcat, racs_fields, epoch=epoch)
     logger.info("Loading into mongo...")
     json_data = json.loads(json.dumps(beam_list, cls=MyEncoder))
     beams_col, island_col, comp_col = get_db(
