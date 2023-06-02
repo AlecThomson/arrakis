@@ -13,7 +13,7 @@ from dask.distributed import Client, performance_report
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
 from prefect import flow, task
-from prefect_dask import DaskTaskRunner
+from prefect_dask import DaskTaskRunner, get_dask_client
 
 from arrakis import (
     cleanup,
@@ -40,10 +40,11 @@ cat_task = task(makecat.main, name="Catalogue")
 imager_task = task(imager.main, name="Imaging stage")
 
 @flow(name="Imaging Arrakis data")
-def process_imager(*args, **kwargs) -> None: 
+def process_imager(**kwargs) -> None: 
     logger.info("Running the imager stage.")
     
-    imager_task.submit(*args, **kwargs)
+    with get_dask_client():
+        imager_task.submit(**kwargs)
     
     return
 
@@ -187,28 +188,31 @@ def save_args(args: configargparse.Namespace) -> Path:
     return Path(args_yaml_f)
 
 def create_client(
-    host: str, 
     dask_config: str, 
     field: str,
     use_mpi: bool,
-    username: str,
-    password: str,
     port_forward: Any
 ) -> Client: 
-    
+    logger.info('Creating a Client')
     if dask_config is None:
         config_dir = pkg_resources.resource_filename("arrakis", "configs")
         dask_config = f"{config_dir}/default.yaml"
 
     # Following https://github.com/dask/dask-jobqueue/issues/499
     with open(dask_config) as f:
+        logger.info(f"Loading {dask_config}")
         config = yaml.safe_load(f)
 
-    config.update(
-        {
-            "log_directory": f"{field}_{Time.now().fits}_spice_logs/"
-        }
-    )
+    logger.info("Overwriting config attributes.")
+    config["job_cpu"] = config["cores"]
+    config["cores"] = 1
+    config["processes"] = 1
+
+    # config.update(
+    #     {
+    #         "log_directory": f"{field}_{Time.now().fits}_spice_logs/"
+    #     }
+    # )
     if use_mpi:
         initialize(
             interface=config["interface"],
@@ -223,14 +227,11 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
+        cluster.adapt(minimum=1, maximum=36)
+        # cluster.scale(36)
+
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
         client = Client(cluster)
-
-    test_db(
-        host=host,
-        username=username,
-        password=password,
-    )
 
     port = client.scheduler_info()["services"]["dashboard"]
 
@@ -253,7 +254,8 @@ def create_dask_runner(*args, **kwargs) -> DaskTaskRunner:
     """
     client = create_client(*args, **kwargs)
     
-    return DaskTaskRunner(client=client.schedular.address)
+    logger.info('Creating DaskTaskRunner')
+    return DaskTaskRunner(address=client.scheduler.address), client
 
 def main(args: configargparse.Namespace) -> None:
     """Main script
@@ -267,37 +269,71 @@ def main(args: configargparse.Namespace) -> None:
     output_args_path = save_args(args)
     logger.info(f"Saved arguments to {output_args_path}.")
     
+    # Test the mongoDB
+    test_db(
+        host=host,
+        username=args.username,
+        password=args.password,
+    )
+    
     if args.outfile is None:
         outfile = f"{args.field}.pipe.test.fits"
 
-    if args.skip_imager:
+    if not args.skip_imager:
         # This is the client for the imager component of the arrakis 
         # pipeline. 
-        dask_runner = create_dask_runner(
-            host=args.host, 
+        dask_runner, client = create_dask_runner(
             dask_config=args.imager_dask_config, 
             field=args.field,
             use_mpi=args.use_mpi,
-            username=args.username,
-            password=args.password,
             port_forward=args.port_forward
         )
         
+        logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
         process_imager.with_options(
             name=f"Arrakis {args.field}",
             task_runner=dask_runner
-        ).submit(args)
+        )(
+            msdir=args.msdir,
+            out_dir=args.outdir,
+            cutoff=args.psf_cutoff,
+            robust=args.robust,
+            pols=args.pols,
+            nchan=args.nchan,
+            local_rms=args.local_rms,
+            local_rms_window=args.local_rms_window,
+            size=args.size,
+            scale=args.scale,
+            mgain=args.mgain,
+            niter=args.niter,
+            auto_mask=args.auto_mask,
+            force_mask_rounds=args.force_mask_rounds,
+            auto_threshold=args.auto_threshold,
+            minuv=args.minuv,
+            purge=args.purge,
+            taper=args.taper,
+            reimage=args.reimage,
+            parallel_deconvolution=args.parallel,
+            gridder=args.gridder,
+            wsclean_path=Path(args.local_wsclean)
+            if args.local_wsclean
+            else args.hosted_wsclean,
+            multiscale=args.multiscale,
+            multiscale_scale_bias=args.multiscale_scale_bias,
+            absmem=args.absmem
+        )
     else:
         logger.warn(f"Skipping the image creation step. ")
+    
+    if args.imager_only:
+        logger.info(f"Not running any stages are the imager stage. ")
+        return
         
     # This is the client and pipeline for the RM extraction
-    dask_runner = create_dask_runner(
-        host=args.host, 
+    dask_runne, client = create_dask_runner(
         dask_config=args.dask_config, 
         field=args.field,
         use_mpi=args.use_mpi,
-        username=args.username,
-        password=args.password,
         port_forward=args.port_forward
     )
     
@@ -339,7 +375,13 @@ def cli():
         formatter_class=configargparse.RawTextHelpFormatter,
         parents=[imager_parser]
     )
-    parser.add("--config", required=False, is_config_file=True, help="Config file path")
+    parser.add(
+        "--config", 
+        required=False, 
+        is_config_file=True, 
+        help="Config file path"
+    )
+    
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
     )
@@ -409,7 +451,10 @@ def cli():
 
     flowargs = parser.add_argument_group("pipeline flow options")
     flowargs.add_argument(
-        "--skip_imaging", action="store_true", help="Skip imaging stage [False]."
+        "--imager_only", action="store_true", help="Only run the imager component of the pipeline. "
+    )
+    flowargs.add_argument(
+        "--skip_imager", action="store_true", help="Skip imaging stage [False]."
     )
     flowargs.add_argument(
         "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
@@ -611,6 +656,8 @@ def cli():
     verbose = args.verbose
     if verbose:
         logger.setLevel(logger.INFO)
+
+    logger.info(args)
 
     main(args)
 
