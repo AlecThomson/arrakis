@@ -26,14 +26,13 @@ def add_metadata(vo_table: vot.tree.Table, table: Table, filename: str):
     """
     # Add metadata
     for col_idx, col_name in enumerate(table.colnames):
-        col = vo_table.get_first_table().get_field_by_id(col_name)
-        meta_idx = col_idx + 1
-        if f"TCOMM{meta_idx}" in table.meta:
-            logger.info(f"Adding metadata for {col_name}")
-            col.description = table.meta[f"TCOMM{meta_idx}"]
-        if f"TUCD{meta_idx}" in table.meta:
-            logger.info(f"Adding UCD for {col_name}")
-            col.ucd = table.meta[f"TUCD{meta_idx}"]
+        col = table[col_name]
+        vocol = vo_table.get_first_table().get_field_by_id(col_name)
+        if hasattr(col, "description"):
+            logger.info(f"Adding description for {col_name}")
+            vocol.description = col.description
+        logger.info(f"Adding ucd for {col_name}")
+        vocol.ucd = col.meta.get("ucd", "")
     # Add params for CASDA
     if len(vo_table.params) > 0:
         logger.warning(f"{filename} already has params - not adding")
@@ -158,7 +157,6 @@ def main(
     # Write the output cat
     out_pth = spice_cat_pth.parent / ("RACS_DR1_Sources_" + spice_cat_pth.name)
     logger.info(f"Writing corrected catalogue to {out_pth}")
-    # source_cut.write(out_pth, format="votable", overwrite=True)
     write_votable(source_cut, out_pth.as_posix())
 
 
