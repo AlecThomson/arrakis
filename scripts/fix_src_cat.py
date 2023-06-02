@@ -142,6 +142,18 @@ def main(
         seps = source_coords[source_tile_idx].separation(tile_coords)
         source_cut["Separation_Tile_Centre"][source_tile_idx] = seps.deg
 
+    # Fix bad columns
+    bad_cols = {
+        "min": "min_axis",
+        "maj": "maj_axis",
+        "e_min": "e_min_axis",
+        "e_maj": "e_maj_axis",
+    }
+    for bad_col, good_col in bad_cols.items():
+        if bad_col in source_cut.colnames:
+            source_cut.rename_column(bad_col, good_col)
+
+
     # Write the output cat
     out_pth = spice_cat_pth.parent / ("RACS_DR1_Sources_" + spice_cat_pth.name)
     logger.info(f"Writing corrected catalogue to {out_pth}")
