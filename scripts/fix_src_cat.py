@@ -143,10 +143,10 @@ def main(
 
     # Fix bad columns
     bad_cols = {
-        "min": "min_axis",
-        "maj": "maj_axis",
-        "e_min": "e_min_axis",
-        "e_maj": "e_maj_axis",
+        "Min": "Min_axis",
+        "Maj": "Maj_axis",
+        "E_Min": "E_Min_axis",
+        "E_Maj": "E_Maj_axis",
     }
     for bad_col, good_col in bad_cols.items():
         if bad_col in source_cut.colnames:
