@@ -15,7 +15,7 @@ from arrakis.makecat import fix_blank_units, replace_nans, vot
 logger.setLevel("DEBUG")
 
 
-def add_metadata(vo_table: vot.tree.Table, filename: str):
+def add_metadata(vo_table: vot.tree.Table, rmtab: Table, filename: str):
     """Add metadata to VO Table for CASDA
 
     Args:
@@ -24,6 +24,16 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
     Returns:
         vot: VO Table object with metadata
     """
+    # Add metadata
+    for col_idx, col_name in enumerate(rmtab.colnames):
+        col = vo_table.get_first_table().get_field_by_id(col_name)
+        meta_idx = col_idx + 1
+        if f"TCOMM{meta_idx}" in rmtab.meta:
+            logger.info(f"Adding metadata for {col_name}")
+            col.description = rmtab.meta[f"TCOMM{meta_idx}"]
+        if f"TUCD{meta_idx}" in rmtab.meta:
+            logger.info(f"Adding UCD for {col_name}")
+            col.ucd = rmtab.meta[f"TUCD{meta_idx}"]
     # Add params for CASDA
     if len(vo_table.params) > 0:
         logger.warning(f"{filename} already has params - not adding")
@@ -76,7 +86,7 @@ def write_votable(rmtab: Table, outfile: str) -> None:
     rmtab = fix_blank_units(rmtab)
     vo_table = vot.from_table(rmtab)
     vo_table.version = "1.3"
-    vo_table = add_metadata(vo_table, outfile)
+    vo_table = add_metadata(vo_table, rmtab, outfile)
     vot.writeto(vo_table, outfile)
     # Fix NaNs for CASDA
     replace_nans(outfile)
