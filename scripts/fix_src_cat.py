@@ -151,6 +151,7 @@ def main(
     }
     for bad_col, good_col in bad_cols.items():
         if bad_col in source_cut.colnames:
+            logger.info(f"Renaming {bad_col} to {good_col}")
             source_cut.rename_column(bad_col, good_col)
 
 
