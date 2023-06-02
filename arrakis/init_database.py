@@ -426,6 +426,10 @@ def main(
         check_field = (
             yes_or_no("Are you sure you wish to proceed?") if not force else True
         )
+        if database_path is None:
+            logger.critical("Database path is required!")
+            database_path = Path(input("Enter database path:"))
+
         if check_field:
             field_res = field_database(
                 survey_dir=database_path,
