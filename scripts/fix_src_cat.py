@@ -152,6 +152,8 @@ def main(
         if bad_col in source_cut.colnames:
             logger.info(f"Renaming {bad_col} to {good_col}")
             source_cut.rename_column(bad_col, good_col)
+        else:
+            logger.warning(f"{bad_col} not in source catalog")
 
 
     # Write the output cat
