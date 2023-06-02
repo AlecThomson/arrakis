@@ -561,7 +561,7 @@ def main(
     pols: str = "IQU",
     nchan: int = 36,
     size: int = 6074,
-    scale: u.Quantity = 2.5 * u.arcsec,
+    scale: float = 2.5,
     mgain: float = 0.8,
     niter: int = 100_000,
     auto_mask: float = 3,
@@ -584,6 +584,8 @@ def main(
     simage = get_wsclean(wsclean=wsclean_path)
 
     mslist = sorted(msdir.glob("scienceData*_averaged_cal.leakage.ms"))
+
+    scale = scale * u.arcsecond
 
     assert (len(mslist) > 0) & (
         len(mslist) == 36
@@ -759,7 +761,7 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--scale",
-        type=u.Quantity,
+        type=float,
         default=2.5,
     )
     parser.add_argument(
@@ -788,16 +790,16 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
         default=1.0,
     )
     parser.add_argument(
-        "--local-rms",
+        "--local_rms",
         action="store_true",
     )
     parser.add_argument(
-        "--local-rms-window",
+        "--local_rms_window",
         type=float,
         default=None,
     )
     parser.add_argument(
-        "--force-mask-rounds",
+        "--force_mask_rounds",
         type=int,
         default=None,
     )
@@ -843,6 +845,12 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
         help="Use multiscale clean",
     )
     parser.add_argument(
+        '--multiscale_scale_bias',
+        type=float,
+        default=None,
+        help="The multiscale scale bias term provided to wsclean. "
+    )
+    parser.add_argument(
         "--absmem",
         type=float,
         default=None,
@@ -857,7 +865,7 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
         help="Docker or Singularity image for wsclean [docker://alecthomson/wsclean:latest]",
     )
     group.add_argument(
-        "--local-wsclean",
+        "--local_wsclean",
         type=Path,
         default=None,
         help="Path to local wsclean Singularity image",
