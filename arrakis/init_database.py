@@ -182,7 +182,7 @@ def beam_database(
     )
 
     # Get beams
-    beam_list = get_beams(islandcat, racs_fields)
+    beam_list = get_beams(islandcat, racs_fields, epoch=epoch)
     logger.info("Loading into mongo...")
     json_data = json.loads(json.dumps(beam_list, cls=MyEncoder))
     beams_col, island_col, comp_col = get_db(
@@ -209,7 +209,7 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
 
     """
     basedir = survey_dir / "racs" / "db" / f"epoch_{epoch}"
-    beamfiles = basedir.glob("beam_inf*")
+    beamfiles = list(basedir.glob("beam_inf*"))
 
     # Init first field
     beamfile = beamfiles[0]
@@ -241,7 +241,7 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
     return racs_fields
 
 
-def get_beams(mastercat: Table, database: Table) -> List[Dict]:
+def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
     """Get beams from the master catalogue
 
     Args:
@@ -258,11 +258,21 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
 
     # Get DR1 fields
     points = np.unique(list(mastercat["Tile_ID"]))
-    fields = np.array([point[-8:] for point in points])
+    fields = np.array(
+        [
+            point.replace("_test4_1.05_", "_") if epoch == 0 else point
+            for point in points
+        ]
+    )
 
     # Fix for no 'test4' in cat
-    # in_dr1 = np.isin(database['FIELD_NAME'], points)
-    in_dr1 = np.isin([field[-8:] for field in database["FIELD_NAME"]], fields)
+    in_dr1 = np.isin(
+        [
+            field.replace("_test4_1.05_", "_") if epoch == 0 else field
+            for field in database["FIELD_NAME"]
+        ],
+        fields,
+    )
 
     beam_list = []
     for i, (val, idx) in enumerate(
@@ -276,7 +286,7 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
         beams = database[seps[0][idx.astype(int)]]
         for j, field in enumerate(np.unique(beams["FIELD_NAME"])):
             ndx = beams["FIELD_NAME"] == field
-            field = field[-8:]
+            field = field.replace("_test4_1.05_", "_") if epoch == 0 else field
             beam_dict.update(
                 {
                     field: {
@@ -416,6 +426,10 @@ def main(
         check_field = (
             yes_or_no("Are you sure you wish to proceed?") if not force else True
         )
+        if database_path is None:
+            logger.critical("Database path is required!")
+            database_path = Path(input("Enter database path:"))
+
         if check_field:
             field_res = field_database(
                 survey_dir=database_path,
@@ -480,7 +494,8 @@ def cli():
         "-p", "--password", type=str, default=None, help="Password of mongodb."
     )
     parser.add_argument(
-        "-d", "--database-path",
+        "-d",
+        "--database-path",
         type=str,
         default=None,
         help="Path to RACS database (i.e. 'askap_surveys' repo).",

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Post process DR1 source catalog"""
+import os
 from pathlib import Path
 
 import numpy as np
@@ -8,10 +9,86 @@ from astropy.table import Table
 from IPython import embed
 from tqdm.auto import tqdm
 
-from spiceracs.logger import logger
-from spiceracs.makecat import write_votable
+from arrakis.logger import logger
+from arrakis.makecat import fix_blank_units, replace_nans, vot
 
 logger.setLevel("DEBUG")
+
+
+def add_metadata(vo_table: vot.tree.Table, table: Table, filename: str):
+    """Add metadata to VO Table for CASDA
+
+    Args:
+        vo_table (vot): VO Table object
+
+    Returns:
+        vot: VO Table object with metadata
+    """
+    # Add metadata
+    for col_idx, col_name in enumerate(table.colnames):
+        col = table[col_name]
+        vocol = vo_table.get_first_table().get_field_by_id(col_name)
+        if hasattr(col, "description"):
+            logger.info(f"Adding description for {col_name}")
+            vocol.description = col.description
+        logger.info(f"Adding ucd for {col_name}")
+        vocol.ucd = col.meta.get("ucd", "")
+    # Add params for CASDA
+    if len(vo_table.params) > 0:
+        logger.warning(f"{filename} already has params - not adding")
+        return vo_table
+    _, ext = os.path.splitext(filename)
+    cat_name = (
+        os.path.basename(filename).replace(ext, "").replace(".", "_").replace("-", "_")
+    )
+    idx_fields = "Source_ID,Source_Name,Peak_flux,Total_flux_Source,RA,Dec"
+    pri_fields = "Source_ID,Source_Name,Peak_flux,Total_flux_Source,RA,Dec"
+    params = [
+        vot.tree.Param(
+            vo_table,
+            ID="Catalogue_Name",
+            name="Catalogue Name",
+            value=cat_name,
+            arraysize=str(len(cat_name)),
+        ),
+        vot.tree.Param(
+            vo_table,
+            ID="Indexed_Fields",
+            name="Indexed Fields",
+            value=idx_fields,
+            arraysize=str(len(idx_fields)),
+        ),
+        vot.tree.Param(
+            vo_table,
+            ID="Principal_Fields",
+            name="Principal Fields",
+            value=pri_fields,
+            arraysize=str(len(pri_fields)),
+        ),
+    ]
+    vo_table.get_first_table().params.extend(params)
+
+    return vo_table
+
+
+def write_votable(table: Table, outfile: str) -> None:
+    # Replace bad column names
+    fix_columns = {
+        "catalog": "catalog_name",
+        "interval": "obs_interval",
+    }
+    # CASDA needs v1.3
+    for col_name, new_name in fix_columns.items():
+        if col_name in table.colnames:
+            table.rename_column(col_name, new_name)
+    # Fix blank units
+    table = fix_blank_units(table)
+    vo_table = vot.from_table(table)
+    vo_table.version = "1.3"
+    vo_table = add_metadata(vo_table, table, outfile)
+    vot.writeto(vo_table, outfile)
+    # Fix NaNs for CASDA
+    replace_nans(outfile)
 
 
 def main(
@@ -64,10 +141,23 @@ def main(
         seps = source_coords[source_tile_idx].separation(tile_coords)
         source_cut["Separation_Tile_Centre"][source_tile_idx] = seps.deg
 
+    # Fix bad columns
+    bad_cols = {
+        "min": "min_axis",
+        "maj": "maj_axis",
+        "e_min": "e_min_axis",
+        "e_maj": "e_maj_axis",
+    }
+    for bad_col, good_col in bad_cols.items():
+        if bad_col in source_cut.colnames:
+            logger.info(f"Renaming {bad_col} to {good_col}")
+            source_cut.rename_column(bad_col, good_col)
+
+
     # Write the output cat
     out_pth = spice_cat_pth.parent / ("RACS_DR1_Sources_" + spice_cat_pth.name)
     logger.info(f"Writing corrected catalogue to {out_pth}")
-    source_cut.write(out_pth, format="votable", overwrite=True)
+    write_votable(source_cut, out_pth.as_posix())
 
 
 def cli():
