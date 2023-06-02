@@ -286,7 +286,7 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
         beams = database[seps[0][idx.astype(int)]]
         for j, field in enumerate(np.unique(beams["FIELD_NAME"])):
             ndx = beams["FIELD_NAME"] == field
-            field = field[-8:]
+            field = field.replace("_test4_1.05_", "_") if epoch == 0 else field
             beam_dict.update(
                 {
                     field: {
