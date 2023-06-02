@@ -34,6 +34,7 @@ from arrakis.utils import (
     test_db,
     tqdm_dask,
     try_mkdir,
+    logo_str
 )
 
 iers.conf.auto_download = False
@@ -441,25 +442,12 @@ def main(args: argparse.Namespace, verbose=True) -> None:
     logger.info("Done!")
 
 
-def cli() -> None:
-    """Command-line interface"""
-    # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
+def cutout_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
 
-    """
 
     descStr = f"""
-    {logostr}
+    {logo_str}
+    
     Arrakis Stage 1:
     Produce cubelets from a RACS field using a Selavy table.
     If Stokes V is present, it will be squished into RMS spectra.
@@ -470,9 +458,11 @@ def cli() -> None:
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+    cut_parser = argparse.ArgumentParser(
+        add_help=not parent_parser, description=descStr, formatter_class=argparse.RawTextHelpFormatter
     )
+    parser = cut_parser.add_argument_group("cutout arguments")
+
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
     )
@@ -528,6 +518,12 @@ def cli() -> None:
         type=str,
         help="List of Stokes parameters to image [ALL]",
     )
+
+    return cut_parser
+
+def cli() -> None:
+    """Command-line interface"""
+    parser = cutout_parser()    
 
     args = parser.parse_args()
 
