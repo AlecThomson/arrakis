@@ -322,11 +322,11 @@ extra_column_descriptions = {
     },
     "sigma_add": {
         "description": "Sigma_add complexity metric",
-        "ucd": "phys.polarization.rotMeasure;stat.stdev",
+        "ucd": "stat.stdev;phys.polarization.rotMeasure",
     },
     "sigma_add_err": {
         "description": "Error in Sigma_add complexity metric",
-        "ucd": "stat.error;phys.polarization.rotMeasure;stat.stdev",
+        "ucd": "stat.error;phys.polarization.rotMeasure",
     },
     "snr_flag": {
         "description": "SNR flag",
@@ -394,7 +394,7 @@ extra_column_descriptions = {
     },
     "stokesI_model_order": {
         "description": "Order of Stokes I model",
-        "ucd": "stat.fit;meta.number",
+        "ucd": "meta.number;stat.fit",
     },
     "stokesI_model_coef_err": {
         "description": "Error in Stokes I model coefficients",
