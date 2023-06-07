@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Arrakis single-field pipeline"""
 import os
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -40,13 +41,13 @@ cat_task = task(makecat.main, name="Catalogue")
 imager_task = task(imager.main, name="Imaging stage")
 
 @flow(name="Imaging Arrakis data")
-def process_imager(**kwargs) -> None: 
+def process_imager(**kwargs) -> bool: 
     logger.info("Running the imager stage.")
     
     with get_dask_client():
         imager_task.submit(**kwargs)
     
-    return
+    return True
 
 @flow(name="Process the Spice")
 def process_spice(
@@ -227,7 +228,7 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        cluster.adapt(minimum=1, maximum=36)
+        cluster.adapt(minimum=1, maximum=72)
         # cluster.scale(36)
 
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
@@ -315,9 +316,7 @@ def main(args: configargparse.Namespace) -> None:
             reimage=args.reimage,
             parallel_deconvolution=args.parallel,
             gridder=args.gridder,
-            wsclean_path=Path(args.local_wsclean)
-            if args.local_wsclean
-            else args.hosted_wsclean,
+            wsclean_path=Path(args.local_wsclean) if args.local_wsclean else args.hosted_wsclean,
             multiscale=args.multiscale,
             multiscale_scale_bias=args.multiscale_scale_bias,
             absmem=args.absmem
@@ -326,7 +325,7 @@ def main(args: configargparse.Namespace) -> None:
         logger.warn(f"Skipping the image creation step. ")
     
     if args.imager_only:
-        logger.info(f"Not running any stages are the imager stage. ")
+        logger.info(f"Not running any stages after the imager. ")
         return
         
     # This is the client and pipeline for the RM extraction
@@ -655,8 +654,10 @@ def cli():
 
     verbose = args.verbose
     if verbose:
-        logger.setLevel(logger.INFO)
+        logger.setLevel(logging.INFO)
 
+    logger.info(logo_str)
+    logger.info(f"\n\nArguments: ")
     logger.info(args)
 
     main(args)
