@@ -79,7 +79,7 @@ def process_spice(
         previous_future = linmos_task.submit(
                 field=args.field,
                 datadir=args.datadir,
-                survey_dir=args.survey,
+                survey_dir=Path(args.survey),
                 host=host,
                 epoch=args.epoch,
                 holofile=args.holofile,
@@ -229,7 +229,7 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        cluster.adapt(minimum=1, maximum=72)
+        cluster.adapt(minimum=1, maximum=128)
         # cluster.scale(36)
 
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")

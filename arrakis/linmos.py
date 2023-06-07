@@ -51,16 +51,19 @@ def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
     field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
     master_cat = Table.read(field_path)
     master_cat.add_index("FIELD_NAME")
-    master_cat = master_cat.loc[f"RACS_{field}"]
+    master_cat = master_cat.loc[f"{field}"]
     if type(master_cat) is not astropy.table.row.Row:
         master_cat = master_cat[0]
 
     # Look for multiple SBIDs - only need one
-    cats = glob(
-        os.path.join(
-            survey_dir, "racs", "db", "epoch_0", f"beam_inf_*-RACS_{field}.csv"
+    cats_wild = os.path.join(
+            survey_dir, "racs", "db", f"epoch_{epoch}", f"beam_inf_*-RACS_{field}.csv"
         )
-    )
+    cats = glob(cats_wild)
+    
+    if len(cats) == 0:
+        raise FileNotFoundError(f"No catalogues found for {cats_wild=}")
+    
     beam_cat = Table.read(cats[0])
     beam_cat.add_index("BEAM_NUM")
 

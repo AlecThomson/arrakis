@@ -24,7 +24,7 @@ group_area = os.path.abspath("/group/ja3/athomson/spica")
 def main(field, dry_run=False, ncores=10):
     spica_tab = spica.main()
     spica_tab.add_index("Field name")
-    row = spica_tab.loc["Field name", f"RACS_{field}"]
+    row = spica_tab.loc["Field name", f"{field}"]
     cut_dir = os.path.join(
         spice_area, f"{row['CAL SBID']}", f"RACS_test4_1.05_{field}", "cutouts"
     )

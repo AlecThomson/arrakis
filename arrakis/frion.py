@@ -179,16 +179,16 @@ def main(
     islands = list(island_col.find(query_2).sort("Source_ID"))
 
     field_col = get_field_db(host, username=username, password=password)
-    query_3 = {"FIELD_NAME": f"RACS_{field}"}
+    query_3 = {"FIELD_NAME": f"{field}"}
     # Get most recent SBID
     if field_col.count_documents(query_3) > 1:
-        field_datas = list(field_col.find({"FIELD_NAME": f"RACS_{field}"}))
+        field_datas = list(field_col.find({"FIELD_NAME": f"{field}"}))
         sbids = [f["CAL_SBID"] for f in field_datas]
         max_idx = np.argmax(sbids)
         logger.info(f"Using CAL_SBID {sbids[max_idx]}")
         field_data = field_datas[max_idx]
     else:
-        field_data = field_col.find_one({"FIELD_NAME": f"RACS_{field}"})
+        field_data = field_col.find_one({"FIELD_NAME": f"{field}"})
 
     start_time = Time(field_data["SCAN_START"] * u.second, format="mjd")
     end_time = start_time + TimeDelta(field_data["SCAN_TINT"] * u.second)
