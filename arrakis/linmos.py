@@ -322,7 +322,7 @@ def main(
     logger.debug(f"{beams_col = }")
     # Query the DB
     query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
+        "$and": [{f"beams.{field}": {"$exists": True}}]
     }
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))

@@ -168,7 +168,7 @@ def main(
     )
 
     query_1 = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
+        "$and": [{f"beams.{field}": {"$exists": True}}]
     }
 
     beams = list(beams_col.find(query_1).sort("Source_ID"))

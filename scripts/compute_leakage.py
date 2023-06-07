@@ -18,7 +18,7 @@ from arrakis.utils import MyEncoder, get_db, getdata
 def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     # myquery = {'rmsynth1d': True}
     query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
+        "$and": [{f"beams.{field}": {"$exists": True}}]
     }
 
     beams = list(beams_col.find(query).sort("Source_ID"))

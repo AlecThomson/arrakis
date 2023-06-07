@@ -703,7 +703,7 @@ def main(
     logger.info("Starting beams collection query")
     tick = time.time()
     query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
+        "$and": [{f"beams.{field}": {"$exists": True}}]
     }
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
     tock = time.time()

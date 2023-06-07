@@ -158,7 +158,7 @@ def main(
 
     # Query the DB
     beam_query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
+        "$and": [{f"beams.{field}": {"$exists": True}}]
     }
     island_ids = sorted(beams_col.distinct("Source_ID", beam_query))
     isl_query = {"Source_ID": {"$in": island_ids}}

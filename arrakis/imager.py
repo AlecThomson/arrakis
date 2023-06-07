@@ -376,7 +376,9 @@ def make_cube(
             new_base = old_base
             b_idx = new_base.find("beam") + len("beam") + 2
             sub = new_base[b_idx:]
-            new_base = new_base.replace(sub, ".fits")
+            new_base = new_base.replace(
+                sub, ".conv.fits"
+            )
             new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
             new_name = os.path.join(out_dir, new_base)
 

@@ -722,7 +722,7 @@ def main(
     )
 
     beam_query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
+        "$and": [{f"beams.{field}": {"$exists": True}}]
     }
 
     beams = pd.DataFrame(list(beams_col.find(beam_query).sort("Source_ID")))

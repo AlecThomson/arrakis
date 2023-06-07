@@ -247,7 +247,7 @@ def get_args(
     args = []
     for beam_num in beam_list:
         for stoke in stokeslist:
-            wild = f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.fits"
+            wild = f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
             images = glob(wild)
             if len(images) == 0:
                 raise Exception(f"No images found matching '{wild}'")
