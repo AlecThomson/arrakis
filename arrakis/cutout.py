@@ -93,10 +93,10 @@ def cutout(
 
         if imtype == "weight":
             image = image.replace("image.restored", "weights").replace(
-                ".conv.fits", ".txt"
+                ".fits", ".txt"
             )
             outfile = outfile.replace("image.restored", "weights").replace(
-                ".conv.fits", ".txt"
+                ".fits", ".txt"
             )
             copyfile(image, outfile)
             logger.info(f"Written to {outfile}")
@@ -247,10 +247,13 @@ def get_args(
     args = []
     for beam_num in beam_list:
         for stoke in stokeslist:
-            wild = f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
+            wild = f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.fits"
             images = glob(wild)
             if len(images) == 0:
                 raise Exception(f"No images found matching '{wild}'")
+            elif len(images) > 1:
+                raise Exception(f"More than one image found matching '{wild}'. Files {images=}")
+                
             for image in images:
                 args.extend(
                     [
@@ -335,16 +338,27 @@ def cutout_islands(
     directory = os.path.abspath(directory)
     outdir = os.path.join(directory, "cutouts")
 
+    logger.info("Testing database. ")
+    test_db(
+        host=host,
+        username=username,
+        password=password,
+    )
+
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
 
     # Query the DB
     query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
+        "$and": [{f"beams.{field}": {"$exists": True}}]
     }
 
+    print(f"Constructed {query=}")
+
     beams = list(beams_col.find(query).sort("Source_ID"))
+
+    print(f"Returned {beams=}")
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))
     islands = list(
