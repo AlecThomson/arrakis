@@ -92,10 +92,10 @@ def cutout(
         outfile = os.path.join(outdir, outname)
 
         if imtype == "weight":
-            image = image.replace("image.restored", "weights").replace(
+            image = image.replace("image.restored", "weights.restored").replace(
                 ".fits", ".txt"
             )
-            outfile = outfile.replace("image.restored", "weights").replace(
+            outfile = outfile.replace("image.restored", "weights.restored").replace(
                 ".fits", ".txt"
             )
             copyfile(image, outfile)
