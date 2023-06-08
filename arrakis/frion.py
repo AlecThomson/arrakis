@@ -6,7 +6,7 @@ import time
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Optional
 
 import astropy.units as u
 import dask
@@ -72,6 +72,8 @@ def predict_worker(
     freq: np.ndarray,
     cutdir: str,
     plotdir: str,
+    server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    proxy_server: Optional[str] = None,
 ) -> Tuple[str, pymongo.UpdateOne]:
     """Make FRion prediction for a single island
 
@@ -103,6 +105,8 @@ def predict_worker(
         dec=dec,
         timestep=300.0,
         ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
+        server=server, 
+        proxy_server=proxy_server,
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
     predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
@@ -141,10 +145,12 @@ def main(
     field: str,
     outdir: str,
     host: str,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     database=False,
     verbose=True,
+    server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    proxy_server: Optional[str] = None,
 ):
     """Main script
 
@@ -156,6 +162,8 @@ def main(
         password (str, optional): Mongo passwrod. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
         verbose (bool, optional): Verbose output. Defaults to True.
+        server (str, optional): IONEX server. Defaults to "ftp://ftp.aiub.unibe.ch/CODE/".
+        proxy_server (str, optional): Proxy server. Defaults to None.
     """
     # Query database for data
     outdir = os.path.abspath(outdir)
@@ -219,6 +227,8 @@ def main(
             freq=freq.to(u.Hz).value,
             cutdir=cutdir,
             plotdir=plotdir,
+            server=server,
+            proxy_server=proxy_server,
         )
         updates_arrays.append(update)
         # Apply FRion predictions
@@ -322,6 +332,22 @@ def cli():
     )
 
     parser.add_argument(
+        "-s",
+        "--server",
+        type=str,
+        default="ftp://ftp.aiub.unibe.ch/CODE/",
+        help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
+    )
+
+    parser.add_argument(
+        "-p",
+        "--proxy_server",
+        type=str,
+        default=None,
+        help="Proxy server [None].",
+    )
+
+    parser.add_argument(
         "-v", dest="verbose", action="store_true", help="verbose output [False]."
     )
 
@@ -349,6 +375,8 @@ def cli():
         password=args.password,
         database=args.database,
         verbose=verbose,
+        server=args.server,
+        proxy_server=args.proxy_server,
     )
 
 
