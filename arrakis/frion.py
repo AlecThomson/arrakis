@@ -17,9 +17,10 @@ from dask import delayed
 from dask.distributed import Client, LocalCluster, progress, wait
 from FRion import correct, predict
 
-from arrakis.logger import logger
+from arrakis.logger import get_arrakis_logger
 from arrakis.utils import get_db, get_field_db, getfreq, test_db, tqdm_dask, try_mkdir
 
+logger = get_arrakis_logger(__name__)
 
 @delayed
 def correct_worker(
@@ -180,6 +181,8 @@ def main(
 
     field_col = get_field_db(host, username=username, password=password)
     query_3 = {"FIELD_NAME": f"{field}"}
+    logger.info(f"{query_3}")
+    
     # Get most recent SBID
     if field_col.count_documents(query_3) > 1:
         field_datas = list(field_col.find({"FIELD_NAME": f"{field}"}))
@@ -189,6 +192,8 @@ def main(
         field_data = field_datas[max_idx]
     else:
         field_data = field_col.find_one({"FIELD_NAME": f"{field}"})
+
+    logger.info(f"{field_data=}")
 
     start_time = Time(field_data["SCAN_START"] * u.second, format="mjd")
     end_time = start_time + TimeDelta(field_data["SCAN_TINT"] * u.second)

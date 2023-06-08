@@ -25,7 +25,7 @@ from IPython import embed
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 
-from arrakis.logger import logger
+from arrakis.logger import get_arrakis_logger
 from arrakis.utils import (
     MyEncoder,
     chunk_dask,
@@ -46,6 +46,7 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
 
+logger = get_arrakis_logger(__name__)
 
 @delayed
 def cutout(
