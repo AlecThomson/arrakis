@@ -209,6 +209,7 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
 
     """
     basedir = survey_dir / "db" / f"epoch_{epoch}"
+    logger.info(f"Loading RACS database from {basedir}")
     data_file = basedir / "field_data.csv"
     database = Table.read(data_file)
     # Remove rows with SBID < 0
@@ -437,6 +438,7 @@ def main(
                 host=host,
                 username=username,
                 password=password,
+                epoch=epoch,
             )
 
     else:
