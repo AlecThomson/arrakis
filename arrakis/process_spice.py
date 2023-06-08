@@ -86,6 +86,7 @@ def process_spice(
                 username=args.username,
                 password=args.password,
                 yanda=args.yanda,
+                yanda_img=args.yanda_image,
                 stokeslist=["I", "Q", "U"],
                 verbose=True,
                 wait_for=[previous_future],
@@ -459,6 +460,13 @@ def cli():
         type=str,
         default="1.3.0",
         help="Yandasoft version to pull from DockerHub [1.3.0].",
+    )
+    
+    parser.add_argument(
+        "--yanda_image",
+        default=None,
+        type=Path,
+        help="Path to an existing yandasoft singularity container image. "
     )
 
     flowargs = parser.add_argument_group("pipeline flow options")
