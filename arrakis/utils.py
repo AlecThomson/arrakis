@@ -249,7 +249,7 @@ def wsclean(
     spectral_correction: Optional[str] = None,
     no_fast_subminor: bool = False,
     multiscale: bool = False,
-    multiscale_scale_bias: bool = False,
+    multiscale_scale_bias: Optional[float] = None,
     multiscale_max_scales: Optional[int] = None,
     multiscale_scales: Optional[str] = None,
     multiscale_shape: Optional[str] = None,

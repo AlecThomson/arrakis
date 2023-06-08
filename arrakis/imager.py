@@ -399,6 +399,19 @@ def make_cube(
     new_header["CRVAL3"] = freqs[0].value
     new_header["CDELT3"] = np.diff(freqs).mean().value
     new_header["CUNIT3"] = "Hz"
+
+    tmp_header = new_header.copy()
+    # Need to swap NAXIS 3 and 4 to make LINMOS happy - booo
+    for a, b in ((3,4), (4,3)):
+        new_header[f"CTYPE{a}"] = tmp_header[f"CTYPE{b}"]
+        new_header[f"CRPIX{a}"] = tmp_header[f"CRPIX{b}"]
+        new_header[f"CRVAL{a}"] = tmp_header[f"CRVAL{b}"]
+        new_header[f"CDELT{a}"] = tmp_header[f"CDELT{b}"]
+        new_header[f"CUNIT{a}"] = tmp_header[f"CUNIT{b}"]
+
+    # Cube is currently STOKES, FREQ, RA, DEC - needs to be FREQ, STOKES, RA, DEC
+    data_cube = np.moveaxis(data_cube, 1, 0)
+
     # Deserialise beam
     with open(common_beam_pkl, "rb") as f:
         common_beam = pickle.load(f)
@@ -676,7 +689,7 @@ def main(
                     common_beam_pkl=common_beam_pkl,
                     aux_mode=aux_mode
                 )
-                for pol in "IQU"
+                for pol in pols
             ]
 
             # Clean up smoothed images files. Note the
