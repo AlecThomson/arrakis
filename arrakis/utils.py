@@ -1539,8 +1539,19 @@ def getfreq(
     """
     with fits.open(cube, memmap=True, mode="denywrite") as hdulist:
         hdu = hdulist[0]
+        hdr = hdu.header
         data = hdu.data
-    wcs = WCS(hdu)
+    
+    # Two problems. The default 'UTC' stored in 'TIMESYS' is
+    # incompatible with the TIME_SCALE checks in astropy. 
+    # Deleting or coverting to lower case fixes it. Second 
+    # problem, the OBSGEO keywords prompts astropy to apply
+    # a velocity correction, but no SPECSYS has been defined. 
+    for k in ['TIMESYS', 'OBSGEO-X','OBSGEO-Y','OBSGEO-Z']:
+        if k in hdr:
+            del hdr[k]
+    
+    wcs = WCS(hdr)
     freq = wcs.spectral.pixel_to_world(np.arange(data.shape[0]))  # Type: u.Quantity
 
     # Write to file if outdir is specified
