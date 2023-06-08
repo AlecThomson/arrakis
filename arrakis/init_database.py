@@ -211,6 +211,8 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
     basedir = survey_dir / "db" / f"epoch_{epoch}"
     data_file = basedir / "field_data.csv"
     database = Table.read(data_file)
+    # Remove rows with SBID < 0
+    database = database[database["SBID"] >= 0]
 
     # Init first field
     row = database[0]
