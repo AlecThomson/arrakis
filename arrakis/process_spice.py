@@ -257,12 +257,8 @@ def create_dask_runner(*args, **kwargs) -> DaskTaskRunner:
     """
     client = create_client(*args, **kwargs)
     
-<<<<<<< HEAD
     logger.info('Creating DaskTaskRunner')
     return DaskTaskRunner(address=client.scheduler.address), client
-=======
-    return DaskTaskRunner(client=client.scheduler.address)
->>>>>>> imager
 
 def main(args: configargparse.Namespace) -> None:
     """Main script
