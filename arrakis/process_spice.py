@@ -108,6 +108,7 @@ def process_spice(
             password=args.password,
             database=args.database,
             verbose=args.verbose,
+            ionex_cache_path=args.ionex_cache_path,
             wait_for=[previous_future],
         ) if not args.skip_frion else previous_future
         
@@ -663,6 +664,12 @@ def cli():
         type=float,
         default=None,
         help="Further CLEAN in mask to this threshold [False].",
+    )
+    tools.add_argument(
+        '--ionex_cache_path',
+        default=None,
+        type=Path,
+        help="Path to location of cached iONTEC files. "
     )
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args
