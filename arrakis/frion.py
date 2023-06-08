@@ -4,10 +4,9 @@ import logging
 import os
 import time
 from glob import glob
-from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Union
 
 import astropy.units as u
 import dask
@@ -73,7 +72,6 @@ def predict_worker(
     freq: np.ndarray,
     cutdir: str,
     plotdir: str,
-    ionex_cache_path: Optional[Path] = None
 ) -> Tuple[str, pymongo.UpdateOne]:
     """Make FRion prediction for a single island
 
@@ -86,7 +84,7 @@ def predict_worker(
         freq (np.ndarray): Array of frequencies with units
         cutdir (str): Cutout directory
         plotdir (str): Plot directory
-        ionex_cache_path (Path, optional): Path to pre-downloaded iONTEC data. Defaults to None. 
+
     Returns:
         Tuple[str, pymongo.UpdateOne]: FRion prediction file and pymongo update query
     """
@@ -143,11 +141,10 @@ def main(
     field: str,
     outdir: str,
     host: str,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-    database: bool=False,
-    verbose: bool=True,
-    ionex_cache_path: Path=None
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
+    database=False,
+    verbose=True,
 ):
     """Main script
 
@@ -159,7 +156,6 @@ def main(
         password (str, optional): Mongo passwrod. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
         verbose (bool, optional): Verbose output. Defaults to True.
-        ionex_cache_path (Path, optional): Path to cached iontec files. If `None` will be downloaded on the fly. Defaults to None. 
     """
     # Query database for data
     outdir = os.path.abspath(outdir)
@@ -167,9 +163,6 @@ def main(
 
     plotdir = os.path.join(cutdir, "plots")
     try_mkdir(plotdir)
-
-    if ionex_cache_path is not None and not ionex_cache_path.exists():
-        raise FileNotFoundError(f"{ionex_cache_path=} does not exist. ")
 
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
@@ -331,12 +324,6 @@ def cli():
     parser.add_argument(
         "-v", dest="verbose", action="store_true", help="verbose output [False]."
     )
-    parser.add_argument(
-        '--ionex_cache_path',
-        default=None,
-        type=Path,
-        help="Path to location of cached iONTEC files. "
-    )
 
     args = parser.parse_args()
 
@@ -362,7 +349,6 @@ def cli():
         password=args.password,
         database=args.database,
         verbose=verbose,
-        ionex_cache_path=args.ionex_cache_path
     )
 
 
