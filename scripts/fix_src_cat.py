@@ -155,7 +155,6 @@ def main(
         else:
             logger.warning(f"{bad_col} not in source catalog")
 
-
     # Write the output cat
     out_pth = spice_cat_pth.parent / ("RACS_DR1_Sources_" + spice_cat_pth.name)
     logger.info(f"Writing corrected catalogue to {out_pth}")
