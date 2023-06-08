@@ -208,36 +208,35 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
         Table: RACS catalogue table.
 
     """
-    basedir = survey_dir / "racs" / "db" / f"epoch_{epoch}"
-    beamfiles = list(basedir.glob("beam_inf*"))
+    basedir = survey_dir / "db" / f"epoch_{epoch}"
+    data_file = basedir / "field_data.csv"
+    database = Table.read(data_file)
 
     # Init first field
-    beamfile = beamfiles[0]
+    row = database[0]
+    FIELD = row["FIELD_NAME"]
+    SBID = row["SBID"]
+    # Find FIELD and SBID in beamfile name
+    beamfile = basedir / f"beam_inf_{SBID}-{FIELD}.csv"
+    if not beamfile.exists():
+        raise FileNotFoundError(f"{beamfile} not found!")
     racs_fields = Table.read(beamfile)
-    basename = os.path.basename(beamfile)
-    idx = basename.find("RACS")
-    FIELD = basename[idx:-4]
-    SBID = basename[9 : idx - 1]
     racs_fields.add_column(FIELD, name="FIELD_NAME", index=0)
-    racs_fields.add_column(int(SBID), name="SBID", index=0)
+    racs_fields.add_column(SBID, name="SBID", index=0)
 
     # Add in all others
-    for i, beamfile in enumerate(tqdm(beamfiles, desc="Reading RACS database")):
-        if i == 0:
+    for row in tqdm(database[1:], desc="Reading RACS database"):
+        beamfile = basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv"
+        if not beamfile.exists():
+            raise FileNotFoundError(f"{beamfile} not found!")
+        tab = Table.read(beamfile)
+        try:
+            tab.add_column(row['FIELD_NAME'], name="FIELD_NAME", index=0)
+            tab.add_column(row["SBID"], name="SBID", index=0)
+            racs_fields = vstack([racs_fields, tab])
+        except TypeError:
+            logger.warning(f"{SBID} failed...")
             continue
-        else:
-            tab = Table.read(beamfile)
-            basename = beamfile.name
-            idx = basename.find("RACS")
-            FIELD = basename[idx:-4]
-            SBID = basename[9 : idx - 1]
-            try:
-                tab.add_column(FIELD, name="FIELD_NAME", index=0)
-                tab.add_column(int(SBID), name="SBID", index=0)
-                racs_fields = vstack([racs_fields, tab])
-            except TypeError:
-                logger.warning(f"{SBID} failed...")
-                continue
     return racs_fields
 
 
@@ -280,7 +279,7 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
     ):
         beam_dict = {}
         ra = mastercat[val]["RA"]
-        dec = dec = mastercat[val]["Dec"]
+        dec = mastercat[val]["Dec"]
         name = mastercat[val]["Source_Name"]
         isl_id = mastercat[val]["Source_ID"]
         beams = database[seps[0][idx.astype(int)]]
@@ -327,7 +326,7 @@ def field_database(
     Returns:
         InsertManyResult: Field insert object.
     """
-    basedir = survey_dir / "racs" / "db" / f"epoch_{epoch}"
+    basedir = survey_dir / "db" / f"epoch_{epoch}"
     data_file = basedir / "field_data.csv"
     database = Table.read(data_file)
     df = database.to_pandas()
@@ -498,7 +497,7 @@ def cli():
         "--database-path",
         type=str,
         default=None,
-        help="Path to RACS database (i.e. 'askap_surveys' repo).",
+        help="Path to RACS database (i.e. 'askap_surveys/racs' repo).",
     )
 
     parser.add_argument(
