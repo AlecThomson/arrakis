@@ -230,7 +230,7 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        cluster.adapt(minimum=1, maximum=100)
+        cluster.adapt(minimum=1, maximum=65)
         # cluster.scale(36)
 
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
@@ -325,6 +325,8 @@ def main(args: configargparse.Namespace) -> None:
             multiscale_scale_bias=args.multiscale_scale_bias,
             absmem=args.absmem,
         )
+        client.close()
+        del dask_runner
     else:
         logger.warn(f"Skipping the image creation step. ")
 
@@ -333,7 +335,7 @@ def main(args: configargparse.Namespace) -> None:
         return
 
     # This is the client and pipeline for the RM extraction
-    dask_runner, client = create_dask_runner(
+    dask_runner_2, client = create_dask_runner(
         dask_config=args.dask_config,
         field=args.field,
         use_mpi=args.use_mpi,
@@ -342,7 +344,7 @@ def main(args: configargparse.Namespace) -> None:
 
     # Define flow
     process_spice.with_options(
-        name=f"SPICE-RACS {args.field}", task_runner=dask_runner
+        name=f"SPICE-RACS {args.field}", task_runner=dask_runner_2
     )(args, host)
 
     # TODO: Access the client via the `dask_runner`. Perhaps a
