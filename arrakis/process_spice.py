@@ -63,8 +63,7 @@ def process_spice(args, host: str) -> None:
 
     with get_dask_client():
         previous_future = None
-        previous_future = (
-            cut_task.submit(
+        previous_future = cut_task.submit(
                 field=args.field,
                 directory=args.datadir,
                 host=host,
@@ -74,13 +73,10 @@ def process_spice(args, host: str) -> None:
                 stokeslist=["I", "Q", "U"],
                 verbose_worker=args.verbose_worker,
                 dryrun=args.dryrun,
-            )
-            if not args.skip_cutout
-            else previous_future
-        )
+            ) if not args.skip_cutout else previous_future
+        
 
-        previous_future = (
-            linmos_task.submit(
+        previous_future = linmos_task.submit(
                 field=args.field,
                 datadir=args.datadir,
                 survey_dir=Path(args.survey),
@@ -346,13 +342,7 @@ def main(args: configargparse.Namespace) -> None:
 
     # Define flow
     process_spice.with_options(
-<<<<<<< HEAD
-        name=f"SPICE-RACS {args.field}",
-        task_runner=dask_runner,
-        log_prints=True
-=======
         name=f"SPICE-RACS {args.field}", task_runner=dask_runner
->>>>>>> 87edc57214b624e6ebfe438bbc5045bfed4747a2
     )(args, host)
 
     # TODO: Access the client via the `dask_runner`. Perhaps a
