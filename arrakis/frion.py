@@ -6,7 +6,7 @@ import time
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 import astropy.units as u
 import dask
@@ -21,6 +21,7 @@ from arrakis.logger import get_arrakis_logger
 from arrakis.utils import get_db, get_field_db, getfreq, test_db, tqdm_dask, try_mkdir
 
 logger = get_arrakis_logger(__name__)
+
 
 @delayed
 def correct_worker(
@@ -105,7 +106,7 @@ def predict_worker(
         dec=dec,
         timestep=300.0,
         ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
-        server=server, 
+        server=server,
         proxy_server=proxy_server,
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
@@ -176,9 +177,7 @@ def main(
         host=host, username=username, password=password
     )
 
-    query_1 = {
-        "$and": [{f"beams.{field}": {"$exists": True}}]
-    }
+    query_1 = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     beams = list(beams_col.find(query_1).sort("Source_ID"))
     island_ids = sorted(beams_col.distinct("Source_ID", query_1))
@@ -190,7 +189,7 @@ def main(
     field_col = get_field_db(host, username=username, password=password)
     query_3 = {"FIELD_NAME": f"{field}"}
     logger.info(f"{query_3}")
-    
+
     # Get most recent SBID
     if field_col.count_documents(query_3) > 1:
         field_datas = list(field_col.find({"FIELD_NAME": f"{field}"}))

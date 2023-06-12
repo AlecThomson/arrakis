@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Arrakis single-field pipeline"""
-import os
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -27,8 +27,7 @@ from arrakis import (
     rmsynth_oncuts,
 )
 from arrakis.logger import logger
-from arrakis.utils import port_forward, test_db, logo_str
-
+from arrakis.utils import logo_str, port_forward, test_db
 
 # Defining tasks
 cut_task = task(cutout.cutout_islands, name="Cutout")
@@ -40,31 +39,32 @@ rmclean_task = task(rmclean_oncuts.main, name="RM-CLEAN")
 cat_task = task(makecat.main, name="Catalogue")
 imager_task = task(imager.main, name="Imaging stage")
 
+
 @flow(name="Imaging Arrakis data")
-def process_imager(**kwargs) -> bool: 
+def process_imager(**kwargs) -> bool:
     logger.info("Running the imager stage.")
-    
+
     with get_dask_client():
         imager_task.submit(**kwargs)
-    
+
     return True
 
+
 @flow(name="Process the Spice")
-def process_spice(
-    args, host: str
-) -> None:
+def process_spice(args, host: str) -> None:
     """Workflow to process the SPIRCE-RACS data
 
     Args:
         args (configargparse.Namespace): Configuration parameters for this run
-        host (str): Host address of the mongoDB. 
+        host (str): Host address of the mongoDB.
     """
-    #TODO: Fix the type assigned to args. The `configargparse.Namespace` was causing issues
-    # with the pydantic validation used by prefect / flow.     
-    
+    # TODO: Fix the type assigned to args. The `configargparse.Namespace` was causing issues
+    # with the pydantic validation used by prefect / flow.
+
     with get_dask_client():
         previous_future = None
-        previous_future = cut_task.submit(
+        previous_future = (
+            cut_task.submit(
                 field=args.field,
                 directory=args.datadir,
                 host=host,
@@ -74,9 +74,13 @@ def process_spice(
                 stokeslist=["I", "Q", "U"],
                 verbose_worker=args.verbose_worker,
                 dryrun=args.dryrun,
-            ) if not args.skip_cutout else previous_future
-        
-        previous_future = linmos_task.submit(
+            )
+            if not args.skip_cutout
+            else previous_future
+        )
+
+        previous_future = (
+            linmos_task.submit(
                 field=args.field,
                 datadir=args.datadir,
                 survey_dir=Path(args.survey),
@@ -90,87 +94,110 @@ def process_spice(
                 stokeslist=["I", "Q", "U"],
                 verbose=True,
                 wait_for=[previous_future],
-            ) if not args.skip_linmos else previous_future
-        
-            
-        previous_future = cleanup_task.submit(
-            datadir=args.datadir,
-            stokeslist=["I", "Q", "U"],
-            verbose=True,
-            wait_for=[previous_future],
-        ) if not args.skip_cleanup else previous_future
-        
-        previous_future = frion_task.submit(
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            database=args.database,
-            verbose=args.verbose,
-            wait_for=[previous_future],
-        ) if not args.skip_frion else previous_future
-        
-        previous_future = rmsynth_task.submit(
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            savePlots=args.savePlots,
-            weightType=args.weightType,
-            fitRMSF=args.fitRMSF,
-            phiMax_radm2=args.phiMax_radm2,
-            dPhi_radm2=args.dPhi_radm2,
-            nSamples=args.nSamples,
-            polyOrd=args.polyOrd,
-            noStokesI=args.noStokesI,
-            showPlots=args.showPlots,
-            not_RMSF=args.not_RMSF,
-            rm_verbose=args.rm_verbose,
-            debug=args.debug,
-            fit_function=args.fit_function,
-            tt0=args.tt0,
-            tt1=args.tt1,
-            ion=True,
-            do_own_fit=args.do_own_fit,
-            wait_for=[previous_future],
-        ) if not args.skip_rmsynth else previous_future
-        
-        previous_future = rmclean_task.submit(
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            cutoff=args.cutoff,
-            maxIter=args.maxIter,
-            gain=args.gain,
-            window=args.window,
-            showPlots=args.showPlots,
-            rm_verbose=args.rm_verbose,
-            wait_for=[previous_future],
-        ) if not args.skip_rmclean else previous_future 
-        
-        previous_future = cat_task.submit(
-            field=args.field,
-            host=host,
-            username=args.username,
-            password=args.password,
-            verbose=args.verbose,
-            outfile=args.outfile,
-            wait_for=[previous_future],
-        ) if not args.skip_cat else previous_future
+            )
+            if not args.skip_linmos
+            else previous_future
+        )
+
+        previous_future = (
+            cleanup_task.submit(
+                datadir=args.datadir,
+                stokeslist=["I", "Q", "U"],
+                verbose=True,
+                wait_for=[previous_future],
+            )
+            if not args.skip_cleanup
+            else previous_future
+        )
+
+        previous_future = (
+            frion_task.submit(
+                field=args.field,
+                outdir=args.datadir,
+                host=host,
+                username=args.username,
+                password=args.password,
+                database=args.database,
+                verbose=args.verbose,
+                wait_for=[previous_future],
+            )
+            if not args.skip_frion
+            else previous_future
+        )
+
+        previous_future = (
+            rmsynth_task.submit(
+                field=args.field,
+                outdir=args.datadir,
+                host=host,
+                username=args.username,
+                password=args.password,
+                dimension=args.dimension,
+                verbose=args.verbose,
+                database=args.database,
+                validate=args.validate,
+                limit=args.limit,
+                savePlots=args.savePlots,
+                weightType=args.weightType,
+                fitRMSF=args.fitRMSF,
+                phiMax_radm2=args.phiMax_radm2,
+                dPhi_radm2=args.dPhi_radm2,
+                nSamples=args.nSamples,
+                polyOrd=args.polyOrd,
+                noStokesI=args.noStokesI,
+                showPlots=args.showPlots,
+                not_RMSF=args.not_RMSF,
+                rm_verbose=args.rm_verbose,
+                debug=args.debug,
+                fit_function=args.fit_function,
+                tt0=args.tt0,
+                tt1=args.tt1,
+                ion=True,
+                do_own_fit=args.do_own_fit,
+                wait_for=[previous_future],
+            )
+            if not args.skip_rmsynth
+            else previous_future
+        )
+
+        previous_future = (
+            rmclean_task.submit(
+                field=args.field,
+                outdir=args.datadir,
+                host=host,
+                username=args.username,
+                password=args.password,
+                dimension=args.dimension,
+                verbose=args.verbose,
+                database=args.database,
+                validate=args.validate,
+                limit=args.limit,
+                cutoff=args.cutoff,
+                maxIter=args.maxIter,
+                gain=args.gain,
+                window=args.window,
+                showPlots=args.showPlots,
+                rm_verbose=args.rm_verbose,
+                wait_for=[previous_future],
+            )
+            if not args.skip_rmclean
+            else previous_future
+        )
+
+        previous_future = (
+            cat_task.submit(
+                field=args.field,
+                host=host,
+                username=args.username,
+                password=args.password,
+                verbose=args.verbose,
+                outfile=args.outfile,
+                wait_for=[previous_future],
+            )
+            if not args.skip_cat
+            else previous_future
+        )
+
 
 def save_args(args: configargparse.Namespace) -> Path:
     """Helper function to create a record of the input configuration arguments that
@@ -187,16 +214,14 @@ def save_args(args: configargparse.Namespace) -> Path:
     logger.info(f"Saving config to '{args_yaml_f}'")
     with open(args_yaml_f, "w") as f:
         f.write(args_yaml)
-    
+
     return Path(args_yaml_f)
 
+
 def create_client(
-    dask_config: str, 
-    field: str,
-    use_mpi: bool,
-    port_forward: Any
-) -> Client: 
-    logger.info('Creating a Client')
+    dask_config: str, field: str, use_mpi: bool, port_forward: Any
+) -> Client:
+    logger.info("Creating a Client")
     if dask_config is None:
         config_dir = pkg_resources.resource_filename("arrakis", "configs")
         dask_config = f"{config_dir}/default.yaml"
@@ -248,17 +273,19 @@ def create_client(
 
     return client
 
+
 def create_dask_runner(*args, **kwargs) -> DaskTaskRunner:
-    """Internally creates a Client object via `create_client`, 
-    and then initialises a DaskTaskRunner. 
+    """Internally creates a Client object via `create_client`,
+    and then initialises a DaskTaskRunner.
 
     Returns:
         DaskTaskRunner: A Prefect dask based task runner
     """
     client = create_client(*args, **kwargs)
-    
-    logger.info('Creating DaskTaskRunner')
+
+    logger.info("Creating DaskTaskRunner")
     return DaskTaskRunner(address=client.scheduler.address), client
+
 
 def main(args: configargparse.Namespace) -> None:
     """Main script
@@ -267,35 +294,34 @@ def main(args: configargparse.Namespace) -> None:
         args (configargparse.Namespace): Command line arguments.
     """
     host = args.host
-    
+
     # Lets save the args as a record for the ages
     output_args_path = save_args(args)
     logger.info(f"Saved arguments to {output_args_path}.")
-    
+
     # Test the mongoDB
     test_db(
         host=host,
         username=args.username,
         password=args.password,
     )
-    
+
     if args.outfile is None:
         outfile = f"{args.field}.pipe.test.fits"
 
     if not args.skip_imager:
-        # This is the client for the imager component of the arrakis 
-        # pipeline. 
+        # This is the client for the imager component of the arrakis
+        # pipeline.
         dask_runner, client = create_dask_runner(
-            dask_config=args.imager_dask_config, 
+            dask_config=args.imager_dask_config,
             field=args.field,
             use_mpi=args.use_mpi,
-            port_forward=args.port_forward
+            port_forward=args.port_forward,
         )
-        
+
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
         process_imager.with_options(
-            name=f"Arrakis {args.field}",
-            task_runner=dask_runner
+            name=f"Arrakis {args.field}", task_runner=dask_runner
         )(
             msdir=args.msdir,
             out_dir=args.outdir,
@@ -318,35 +344,36 @@ def main(args: configargparse.Namespace) -> None:
             reimage=args.reimage,
             parallel_deconvolution=args.parallel,
             gridder=args.gridder,
-            wsclean_path=Path(args.local_wsclean) if args.local_wsclean else args.hosted_wsclean,
+            wsclean_path=Path(args.local_wsclean)
+            if args.local_wsclean
+            else args.hosted_wsclean,
             multiscale=args.multiscale,
             multiscale_scale_bias=args.multiscale_scale_bias,
-            absmem=args.absmem
+            absmem=args.absmem,
         )
     else:
         logger.warn(f"Skipping the image creation step. ")
-    
+
     if args.imager_only:
         logger.info(f"Not running any stages after the imager. ")
         return
-        
+
     # This is the client and pipeline for the RM extraction
     dask_runner, client = create_dask_runner(
-        dask_config=args.dask_config, 
+        dask_config=args.dask_config,
         field=args.field,
         use_mpi=args.use_mpi,
-        port_forward=args.port_forward
+        port_forward=args.port_forward,
     )
-    
+
     # Define flow
     process_spice.with_options(
-        name=f"SPICE-RACS {args.field}",
-        task_runner=dask_runner
+        name=f"SPICE-RACS {args.field}", task_runner=dask_runner
     )(args, host)
 
-    # TODO: Access the client via the `dask_runner`. Perhaps a 
-    #       way to do this is to extend the DaskTaskRunner's 
-    #       destructor and have it create it then. 
+    # TODO: Access the client via the `dask_runner`. Perhaps a
+    #       way to do this is to extend the DaskTaskRunner's
+    #       destructor and have it create it then.
     # with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
     #     executor = DaskExecutor(address=client.scheduler.address)
     #     flow.run(executor=executor)
@@ -374,15 +401,10 @@ def cli():
         default_config_files=[".default_config.txt"],
         description=descStr,
         formatter_class=configargparse.RawTextHelpFormatter,
-        parents=[imager_parser]
+        parents=[imager_parser],
     )
-    parser.add(
-        "--config", 
-        required=False, 
-        is_config_file=True, 
-        help="Config file path"
-    )
-    
+    parser.add("--config", required=False, is_config_file=True, help="Config file path")
+
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
     )
@@ -393,7 +415,7 @@ def cli():
         type=str,
         help="Directory containing data cubes in FITS format.",
     )
-    
+
     parser.add_argument(
         "survey",
         type=str,
@@ -461,17 +483,19 @@ def cli():
         default="1.3.0",
         help="Yandasoft version to pull from DockerHub [1.3.0].",
     )
-    
+
     parser.add_argument(
         "--yanda_image",
         default=None,
         type=Path,
-        help="Path to an existing yandasoft singularity container image. "
+        help="Path to an existing yandasoft singularity container image. ",
     )
 
     flowargs = parser.add_argument_group("pipeline flow options")
     flowargs.add_argument(
-        "--imager_only", action="store_true", help="Only run the imager component of the pipeline. "
+        "--imager_only",
+        action="store_true",
+        help="Only run the imager component of the pipeline. ",
     )
     flowargs.add_argument(
         "--skip_imager", action="store_true", help="Skip imaging stage [False]."

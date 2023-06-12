@@ -4,6 +4,7 @@
 
 import logging
 
+
 # Create formatter
 # formatter = logging.Formatter(
 #     "SPICE: %(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s"
@@ -32,7 +33,7 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-def get_arrakis_logger(name: str='arrakis') -> logging.Logger:
+def get_arrakis_logger(name: str = "arrakis") -> logging.Logger:
     """Will construct a logger object.
 
     Args:
@@ -48,11 +49,12 @@ def get_arrakis_logger(name: str='arrakis') -> logging.Logger:
     # Create console handler and set level to debug
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
-    
+
     # Add formatter to ch
     ch.setFormatter(CustomFormatter())
     logger.addHandler(ch)
-        
+
     return logger
+
 
 logger = get_arrakis_logger()

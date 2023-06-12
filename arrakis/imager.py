@@ -36,8 +36,8 @@ from arrakis.utils import (
     chunk_dask,
     field_idx_from_ms,
     inspect_client,
+    logo_str,
     wsclean,
-    logo_str
 )
 
 
@@ -156,7 +156,7 @@ def image_beam(
     local_rms: bool = False,
     local_rms_window: Optional[float] = None,
     multiscale: bool = False,
-    multiscale_scale_bias: Optional[float] = None
+    multiscale_scale_bias: Optional[float] = None,
 ) -> ImageSet:
     """Image a single beam"""
     logger = logging.getLogger(__name__)
@@ -251,7 +251,7 @@ def image_beam(
         local_rms=local_rms,
         local_rms_window=local_rms_window,
         multiscale=multiscale,
-        multiscale_scale_bias=multiscale_scale_bias
+        multiscale_scale_bias=multiscale_scale_bias,
     )
     commands.append(command)
 
@@ -329,10 +329,7 @@ def image_beam(
 
 @delayed(nout=2)
 def make_cube(
-    pol: str,
-    image_set: ImageSet,
-    common_beam_pkl: Path,
-    aux_mode: Optional[str] = None
+    pol: str, image_set: ImageSet, common_beam_pkl: Path, aux_mode: Optional[str] = None
 ) -> Tuple[Path, Path]:
     """Make a cube from the images"""
     logger = logging.getLogger(__name__)
@@ -341,7 +338,7 @@ def make_cube(
     logger.info(f"Creating cube for {pol=} {image_set.ms=}")
     image_list = image_set.image_lists[pol]
 
-    image_type = 'restored' if aux_mode is None else aux_mode
+    image_type = "restored" if aux_mode is None else aux_mode
 
     # First combine images into cubes
     freqs = []
@@ -377,9 +374,7 @@ def make_cube(
             new_base = old_base
             b_idx = new_base.find("beam") + len("beam") + 2
             sub = new_base[b_idx:]
-            new_base = new_base.replace(
-                sub, ".conv.fits"
-            )
+            new_base = new_base.replace(sub, ".conv.fits")
             new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
             new_name = os.path.join(out_dir, new_base)
 
@@ -403,7 +398,7 @@ def make_cube(
 
     tmp_header = new_header.copy()
     # Need to swap NAXIS 3 and 4 to make LINMOS happy - booo
-    for a, b in ((3,4), (4,3)):
+    for a, b in ((3, 4), (4, 3)):
         new_header[f"CTYPE{a}"] = tmp_header[f"CTYPE{b}"]
         new_header[f"CRPIX{a}"] = tmp_header[f"CRPIX{b}"]
         new_header[f"CRVAL{a}"] = tmp_header[f"CRVAL{b}"]
@@ -424,9 +419,11 @@ def make_cube(
     # Must be of the format:
     # #Channel Weight
     # 0 1234.5
-    # 1 6789.0  
+    # 1 6789.0
     # etc.
-    new_w_name = new_name.replace(f"image.{image_type}", f"weights.{image_type}").replace(".fits", ".txt")
+    new_w_name = new_name.replace(
+        f"image.{image_type}", f"weights.{image_type}"
+    ).replace(".fits", ".txt")
     data = dict(
         Channel=np.arange(len(rmss_arr.value)),
         Weight=rmss_arr.value,
@@ -444,8 +441,8 @@ def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
     Args:
         image_sets (List[ImageSet]): All input beam ImageSets that a common resolution will be derived for
         cuttoff (float, optional): The maximum major axis of the restoring beam that is allowed when
-        searching for the lowest common beam. Images whose restoring beam's major acis is larger than 
-        this are ignored. Defaults to None.  
+        searching for the lowest common beam. Images whose restoring beam's major acis is larger than
+        this are ignored. Defaults to None.
 
     Returns:
         Path: Path to the pickled beam object
@@ -483,7 +480,10 @@ def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
 
 @delayed()
 def smooth_imageset(
-    image_set: ImageSet, common_beam_pkl: Path, cutoff: Optional[float] = None, aux_mode: Optional[str] = None
+    image_set: ImageSet,
+    common_beam_pkl: Path,
+    cutoff: Optional[float] = None,
+    aux_mode: Optional[str] = None,
 ) -> ImageSet:
     """Smooth all images described within an ImageSet to a desired resolution
 
@@ -492,7 +492,7 @@ def smooth_imageset(
         common_beam_pkl (Path): Location of pickle file with beam description
         cutoff (Optional[float], optional): PSF cutoff passed to the beamcon_2D worker. Defaults to None.
         aux_model (Optional[str], optional): The image type in the `aux_lists` property of `image_set` that contains the images to smooth. If
-        not set then the `image_lists` property of `image_set` is used. Defaults to None. 
+        not set then the `image_lists` property of `image_set` is used. Defaults to None.
     Returns:
         ImageSet: A copy of `image_set` pointing to the smoothed images. Note the `aux_images` property is not carried forward.
     """
@@ -513,7 +513,11 @@ def smooth_imageset(
     else:
         logger.info(f"Extracting images for {aux_mode=}.")
         assert image_set.aux_lists is not None, f"{image_set=} has empty aux_lists."
-        images_to_smooth = {pol: images for (pol, img_type), images in image_set.aux_lists.items() if aux_mode == img_type}
+        images_to_smooth = {
+            pol: images
+            for (pol, img_type), images in image_set.aux_lists.items()
+            if aux_mode == img_type
+        }
 
     sm_images = {}
     for pol, pol_images in images_to_smooth.items():
@@ -670,9 +674,7 @@ def main(
     # Compute the smallest beam that all images can be convolved to.
     # This requires all imaging rounds to be completed, so the total
     # set of ImageSets are first derived before this is called.
-    common_beam_pkl = get_beam(
-        image_sets=image_sets, cutoff=cutoff
-    )
+    common_beam_pkl = get_beam(image_sets=image_sets, cutoff=cutoff)
 
     # With the final beam each *image* in the ImageSet across IQU are
     # smoothed and then form the cube for each stokes.
@@ -680,7 +682,7 @@ def main(
         # Per loop containers since we are iterating over image modes
         smooth_image_sets = []
         clean_sm_image_sets = []
-        for aux_mode in (None, 'residual'):
+        for aux_mode in (None, "residual"):
             # Smooth the *images* in an ImageSet across all Stokes. This
             # limits the number of workers to 36, i.e. this is operating
             # beamwise
@@ -688,7 +690,7 @@ def main(
                 image_set,
                 common_beam_pkl=common_beam_pkl,
                 cutoff=cutoff,
-                aux_mode=aux_mode
+                aux_mode=aux_mode,
             )
             smooth_image_sets.append(sm_image_set)
 
@@ -698,13 +700,13 @@ def main(
                     pol=pol,
                     image_set=sm_image_set,
                     common_beam_pkl=common_beam_pkl,
-                    aux_mode=aux_mode
+                    aux_mode=aux_mode,
                 )
                 for pol in pols
             ]
 
             # Clean up smoothed images files. Note the
-            # ignore_files that is used to preserve the 
+            # ignore_files that is used to preserve the
             # dependency between dask tasks
             clean = cleanup(
                 purge=purge,
@@ -712,13 +714,13 @@ def main(
                 ignore_files=cube_images,  # To keep the dask dependency tracking
             )
             clean_sm_image_sets.append(clean)
-            
+
         # Now clean the original output images from wscean
         clean = cleanup(
-                purge=purge,
-                image_sets=[image_set],
-                ignore_files=clean_sm_image_sets,  # To keep the dask dependency tracking
-            )
+            purge=purge,
+            image_sets=[image_set],
+            ignore_files=clean_sm_image_sets,  # To keep the dask dependency tracking
+        )
         cleans.append(clean)
 
     # Trust nothing
@@ -726,16 +728,17 @@ def main(
 
     return compute(cleans)
 
-def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
-    """Return the argument parser for the imager routine. 
+
+def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Return the argument parser for the imager routine.
 
     Args:
         parent_parser (bool, optional): Ensure the parser is configured so it can be added as a parent to a new parser. This will disables the -h/--help action from being generated. Defaults to False.
 
     Returns:
         argparse.ArgumentParser: Arguments required for the imager routine
-    """    
-    
+    """
+
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -745,9 +748,11 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
 
     # Parse the command line options
     img_parser = argparse.ArgumentParser(
-        add_help=not parent_parser, description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
-    
+
     parser = img_parser.add_argument_group("imaging arguments")
 
     parser.add_argument(
@@ -871,10 +876,10 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
         help="Use multiscale clean",
     )
     parser.add_argument(
-        '--multiscale_scale_bias',
+        "--multiscale_scale_bias",
         type=float,
         default=None,
-        help="The multiscale scale bias term provided to wsclean. "
+        help="The multiscale scale bias term provided to wsclean. ",
     )
     parser.add_argument(
         "--absmem",
@@ -882,7 +887,7 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
         default=None,
         help="Absolute memory limit in GB",
     )
-    
+
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--hosted-wsclean",
@@ -896,13 +901,13 @@ def imager_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
         default=None,
         help="Path to local wsclean Singularity image",
     )
-    
-    return img_parser
-    
-def cli():
 
+    return img_parser
+
+
+def cli():
     """Command-line interface"""
-    parser = imager_parser()    
+    parser = imager_parser()
 
     args = parser.parse_args()
 
