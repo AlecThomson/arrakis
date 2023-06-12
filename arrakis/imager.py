@@ -16,6 +16,7 @@ import numpy as np
 from astropy import units as u
 from astropy.io import fits
 from astropy.stats import mad_std
+from astropy.table import Table
 from astropy.wcs import WCS
 from casatasks import vishead
 from dask import compute, delayed, visualize
@@ -419,9 +420,19 @@ def make_cube(
     fits.writeto(new_name, data_cube, new_header, overwrite=True)
     logger.info(f"Written {new_name}")
 
-    # Copy image cube
+    # Write out weights
+    # Must be of the format:
+    # #Channel Weight
+    # 0 1234.5
+    # 1 6789.0  
+    # etc.
     new_w_name = new_name.replace(f"image.{image_type}", f"weights.{image_type}").replace(".fits", ".txt")
-    np.savetxt(new_w_name, rmss_arr.value, fmt="%s")
+    data = dict(
+        Channel=np.arange(len(rmss_arr.value)),
+        Weight=rmss_arr.value,
+    )
+    tab = Table(data)
+    tab.write(new_w_name, format="ascii.commented_header", overwrite=True)
 
     return new_name, new_w_name
 
