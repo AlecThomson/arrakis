@@ -7,7 +7,7 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from typing import List,Union, Optional
+from typing import List, Optional, Union
 
 import astropy
 import astropy.units as u
@@ -58,13 +58,13 @@ def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
 
     # Look for multiple SBIDs - only need one
     cats_wild = os.path.join(
-            survey_dir, "db", f"epoch_{epoch}", f"beam_inf_*-{field}.csv"
-        )
+        survey_dir, "db", f"epoch_{epoch}", f"beam_inf_*-{field}.csv"
+    )
     cats = glob(cats_wild)
-    
+
     if len(cats) == 0:
         raise FileNotFoundError(f"No catalogues found for {cats_wild=}")
-    
+
     beam_cat = Table.read(cats[0])
     beam_cat.add_index("BEAM_NUM")
 
@@ -205,14 +205,16 @@ linmos.removeleakage    = true
 
 
 @delayed
-def linmos(parset: str, fieldname: str, image: str, holofile: Union[Path,str], verbose=False) -> pymongo.UpdateOne:
+def linmos(
+    parset: str, fieldname: str, image: str, holofile: Union[Path, str], verbose=False
+) -> pymongo.UpdateOne:
     """Run linmos
 
     Args:
         parset (str): Path to parset file.
         fieldname (str): Name of RACS field.
         image (str): Name of Yandasoft image.
-        holofile (Union[Path,str]): Path to the holography file to include in the bind list. 
+        holofile (Union[Path,str]): Path to the holography file to include in the bind list.
         verbose (bool, optional): Verbose output. Defaults to False.
 
     Raises:
@@ -232,9 +234,9 @@ def linmos(parset: str, fieldname: str, image: str, holofile: Union[Path,str], v
     stoke = parset_name[parset_name.find(".in") - 1]
     log_file = parset.replace(".in", ".log")
     linmos_command = shlex.split(f"linmos -c {parset}")
-    
+
     holo_folder = Path(holofile).parent
-    
+
     output = sclient.execute(
         image=image,
         command=linmos_command,
@@ -291,8 +293,8 @@ def main(
     holofile: Union[str, None] = None,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
-    yanda: str="1.3.0",
-    yanda_img: Optional[Path]=None,
+    yanda: str = "1.3.0",
+    yanda_img: Optional[Path] = None,
     stokeslist: Union[List[str], None] = None,
     verbose=True,
 ) -> None:
@@ -306,7 +308,7 @@ def main(
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
         yanda (str, optional): Yandasoft version. Defaults to "1.3.0".
-        yanda_img (Path, optional): Path to a yandasoft singularirt image. If `None`, the container version `yanda` will be downloaded. Defaults to None. 
+        yanda_img (Path, optional): Path to a yandasoft singularirt image. If `None`, the container version `yanda` will be downloaded. Defaults to None.
         stokeslist (List[str], optional): Stokes parameters to process. Defaults to None.
         verbose (bool, optional): Verbose output. Defaults to True.
     """
@@ -336,9 +338,7 @@ def main(
     )
     logger.debug(f"{beams_col = }")
     # Query the DB
-    query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}]
-    }
+    query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     logger.info(f"The query is {query=}")
 
@@ -381,7 +381,9 @@ def main(
 
     results = []
     for parset in parfiles:
-        results.append(linmos(parset, field, str(image), holofile=holofile, verbose=True))
+        results.append(
+            linmos(parset, field, str(image), holofile=holofile, verbose=True)
+        )
 
     futures = chunk_dask(
         outputs=results,
@@ -448,7 +450,7 @@ def cli():
         "--yanda_image",
         default=None,
         type=Path,
-        help="Path to an existing yandasoft singularity container image. "
+        help="Path to an existing yandasoft singularity container image. ",
     )
 
     parser.add_argument(

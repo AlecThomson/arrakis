@@ -12,7 +12,6 @@ from glob import glob
 from typing import Dict
 
 import astropy.units as u
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -20,19 +19,14 @@ import polspectra
 from astropy.io import fits
 from astropy.table import Column, Table
 from astropy.units.core import get_current_unit_registry
-from astropy.visualization import (
-    ImageNormalize,
-    MinMaxInterval,
-    SqrtStretch,
-)
+from astropy.visualization import ImageNormalize, MinMaxInterval, SqrtStretch
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
-from prefect_dask import get_dask_client
-
 from IPython import embed
+from prefect_dask import get_dask_client
 from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm
@@ -839,8 +833,6 @@ def cli():
             batch_size=args.batch_size,
             outdir=args.outdir,
         )
-        
-    
 
 
 if __name__ == "__main__":

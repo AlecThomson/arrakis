@@ -480,7 +480,7 @@ def cli():
         "-p", "--password", type=str, default=None, help="Password of mongodb."
     )
     parser.add_argument(
-        "-d", 
+        "-d",
         "--database-path",
         type=str,
         default=None,

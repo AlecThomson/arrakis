@@ -31,10 +31,10 @@ from arrakis.utils import (
     chunk_dask,
     fix_header,
     get_db,
+    logo_str,
     test_db,
     tqdm_dask,
     try_mkdir,
-    logo_str
 )
 
 iers.conf.auto_download = False
@@ -47,6 +47,7 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
 
 logger.setLevel(logging.INFO)
+
 
 @delayed
 def cutout(
@@ -261,8 +262,10 @@ def get_args(
             if len(images) == 0:
                 raise Exception(f"No images found matching '{wild}'")
             elif len(images) > 1:
-                raise Exception(f"More than one image found matching '{wild}'. Files {images=}")
-                
+                raise Exception(
+                    f"More than one image found matching '{wild}'. Files {images=}"
+                )
+
             for image in images:
                 args.extend(
                     [
@@ -359,9 +362,7 @@ def cutout_islands(
     )
 
     # Query the DB
-    query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}]
-    }
+    query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     beams = list(beams_col.find(query).sort("Source_ID"))
 
@@ -461,9 +462,7 @@ def main(args: argparse.Namespace, verbose=True) -> None:
     logger.info("Done!")
 
 
-def cutout_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
-
-
+def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
     {logo_str}
     
@@ -478,7 +477,9 @@ def cutout_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
 
     # Parse the command line options
     cut_parser = argparse.ArgumentParser(
-        add_help=not parent_parser, description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
     parser = cut_parser.add_argument_group("cutout arguments")
 
@@ -540,9 +541,10 @@ def cutout_parser(parent_parser: bool=False) -> argparse.ArgumentParser:
 
     return cut_parser
 
+
 def cli() -> None:
     """Command-line interface"""
-    parser = cutout_parser()    
+    parser = cutout_parser()
 
     args = parser.parse_args()
 
@@ -555,7 +557,7 @@ def cli() -> None:
     )
     client = Client(cluster)
     logger.info(client)
-    
+
     test_db(
         host=args.host,
         username=args.username,

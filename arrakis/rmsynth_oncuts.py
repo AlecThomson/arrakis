@@ -727,9 +727,7 @@ def main(
         host=host, username=username, password=password
     )
 
-    beam_query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}]
-    }
+    beam_query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     beams = pd.DataFrame(list(beams_col.find(beam_query).sort("Source_ID")))
     beams.set_index("Source_ID", drop=False, inplace=True)

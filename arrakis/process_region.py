@@ -20,8 +20,9 @@ from arrakis.utils import port_forward, test_db
 
 merge_task = task(merge_fields.main, name="Merge fields")
 
+
 @flow
-def process_merge(args: configargparse.Namespace, host: str, inter_dir:str) -> None:
+def process_merge(args: configargparse.Namespace, host: str, inter_dir: str) -> None:
     """Workflow to merge spectra from overlapping fields together
 
     Args:
@@ -30,78 +31,95 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir:str) -> N
         inter_dir (str): Location to store data from merged fields
     """
     previous_future = None
-    previous_future = merge_task.submit(
-        fields=args.fields,
-        field_dirs=args.datadirs,
-        merge_name=args.merge_name,
-        output_dir=args.output_dir,
-        host=host,
-        username=args.username,
-        password=args.password,
-        yanda=args.yanda,
-        verbose=args.verbose,
-    ) if not args.skip_merge else previous_future
-    
-    previous_future = process_spice.rmsynth_task.submit(
-        field=args.merge_name,
-        outdir=inter_dir,
-        host=host,
-        username=args.username,
-        password=args.password,
-        dimension=args.dimension,
-        verbose=args.verbose,
-        database=args.database,
-        validate=args.validate,
-        limit=args.limit,
-        savePlots=args.savePlots,
-        weightType=args.weightType,
-        fitRMSF=args.fitRMSF,
-        phiMax_radm2=args.phiMax_radm2,
-        dPhi_radm2=args.dPhi_radm2,
-        nSamples=args.nSamples,
-        polyOrd=args.polyOrd,
-        noStokesI=args.noStokesI,
-        showPlots=args.showPlots,
-        not_RMSF=args.not_RMSF,
-        rm_verbose=args.rm_verbose,
-        debug=args.debug,
-        fit_function=args.fit_function,
-        tt0=args.tt0,
-        tt1=args.tt1,
-        ion=False,
-        do_own_fit=args.do_own_fit,
-        wait_for=[previous_future],
-    ) if not args.skip_rmsynth else previous_future
-    
-    previous_future = process_spice.rmclean_task.submit(
-        field=args.merge_name,
-        outdir=inter_dir,
-        host=host,
-        username=args.username,
-        password=args.password,
-        dimension=args.dimension,
-        verbose=args.verbose,
-        database=args.database,
-        validate=args.validate,
-        limit=args.limit,
-        cutoff=args.cutoff,
-        maxIter=args.maxIter,
-        gain=args.gain,
-        window=args.window,
-        showPlots=args.showPlots,
-        rm_verbose=args.rm_verbose,
-        wait_for=[previous_future],
-    ) if not args.skip_rmclean else previous_future
-    
-    previous_future = process_spice.cat_task.submit(
-        field=args.merge_name,
-        host=host,
-        username=args.username,
-        password=args.password,
-        verbose=args.verbose,
-        outfile=args.outfile,
-        wait_for=[previous_future],
-    ) if not args.skip_cat else previous_future
+    previous_future = (
+        merge_task.submit(
+            fields=args.fields,
+            field_dirs=args.datadirs,
+            merge_name=args.merge_name,
+            output_dir=args.output_dir,
+            host=host,
+            username=args.username,
+            password=args.password,
+            yanda=args.yanda,
+            verbose=args.verbose,
+        )
+        if not args.skip_merge
+        else previous_future
+    )
+
+    previous_future = (
+        process_spice.rmsynth_task.submit(
+            field=args.merge_name,
+            outdir=inter_dir,
+            host=host,
+            username=args.username,
+            password=args.password,
+            dimension=args.dimension,
+            verbose=args.verbose,
+            database=args.database,
+            validate=args.validate,
+            limit=args.limit,
+            savePlots=args.savePlots,
+            weightType=args.weightType,
+            fitRMSF=args.fitRMSF,
+            phiMax_radm2=args.phiMax_radm2,
+            dPhi_radm2=args.dPhi_radm2,
+            nSamples=args.nSamples,
+            polyOrd=args.polyOrd,
+            noStokesI=args.noStokesI,
+            showPlots=args.showPlots,
+            not_RMSF=args.not_RMSF,
+            rm_verbose=args.rm_verbose,
+            debug=args.debug,
+            fit_function=args.fit_function,
+            tt0=args.tt0,
+            tt1=args.tt1,
+            ion=False,
+            do_own_fit=args.do_own_fit,
+            wait_for=[previous_future],
+        )
+        if not args.skip_rmsynth
+        else previous_future
+    )
+
+    previous_future = (
+        process_spice.rmclean_task.submit(
+            field=args.merge_name,
+            outdir=inter_dir,
+            host=host,
+            username=args.username,
+            password=args.password,
+            dimension=args.dimension,
+            verbose=args.verbose,
+            database=args.database,
+            validate=args.validate,
+            limit=args.limit,
+            cutoff=args.cutoff,
+            maxIter=args.maxIter,
+            gain=args.gain,
+            window=args.window,
+            showPlots=args.showPlots,
+            rm_verbose=args.rm_verbose,
+            wait_for=[previous_future],
+        )
+        if not args.skip_rmclean
+        else previous_future
+    )
+
+    previous_future = (
+        process_spice.cat_task.submit(
+            field=args.merge_name,
+            host=host,
+            username=args.username,
+            password=args.password,
+            verbose=args.verbose,
+            outfile=args.outfile,
+            wait_for=[previous_future],
+        )
+        if not args.skip_cat
+        else previous_future
+    )
+
 
 def main(args: configargparse.Namespace) -> None:
     """Main script
@@ -166,16 +184,15 @@ def main(args: configargparse.Namespace) -> None:
 
     # Prin out Dask client info
     logger.info(client.scheduler_info()["services"])
-    
+
     dask_runner = DaskTaskRunner(address=client.scheduler.address)
 
     inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
-    
+
     process_merge.with_options(
-        name=f"SPICE-RACS: {args.merge_name}",
-        task_runner=dask_runner
+        name=f"SPICE-RACS: {args.merge_name}", task_runner=dask_runner
     )(args, host, inter_dir)
-    
+
     with performance_report(f"{args.merge_name}-report-{Time.now().fits}.html"):
         executor = DaskExecutor(address=client.scheduler.address)
         flow.run(executor=executor)

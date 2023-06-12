@@ -4,6 +4,7 @@
 
 import logging
 
+
 # Create formatter
 # formatter = logging.Formatter(
 #     "SPICE: %(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s"
@@ -56,5 +57,6 @@ def get_arrakis_logger(name: str='arrakis', attach_handler: bool=True) -> loggin
         logger.addHandler(ch)
         
     return logger
+
 
 logger = get_arrakis_logger()
