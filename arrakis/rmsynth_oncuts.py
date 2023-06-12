@@ -151,7 +151,8 @@ def rmsynthoncut3d(
     # Prep header
     head_dict = dict(header)
     head_dict.pop("", None)
-    head_dict["COMMENT"] = str(head_dict["COMMENT"])
+    if "COMMENT" in head_dict.keys():
+        head_dict["COMMENT"] = str(head_dict["COMMENT"])
 
     outer_dir = os.path.basename(os.path.dirname(ifile))
 
@@ -512,7 +513,8 @@ def rmsynthoncut1d(
     # Prep header
     head_dict = dict(header)
     head_dict.pop("", None)
-    head_dict["COMMENT"] = str(head_dict["COMMENT"])
+    if "COMMENT" in head_dict.keys():
+        head_dict["COMMENT"] = str(head_dict["COMMENT"])
 
     outer_dir = os.path.basename(os.path.dirname(ifile))
 
