@@ -25,7 +25,7 @@ from IPython import embed
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 
-from arrakis.logger import get_arrakis_logger
+from arrakis.logger import logger 
 from arrakis.utils import (
     MyEncoder,
     chunk_dask,
@@ -46,7 +46,7 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
 
-logger = get_arrakis_logger(__name__)
+logger.setLevel(logging.INFO)
 
 @delayed
 def cutout(
@@ -84,6 +84,12 @@ def cutout(
     Returns:
         pymongo.UpdateOne: Update query for MongoDB
     """
+    logger.setLevel(logging.INFO)
+    # logger = logging.getLogger('distributed.worker')
+    # logger = get_run_logger()
+    
+    logger.info(f"Timwashere - {image=}")
+    
     outdir = os.path.abspath(outdir)
 
     ret = []
@@ -199,6 +205,8 @@ def get_args(
         List[Dict]: List of cutout arguments for cutout function
     """
 
+    logger.setLevel(logging.INFO)
+    
     assert island["Source_ID"] == island_id
     assert beam["Source_ID"] == island_id
 
@@ -355,11 +363,7 @@ def cutout_islands(
         "$and": [{f"beams.{field}": {"$exists": True}}]
     }
 
-    print(f"Constructed {query=}")
-
     beams = list(beams_col.find(query).sort("Source_ID"))
-
-    print(f"Returned {beams=}")
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))
     islands = list(

@@ -17,10 +17,10 @@ from dask import delayed
 from dask.distributed import Client, LocalCluster, progress, wait
 from FRion import correct, predict
 
-from arrakis.logger import get_arrakis_logger
+from arrakis.logger import logger
 from arrakis.utils import get_db, get_field_db, getfreq, test_db, tqdm_dask, try_mkdir
 
-logger = get_arrakis_logger(__name__)
+logger.setLevel(logging.INFO)
 
 @delayed
 def correct_worker(
@@ -90,11 +90,22 @@ def predict_worker(
     Returns:
         Tuple[str, pymongo.UpdateOne]: FRion prediction file and pymongo update query
     """
+    logger.setLevel(logging.INFO)
+    
     ifile = os.path.join(cutdir, beam["beams"][field]["i_file"])
     i_dir = os.path.dirname(ifile)
     iname = island["Source_ID"]
     ra = island["RA"]
     dec = island["Dec"]
+
+    # Tricking the ionex lookup to use the a custom server
+    proxy_args = {  
+        "proxy_type" : None,
+        "proxy_port" : None,
+        "proxy_user" : None,
+        "proxy_pass" : None
+    }
+    logger.info(f"Set up empty Proxy structure.")
 
     times, RMs, theta = predict.calculate_modulation(
         start_time=start_time.fits,
@@ -107,6 +118,7 @@ def predict_worker(
         ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
         server=server, 
         proxy_server=proxy_server,
+        **proxy_args
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
     predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
@@ -116,6 +128,7 @@ def predict_worker(
         times, RMs, theta, freq, position=[ra, dec], savename=plot_file
     )
     plot_files = glob(os.path.join(i_dir, "*ion.pdf"))
+    logger.info(f"Plotting files: {plot_files=}")
     for src in plot_files:
         base = os.path.basename(src)
         dst = os.path.join(plotdir, base)
@@ -149,8 +162,8 @@ def main(
     password: Optional[str] = None,
     database=False,
     verbose=True,
-    server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
-    proxy_server: Optional[str] = None,
+    ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    ionex_proxy_server: Optional[str] = None,
 ):
     """Main script
 
@@ -162,8 +175,8 @@ def main(
         password (str, optional): Mongo passwrod. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
         verbose (bool, optional): Verbose output. Defaults to True.
-        server (str, optional): IONEX server. Defaults to "ftp://ftp.aiub.unibe.ch/CODE/".
-        proxy_server (str, optional): Proxy server. Defaults to None.
+        ionex_server (str, optional): IONEX server. Defaults to "ftp://ftp.aiub.unibe.ch/CODE/".
+        ionex_proxy_server (str, optional): Proxy server. Defaults to None.
     """
     # Query database for data
     outdir = os.path.abspath(outdir)
@@ -227,8 +240,8 @@ def main(
             freq=freq.to(u.Hz).value,
             cutdir=cutdir,
             plotdir=plotdir,
-            server=server,
-            proxy_server=proxy_server,
+            server=ionex_server,
+            proxy_server=ionex_proxy_server,
         )
         updates_arrays.append(update)
         # Apply FRion predictions
@@ -333,7 +346,7 @@ def cli():
 
     parser.add_argument(
         "-s",
-        "--server",
+        "--ionex_server",
         type=str,
         default="ftp://ftp.aiub.unibe.ch/CODE/",
         help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
@@ -341,7 +354,7 @@ def cli():
 
     parser.add_argument(
         "-p",
-        "--proxy_server",
+        "--ionex_proxy_server",
         type=str,
         default=None,
         help="Proxy server [None].",
@@ -375,8 +388,8 @@ def cli():
         password=args.password,
         database=args.database,
         verbose=verbose,
-        server=args.server,
-        proxy_server=args.proxy_server,
+        ionex_server=args.ionex_server,
+        ionex_proxy_server=args.ionex_proxy_server,
     )
 
 

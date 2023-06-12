@@ -32,11 +32,12 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-def get_arrakis_logger(name: str='arrakis') -> logging.Logger:
+def get_arrakis_logger(name: str='arrakis', attach_handler: bool=True) -> logging.Logger:
     """Will construct a logger object.
 
     Args:
         name (str, optional): Name of the logger to attempt to use. This is ignored if in a prefect flowrun. Defaults to 'arrakis'.
+        attach_handler (bool, optional): Attacjes a custom StreamHandler. Defaults to True. 
 
     Returns:
         logging.Logger: The appropriate logger
@@ -45,13 +46,14 @@ def get_arrakis_logger(name: str='arrakis') -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.WARNING)
 
-    # Create console handler and set level to debug
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    
-    # Add formatter to ch
-    ch.setFormatter(CustomFormatter())
-    logger.addHandler(ch)
+    if attach_handler:
+        # Create console handler and set level to debug
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
+        
+        # Add formatter to ch
+        ch.setFormatter(CustomFormatter())
+        logger.addHandler(ch)
         
     return logger
 

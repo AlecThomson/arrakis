@@ -108,6 +108,8 @@ def process_spice(
             password=args.password,
             database=args.database,
             verbose=args.verbose,
+            ionex_server=args.ionex_server,
+            ionex_proxy_server=args.ionex_proxy_server,
             wait_for=[previous_future],
         ) if not args.skip_frion else previous_future
         
@@ -230,12 +232,11 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        cluster.adapt(minimum=1, maximum=128)
+        cluster.adapt(minimum=1, maximum=100)
         # cluster.scale(36)
 
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
         client = Client(cluster)
-
     port = client.scheduler_info()["services"]["dashboard"]
 
     # Forward ports
@@ -341,7 +342,8 @@ def main(args: configargparse.Namespace) -> None:
     # Define flow
     process_spice.with_options(
         name=f"SPICE-RACS {args.field}",
-        task_runner=dask_runner
+        task_runner=dask_runner,
+        log_prints=True
     )(args, host)
 
     # TODO: Access the client via the `dask_runner`. Perhaps a 
@@ -663,6 +665,19 @@ def cli():
         type=float,
         default=None,
         help="Further CLEAN in mask to this threshold [False].",
+    )
+    tools.add_argument(
+        "--ionex_server",
+        type=str,
+        default="ftp://ftp.aiub.unibe.ch/CODE/",
+        help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
+    )
+
+    tools.add_argument(
+        "--ionex_proxy_server",
+        type=str,
+        default=None,
+        help="Proxy server [None].",
     )
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args

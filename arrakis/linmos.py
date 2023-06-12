@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
 import os
+import logging
 import shlex
 import warnings
 from glob import glob
-from logging import disable
 from pathlib import Path
 from pprint import pformat
 from typing import List,Union, Optional
@@ -31,6 +31,7 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
+logger.setLevel(logging.INFO)
 
 @delayed
 def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
@@ -134,6 +135,8 @@ def genparset(
     Returns:
         str: Path to parset file.
     """
+    logger.setLevel(logging.INFO)
+    
     beams = beams["beams"][field]
     ims = []
     for bm in list(set(beams["beam_list"])):  # Ensure list of beams is unique!
@@ -219,6 +222,7 @@ def linmos(parset: str, fieldname: str, image: str, holofile: Union[Path,str], v
     Returns:
         pymongo.UpdateOne: Mongo update object.
     """
+    logger.setLevel(logging.INFO)
 
     workdir = os.path.dirname(parset)
     rootdir = os.path.split(workdir)[0]
@@ -335,6 +339,8 @@ def main(
     query = {
         "$and": [{f"beams.{field}": {"$exists": True}}]
     }
+
+    logger.info(f"The query is {query=}")
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))
     big_beams = list(

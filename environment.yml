@@ -1,4 +1,4 @@
-name: spice
+name: arrakis2
 channels:
 - astropy
 - conda-forge
