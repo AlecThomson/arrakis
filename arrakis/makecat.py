@@ -35,6 +35,7 @@ ArrayLike = TypeVar(
 )
 TableLike = TypeVar("TableLike", RMTable, Table)
 
+logger.setLevel(logging.INFO)
 
 def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
     """Return all combinations of data with itself
@@ -288,6 +289,8 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     Returns:
         np.polynomial.Polynomial.fit: 3rd order polynomial fit.
     """
+    logger.info("Writing junk file. ")
+    tab.write("junk_cat.fits")
     # Select high SNR sources
     hi_snr = (
         tab["stokesI"].to(u.Jy / u.beam) / tab["stokesI_err"].to(u.Jy / u.beam)
@@ -304,10 +307,17 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     s1_los = np.zeros_like(bins_c)
     s2_ups = np.zeros_like(bins_c)
     s2_los = np.zeros_like(bins_c)
+    logger.info(f"{bins=}")
     for i in range(len(bins) - 1):
         idx = (hi_i_tab["beamdist"].to(u.deg).value < bins[i + 1]) & (
             hi_i_tab["beamdist"].to(u.deg).value >= bins[i]
         )
+        logger.info(f"A test: {idx=} {frac_P[idx]=}")
+        res = np.nanpercentile(
+            frac_P[idx], [2.3, 16, 50, 84, 97.6]
+        )
+        logger.info(f"{res=}")
+        
         s2_los[i], s1_los[i], meds[i], s1_ups[i], s2_ups[i] = np.nanpercentile(
             frac_P[idx], [2.3, 16, 50, 84, 97.6]
         )
@@ -729,6 +739,7 @@ def main(
     comps = list(comp_col.find(query, fields))
     tock = time.time()
     logger.info(f"Finished component collection query - {tock-tick:.2f}s")
+    logger.info(f"Found {len(comps)} to catalogue. ")
 
     rmtab = RMTable()  # type: RMTable
     # Add items to main cat using RMtable standard
