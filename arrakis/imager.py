@@ -601,15 +601,15 @@ def main(
     reimage: bool = False,
     purge: bool = False,
     minuv: float = 0.0,
-    parallel_deconvolution: Union[int, None] = None,
-    gridder: Union[str, None] = None,
-    nmiter: Union[int, None] = None,
+    parallel_deconvolution: Optional[int] = None,
+    gridder: Optional[str] = None,
+    nmiter: Optional[int] = None,
     local_rms: bool = False,
-    local_rms_window: Union[float, None] = None,
+    local_rms_window: Optional[float] = None,
     wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest",
     multiscale: Optional[bool] = None,
     multiscale_scale_bias: Optional[float] = None,
-    absmem: Union[float, None] = None,
+    absmem: Optional[float] = None,
 ):
     simage = get_wsclean(wsclean=wsclean_path)
 

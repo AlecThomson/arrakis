@@ -309,6 +309,7 @@ def main(args: configargparse.Namespace) -> None:
             scale=args.scale,
             mgain=args.mgain,
             niter=args.niter,
+            nmiter=args.nmiter,
             auto_mask=args.auto_mask,
             force_mask_rounds=args.force_mask_rounds,
             auto_threshold=args.auto_threshold,
