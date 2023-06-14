@@ -270,6 +270,11 @@ def image_beam(
             )
             for line in output:
                 logger.info(line.rstrip())
+                # Catch divergence - look for the string 'KJy' in the output
+                if "KJy" in line:
+                    raise ValueError(
+                        f"Detected divergence in wsclean output: {line.rstrip()}"
+                    )
         except CalledProcessError as e:
             logger.error(f"Failed to run wsclean with command: {command}")
             logger.error(f"Stdout: {e.stdout}")
