@@ -307,17 +307,14 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     s1_los = np.zeros_like(bins_c)
     s2_ups = np.zeros_like(bins_c)
     s2_los = np.zeros_like(bins_c)
-    logger.info(f"{bins=}")
+
     for i in range(len(bins) - 1):
         idx = (hi_i_tab["beamdist"].to(u.deg).value < bins[i + 1]) & (
             hi_i_tab["beamdist"].to(u.deg).value >= bins[i]
         )
-        logger.info(f"A test: {idx=} {frac_P[idx]=}")
         res = np.nanpercentile(
             frac_P[idx], [2.3, 16, 50, 84, 97.6]
         )
-        logger.info(f"{res=}")
-        
         s2_los[i], s1_los[i], meds[i], s1_ups[i], s2_ups[i] = np.nanpercentile(
             frac_P[idx], [2.3, 16, 50, 84, 97.6]
         )
@@ -399,19 +396,32 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
             sn = 1
         return sn
 
-    bin_number, x_gen, y_gen, x_bar, y_bar, sn, nPixels, scale = voronoi_2d_binning(
-        x=good_cat["ra"],
-        y=good_cat["dec"],
-        signal=np.ones_like(good_cat["polint"]),
-        noise=np.ones_like(good_cat["polint_err"]),
-        target_sn=50,
-        sn_func=sn_func,
-        cvt=False,
-        pixelsize=10,
-        plot=False,
-        quiet=True,
-        wvt=False,
-    )
+    target_sn = 50
+    while target_sn > 1:
+        logger.debug(f"Trying a target number of RMs / bin of {target_sn}")
+        try:
+            bin_number, x_gen, y_gen, x_bar, y_bar, sn, nPixels, scale = voronoi_2d_binning(
+                x=good_cat["ra"],
+                y=good_cat["dec"],
+                signal=np.ones_like(good_cat["polint"]),
+                noise=np.ones_like(good_cat["polint_err"]),
+                target_sn=target_sn,
+                sn_func=sn_func,
+                cvt=False,
+                pixelsize=10,
+                plot=False,
+                quiet=True,
+                wvt=False,
+            )
+            logger.info(f"Target number of RMs / bin: {target_sn}")
+            break
+        except ValueError as e:
+            if not "Not enough S/N in the whole set of pixels." in e.message:
+                raise e
+            logger.warning(f"Failed with target number of RMs / bin of {target_sn}. Trying again with {target_sn-10}")
+            target_sn -= 10
+            continue
+    
     logger.info(f"Found {len(set(bin_number))} bins")
     df = good_cat.to_pandas()
     df.reset_index(inplace=True)
