@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Fix the FEED rotation of ASKAP MSs
+Fix the correlation rotation of ASKAP MSs
 """
 
 import logging
@@ -50,7 +50,7 @@ def convert_correlations(correlations: np.ndarray, pol_axis: u.Quantity):
     ⎢ ⎥   ⎢                                        ⎥ ⎢   ⎥
     ⎣V⎦   ⎣    0       -1.0⋅i    1.0⋅i        0    ⎦ ⎣YYₐ⎦
 
-    Where theta is the polarization axis angle. In the common casse of PA=-45deg -> theta=0deg, this becomes:
+    Where theta is the polarization axis angle. In the common case of PA=-45deg -> theta=0deg, this becomes:
     ⎡I⎤   ⎡1     0       0    1⎤ ⎡XXₐ⎤
     ⎢ ⎥   ⎢                    ⎥ ⎢   ⎥
     ⎢Q⎥   ⎢0     1       1    0⎥ ⎢XYₐ⎥
@@ -142,7 +142,8 @@ def convert_correlations(correlations: np.ndarray, pol_axis: u.Quantity):
             ],
         ]
     )
-    return np.einsum("ij,klj->kli", correction_matrix, correlations)
+    # This is a matrix multiplication broadcasted along the time and channel axes
+    return np.einsum("ij,...j->...i", correction_matrix, correlations)
 
 
 def get_data_chunk(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP"):
