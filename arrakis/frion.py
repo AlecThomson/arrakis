@@ -92,7 +92,7 @@ def predict_worker(
         Tuple[str, pymongo.UpdateOne]: FRion prediction file and pymongo update query
     """
     logger.setLevel(logging.INFO)
-    
+
     ifile = os.path.join(cutdir, beam["beams"][field]["i_file"])
     i_dir = os.path.dirname(ifile)
     iname = island["Source_ID"]
@@ -100,11 +100,11 @@ def predict_worker(
     dec = island["Dec"]
 
     # Tricking the ionex lookup to use the a custom server
-    proxy_args = {  
-        "proxy_type" : None,
-        "proxy_port" : None,
-        "proxy_user" : None,
-        "proxy_pass" : None
+    proxy_args = {
+        "proxy_type": None,
+        "proxy_port": None,
+        "proxy_user": None,
+        "proxy_pass": None,
     }
     logger.info(f"Set up empty Proxy structure.")
 
@@ -119,7 +119,7 @@ def predict_worker(
         ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
         server=server,
         proxy_server=proxy_server,
-        **proxy_args
+        **proxy_args,
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
     predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)

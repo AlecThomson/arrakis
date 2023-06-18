@@ -4,27 +4,30 @@
 Fix the FEED rotation of ASKAP MSs
 """
 
-from pathlib import Path
 import logging
+from pathlib import Path
 
 import astropy.units as u
-from casacore.tables import table, makecoldesc
 import numpy as np
+from casacore.tables import makecoldesc, table
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
+
 
 def get_pol_axis(ms: Path) -> u.Quantity:
     """
     Get the polarization axis from the ASKAP MS
     """
-    with table( (ms/"FEED").as_posix(), readonly=True, ack=False) as tf:
-        ms_feed = tf.getcol('RECEPTOR_ANGLE') * u.rad
-        pol_axes = -(ms_feed-45.0*u.deg)
+    with table((ms / "FEED").as_posix(), readonly=True, ack=False) as tf:
+        ms_feed = tf.getcol("RECEPTOR_ANGLE") * u.rad
+        pol_axes = -(ms_feed - 45.0 * u.deg)
 
-    assert (ms_feed[:,0] == ms_feed[0,0]).all() & (ms_feed[:,1] == ms_feed[0,1]).all(), \
-        "The RECEPTOR_ANGLE changes with time, please check the MS"
-    return pol_axes[0,0].to(u.deg)
+    assert (ms_feed[:, 0] == ms_feed[0, 0]).all() & (
+        ms_feed[:, 1] == ms_feed[0, 1]
+    ).all(), "The RECEPTOR_ANGLE changes with time, please check the MS"
+    return pol_axes[0, 0].to(u.deg)
+
 
 def convert_correlations(correlations: np.ndarray, pol_axis: u.Quantity):
     """
@@ -63,7 +66,7 @@ def convert_correlations(correlations: np.ndarray, pol_axis: u.Quantity):
     ⎢U⎥   ⎢    -XXₐ + YYₐ    ⎥
     ⎢ ⎥   ⎢                  ⎥
     ⎣V⎦   ⎣-i⋅XYₐ + 1.0⋅i⋅YXₐ⎦
-    
+
     However, most imagers (e.g. wsclean, CASA) expect
     ⎡I⎤   ⎡0.5    0       0    0.5 ⎤ ⎡XX_w⎤
     ⎢ ⎥   ⎢                        ⎥ ⎢    ⎥
@@ -110,31 +113,54 @@ def convert_correlations(correlations: np.ndarray, pol_axis: u.Quantity):
 
 
     """
-    theta = (pol_axis + 45.0*u.deg).to(u.rad).value
+    theta = (pol_axis + 45.0 * u.deg).to(u.rad).value
     correction_matrix = np.matrix(
         [
-            [np.sin(2.0*theta) + 1, np.cos(2.0*theta), np.cos(2.0*theta), 1 - np.sin(2.0*theta)],
-            [-np.cos(2.0*theta), np.sin(2.0*theta) + 1, np.sin(2.0*theta) - 1, np.cos(2.0*theta)],
-            [-np.cos(2.0*theta), np.sin(2.0*theta) - 1, np.sin(2.0*theta) + 1, np.cos(2.0*theta)],
-            [1 - np.sin(2.0*theta), -np.cos(2.0*theta), -np.cos(2.0*theta), np.sin(2.0*theta) + 1]
+            [
+                np.sin(2.0 * theta) + 1,
+                np.cos(2.0 * theta),
+                np.cos(2.0 * theta),
+                1 - np.sin(2.0 * theta),
+            ],
+            [
+                -np.cos(2.0 * theta),
+                np.sin(2.0 * theta) + 1,
+                np.sin(2.0 * theta) - 1,
+                np.cos(2.0 * theta),
+            ],
+            [
+                -np.cos(2.0 * theta),
+                np.sin(2.0 * theta) - 1,
+                np.sin(2.0 * theta) + 1,
+                np.cos(2.0 * theta),
+            ],
+            [
+                1 - np.sin(2.0 * theta),
+                -np.cos(2.0 * theta),
+                -np.cos(2.0 * theta),
+                np.sin(2.0 * theta) + 1,
+            ],
         ]
     )
-    return np.einsum('ij,klj->kli', correction_matrix, correlations)
+    return np.einsum("ij,klj->kli", correction_matrix, correlations)
 
-def get_data_chunk(ms: Path, chunksize: int, data_column: str='DATA_ASKAP'):
+
+def get_data_chunk(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP"):
     with table(ms.as_posix(), readonly=True, ack=False) as tab:
         data = tab.__getattr__(data_column)
         for i in range(0, len(data), chunksize):
-            yield np.array(data[i:i+chunksize])
+            yield np.array(data[i : i + chunksize])
 
-def get_nchunks(ms: Path, chunksize: int, data_column: str='DATA_ASKAP'):
+
+def get_nchunks(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP"):
     with table(ms.as_posix(), readonly=True, ack=False) as tab:
-        return int(np.ceil(len(tab.__getattr__(data_column))/chunksize))
+        return int(np.ceil(len(tab.__getattr__(data_column)) / chunksize))
+
 
 def main(
     ms: Path,
-    chunksize: int=1000,
-    data_column: str='DATA',
+    chunksize: int = 1000,
+    data_column: str = "DATA",
 ):
     """
     Fix the correlations in the MS
@@ -142,10 +168,12 @@ def main(
     # Open the MS, move the 'data_column' column to DATA_ASKAP
     try:
         with table(ms.as_posix(), readonly=False, ack=False) as tab:
-            tab.renamecol(data_column, 'DATA_ASKAP')
+            tab.renamecol(data_column, "DATA_ASKAP")
             tab.flush()
     except RuntimeError:
-        logger.warning(f"'DATA_ASKAP' column already exists in {ms}. Have you already run this?")
+        logger.warning(
+            f"'DATA_ASKAP' column already exists in {ms}. Have you already run this?"
+        )
         return
 
     # Get the polarization axis
@@ -154,8 +182,8 @@ def main(
 
     # Get the data chunk by chunk and convert the correlations
     # then write them back to the MS in the 'data_column' column
-    data_chunks = get_data_chunk(ms, chunksize, data_column='DATA_ASKAP')
-    nchunks = get_nchunks(ms, chunksize, data_column='DATA_ASKAP')
+    data_chunks = get_data_chunk(ms, chunksize, data_column="DATA_ASKAP")
+    nchunks = get_nchunks(ms, chunksize, data_column="DATA_ASKAP")
     start_row = 0
     with table(ms.as_posix(), readonly=False, ack=False) as tab:
         desc = makecoldesc(data_column, tab.getcoldesc("DATA_ASKAP"))
@@ -167,19 +195,37 @@ def main(
             logger.warning(f"Column {data_column} already exists in {ms}")
             pass
         for data_chunk in tqdm(data_chunks, total=nchunks):
-            data_chunk_cor = convert_correlations(data_chunk, pol_axis, )
-            tab.putcol(data_column, data_chunk_cor, startrow=start_row, nrow=len(data_chunk_cor))
+            data_chunk_cor = convert_correlations(
+                data_chunk,
+                pol_axis,
+            )
+            tab.putcol(
+                data_column,
+                data_chunk_cor,
+                startrow=start_row,
+                nrow=len(data_chunk_cor),
+            )
             tab.flush()
             start_row += len(data_chunk_cor)
 
+
 def cli():
     import argparse
+
     parser = argparse.ArgumentParser(description="Fix the correlations in the MS")
     parser.add_argument("ms", type=str, help="The MS to fix")
-    parser.add_argument("--chunksize", type=int, default=1000, help="The chunksize to use when reading the MS")
-    parser.add_argument("--data-column", type=str, default='DATA', help="The column to fix")
+    parser.add_argument(
+        "--chunksize",
+        type=int,
+        default=1000,
+        help="The chunksize to use when reading the MS",
+    )
+    parser.add_argument(
+        "--data-column", type=str, default="DATA", help="The column to fix"
+    )
     args = parser.parse_args()
     main(Path(args.ms), args.chunksize, args.data_column)
+
 
 if __name__ == "__main__":
     cli()

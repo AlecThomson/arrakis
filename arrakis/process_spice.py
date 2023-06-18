@@ -63,7 +63,8 @@ def process_spice(args, host: str) -> None:
 
     with get_dask_client():
         previous_future = None
-        previous_future = cut_task.submit(
+        previous_future = (
+            cut_task.submit(
                 field=args.field,
                 directory=args.datadir,
                 host=host,
@@ -73,10 +74,13 @@ def process_spice(args, host: str) -> None:
                 stokeslist=["I", "Q", "U"],
                 verbose_worker=args.verbose_worker,
                 dryrun=args.dryrun,
-            ) if not args.skip_cutout else previous_future
-        
+            )
+            if not args.skip_cutout
+            else previous_future
+        )
 
-        previous_future = linmos_task.submit(
+        previous_future = (
+            linmos_task.submit(
                 field=args.field,
                 datadir=args.datadir,
                 survey_dir=Path(args.survey),
@@ -90,89 +94,112 @@ def process_spice(args, host: str) -> None:
                 stokeslist=["I", "Q", "U"],
                 verbose=True,
                 wait_for=[previous_future],
-            ) if not args.skip_linmos else previous_future
-        
-            
-        previous_future = cleanup_task.submit(
-            datadir=args.datadir,
-            stokeslist=["I", "Q", "U"],
-            verbose=True,
-            wait_for=[previous_future],
-        ) if not args.skip_cleanup else previous_future
-        
-        previous_future = frion_task.submit(
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            database=args.database,
-            verbose=args.verbose,
-            ionex_server=args.ionex_server,
-            ionex_proxy_server=args.ionex_proxy_server,
-            wait_for=[previous_future],
-        ) if not args.skip_frion else previous_future
-        
-        previous_future = rmsynth_task.submit(
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            savePlots=args.savePlots,
-            weightType=args.weightType,
-            fitRMSF=args.fitRMSF,
-            phiMax_radm2=args.phiMax_radm2,
-            dPhi_radm2=args.dPhi_radm2,
-            nSamples=args.nSamples,
-            polyOrd=args.polyOrd,
-            noStokesI=args.noStokesI,
-            showPlots=args.showPlots,
-            not_RMSF=args.not_RMSF,
-            rm_verbose=args.rm_verbose,
-            debug=args.debug,
-            fit_function=args.fit_function,
-            tt0=args.tt0,
-            tt1=args.tt1,
-            ion=True,
-            do_own_fit=args.do_own_fit,
-            wait_for=[previous_future],
-        ) if not args.skip_rmsynth else previous_future
-        
-        previous_future = rmclean_task.submit(
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            cutoff=args.cutoff,
-            maxIter=args.maxIter,
-            gain=args.gain,
-            window=args.window,
-            showPlots=args.showPlots,
-            rm_verbose=args.rm_verbose,
-            wait_for=[previous_future],
-        ) if not args.skip_rmclean else previous_future 
-        
-        previous_future = cat_task.submit(
-            field=args.field,
-            host=host,
-            username=args.username,
-            password=args.password,
-            verbose=args.verbose,
-            outfile=args.outfile,
-            wait_for=[previous_future],
-        ) if not args.skip_cat else previous_future
+            )
+            if not args.skip_linmos
+            else previous_future
+        )
+
+        previous_future = (
+            cleanup_task.submit(
+                datadir=args.datadir,
+                stokeslist=["I", "Q", "U"],
+                verbose=True,
+                wait_for=[previous_future],
+            )
+            if not args.skip_cleanup
+            else previous_future
+        )
+
+        previous_future = (
+            frion_task.submit(
+                field=args.field,
+                outdir=args.datadir,
+                host=host,
+                username=args.username,
+                password=args.password,
+                database=args.database,
+                verbose=args.verbose,
+                ionex_server=args.ionex_server,
+                ionex_proxy_server=args.ionex_proxy_server,
+                wait_for=[previous_future],
+            )
+            if not args.skip_frion
+            else previous_future
+        )
+
+        previous_future = (
+            rmsynth_task.submit(
+                field=args.field,
+                outdir=args.datadir,
+                host=host,
+                username=args.username,
+                password=args.password,
+                dimension=args.dimension,
+                verbose=args.verbose,
+                database=args.database,
+                validate=args.validate,
+                limit=args.limit,
+                savePlots=args.savePlots,
+                weightType=args.weightType,
+                fitRMSF=args.fitRMSF,
+                phiMax_radm2=args.phiMax_radm2,
+                dPhi_radm2=args.dPhi_radm2,
+                nSamples=args.nSamples,
+                polyOrd=args.polyOrd,
+                noStokesI=args.noStokesI,
+                showPlots=args.showPlots,
+                not_RMSF=args.not_RMSF,
+                rm_verbose=args.rm_verbose,
+                debug=args.debug,
+                fit_function=args.fit_function,
+                tt0=args.tt0,
+                tt1=args.tt1,
+                ion=True,
+                do_own_fit=args.do_own_fit,
+                wait_for=[previous_future],
+            )
+            if not args.skip_rmsynth
+            else previous_future
+        )
+
+        previous_future = (
+            rmclean_task.submit(
+                field=args.field,
+                outdir=args.datadir,
+                host=host,
+                username=args.username,
+                password=args.password,
+                dimension=args.dimension,
+                verbose=args.verbose,
+                database=args.database,
+                validate=args.validate,
+                limit=args.limit,
+                cutoff=args.cutoff,
+                maxIter=args.maxIter,
+                gain=args.gain,
+                window=args.window,
+                showPlots=args.showPlots,
+                rm_verbose=args.rm_verbose,
+                wait_for=[previous_future],
+            )
+            if not args.skip_rmclean
+            else previous_future
+        )
+
+        previous_future = (
+            cat_task.submit(
+                field=args.field,
+                host=host,
+                username=args.username,
+                password=args.password,
+                verbose=args.verbose,
+                outfile=args.outfile,
+                wait_for=[previous_future],
+            )
+            if not args.skip_cat
+            else previous_future
+        )
+
 
 def save_args(args: configargparse.Namespace) -> Path:
     """Helper function to create a record of the input configuration arguments that

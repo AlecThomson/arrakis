@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
-import os
 import logging
+import os
 import shlex
 import warnings
 from glob import glob
@@ -32,6 +32,7 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 os.environ["OMP_NUM_THREADS"] = "1"
 
 logger.setLevel(logging.INFO)
+
 
 @delayed
 def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
@@ -136,7 +137,7 @@ def genparset(
         str: Path to parset file.
     """
     logger.setLevel(logging.INFO)
-    
+
     beams = beams["beams"][field]
     ims = []
     for bm in list(set(beams["beam_list"])):  # Ensure list of beams is unique!
