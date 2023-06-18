@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Fix the correlation rotation of ASKAP MSs
+Fix the correlation rotation of ASKAP MSs.
+
+Converts the ASKAP standard correlations to the 'standard' correlations
+This will make them compatible with most imagers (e.g. wsclean, CASA)
+
+The old correlations are moved to a new column called 'DATA_ASKAP'
 """
 
 import logging
@@ -160,7 +165,7 @@ def get_nchunks(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP"):
 
 def main(
     ms: Path,
-    chunksize: int = 1000,
+    chunksize: int = 10_000,
     data_column: str = "DATA",
 ):
     """
@@ -173,9 +178,10 @@ def main(
             tab.flush()
     except RuntimeError:
         logger.warning(
-            f"'DATA_ASKAP' column already exists in {ms}. Have you already run this?"
+            f"""'DATA_ASKAP' column already exists in {ms}. Have you already run this?
+            Using the existing 'DATA_ASKAP' column and continuing...
+            """
         )
-        return
 
     # Get the polarization axis
     pol_axis = get_pol_axis(ms)
