@@ -199,7 +199,7 @@ def main(
         except RuntimeError:
             # Shouldn't ever happen...
             # Putting this here for interactive use when you might muck around with the MS
-            logger.warning(f"Column {data_column} already exists in {ms}")
+            logger.critical(f"Column {data_column} already exists in {ms}! You should never see this message!")
             pass
         for data_chunk in tqdm(data_chunks, total=nchunks):
             data_chunk_cor = convert_correlations(
