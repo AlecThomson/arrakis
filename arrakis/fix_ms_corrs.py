@@ -42,30 +42,30 @@ def convert_correlations(correlations: np.ndarray, pol_axis: u.Quantity):
 
     NOTES:
     In general, ASKAP forms Stokes I, Q, U, V as follows:
-    ⎡I⎤   ⎡    1         0         0          1    ⎤ ⎡XXₐ⎤
-    ⎢ ⎥   ⎢                                        ⎥ ⎢   ⎥
-    ⎢Q⎥   ⎢sin(2⋅θ)   cos(2⋅θ)  cos(2⋅θ)  -sin(2⋅θ)⎥ ⎢XYₐ⎥
-    ⎢ ⎥ = ⎢                                        ⎥⋅⎢   ⎥
-    ⎢U⎥   ⎢-cos(2⋅θ)  sin(2⋅θ)  sin(2⋅θ)  cos(2⋅θ) ⎥ ⎢YXₐ⎥
-    ⎢ ⎥   ⎢                                        ⎥ ⎢   ⎥
-    ⎣V⎦   ⎣    0       -1.0⋅i    1.0⋅i        0    ⎦ ⎣YYₐ⎦
+    ⎡I⎤   ⎡    1         0         0          1    ⎤ ⎡XX_a⎤
+    ⎢ ⎥   ⎢                                        ⎥ ⎢    ⎥
+    ⎢Q⎥   ⎢sin(2⋅θ)   cos(2⋅θ)  cos(2⋅θ)  -sin(2⋅θ)⎥ ⎢XY_a⎥
+    ⎢ ⎥ = ⎢                                        ⎥⋅⎢    ⎥
+    ⎢U⎥   ⎢-cos(2⋅θ)  sin(2⋅θ)  sin(2⋅θ)  cos(2⋅θ) ⎥ ⎢YX_a⎥
+    ⎢ ⎥   ⎢                                        ⎥ ⎢    ⎥
+    ⎣V⎦   ⎣    0       -1.0⋅i    1.0⋅i        0    ⎦ ⎣YY_a⎦
 
     Where theta is the polarization axis angle. In the common case of PA=-45deg -> theta=0deg, this becomes:
-    ⎡I⎤   ⎡1     0       0    1⎤ ⎡XXₐ⎤
-    ⎢ ⎥   ⎢                    ⎥ ⎢   ⎥
-    ⎢Q⎥   ⎢0     1       1    0⎥ ⎢XYₐ⎥
-    ⎢ ⎥ = ⎢                    ⎥⋅⎢   ⎥
-    ⎢U⎥   ⎢-1    0       0    1⎥ ⎢YXₐ⎥
-    ⎢ ⎥   ⎢                    ⎥ ⎢   ⎥
-    ⎣V⎦   ⎣0   -1.0⋅i  1.0⋅i  0⎦ ⎣YYₐ⎦
+    ⎡I⎤   ⎡1     0       0    1⎤ ⎡XX_a⎤
+    ⎢ ⎥   ⎢                    ⎥ ⎢    ⎥
+    ⎢Q⎥   ⎢0     1       1    0⎥ ⎢XY_a⎥
+    ⎢ ⎥ = ⎢                    ⎥⋅⎢    ⎥
+    ⎢U⎥   ⎢-1    0       0    1⎥ ⎢YX_a⎥
+    ⎢ ⎥   ⎢                    ⎥ ⎢    ⎥
+    ⎣V⎦   ⎣0   -1.0⋅i  1.0⋅i  0⎦ ⎣YY_a⎦
                 or
-    ⎡I⎤   ⎡    XXₐ + YYₐ     ⎤
-    ⎢ ⎥   ⎢                  ⎥
-    ⎢Q⎥   ⎢    XYₐ + YXₐ     ⎥
-    ⎢ ⎥ = ⎢                  ⎥
-    ⎢U⎥   ⎢    -XXₐ + YYₐ    ⎥
-    ⎢ ⎥   ⎢                  ⎥
-    ⎣V⎦   ⎣-i⋅XYₐ + 1.0⋅i⋅YXₐ⎦
+    ⎡I⎤   ⎡    XX_a + YY_a     ⎤
+    ⎢ ⎥   ⎢                    ⎥
+    ⎢Q⎥   ⎢    XY_a + YX_a     ⎥
+    ⎢ ⎥ = ⎢                    ⎥
+    ⎢U⎥   ⎢    -XX_a + YY_a    ⎥
+    ⎢ ⎥   ⎢                    ⎥
+    ⎣V⎦   ⎣-i⋅XY_a + 1.0⋅i⋅YX_a⎦
 
     However, most imagers (e.g. wsclean, CASA) expect
     ⎡I⎤   ⎡0.5    0       0    0.5 ⎤ ⎡XX_w⎤
@@ -85,31 +85,31 @@ def convert_correlations(correlations: np.ndarray, pol_axis: u.Quantity):
     ⎣V⎦   ⎣-0.5⋅i⋅XY_w + 0.5⋅i⋅YX_w⎦
 
     To convert between the two, we can use the following matrix:
-    ⎡XX_w⎤   ⎡sin(2.0⋅θ) + 1    cos(2.0⋅θ)      cos(2.0⋅θ)    1 - sin(2.0⋅θ)⎤ ⎡XXₐ⎤
-    ⎢    ⎥   ⎢                                                              ⎥ ⎢   ⎥
-    ⎢XY_w⎥   ⎢ -cos(2.0⋅θ)    sin(2.0⋅θ) + 1  sin(2.0⋅θ) - 1    cos(2.0⋅θ)  ⎥ ⎢XYₐ⎥
-    ⎢    ⎥ = ⎢                                                              ⎥⋅⎢   ⎥
-    ⎢YX_w⎥   ⎢ -cos(2.0⋅θ)    sin(2.0⋅θ) - 1  sin(2.0⋅θ) + 1    cos(2.0⋅θ)  ⎥ ⎢YXₐ⎥
-    ⎢    ⎥   ⎢                                                              ⎥ ⎢   ⎥
-    ⎣YY_w⎦   ⎣1 - sin(2.0⋅θ)   -cos(2.0⋅θ)     -cos(2.0⋅θ)    sin(2.0⋅θ) + 1⎦ ⎣YYₐ⎦
+    ⎡XX_w⎤   ⎡sin(2.0⋅θ) + 1    cos(2.0⋅θ)      cos(2.0⋅θ)    1 - sin(2.0⋅θ)⎤ ⎡XX_a⎤
+    ⎢    ⎥   ⎢                                                              ⎥ ⎢    ⎥
+    ⎢XY_w⎥   ⎢ -cos(2.0⋅θ)    sin(2.0⋅θ) + 1  sin(2.0⋅θ) - 1    cos(2.0⋅θ)  ⎥ ⎢XY_a⎥
+    ⎢    ⎥ = ⎢                                                              ⎥⋅⎢    ⎥
+    ⎢YX_w⎥   ⎢ -cos(2.0⋅θ)    sin(2.0⋅θ) - 1  sin(2.0⋅θ) + 1    cos(2.0⋅θ)  ⎥ ⎢YX_a⎥
+    ⎢    ⎥   ⎢                                                              ⎥ ⎢    ⎥
+    ⎣YY_w⎦   ⎣1 - sin(2.0⋅θ)   -cos(2.0⋅θ)     -cos(2.0⋅θ)    sin(2.0⋅θ) + 1⎦ ⎣YY_a⎦
     Where _w is the 'wsclean' format and _a is the 'ASKAP' format.
 
     In the case of PA=-45deg -> theta=0deg, this becomes:
-    ⎡XX_w⎤   ⎡1   1   1   1⎤ ⎡XXₐ⎤
-    ⎢    ⎥   ⎢             ⎥ ⎢   ⎥
-    ⎢XY_w⎥   ⎢-1  1   -1  1⎥ ⎢XYₐ⎥
-    ⎢    ⎥ = ⎢             ⎥⋅⎢   ⎥
-    ⎢YX_w⎥   ⎢-1  -1  1   1⎥ ⎢YXₐ⎥
-    ⎢    ⎥   ⎢             ⎥ ⎢   ⎥
-    ⎣YY_w⎦   ⎣1   -1  -1  1⎦ ⎣YYₐ⎦
+    ⎡XX_w⎤   ⎡1   1   1   1⎤ ⎡XX_a⎤
+    ⎢    ⎥   ⎢             ⎥ ⎢    ⎥
+    ⎢XY_w⎥   ⎢-1  1   -1  1⎥ ⎢XY_a⎥
+    ⎢    ⎥ = ⎢             ⎥⋅⎢    ⎥
+    ⎢YX_w⎥   ⎢-1  -1  1   1⎥ ⎢YX_a⎥
+    ⎢    ⎥   ⎢             ⎥ ⎢    ⎥
+    ⎣YY_w⎦   ⎣1   -1  -1  1⎦ ⎣YY_a⎦
                 or
-    ⎡XX_w⎤   ⎡XXₐ + XYₐ + YXₐ + YYₐ ⎤
-    ⎢    ⎥   ⎢                      ⎥
-    ⎢XY_w⎥   ⎢-XXₐ + XYₐ - YXₐ + YYₐ⎥
-    ⎢    ⎥ = ⎢                      ⎥
-    ⎢YX_w⎥   ⎢-XXₐ - XYₐ + YXₐ + YYₐ⎥
-    ⎢    ⎥   ⎢                      ⎥
-    ⎣YY_w⎦   ⎣XXₐ - XYₐ - YXₐ + YYₐ ⎦
+    ⎡XX_w⎤   ⎡XX_a + XY_a + YX_a + YY_a ⎤
+    ⎢    ⎥   ⎢                          ⎥
+    ⎢XY_w⎥   ⎢-XX_a + XY_a - YX_a + YY_a⎥
+    ⎢    ⎥ = ⎢                          ⎥
+    ⎢YX_w⎥   ⎢-XX_a - XY_a + YX_a + YY_a⎥
+    ⎢    ⎥   ⎢                          ⎥
+    ⎣YY_w⎦   ⎣XX_a - XY_a - YX_a + YY_a ⎦
 
 
     """
