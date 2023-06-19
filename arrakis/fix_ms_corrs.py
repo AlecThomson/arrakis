@@ -17,7 +17,9 @@ import numpy as np
 from casacore.tables import makecoldesc, table
 from tqdm import tqdm
 
-logger = logging.getLogger(__name__)
+from arrakis.logger import logger
+
+logger.setLevel(logging.INFO)
 
 
 def get_pol_axis(ms: Path) -> u.Quantity:
@@ -190,11 +192,12 @@ def main(
         chunksize (int, optional): Size of chunked data to correct. Defaults to 10_000.
         data_column (str, optional): The name of the data column to correct. Defaults to "DATA".
     """    
-    
+    logger.info(f"Correcting {data_column} of {str(ms)}.")
     
     # Open the MS, move the 'data_column' column to DATA_ASKAP
     try:
         with table(ms.as_posix(), readonly=False, ack=False) as tab:
+            logger.info(f"Renaming {data_column} to DATA_ASKAP. ")
             tab.renamecol(data_column, "DATA_ASKAP")
             tab.flush()
     except RuntimeError:
@@ -220,7 +223,12 @@ def main(
         except RuntimeError:
             # Shouldn't ever happen...
             # Putting this here for interactive use when you might muck around with the MS
-            logger.critical(f"Column {data_column} already exists in {ms}! You should never see this message!")
+            logger.critical(
+                (
+                    f"Column {data_column} already exists in {ms}! You should never see this message! "
+                    f"Possible an existing {data_column} has already been corrected. "
+                )
+            )
             pass
         for data_chunk in tqdm(data_chunks, total=nchunks):
             data_chunk_cor = convert_correlations(

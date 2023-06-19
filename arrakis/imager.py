@@ -29,13 +29,11 @@ from schwimmbad import SerialPool
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
-from arrakis import fix_ms_dir
+from arrakis import fix_ms_dir, fix_ms_corrs
 from arrakis.logger import logger
 from arrakis.utils import (
     beam_from_ms,
-    chunk_dask,
     field_idx_from_ms,
-    inspect_client,
     logo_str,
     wsclean,
 )
@@ -587,6 +585,21 @@ def fix_ms(ms: Path) -> Path:
     fix_ms_dir.main(ms.resolve(strict=True).as_posix())
     return ms
 
+@delayed()
+def fix_ms_corrs(ms: Path) -> Path:
+    """Applies a correction to raw telescope polarisation products to rotate them
+    to the wsclean espected form. This is essentially related to the third-axis of 
+    ASKAP and reorientating its 'X' and 'Y's. 
+
+    Args:
+        ms (Path): Path to the measurement set to be corrected. 
+
+    Returns:
+        Path: Path of the measurementt set containing the corrections.
+    """
+    logger.info(f"Correcting {str(ms)} correlations for wsclean. ")
+    
+    return fix_ms_corrs(ms=ms)
 
 def main(
     msdir: Path,
@@ -644,6 +657,7 @@ def main(
         logger.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
         ms_fix = fix_ms(ms)
+        ms_fix = fix_ms_corrs(ms=ms_fix)
         # Image with wsclean
         image_set = image_beam(
             ms=ms_fix,
