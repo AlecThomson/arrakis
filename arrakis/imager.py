@@ -381,7 +381,7 @@ def make_cube(
             new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
             new_name = os.path.join(out_dir, new_base)
 
-        plane = fits.getdata(image) * 2  # Multiply by 2 because of ASKAP Stokes
+        plane = fits.getdata(image) # Stokes do NOT need to be scaled so long as fix_ms_corrs applied!
         plane_rms = mad_std(plane, ignore_nan=True)
         rmss.append(plane_rms)
         data_cube[:, chan] = plane
