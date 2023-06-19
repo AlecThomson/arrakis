@@ -586,7 +586,7 @@ def fix_ms(ms: Path) -> Path:
     return ms
 
 @delayed()
-def fix_ms_corrs(ms: Path) -> Path:
+def fix_ms_askap_corrs(ms: Path) -> Path:
     """Applies a correction to raw telescope polarisation products to rotate them
     to the wsclean espected form. This is essentially related to the third-axis of 
     ASKAP and reorientating its 'X' and 'Y's. 
@@ -599,7 +599,9 @@ def fix_ms_corrs(ms: Path) -> Path:
     """
     logger.info(f"Correcting {str(ms)} correlations for wsclean. ")
     
-    return fix_ms_corrs(ms=ms)
+    fix_ms_corrs.main(ms=ms)
+
+    return ms
 
 def main(
     msdir: Path,
@@ -657,7 +659,7 @@ def main(
         logger.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
         ms_fix = fix_ms(ms)
-        ms_fix = fix_ms_corrs(ms=ms_fix)
+        ms_fix = fix_ms_askap_corrs(ms=ms_fix)
         # Image with wsclean
         image_set = image_beam(
             ms=ms_fix,
