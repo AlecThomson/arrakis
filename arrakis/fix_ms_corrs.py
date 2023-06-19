@@ -8,7 +8,7 @@ This will make them compatible with most imagers (e.g. wsclean, CASA)
 
 The old correlations are moved to a new column called 'DATA_ASKAP'
 """
-
+from typing import Iterator
 import logging
 from pathlib import Path
 
@@ -162,14 +162,35 @@ def convert_correlations(
     return np.einsum("ij,...j->...i", correction_matrix, correlations)
 
 
-def get_data_chunk(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP"):
+def get_data_chunk(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP") -> Iterator[np.ndarray]:
+    """Generator function that will yield a chunk of data from the `ms` data table. 
+
+    Args:
+        ms (Path): Measurement set whose data will be iterated over
+        chunksize (int): The number of rows to process per chunk
+        data_column (str, optional): The column name of the data to iterate. Defaults to "DATA_ASKAP".
+
+    Yields:
+        Iterator[np.ndarray]: Chunk of datta to process
+    """
     with table(ms.as_posix(), readonly=True, ack=False) as tab:
         data = tab.__getattr__(data_column)
         for i in range(0, len(data), chunksize):
             yield np.array(data[i : i + chunksize])
 
 
-def get_nchunks(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP"):
+def get_nchunks(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP") -> int:
+    """Returns the number of chunks that are needed to iterator over the datacolumsn
+    using a specified `chunksize`. 
+
+    Args:
+        ms (Path): Measurement sett thatt will be iterated over
+        chunksize (int): Size of a single chunk
+        data_column (str, optional): Name of the datacolumn that will be iterated over. Defaults to "DATA_ASKAP".
+
+    Returns:
+        int: Number of chunks in a measurement set
+    """
     with table(ms.as_posix(), readonly=True, ack=False) as tab:
         return int(np.ceil(len(tab.__getattr__(data_column)) / chunksize))
 
@@ -221,28 +242,32 @@ def main(
         try:
             tab.addcols(desc)
         except RuntimeError:
-            # Shouldn't ever happen...
+            # This can happen if this correction/script has been run more
+            # than once on the same measurement set. 
             # Putting this here for interactive use when you might muck around with the MS
             logger.critical(
                 (
                     f"Column {data_column} already exists in {ms}! You should never see this message! "
                     f"Possible an existing {data_column} has already been corrected. "
+                    f"No correction will be applied. "
                 )
             )
-            pass
-        for data_chunk in tqdm(data_chunks, total=nchunks):
-            data_chunk_cor = convert_correlations(
-                data_chunk,
-                pol_axis,
-            )
-            tab.putcol(
-                data_column,
-                data_chunk_cor,
-                startrow=start_row,
-                nrow=len(data_chunk_cor),
-            )
-            tab.flush()
-            start_row += len(data_chunk_cor)
+        else:
+            # Only perform this correction if the data column was 
+            # successfully renamed. 
+            for data_chunk in tqdm(data_chunks, total=nchunks):
+                data_chunk_cor = convert_correlations(
+                    data_chunk,
+                    pol_axis,
+                )
+                tab.putcol(
+                    data_column,
+                    data_chunk_cor,
+                    startrow=start_row,
+                    nrow=len(data_chunk_cor),
+                )
+                tab.flush()
+                start_row += len(data_chunk_cor)
 
 
 def cli():
