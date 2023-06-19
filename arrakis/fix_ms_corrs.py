@@ -21,8 +21,15 @@ logger = logging.getLogger(__name__)
 
 
 def get_pol_axis(ms: Path) -> u.Quantity:
-    """
-    Get the polarization axis from the ASKAP MS
+    """Get the polarization axis from the ASKAP MS. Checks are performed
+    to ensure this polarisation axis angle is constant throughout the observation. 
+
+
+    Args:
+        ms (Path): The path to the measurement set that will be inspected
+
+    Returns:
+        astropy.units.Quantity: The rotation of the PAF throughout the observing. 
     """
     with table((ms / "FEED").as_posix(), readonly=True, ack=False) as tf:
         ms_feed = tf.getcol("RECEPTOR_ANGLE") * u.rad
@@ -34,13 +41,15 @@ def get_pol_axis(ms: Path) -> u.Quantity:
     return pol_axes[0, 0].to(u.deg)
 
 
-def convert_correlations(correlations: np.ndarray, pol_axis: u.Quantity):
+def convert_correlations(
+    correlations: np.ndarray, pol_axis: u.Quantity
+) -> np.ndarray:
     """
     Convert ASKAP standard correlations to the 'standard' correlations
 
     Args:
         correlations (np.ndarray): The correlations from the MS. Has shape (NCOR, NCHAN, 4)
-        pol_axis (float): The polarization axis angle of the MS
+        pol_axis (astropy.units.Quantity): The polarization axis angle of the MS
 
     Returns:
         np.ndarray: The correlations in the 'standard' format
@@ -167,10 +176,22 @@ def main(
     ms: Path,
     chunksize: int = 10_000,
     data_column: str = "DATA",
-):
-    """
-    Fix the correlations in the MS
-    """
+) -> None:
+    """Apply corrections to the ASKAP visibilities to bring them inline with
+    what is expectede from other imagers, including CASA and WSClean. The 
+    original data in `data_column` are copied to `DATA_ASKAP`. The corrected
+    datsa are placed back into `data_column`.
+    
+    If `ASKAP_DATA` is detected as an existing column the renaming of `data_column`
+    is skipped.  
+
+    Args:
+        ms (Path): Path of the ASKAP measurement set tto correct. 
+        chunksize (int, optional): Size of chunked data to correct. Defaults to 10_000.
+        data_column (str, optional): The name of the data column to correct. Defaults to "DATA".
+    """    
+    
+    
     # Open the MS, move the 'data_column' column to DATA_ASKAP
     try:
         with table(ms.as_posix(), readonly=False, ack=False) as tab:
