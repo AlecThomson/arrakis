@@ -221,6 +221,10 @@ def image_beam(
     else:
         auto_mask_reduce = auto_mask
 
+    if local_rms_window:
+        local_rms_window = int(local_rms_window / 2)
+        logger.info(f"Scaled local RMS window to {local_rms_window}.")
+        
     command = wsclean(
         mslist=[ms.resolve(strict=True).as_posix()],
         use_mpi=False,
