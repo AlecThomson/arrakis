@@ -291,7 +291,7 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
         np.polynomial.Polynomial.fit: 3rd order polynomial fit.
     """
     logger.info("Writing junk file. ")
-    tab.write("junk_cat.fits")
+    tab.write("junk_cat.fits", overwrite=True)
     # Select high SNR sources
     hi_snr = (
         tab["stokesI"].to(u.Jy / u.beam) / tab["stokesI_err"].to(u.Jy / u.beam)
