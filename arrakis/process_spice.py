@@ -50,7 +50,7 @@ def process_imager(**kwargs) -> bool:
     return True
 
 
-@flow(name="Process the Spice")
+@flow(name="Combining+Synthesis on Arrakis")
 def process_spice(args, host: str) -> None:
     """Workflow to process the SPIRCE-RACS data
 
@@ -322,7 +322,7 @@ def main(args: configargparse.Namespace) -> None:
 
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
         process_imager.with_options(
-            name=f"Arrakis {args.field}", task_runner=dask_runner
+            name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
         )(
             msdir=args.msdir,
             out_dir=args.outdir,
@@ -372,7 +372,7 @@ def main(args: configargparse.Namespace) -> None:
 
     # Define flow
     process_spice.with_options(
-        name=f"SPICE-RACS {args.field}", task_runner=dask_runner_2
+        name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
     )(args, host)
 
     # TODO: Access the client via the `dask_runner`. Perhaps a
