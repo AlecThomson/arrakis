@@ -416,12 +416,16 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
             logger.info(f"Target number of RMs / bin: {target_sn}")
             break
         except ValueError as e:
-            if not "Not enough S/N in the whole set of pixels." in e.message:
+            if not "Not enough S/N in the whole set of pixels." in str(e):
                 raise e
             logger.warning(f"Failed with target number of RMs / bin of {target_sn}. Trying again with {target_sn-10}")
             target_sn -= 10
-            continue
-    
+        else:
+            fail_msg = "Failed to converge towards a Voronoi binning solution. "
+            logger.error(fail_msg)
+            
+            raise ValueError(fail_msg)
+            
     logger.info(f"Found {len(set(bin_number))} bins")
     df = good_cat.to_pandas()
     df.reset_index(inplace=True)
