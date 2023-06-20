@@ -111,6 +111,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             blend_ratio_arr = np.ones_like(sub_df.index, dtype=float) * np.nan
             for i, coord in enumerate(coords):
                 seps = coord.separation(coords)
+                # Greater than 0 to avoid matching to itself
                 sep_flag = (seps < beam) & (seps > 0 * u.deg)
                 is_blended_arr[i] = np.any(sep_flag)
                 n_blended_arr[i] = np.sum(sep_flag)
@@ -145,6 +146,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             },
             index=sub_df.index,
         )
+
         return df
 
     df = cat.to_pandas()
@@ -161,7 +163,16 @@ def flag_blended_components(cat: RMTable) -> RMTable:
                 "blend_ratio": float,
             },
         ).compute()
-    is_blended = is_blended.reindex(cat["cat_id"])
+
+    # TODO: It looks like is_blended as a multi-index of [source_id, cat_id],
+    # and the attempt to use `reindex` was returning a dataframe of 
+    # nan's. Highlighting for future discussion. 
+    # logger.info(is_blended)
+    is_blended = is_blended.reset_index()
+    is_blended = is_blended.set_index("cat_id")
+    is_blended = is_blended.reindex(cat["cat_id"])    
+    # logger.info(is_blended)
+        
     cat.add_column(
         Column(
             is_blended["is_blended_flag"],
@@ -186,6 +197,10 @@ def flag_blended_components(cat: RMTable) -> RMTable:
         ),
         index=-1,
     )
+    
+    cat.write("blended_cat.fits", overwrite=True)
+    # logger.info(cat['cat_id'])
+
     # Sanity check - no single-component sources should be flagged
     assert np.array_equal(is_blended.index.values, cat["cat_id"].data), "Index mismatch"
     assert not any(
@@ -387,6 +402,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
         Table: Table with local RM flag
     """
     logger.info("Computing voronoi bins and finding bad RMs")
+    logger.info(f"Number of available sources: {len(good_cat)}.")
 
     def sn_func(index, signal=None, noise=None):
         try:
@@ -395,7 +411,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
             sn = 1
         return sn
 
-    target_sn = 50
+    target_sn = 30
     while target_sn > 1:
         logger.debug(f"Trying a target number of RMs / bin of {target_sn}")
         try:
@@ -430,11 +446,11 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
                 f"Failed with target number of RMs / bin of {target_sn}. Trying again with {target_sn-10}"
             )
             target_sn -= 10
-        else:
-            fail_msg = "Failed to converge towards a Voronoi binning solution. "
-            logger.error(fail_msg)
-            
-            raise ValueError(fail_msg)
+    else:
+        fail_msg = "Failed to converge towards a Voronoi binning solution. "
+        logger.error(fail_msg)
+        
+        raise ValueError(fail_msg)
             
     logger.info(f"Found {len(set(bin_number))} bins")
     df = good_cat.to_pandas()
@@ -496,7 +512,7 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     )
     cat.add_column(Column(data=leakage_flag, name="leakage_flag"))
     # Channel flag
-    chan_flag = cat["Nchan"] < 144
+    chan_flag = cat["Nchan"] < int(np.max(cat["Nchan"]) * 0.5 )
     cat.add_column(Column(data=chan_flag, name="channel_flag"))
 
     # Stokes I flag
@@ -520,6 +536,8 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     goodL = goodI & ~cat["leakage_flag"] & (cat["snr_polint"] > 5)
     goodRM = goodL & ~cat["snr_flag"]
     good_cat = cat[goodRM]
+
+    good_cat.write(f"good_cat.fits", overwrite=True)
 
     cat_out = compute_local_rm_flag(good_cat=good_cat, big_cat=cat)
 
@@ -563,14 +581,27 @@ def get_alpha(cat):
 
 
 def get_integration_time(cat, field_col):
-    field_names = list(cat["tile_id"])
-    query = {"$and": [{"FIELD_NAME": {"$in": field_names}}, {"SELECT": 1}]}
+
+    logger.warn(f"Will be stripping the trailing field character prefix. ")
+    field_names = [
+        name[:-1] if name[-1] in ('A', 'B') else name 
+        for name in list(cat["tile_id"])
+    ]
+
+    logger.debug(f"Searching integration times for {field_names=}")
+
+    query = {"$and": [{"FIELD_NAME": {"$in": field_names}}]}
     tint_dicts = list(
         field_col.find(query, {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1})
     )
+    
+    logger.debug(f"Returned results: {tint_dicts=}")
+    
     tint_dict = {}
     for d in tint_dicts:
         tint_dict.update({d["FIELD_NAME"]: d["SCAN_TINT"]})
+
+    logger.debug(f"{tint_dict=}")
 
     tints = []
     for name in field_names:
