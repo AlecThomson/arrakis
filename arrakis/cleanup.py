@@ -13,6 +13,7 @@ from arrakis.utils import chunk_dask
 
 logger.setLevel(logging.INFO)
 
+
 @delayed
 def cleanup(workdir: str, stoke: str) -> None:
     """Clean up beam images
