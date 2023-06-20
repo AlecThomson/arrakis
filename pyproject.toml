@@ -92,6 +92,7 @@ spice_init = "arrakis.init_database:cli"
 spice_process = "arrakis.process_spice:cli"
 spice_region = "arrakis.process_region:cli"
 spice_cat = "arrakis.makecat:cli"
+fix_ms_corrs = "arrakis.fix_ms_corrs:cli"
 # Unified script script
 casda_prepare = { reference="scripts/casda_prepare.py", type="file"}
 check_cutout = { reference="scripts/check_cutout.py", type="file"}

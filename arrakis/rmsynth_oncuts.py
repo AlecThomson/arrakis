@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
+import logging
 import os
 import traceback
 import warnings
-import logging
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
@@ -39,6 +39,7 @@ from arrakis.utils import (
 )
 
 logger.setLevel(logging.INFO)
+
 
 @delayed
 def rmsynthoncut3d(
@@ -287,7 +288,7 @@ def rmsynthoncut1d(
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
     logger.setLevel(logging.INFO)
-    
+
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
     ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
@@ -580,7 +581,7 @@ def rmsynthoncut_i(
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
     logger.setLevel(logging.INFO)
-    
+
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )

@@ -25,7 +25,7 @@ from IPython import embed
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 
-from arrakis.logger import logger 
+from arrakis.logger import logger
 from arrakis.utils import (
     MyEncoder,
     chunk_dask,
@@ -88,9 +88,9 @@ def cutout(
     logger.setLevel(logging.INFO)
     # logger = logging.getLogger('distributed.worker')
     # logger = get_run_logger()
-    
+
     logger.info(f"Timwashere - {image=}")
-    
+
     outdir = os.path.abspath(outdir)
 
     ret = []
@@ -207,7 +207,7 @@ def get_args(
     """
 
     logger.setLevel(logging.INFO)
-    
+
     assert island["Source_ID"] == island_id
     assert beam["Source_ID"] == island_id
 
