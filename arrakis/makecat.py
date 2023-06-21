@@ -438,11 +438,12 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
                 quiet=True,
                 wvt=False,
             )
-            logger.info(f"Target number of RMs / bin: {target_sn} / {bin_number}")
-            if bin_number >= target_bins:
+            num_of_bins = len(np.unique(bin_number))
+            logger.info(f"Target number of RMs / bin: {target_sn} / {num_of_bins}.")
+            if num_of_bins >= target_bins:
                 break
             else:
-                logger.info(f"Found {bin_number} bins, targeting minimum {target_bins}")
+                logger.info(f"Found {num_of_bins} bins, targeting minimum {target_bins}")
                 target_sn -= 5
         except ValueError as e:
             if not "Not enough S/N in the whole set of pixels." in str(e):
