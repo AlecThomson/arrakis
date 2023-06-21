@@ -634,6 +634,7 @@ def main(
     multiscale: Optional[bool] = None,
     multiscale_scale_bias: Optional[float] = None,
     absmem: Optional[float] = None,
+    make_residual_cubes: Optional[bool] = False
 ):
     simage = get_wsclean(wsclean=wsclean_path)
 
@@ -701,13 +702,15 @@ def main(
     # set of ImageSets are first derived before this is called.
     common_beam_pkl = get_beam(image_sets=image_sets, cutoff=cutoff)
 
+    cube_aux_modes = (None, "residual") if make_residual_cubes else (None, )
+
     # With the final beam each *image* in the ImageSet across IQU are
     # smoothed and then form the cube for each stokes.
     for image_set in image_sets:
         # Per loop containers since we are iterating over image modes
         smooth_image_sets = []
         clean_sm_image_sets = []
-        for aux_mode in (None, "residual"):
+        for aux_mode in cube_aux_modes:
             # Smooth the *images* in an ImageSet across all Stokes. This
             # limits the number of workers to 36, i.e. this is operating
             # beamwise
@@ -925,6 +928,12 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Path to local wsclean Singularity image",
+    )
+    
+    group.add_argument(
+        "--make_residual_cubes",
+        action='store_true',
+        help="Create residual cubes as well as cubes from restored images. "
     )
 
     return img_parser
