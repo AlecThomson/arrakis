@@ -257,7 +257,7 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        cluster.adapt(minimum=1, maximum=65)
+        cluster.adapt(minimum=1, maximum=38)
         # cluster.scale(36)
 
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
