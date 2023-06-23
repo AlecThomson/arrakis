@@ -295,7 +295,9 @@ def is_leakage(frac, sep, fit):
     return frac < fit_frac
 
 
-def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
+def get_fit_func(
+    tab: Table, nbins: int=21, offset: float=0.002, degree: int=2, do_plot: bool=False, high_snr_cut: float=30.
+):
     """Fit an envelope to define leakage sources
 
     Args:
@@ -307,11 +309,17 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     """
     logger.info("Writing junk file. ")
     tab.write("junk_cat.fits", overwrite=True)
+    
+    logger.info(f"Using {high_snr_cut=}.")
+    
     # Select high SNR sources
     hi_snr = (
         tab["stokesI"].to(u.Jy / u.beam) / tab["stokesI_err"].to(u.Jy / u.beam)
-    ) > 100
+    ) > high_snr_cut
     hi_i_tab = tab[hi_snr]
+    
+    logger.info(f"{np.sum(hi_snr)} sources with Stokes I SNR above {high_snr_cut=}.")
+    
     # Get fractional pol
     frac_P = np.array(hi_i_tab["fracpol"].value)
     # Bin sources by separation from tile centre
@@ -349,26 +357,27 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
         "s1_ups": s1_ups,
         "s2_ups": s2_ups,
     }
-    # plt.scatter(
-    #     hi_i_tab["beamdist"].to(u.deg).value,
-    #     frac_P,
-    #     s=1,
-    #     alpha=0.2,
-    #     marker=".",
-    #     c="k",
-    #     zorder=0,
-    #     rasterized=True,
+    plt.scatter(
+        hi_i_tab["beamdist"].to(u.deg).value,
+        frac_P,
+        s=1,
+        alpha=0.9,
+        marker=".",
+        c="k",
+        zorder=0,
+        rasterized=True,
+    )
+    
+    # is_finite = np.logical_and(
+    #     np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P)
     # )
-    is_finite = np.logical_and(
-        np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P)
-    )
-    hist2d(
-        np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite, np.newaxis],
-        np.array(frac_P)[is_finite, np.newaxis],
-        bins=(nbins, nbins),
-        range=[[0, 5], [0, 0.05]],
-        # color=color,
-    )
+    # hist2d(
+    #     np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite, np.newaxis],
+    #     np.array(frac_P)[is_finite, np.newaxis],
+    #     bins=(nbins, nbins),
+    #     range=[[0, 5], [0, 0.05]],
+    #     # color=color,
+    # )
     plt.plot(bins_c, meds, alpha=1, c=color, label="Median", linewidth=2)
     for s, ls in zip((1, 2), ("--", ":")):
         for r in ("ups", "los"):
@@ -386,7 +395,7 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     plt.legend(loc="upper left")
     plt.xlabel("Separation from tile centre [deg]")
     plt.ylabel(f"$L/I$")
-    plt.ylim(0, +0.05)
+    plt.ylim(0, +0.075)
     plt.grid()
     return fit, fig
 
@@ -412,9 +421,9 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
         return sn
 
     target_sn = 30
-    target_bins = 10
+    target_bins = 6
     while target_sn > 1:
-        logger.debug(f"Trying a target number of RMs / bin of {target_sn} / {target_bins}")
+        logger.debug(f"Trying to find Voroni bins with RMs per bin={target_sn}, Number of bins={target_bins}")
         try:
             (
                 bin_number,
@@ -439,7 +448,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
                 wvt=False,
             )
             num_of_bins = len(np.unique(bin_number))
-            logger.info(f"Target number of RMs / bin: {target_sn} / {num_of_bins}.")
+            logger.info(f"Target RMs per bin and number of bins: {target_sn} / {target_bins}.")
             if num_of_bins >= target_bins:
                 break
             else:
@@ -449,7 +458,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
             if not "Not enough S/N in the whole set of pixels." in str(e):
                 raise e
             logger.warning(
-                f"Failed with target number of RMs / bin of {target_sn}. Trying again with {target_sn-10}"
+                f"Failed with target number of RMs per bin of {target_sn}. Trying again with {target_sn-10}"
             )
             target_sn -= 10
     else:
