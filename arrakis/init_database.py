@@ -234,7 +234,7 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
             raise FileNotFoundError(f"{beamfile} not found!")
         tab = Table.read(beamfile)
         try:
-            tab.add_column(row['FIELD_NAME'], name="FIELD_NAME", index=0)
+            tab.add_column(row["FIELD_NAME"], name="FIELD_NAME", index=0)
             tab.add_column(row["SBID"], name="SBID", index=0)
             racs_fields = vstack([racs_fields, tab])
         except TypeError:
