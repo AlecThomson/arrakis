@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "arrakis"
-version = "0.2.0"
+version = "1.0.0"
 description = "Processing the SPICE."
 homepage = "https://research.csiro.au/racs/"
 repository = "https://github.com/AlecThomson/arrakis"
@@ -72,6 +72,7 @@ black = "^23"
 flake8 = "^5"
 isort = "^5"
 mypy = "^1"
+pre-commit = "^3.2"
 
 [tool.poetry.extras]
 docs = [
@@ -104,6 +105,7 @@ copy_data = { reference="scripts/copy_data.py", type="file"}
 find_row = { reference="scripts/find_row.py", type="file"}
 find_sbid = { reference="scripts/find_sbid.py", type="file"}
 fix_dr1_cat = { reference="scripts/fix_dr1_cat.py", type="file"}
+fix_src_cat = { reference="scripts/fix_src_cat.py", type="file"}
 hello_mpi_world = { reference="scripts/hello_mpi_world.py", type="file"}
 make_links = { reference="scripts/make_links.py", type="file"}
 spica = { reference="scripts/spica.py", type="file"}

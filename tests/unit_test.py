@@ -3,14 +3,15 @@
 import unittest
 
 from arrakis.rmsynth_oncuts import (
-    rmsynthoncut3d,
-    rms_1d,
     estimate_noise_annulus,
+    rms_1d,
     rmsynthoncut1d,
+    rmsynthoncut3d,
     rmsynthoncut_i,
 )
 
 # Test functions within arrakis.rmsyth_oncuts
+
 
 class TestRmsynthOncuts(unittest.TestCase):
     """Test rmsynth_oncuts functions."""
@@ -36,5 +37,5 @@ class TestRmsynthOncuts(unittest.TestCase):
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

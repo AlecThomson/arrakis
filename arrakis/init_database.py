@@ -182,7 +182,7 @@ def beam_database(
     )
 
     # Get beams
-    beam_list = get_beams(islandcat, racs_fields)
+    beam_list = get_beams(islandcat, racs_fields, epoch=epoch)
     logger.info("Loading into mongo...")
     json_data = json.loads(json.dumps(beam_list, cls=MyEncoder))
     beams_col, island_col, comp_col = get_db(
@@ -208,40 +208,42 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
         Table: RACS catalogue table.
 
     """
-    basedir = survey_dir / "racs" / "db" / f"epoch_{epoch}"
-    beamfiles = basedir.glob("beam_inf*")
+    basedir = survey_dir / "db" / f"epoch_{epoch}"
+    logger.info(f"Loading RACS database from {basedir}")
+    data_file = basedir / "field_data.csv"
+    database = Table.read(data_file)
+    # Remove rows with SBID < 0
+    database = database[database["SBID"] >= 0]
 
     # Init first field
-    beamfile = beamfiles[0]
+    row = database[0]
+    FIELD = row["FIELD_NAME"]
+    SBID = row["SBID"]
+    # Find FIELD and SBID in beamfile name
+    beamfile = basedir / f"beam_inf_{SBID}-{FIELD}.csv"
+    if not beamfile.exists():
+        raise FileNotFoundError(f"{beamfile} not found!")
     racs_fields = Table.read(beamfile)
-    basename = os.path.basename(beamfile)
-    idx = basename.find("RACS")
-    FIELD = basename[idx:-4]
-    SBID = basename[9 : idx - 1]
     racs_fields.add_column(FIELD, name="FIELD_NAME", index=0)
-    racs_fields.add_column(int(SBID), name="SBID", index=0)
+    racs_fields.add_column(SBID, name="SBID", index=0)
 
     # Add in all others
-    for i, beamfile in enumerate(tqdm(beamfiles, desc="Reading RACS database")):
-        if i == 0:
+    for row in tqdm(database[1:], desc="Reading RACS database"):
+        beamfile = basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv"
+        if not beamfile.exists():
+            raise FileNotFoundError(f"{beamfile} not found!")
+        tab = Table.read(beamfile)
+        try:
+            tab.add_column(row["FIELD_NAME"], name="FIELD_NAME", index=0)
+            tab.add_column(row["SBID"], name="SBID", index=0)
+            racs_fields = vstack([racs_fields, tab])
+        except TypeError:
+            logger.warning(f"{SBID} failed...")
             continue
-        else:
-            tab = Table.read(beamfile)
-            basename = beamfile.name
-            idx = basename.find("RACS")
-            FIELD = basename[idx:-4]
-            SBID = basename[9 : idx - 1]
-            try:
-                tab.add_column(FIELD, name="FIELD_NAME", index=0)
-                tab.add_column(int(SBID), name="SBID", index=0)
-                racs_fields = vstack([racs_fields, tab])
-            except TypeError:
-                logger.warning(f"{SBID} failed...")
-                continue
     return racs_fields
 
 
-def get_beams(mastercat: Table, database: Table) -> List[Dict]:
+def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
     """Get beams from the master catalogue
 
     Args:
@@ -258,11 +260,21 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
 
     # Get DR1 fields
     points = np.unique(list(mastercat["Tile_ID"]))
-    fields = np.array([point[-8:] for point in points])
+    fields = np.array(
+        [
+            point.replace("_test4_1.05_", "_") if epoch == 0 else point
+            for point in points
+        ]
+    )
 
     # Fix for no 'test4' in cat
-    # in_dr1 = np.isin(database['FIELD_NAME'], points)
-    in_dr1 = np.isin([field[-8:] for field in database["FIELD_NAME"]], fields)
+    in_dr1 = np.isin(
+        [
+            field.replace("_test4_1.05_", "_") if epoch == 0 else field
+            for field in database["FIELD_NAME"]
+        ],
+        fields,
+    )
 
     beam_list = []
     for i, (val, idx) in enumerate(
@@ -270,13 +282,13 @@ def get_beams(mastercat: Table, database: Table) -> List[Dict]:
     ):
         beam_dict = {}
         ra = mastercat[val]["RA"]
-        dec = dec = mastercat[val]["Dec"]
+        dec = mastercat[val]["Dec"]
         name = mastercat[val]["Source_Name"]
         isl_id = mastercat[val]["Source_ID"]
         beams = database[seps[0][idx.astype(int)]]
         for j, field in enumerate(np.unique(beams["FIELD_NAME"])):
             ndx = beams["FIELD_NAME"] == field
-            field = field[-8:]
+            field = field.replace("_test4_1.05_", "_") if epoch == 0 else field
             beam_dict.update(
                 {
                     field: {
@@ -317,7 +329,7 @@ def field_database(
     Returns:
         InsertManyResult: Field insert object.
     """
-    basedir = survey_dir / "racs" / "db" / f"epoch_{epoch}"
+    basedir = survey_dir / "db" / f"epoch_{epoch}"
     data_file = basedir / "field_data.csv"
     database = Table.read(data_file)
     df = database.to_pandas()
@@ -416,12 +428,17 @@ def main(
         check_field = (
             yes_or_no("Are you sure you wish to proceed?") if not force else True
         )
+        if database_path is None:
+            logger.critical("Database path is required!")
+            database_path = Path(input("Enter database path:"))
+
         if check_field:
             field_res = field_database(
                 survey_dir=database_path,
                 host=host,
                 username=username,
                 password=password,
+                epoch=epoch,
             )
 
     else:
@@ -484,7 +501,7 @@ def cli():
         "--database-path",
         type=str,
         default=None,
-        help="Path to RACS database (i.e. 'askap_surveys' repo).",
+        help="Path to RACS database (i.e. 'askap_surveys/racs' repo).",
     )
 
     parser.add_argument(

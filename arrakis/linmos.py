@@ -58,10 +58,8 @@ def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
         master_cat = master_cat[0]
 
     # Look for multiple SBIDs - only need one
-    cats_wild = os.path.join(
-        survey_dir, "db", f"epoch_{epoch}", f"beam_inf_*-{field}.csv"
-    )
-    cats = glob(cats_wild)
+    cats_wild = f"beam_inf_*-RACS_{field}.csv"
+    cats = list((survey_dir / "db" / f"epoch_{epoch}").glob(cats_wild))
 
     if len(cats) == 0:
         raise FileNotFoundError(f"No catalogues found for {cats_wild=}")
