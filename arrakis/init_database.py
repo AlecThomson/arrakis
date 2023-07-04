@@ -480,7 +480,8 @@ def cli():
         "-p", "--password", type=str, default=None, help="Password of mongodb."
     )
     parser.add_argument(
-        "-d" "--database-path",
+        "-d",
+        "--database-path",
         type=str,
         default=None,
         help="Path to RACS database (i.e. 'askap_surveys' repo).",

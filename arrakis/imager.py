@@ -16,6 +16,7 @@ import numpy as np
 from astropy import units as u
 from astropy.io import fits
 from astropy.stats import mad_std
+from astropy.table import Table
 from astropy.wcs import WCS
 from casatasks import vishead
 from dask import compute, delayed, visualize
@@ -28,13 +29,12 @@ from schwimmbad import SerialPool
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
-from arrakis import fix_ms_dir
+from arrakis import fix_ms_dir, fix_ms_corrs
 from arrakis.logger import logger
 from arrakis.utils import (
     beam_from_ms,
-    chunk_dask,
     field_idx_from_ms,
-    inspect_client,
+    logo_str,
     wsclean,
 )
 
@@ -154,7 +154,7 @@ def image_beam(
     local_rms: bool = False,
     local_rms_window: Optional[float] = None,
     multiscale: bool = False,
-    multiscale_scale_bias: Optional[float] = None
+    multiscale_scale_bias: Optional[float] = None,
 ) -> ImageSet:
     """Image a single beam"""
     logger = logging.getLogger(__name__)
@@ -219,6 +219,10 @@ def image_beam(
     else:
         auto_mask_reduce = auto_mask
 
+    if local_rms_window:
+        local_rms_window = int(local_rms_window / 2)
+        logger.info(f"Scaled local RMS window to {local_rms_window}.")
+        
     command = wsclean(
         mslist=[ms.resolve(strict=True).as_posix()],
         use_mpi=False,
@@ -249,7 +253,7 @@ def image_beam(
         local_rms=local_rms,
         local_rms_window=local_rms_window,
         multiscale=multiscale,
-        multiscale_scale_bias=multiscale_scale_bias
+        multiscale_scale_bias=multiscale_scale_bias,
     )
     commands.append(command)
 
@@ -268,6 +272,11 @@ def image_beam(
             )
             for line in output:
                 logger.info(line.rstrip())
+                # Catch divergence - look for the string 'KJy' in the output
+                if "KJy" in line:
+                    raise ValueError(
+                        f"Detected divergence in wsclean output: {line.rstrip()}"
+                    )
         except CalledProcessError as e:
             logger.error(f"Failed to run wsclean with command: {command}")
             logger.error(f"Stdout: {e.stdout}")
@@ -327,10 +336,7 @@ def image_beam(
 
 @delayed(nout=2)
 def make_cube(
-    pol: str,
-    image_set: ImageSet,
-    common_beam_pkl: Path,
-    aux_mode: Optional[str] = None
+    pol: str, image_set: ImageSet, common_beam_pkl: Path, aux_mode: Optional[str] = None
 ) -> Tuple[Path, Path]:
     """Make a cube from the images"""
     logger = logging.getLogger(__name__)
@@ -339,7 +345,7 @@ def make_cube(
     logger.info(f"Creating cube for {pol=} {image_set.ms=}")
     image_list = image_set.image_lists[pol]
 
-    image_type = 'restored' if aux_mode is None else aux_mode
+    image_type = "restored" if aux_mode is None else aux_mode
 
     # First combine images into cubes
     freqs = []
@@ -375,11 +381,11 @@ def make_cube(
             new_base = old_base
             b_idx = new_base.find("beam") + len("beam") + 2
             sub = new_base[b_idx:]
-            new_base = new_base.replace(sub, ".fits")
+            new_base = new_base.replace(sub, ".conv.fits")
             new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
             new_name = os.path.join(out_dir, new_base)
 
-        plane = fits.getdata(image) / 2  # Divide by 2 because of ASKAP Stokes
+        plane = fits.getdata(image) # Stokes do NOT need to be scaled so long as fix_ms_corrs applied!
         plane_rms = mad_std(plane, ignore_nan=True)
         rmss.append(plane_rms)
         data_cube[:, chan] = plane
@@ -399,7 +405,7 @@ def make_cube(
 
     tmp_header = new_header.copy()
     # Need to swap NAXIS 3 and 4 to make LINMOS happy - booo
-    for a, b in ((3,4), (4,3)):
+    for a, b in ((3, 4), (4, 3)):
         new_header[f"CTYPE{a}"] = tmp_header[f"CTYPE{b}"]
         new_header[f"CRPIX{a}"] = tmp_header[f"CRPIX{b}"]
         new_header[f"CRVAL{a}"] = tmp_header[f"CRVAL{b}"]
@@ -416,9 +422,21 @@ def make_cube(
     fits.writeto(new_name, data_cube, new_header, overwrite=True)
     logger.info(f"Written {new_name}")
 
-    # Copy image cube
-    new_w_name = new_name.replace(f"image.{image_type}", f"weights.{image_type}").replace(".fits", ".txt")
-    np.savetxt(new_w_name, rmss_arr.value, fmt="%s")
+    # Write out weights
+    # Must be of the format:
+    # #Channel Weight
+    # 0 1234.5
+    # 1 6789.0
+    # etc.
+    new_w_name = new_name.replace(
+        f"image.{image_type}", f"weights.{image_type}"
+    ).replace(".fits", ".txt")
+    data = dict(
+        Channel=np.arange(len(rmss_arr.value)),
+        Weight=rmss_arr.value,
+    )
+    tab = Table(data)
+    tab.write(new_w_name, format="ascii.commented_header", overwrite=True)
 
     return new_name, new_w_name
 
@@ -430,8 +448,8 @@ def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
     Args:
         image_sets (List[ImageSet]): All input beam ImageSets that a common resolution will be derived for
         cuttoff (float, optional): The maximum major axis of the restoring beam that is allowed when
-        searching for the lowest common beam. Images whose restoring beam's major acis is larger than 
-        this are ignored. Defaults to None.  
+        searching for the lowest common beam. Images whose restoring beam's major acis is larger than
+        this are ignored. Defaults to None.
 
     Returns:
         Path: Path to the pickled beam object
@@ -469,7 +487,10 @@ def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
 
 @delayed()
 def smooth_imageset(
-    image_set: ImageSet, common_beam_pkl: Path, cutoff: Optional[float] = None, aux_mode: Optional[str] = None
+    image_set: ImageSet,
+    common_beam_pkl: Path,
+    cutoff: Optional[float] = None,
+    aux_mode: Optional[str] = None,
 ) -> ImageSet:
     """Smooth all images described within an ImageSet to a desired resolution
 
@@ -478,7 +499,7 @@ def smooth_imageset(
         common_beam_pkl (Path): Location of pickle file with beam description
         cutoff (Optional[float], optional): PSF cutoff passed to the beamcon_2D worker. Defaults to None.
         aux_model (Optional[str], optional): The image type in the `aux_lists` property of `image_set` that contains the images to smooth. If
-        not set then the `image_lists` property of `image_set` is used. Defaults to None. 
+        not set then the `image_lists` property of `image_set` is used. Defaults to None.
     Returns:
         ImageSet: A copy of `image_set` pointing to the smoothed images. Note the `aux_images` property is not carried forward.
     """
@@ -499,7 +520,11 @@ def smooth_imageset(
     else:
         logger.info(f"Extracting images for {aux_mode=}.")
         assert image_set.aux_lists is not None, f"{image_set=} has empty aux_lists."
-        images_to_smooth = {pol: images for (pol, img_type), images in image_set.aux_lists.items() if aux_mode == img_type}
+        images_to_smooth = {
+            pol: images
+            for (pol, img_type), images in image_set.aux_lists.items()
+            if aux_mode == img_type
+        }
 
     sm_images = {}
     for pol, pol_images in images_to_smooth.items():
@@ -564,6 +589,23 @@ def fix_ms(ms: Path) -> Path:
     fix_ms_dir.main(ms.resolve(strict=True).as_posix())
     return ms
 
+@delayed()
+def fix_ms_askap_corrs(ms: Path) -> Path:
+    """Applies a correction to raw telescope polarisation products to rotate them
+    to the wsclean espected form. This is essentially related to the third-axis of 
+    ASKAP and reorientating its 'X' and 'Y's. 
+
+    Args:
+        ms (Path): Path to the measurement set to be corrected. 
+
+    Returns:
+        Path: Path of the measurementt set containing the corrections.
+    """
+    logger.info(f"Correcting {str(ms)} correlations for wsclean. ")
+    
+    fix_ms_corrs.main(ms=ms)
+
+    return ms
 
 def main(
     msdir: Path,
@@ -573,7 +615,7 @@ def main(
     pols: str = "IQU",
     nchan: int = 36,
     size: int = 6074,
-    scale: u.Quantity = 2.5 * u.arcsec,
+    scale: float = 2.5,
     mgain: float = 0.8,
     niter: int = 100_000,
     auto_mask: float = 3,
@@ -583,19 +625,22 @@ def main(
     reimage: bool = False,
     purge: bool = False,
     minuv: float = 0.0,
-    parallel_deconvolution: Union[int, None] = None,
-    gridder: Union[str, None] = None,
-    nmiter: Union[int, None] = None,
+    parallel_deconvolution: Optional[int] = None,
+    gridder: Optional[str] = None,
+    nmiter: Optional[int] = None,
     local_rms: bool = False,
-    local_rms_window: Union[float, None] = None,
+    local_rms_window: Optional[float] = None,
     wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest",
     multiscale: Optional[bool] = None,
     multiscale_scale_bias: Optional[float] = None,
-    absmem: Union[float, None] = None,
+    absmem: Optional[float] = None,
+    make_residual_cubes: Optional[bool] = False
 ):
     simage = get_wsclean(wsclean=wsclean_path)
 
     mslist = sorted(msdir.glob("scienceData*_averaged_cal.leakage.ms"))
+
+    scale = scale * u.arcsecond
 
     assert (len(mslist) > 0) & (
         len(mslist) == 36
@@ -619,6 +664,7 @@ def main(
         logger.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
         ms_fix = fix_ms(ms)
+        ms_fix = fix_ms_askap_corrs(ms=ms_fix)
         # Image with wsclean
         image_set = image_beam(
             ms=ms_fix,
@@ -654,9 +700,9 @@ def main(
     # Compute the smallest beam that all images can be convolved to.
     # This requires all imaging rounds to be completed, so the total
     # set of ImageSets are first derived before this is called.
-    common_beam_pkl = get_beam(
-        image_sets=image_sets, cutoff=cutoff
-    )
+    common_beam_pkl = get_beam(image_sets=image_sets, cutoff=cutoff)
+
+    cube_aux_modes = (None, "residual") if make_residual_cubes else (None, )
 
     # With the final beam each *image* in the ImageSet across IQU are
     # smoothed and then form the cube for each stokes.
@@ -664,7 +710,7 @@ def main(
         # Per loop containers since we are iterating over image modes
         smooth_image_sets = []
         clean_sm_image_sets = []
-        for aux_mode in (None, 'residual'):
+        for aux_mode in cube_aux_modes:
             # Smooth the *images* in an ImageSet across all Stokes. This
             # limits the number of workers to 36, i.e. this is operating
             # beamwise
@@ -672,7 +718,7 @@ def main(
                 image_set,
                 common_beam_pkl=common_beam_pkl,
                 cutoff=cutoff,
-                aux_mode=aux_mode
+                aux_mode=aux_mode,
             )
             smooth_image_sets.append(sm_image_set)
 
@@ -682,13 +728,13 @@ def main(
                     pol=pol,
                     image_set=sm_image_set,
                     common_beam_pkl=common_beam_pkl,
-                    aux_mode=aux_mode
+                    aux_mode=aux_mode,
                 )
                 for pol in pols
             ]
 
             # Clean up smoothed images files. Note the
-            # ignore_files that is used to preserve the 
+            # ignore_files that is used to preserve the
             # dependency between dask tasks
             clean = cleanup(
                 purge=purge,
@@ -696,13 +742,13 @@ def main(
                 ignore_files=cube_images,  # To keep the dask dependency tracking
             )
             clean_sm_image_sets.append(clean)
-            
+
         # Now clean the original output images from wscean
         clean = cleanup(
-                purge=purge,
-                image_sets=[image_set],
-                ignore_files=clean_sm_image_sets,  # To keep the dask dependency tracking
-            )
+            purge=purge,
+            image_sets=[image_set],
+            ignore_files=clean_sm_image_sets,  # To keep the dask dependency tracking
+        )
         cleans.append(clean)
 
     # Trust nothing
@@ -710,42 +756,33 @@ def main(
 
     return compute(cleans)
 
-def imager_parser(parent_parser: bool=True) -> argparse.ArgumentParser:
-    """Return the argument parser for the imager routine. 
+
+def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Return the argument parser for the imager routine.
 
     Args:
-        parent_parser (bool, optional): Ensure the parser is configured so it can be added as a parent to a new parser. This will disables the -h/--help action from being generated. Defaults to True.
+        parent_parser (bool, optional): Ensure the parser is configured so it can be added as a parent to a new parser. This will disables the -h/--help action from being generated. Defaults to False.
 
     Returns:
         argparse.ArgumentParser: Arguments required for the imager routine
-    """    
-    # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
     """
 
     # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
-    Arrakis Stage X:
-    Image calibrated visibilities
+    {logo_str}
 
+    {__doc__}
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        add_help=parent_parser, description=descStr, formatter_class=argparse.RawTextHelpFormatter
+    img_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
+
+    parser = img_parser.add_argument_group("imaging arguments")
+
     parser.add_argument(
         "msdir",
         type=Path,
@@ -757,9 +794,9 @@ def imager_parser(parent_parser: bool=True) -> argparse.ArgumentParser:
         help="Directory to output images",
     )
     parser.add_argument(
-        "--cutoff",
+        "--psf_cutoff",
         type=float,
-        help="Cutoff for smoothing",
+        help="Cutoff for smoothing in units of arcseconds. ",
     )
     parser.add_argument(
         "--robust",
@@ -783,7 +820,7 @@ def imager_parser(parent_parser: bool=True) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--scale",
-        type=u.Quantity,
+        type=float,
         default=2.5,
     )
     parser.add_argument(
@@ -812,16 +849,16 @@ def imager_parser(parent_parser: bool=True) -> argparse.ArgumentParser:
         default=1.0,
     )
     parser.add_argument(
-        "--local-rms",
+        "--local_rms",
         action="store_true",
     )
     parser.add_argument(
-        "--local-rms-window",
+        "--local_rms_window",
         type=float,
         default=None,
     )
     parser.add_argument(
-        "--force-mask-rounds",
+        "--force_mask_rounds",
         type=int,
         default=None,
     )
@@ -867,11 +904,18 @@ def imager_parser(parent_parser: bool=True) -> argparse.ArgumentParser:
         help="Use multiscale clean",
     )
     parser.add_argument(
+        "--multiscale_scale_bias",
+        type=float,
+        default=None,
+        help="The multiscale scale bias term provided to wsclean. ",
+    )
+    parser.add_argument(
         "--absmem",
         type=float,
         default=None,
         help="Absolute memory limit in GB",
     )
+
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--hosted-wsclean",
@@ -880,18 +924,24 @@ def imager_parser(parent_parser: bool=True) -> argparse.ArgumentParser:
         help="Docker or Singularity image for wsclean [docker://alecthomson/wsclean:latest]",
     )
     group.add_argument(
-        "--local-wsclean",
+        "--local_wsclean",
         type=Path,
         default=None,
         help="Path to local wsclean Singularity image",
     )
     
-    return parser
-    
-def cli():
+    group.add_argument(
+        "--make_residual_cubes",
+        action='store_true',
+        help="Create residual cubes as well as cubes from restored images. "
+    )
 
+    return img_parser
+
+
+def cli():
     """Command-line interface"""
-    parser = imager_parser()    
+    parser = imager_parser()
 
     args = parser.parse_args()
 

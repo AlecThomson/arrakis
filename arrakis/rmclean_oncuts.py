@@ -248,9 +248,7 @@ def main(
         host=host, username=username, password=password
     )
 
-    query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
-    }
+    query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     beams = list(beams_col.find(query).sort("Source_ID"))
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
@@ -517,7 +515,7 @@ def cli():
         showPlots=args.showPlots,
         rm_verbose=args.rm_verbose,
     )
-    
+
     client.close()
     cluster.close()
 

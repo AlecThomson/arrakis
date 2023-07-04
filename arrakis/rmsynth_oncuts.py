@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
+import logging
 import os
 import traceback
 import warnings
@@ -36,6 +37,8 @@ from arrakis.utils import (
     test_db,
     try_mkdir,
 )
+
+logger.setLevel(logging.INFO)
 
 
 @delayed
@@ -149,7 +152,8 @@ def rmsynthoncut3d(
     # Prep header
     head_dict = dict(header)
     head_dict.pop("", None)
-    head_dict["COMMENT"] = str(head_dict["COMMENT"])
+    if "COMMENT" in head_dict.keys():
+        head_dict["COMMENT"] = str(head_dict["COMMENT"])
 
     outer_dir = os.path.basename(os.path.dirname(ifile))
 
@@ -283,6 +287,8 @@ def rmsynthoncut1d(
         debug (bool, optional): Turn on debug plots. Defaults to False.
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
+    logger.setLevel(logging.INFO)
+
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
     ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
@@ -372,7 +378,7 @@ def rmsynthoncut1d(
         model_repr = model_I.__repr__()
 
     elif do_own_fit:
-        logger.debug(f"Doing own fit")
+        logger.info(f"Doing own fit")
         fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
         alpha = None
         amplitude = None
@@ -406,7 +412,7 @@ def rmsynthoncut1d(
     # Run 1D RM-synthesis on the spectra
     np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
     try:
-        logger.debug(f"Using {fit_function} to fit Stokes I")
+        logger.info(f"Using {fit_function} to fit Stokes I")
         mDict, aDict = do_RMsynth_1D.run_rmsynth(
             data=data,
             polyOrd=polyOrd,
@@ -508,7 +514,8 @@ def rmsynthoncut1d(
     # Prep header
     head_dict = dict(header)
     head_dict.pop("", None)
-    head_dict["COMMENT"] = str(head_dict["COMMENT"])
+    if "COMMENT" in head_dict.keys():
+        head_dict["COMMENT"] = str(head_dict["COMMENT"])
 
     outer_dir = os.path.basename(os.path.dirname(ifile))
 
@@ -573,6 +580,8 @@ def rmsynthoncut_i(
         verbose (bool, optional): Verbose output Defaults to False.
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
+    logger.setLevel(logging.INFO)
+
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
@@ -721,9 +730,7 @@ def main(
         host=host, username=username, password=password
     )
 
-    beam_query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
-    }
+    beam_query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     beams = pd.DataFrame(list(beams_col.find(beam_query).sort("Source_ID")))
     beams.set_index("Source_ID", drop=False, inplace=True)
@@ -857,6 +864,8 @@ def main(
                     ion=ion,
                 )
                 outputs.append(output)
+    else:
+        raise ValueError("An incorrect RMSynth mode has been configured. ")
 
     futures = chunk_dask(
         outputs=outputs,

@@ -367,7 +367,7 @@ def cli():
         yanda=args.yanda,
         verbose=verbose,
     )
-    
+
     client.close()
     cluster.close()
 

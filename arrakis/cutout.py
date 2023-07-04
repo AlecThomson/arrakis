@@ -31,6 +31,7 @@ from arrakis.utils import (
     chunk_dask,
     fix_header,
     get_db,
+    logo_str,
     test_db,
     tqdm_dask,
     try_mkdir,
@@ -44,6 +45,8 @@ warnings.filterwarnings(
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
+
+logger.setLevel(logging.INFO)
 
 
 @delayed
@@ -82,6 +85,12 @@ def cutout(
     Returns:
         pymongo.UpdateOne: Update query for MongoDB
     """
+    logger.setLevel(logging.INFO)
+    # logger = logging.getLogger('distributed.worker')
+    # logger = get_run_logger()
+
+    logger.info(f"Timwashere - {image=}")
+
     outdir = os.path.abspath(outdir)
 
     ret = []
@@ -91,11 +100,11 @@ def cutout(
         outfile = os.path.join(outdir, outname)
 
         if imtype == "weight":
-            image = image.replace("image.restored", "weights").replace(
-                ".conv.fits", ".txt"
+            image = image.replace("image.restored", "weights.restored").replace(
+                ".fits", ".txt"
             )
-            outfile = outfile.replace("image.restored", "weights").replace(
-                ".conv.fits", ".txt"
+            outfile = outfile.replace("image.restored", "weights.restored").replace(
+                ".fits", ".txt"
             )
             copyfile(image, outfile)
             logger.info(f"Written to {outfile}")
@@ -197,6 +206,8 @@ def get_args(
         List[Dict]: List of cutout arguments for cutout function
     """
 
+    logger.setLevel(logging.INFO)
+
     assert island["Source_ID"] == island_id
     assert beam["Source_ID"] == island_id
 
@@ -250,6 +261,11 @@ def get_args(
             images = glob(wild)
             if len(images) == 0:
                 raise Exception(f"No images found matching '{wild}'")
+            elif len(images) > 1:
+                raise Exception(
+                    f"More than one image found matching '{wild}'. Files {images=}"
+                )
+
             for image in images:
                 args.extend(
                     [
@@ -334,14 +350,19 @@ def cutout_islands(
     directory = os.path.abspath(directory)
     outdir = os.path.join(directory, "cutouts")
 
+    logger.info("Testing database. ")
+    test_db(
+        host=host,
+        username=username,
+        password=password,
+    )
+
     beams_col, island_col, comp_col = get_db(
         host=host, username=username, password=password
     )
 
     # Query the DB
-    query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
-    }
+    query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     beams = list(beams_col.find(query).sort("Source_ID"))
 
@@ -441,25 +462,10 @@ def main(args: argparse.Namespace, verbose=True) -> None:
     logger.info("Done!")
 
 
-def cli() -> None:
-    """Command-line interface"""
-    # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
+def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
-    {logostr}
+    {logo_str}
+    
     Arrakis Stage 1:
     Produce cubelets from a RACS field using a Selavy table.
     If Stokes V is present, it will be squished into RMS spectra.
@@ -470,9 +476,13 @@ def cli() -> None:
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+    cut_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
+    parser = cut_parser.add_argument_group("cutout arguments")
+
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
     )
@@ -529,6 +539,13 @@ def cli() -> None:
         help="List of Stokes parameters to image [ALL]",
     )
 
+    return cut_parser
+
+
+def cli() -> None:
+    """Command-line interface"""
+    parser = cutout_parser()
+
     args = parser.parse_args()
 
     verbose = args.verbose
@@ -540,7 +557,7 @@ def cli() -> None:
     )
     client = Client(cluster)
     logger.info(client)
-    
+
     test_db(
         host=args.host,
         username=args.username,

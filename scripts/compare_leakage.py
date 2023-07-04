@@ -28,14 +28,9 @@ from astropy.wcs import WCS
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 
-
 from arrakis.linmos import gen_seps
 from arrakis.logger import logger, logging
-from arrakis.utils import (
-    chunk_dask,
-    get_db,
-    getfreq,
-)
+from arrakis.utils import chunk_dask, get_db, getfreq
 
 
 def make_plot(data, comp, imfile):
@@ -157,9 +152,7 @@ def main(
     )
 
     # Query the DB
-    beam_query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
-    }
+    beam_query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
     island_ids = sorted(beams_col.distinct("Source_ID", beam_query))
     isl_query = {"Source_ID": {"$in": island_ids}}
     beams = pd.DataFrame(list(beams_col.find(isl_query).sort("Source_ID")))
@@ -306,6 +299,7 @@ def cli():
 
     client.close()
     cluster.close()
+
 
 if __name__ == "__main__":
     cli()
