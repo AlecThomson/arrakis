@@ -21,4 +21,3 @@ polcat=/group/askap/athomson/projects/arrakis/DR1/Arrakis.dr1.corrected.xml
 
 cd $data_dir
 srun -n $SLURM_NTASKS casda_prepare.py $data_dir $polcat $prep_type --convert-spectra --convert-cubes --convert-plots -v --mpi --batch_size 10_000
-
