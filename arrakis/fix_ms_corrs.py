@@ -6,7 +6,7 @@ Fix the correlation rotation of ASKAP MSs.
 Converts the ASKAP standard correlations to the 'standard' correlations
 This will make them compatible with most imagers (e.g. wsclean, CASA)
 
-The old correlations are moved to a new column called 'DATA_ASKAP'
+The new correlations are placed in a new column called 'CORRECTED_DATA'
 """
 from typing import Iterator
 import logging
@@ -199,34 +199,39 @@ def main(
     ms: Path,
     chunksize: int = 10_000,
     data_column: str = "DATA",
+    corrected_data_column: str = "CORRECTED_DATA",
 ) -> None:
     """Apply corrections to the ASKAP visibilities to bring them inline with
     what is expectede from other imagers, including CASA and WSClean. The 
     original data in `data_column` are copied to `DATA_ASKAP`. The corrected
     datsa are placed back into `data_column`.
     
-    If `ASKAP_DATA` is detected as an existing column the renaming of `data_column`
-    is skipped.  
+    If `CORRECTED_DATA` is detected as an existing column then the correction
+    will not be applied.
 
     Args:
         ms (Path): Path of the ASKAP measurement set tto correct. 
         chunksize (int, optional): Size of chunked data to correct. Defaults to 10_000.
         data_column (str, optional): The name of the data column to correct. Defaults to "DATA".
+        corrected_data_column (str, optional): The name of the corrected data column. Defaults to "CORRECTED_DATA".
     """    
     logger.info(f"Correcting {data_column} of {str(ms)}.")
     
-    # Open the MS, move the 'data_column' column to DATA_ASKAP
-    try:
-        with table(ms.as_posix(), readonly=False, ack=False) as tab:
-            logger.info(f"Renaming {data_column} to DATA_ASKAP. ")
-            tab.renamecol(data_column, "DATA_ASKAP")
-            tab.flush()
-    except RuntimeError:
-        logger.warning(
-            f"""'DATA_ASKAP' column already exists in {ms}. Have you already run this?
-            Using the existing 'DATA_ASKAP' column and continuing...
-            """
-        )
+   # Do checks
+    with table(ms.as_posix(), readonly=True, ack=False) as tab:
+        cols = tab.colnames()
+        # Check if 'data_column' exists
+        if data_column not in cols:
+            logger.critical(
+                f"Column {data_column} does not exist in {ms}! Exiting..."
+            )
+            return
+        # Check if 'corrected_data_column' exists
+        if corrected_data_column in cols:
+            logger.critical(
+                f"Column {corrected_data_column} already exists in {ms}! Exiting..."
+            )
+            return
 
     # Get the polarization axis
     pol_axis = get_pol_axis(ms)
@@ -234,11 +239,12 @@ def main(
 
     # Get the data chunk by chunk and convert the correlations
     # then write them back to the MS in the 'data_column' column
-    data_chunks = get_data_chunk(ms, chunksize, data_column="DATA_ASKAP")
-    nchunks = get_nchunks(ms, chunksize, data_column="DATA_ASKAP")
+    data_chunks = get_data_chunk(ms, chunksize, data_column=data_column)
+    nchunks = get_nchunks(ms, chunksize, data_column=data_column)
     start_row = 0
     with table(ms.as_posix(), readonly=False, ack=False) as tab:
-        desc = makecoldesc(data_column, tab.getcoldesc("DATA_ASKAP"))
+        desc = makecoldesc(data_column, tab.getcoldesc(data_column))
+        desc["name"] = corrected_data_column
         try:
             tab.addcols(desc)
         except RuntimeError:
@@ -247,7 +253,7 @@ def main(
             # Putting this here for interactive use when you might muck around with the MS
             logger.critical(
                 (
-                    f"Column {data_column} already exists in {ms}! You should never see this message! "
+                    f"Column {corrected_data_column} already exists in {ms}! You should never see this message! "
                     f"Possible an existing {data_column} has already been corrected. "
                     f"No correction will be applied. "
                 )
@@ -283,6 +289,12 @@ def cli():
     )
     parser.add_argument(
         "--data-column", type=str, default="DATA", help="The column to fix"
+    )
+    parser.add_argument(
+        "--corrected-data-column",
+        type=str,
+        default="CORRECTED_DATA",
+        help="The column to write the corrected data to",
     )
     args = parser.parse_args()
     main(Path(args.ms), args.chunksize, args.data_column)
