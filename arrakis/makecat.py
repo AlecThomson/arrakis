@@ -111,6 +111,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             blend_ratio_arr = np.ones_like(sub_df.index, dtype=float) * np.nan
             for i, coord in enumerate(coords):
                 seps = coord.separation(coords)
+                # Greater than 0 to avoid matching to itself
                 sep_flag = (seps < beam) & (seps > 0 * u.deg)
                 is_blended_arr[i] = np.any(sep_flag)
                 n_blended_arr[i] = np.sum(sep_flag)
@@ -145,6 +146,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
             },
             index=sub_df.index,
         )
+
         return df
 
     df = cat.to_pandas()
@@ -161,7 +163,16 @@ def flag_blended_components(cat: RMTable) -> RMTable:
                 "blend_ratio": float,
             },
         ).compute()
-    is_blended = is_blended.reindex(cat["cat_id"])
+
+    # TODO: It looks like is_blended as a multi-index of [source_id, cat_id],
+    # and the attempt to use `reindex` was returning a dataframe of 
+    # nan's. Highlighting for future discussion. 
+    # logger.info(is_blended)
+    is_blended = is_blended.reset_index()
+    is_blended = is_blended.set_index("cat_id")
+    is_blended = is_blended.reindex(cat["cat_id"])    
+    # logger.info(is_blended)
+        
     cat.add_column(
         Column(
             is_blended["is_blended_flag"],
@@ -186,6 +197,10 @@ def flag_blended_components(cat: RMTable) -> RMTable:
         ),
         index=-1,
     )
+    
+    cat.write("blended_cat.fits", overwrite=True)
+    # logger.info(cat['cat_id'])
+
     # Sanity check - no single-component sources should be flagged
     assert np.array_equal(is_blended.index.values, cat["cat_id"].data), "Index mismatch"
     assert not any(
@@ -280,7 +295,9 @@ def is_leakage(frac, sep, fit):
     return frac < fit_frac
 
 
-def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
+def get_fit_func(
+    tab: Table, nbins: int=21, offset: float=0.002, degree: int=2, do_plot: bool=False, high_snr_cut: float=30.
+):
     """Fit an envelope to define leakage sources
 
     Args:
@@ -292,11 +309,17 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     """
     logger.info("Writing junk file. ")
     tab.write("junk_cat.fits", overwrite=True)
+    
+    logger.info(f"Using {high_snr_cut=}.")
+    
     # Select high SNR sources
     hi_snr = (
         tab["stokesI"].to(u.Jy / u.beam) / tab["stokesI_err"].to(u.Jy / u.beam)
-    ) > 100
+    ) > high_snr_cut
     hi_i_tab = tab[hi_snr]
+    
+    logger.info(f"{np.sum(hi_snr)} sources with Stokes I SNR above {high_snr_cut=}.")
+    
     # Get fractional pol
     frac_P = np.array(hi_i_tab["fracpol"].value)
     # Bin sources by separation from tile centre
@@ -334,26 +357,27 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
         "s1_ups": s1_ups,
         "s2_ups": s2_ups,
     }
-    # plt.scatter(
-    #     hi_i_tab["beamdist"].to(u.deg).value,
-    #     frac_P,
-    #     s=1,
-    #     alpha=0.2,
-    #     marker=".",
-    #     c="k",
-    #     zorder=0,
-    #     rasterized=True,
+    plt.scatter(
+        hi_i_tab["beamdist"].to(u.deg).value,
+        frac_P,
+        s=1,
+        alpha=0.9,
+        marker=".",
+        c="k",
+        zorder=0,
+        rasterized=True,
+    )
+    
+    # is_finite = np.logical_and(
+    #     np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P)
     # )
-    is_finite = np.logical_and(
-        np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P)
-    )
-    hist2d(
-        np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite, np.newaxis],
-        np.array(frac_P)[is_finite, np.newaxis],
-        bins=(nbins, nbins),
-        range=[[0, 5], [0, 0.05]],
-        # color=color,
-    )
+    # hist2d(
+    #     np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite, np.newaxis],
+    #     np.array(frac_P)[is_finite, np.newaxis],
+    #     bins=(nbins, nbins),
+    #     range=[[0, 5], [0, 0.05]],
+    #     # color=color,
+    # )
     plt.plot(bins_c, meds, alpha=1, c=color, label="Median", linewidth=2)
     for s, ls in zip((1, 2), ("--", ":")):
         for r in ("ups", "los"):
@@ -371,7 +395,7 @@ def get_fit_func(tab, nbins=21, offset=0.002, degree=2, do_plot=False):
     plt.legend(loc="upper left")
     plt.xlabel("Separation from tile centre [deg]")
     plt.ylabel(f"$L/I$")
-    plt.ylim(0, +0.05)
+    plt.ylim(0, +0.075)
     plt.grid()
     return fit, fig
 
@@ -387,6 +411,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
         Table: Table with local RM flag
     """
     logger.info("Computing voronoi bins and finding bad RMs")
+    logger.info(f"Number of available sources: {len(good_cat)}.")
 
     def sn_func(index, signal=None, noise=None):
         try:
@@ -395,9 +420,10 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
             sn = 1
         return sn
 
-    target_sn = 50
+    target_sn = 30
+    target_bins = 6
     while target_sn > 1:
-        logger.debug(f"Trying a target number of RMs / bin of {target_sn}")
+        logger.debug(f"Trying to find Voroni bins with RMs per bin={target_sn}, Number of bins={target_bins}")
         try:
             (
                 bin_number,
@@ -421,17 +447,26 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
                 quiet=True,
                 wvt=False,
             )
-            logger.info(f"Target number of RMs / bin: {target_sn}")
-            break
+            num_of_bins = len(np.unique(bin_number))
+            logger.info(f"Target RMs per bin and number of bins: {target_sn} / {target_bins}.")
+            if num_of_bins >= target_bins:
+                break
+            else:
+                logger.info(f"Found {num_of_bins} bins, targeting minimum {target_bins}")
+                target_sn -= 5
         except ValueError as e:
-            if not "Not enough S/N in the whole set of pixels." in e.message:
+            if not "Not enough S/N in the whole set of pixels." in str(e):
                 raise e
             logger.warning(
-                f"Failed with target number of RMs / bin of {target_sn}. Trying again with {target_sn-10}"
+                f"Failed with target number of RMs per bin of {target_sn}. Trying again with {target_sn-10}"
             )
             target_sn -= 10
-            continue
-
+    else:
+        fail_msg = "Failed to converge towards a Voronoi binning solution. "
+        logger.error(fail_msg)
+        
+        raise ValueError(fail_msg)
+            
     logger.info(f"Found {len(set(bin_number))} bins")
     df = good_cat.to_pandas()
     df.reset_index(inplace=True)
@@ -492,7 +527,7 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     )
     cat.add_column(Column(data=leakage_flag, name="leakage_flag"))
     # Channel flag
-    chan_flag = cat["Nchan"] < 144
+    chan_flag = cat["Nchan"] < int(np.max(cat["Nchan"]) * 0.5 )
     cat.add_column(Column(data=chan_flag, name="channel_flag"))
 
     # Stokes I flag
@@ -516,6 +551,8 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     goodL = goodI & ~cat["leakage_flag"] & (cat["snr_polint"] > 5)
     goodRM = goodL & ~cat["snr_flag"]
     good_cat = cat[goodRM]
+
+    good_cat.write(f"good_cat.fits", overwrite=True)
 
     cat_out = compute_local_rm_flag(good_cat=good_cat, big_cat=cat)
 
@@ -559,14 +596,27 @@ def get_alpha(cat):
 
 
 def get_integration_time(cat, field_col):
-    field_names = list(cat["tile_id"])
-    query = {"$and": [{"FIELD_NAME": {"$in": field_names}}, {"SELECT": 1}]}
+
+    logger.warn(f"Will be stripping the trailing field character prefix. ")
+    field_names = [
+        name[:-1] if name[-1] in ('A', 'B') else name 
+        for name in list(cat["tile_id"])
+    ]
+
+    logger.debug(f"Searching integration times for {field_names=}")
+
+    query = {"$and": [{"FIELD_NAME": {"$in": field_names}}]}
     tint_dicts = list(
         field_col.find(query, {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1})
     )
+    
+    logger.debug(f"Returned results: {tint_dicts=}")
+    
     tint_dict = {}
     for d in tint_dicts:
         tint_dict.update({d["FIELD_NAME"]: d["SCAN_TINT"]})
+
+    logger.debug(f"{tint_dict=}")
 
     tints = []
     for name in field_names:

@@ -219,6 +219,10 @@ def image_beam(
     else:
         auto_mask_reduce = auto_mask
 
+    if local_rms_window:
+        local_rms_window = int(local_rms_window / 2)
+        logger.info(f"Scaled local RMS window to {local_rms_window}.")
+        
     command = wsclean(
         mslist=[ms.resolve(strict=True).as_posix()],
         use_mpi=False,
@@ -621,15 +625,16 @@ def main(
     reimage: bool = False,
     purge: bool = False,
     minuv: float = 0.0,
-    parallel_deconvolution: Union[int, None] = None,
-    gridder: Union[str, None] = None,
-    nmiter: Union[int, None] = None,
+    parallel_deconvolution: Optional[int] = None,
+    gridder: Optional[str] = None,
+    nmiter: Optional[int] = None,
     local_rms: bool = False,
-    local_rms_window: Union[float, None] = None,
+    local_rms_window: Optional[float] = None,
     wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest",
     multiscale: Optional[bool] = None,
     multiscale_scale_bias: Optional[float] = None,
-    absmem: Union[float, None] = None,
+    absmem: Optional[float] = None,
+    make_residual_cubes: Optional[bool] = False
 ):
     simage = get_wsclean(wsclean=wsclean_path)
 
@@ -697,13 +702,15 @@ def main(
     # set of ImageSets are first derived before this is called.
     common_beam_pkl = get_beam(image_sets=image_sets, cutoff=cutoff)
 
+    cube_aux_modes = (None, "residual") if make_residual_cubes else (None, )
+
     # With the final beam each *image* in the ImageSet across IQU are
     # smoothed and then form the cube for each stokes.
     for image_set in image_sets:
         # Per loop containers since we are iterating over image modes
         smooth_image_sets = []
         clean_sm_image_sets = []
-        for aux_mode in (None, "residual"):
+        for aux_mode in cube_aux_modes:
             # Smooth the *images* in an ImageSet across all Stokes. This
             # limits the number of workers to 36, i.e. this is operating
             # beamwise
@@ -921,6 +928,12 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Path to local wsclean Singularity image",
+    )
+    
+    group.add_argument(
+        "--make_residual_cubes",
+        action='store_true',
+        help="Create residual cubes as well as cubes from restored images. "
     )
 
     return img_parser

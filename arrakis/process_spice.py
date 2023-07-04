@@ -50,7 +50,7 @@ def process_imager(**kwargs) -> bool:
     return True
 
 
-@flow(name="Process the Spice")
+@flow(name="Combining+Synthesis on Arrakis")
 def process_spice(args, host: str) -> None:
     """Workflow to process the SPIRCE-RACS data
 
@@ -257,7 +257,7 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        cluster.adapt(minimum=1, maximum=65)
+        cluster.adapt(minimum=1, maximum=38)
         # cluster.scale(36)
 
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
@@ -322,7 +322,7 @@ def main(args: configargparse.Namespace) -> None:
 
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
         process_imager.with_options(
-            name=f"Arrakis {args.field}", task_runner=dask_runner
+            name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
         )(
             msdir=args.msdir,
             out_dir=args.outdir,
@@ -336,6 +336,7 @@ def main(args: configargparse.Namespace) -> None:
             scale=args.scale,
             mgain=args.mgain,
             niter=args.niter,
+            nmiter=args.nmiter,
             auto_mask=args.auto_mask,
             force_mask_rounds=args.force_mask_rounds,
             auto_threshold=args.auto_threshold,
@@ -371,7 +372,7 @@ def main(args: configargparse.Namespace) -> None:
 
     # Define flow
     process_spice.with_options(
-        name=f"SPICE-RACS {args.field}", task_runner=dask_runner_2
+        name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
     )(args, host)
 
     # TODO: Access the client via the `dask_runner`. Perhaps a
