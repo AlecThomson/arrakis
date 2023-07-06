@@ -43,76 +43,6 @@ logger.setLevel(logging.INFO)
 
 
 @delayed
-def gen_seps(
-    field: str,
-    host: str,
-    epoch: int = 0,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> Table:
-    """Get separation table for a given RACS field
-
-    Args:
-        field (str): RACS field name.
-
-    Returns:
-        Table: Table of separation for each beam.
-    """
-    offset_file = pkg_resources.resource_filename(
-        "arrakis.offsets", f"racs_epoch_{epoch}_offsets.csv"
-    )
-    offsets = Table.read(offset_file)
-    offsets.add_index("Beam")
-
-    # Look for multiple SBIDs - only need one
-    field_col = get_field_db(host, username=username, password=password)
-    query = {"FIELD_NAME": field}
-    master_cat = Table(field_col.find_one(query))
-    beam_inf_col = get_beam_inf_db(host, username=username, password=password)
-    beam_cat = Table.read(beam_inf_col.find_one(query))
-    beam_cat.add_index("BEAM_NUM")
-
-    names = [
-        "BEAM",
-        "DELTA_RA",
-        "DELTA_DEC",
-        "BEAM_RA",
-        "BEAM_DEC",
-        "FOOTPRINT_RA",
-        "FOOTPRINT_DEC",
-    ]
-
-    cols = []
-    for beam in range(36):
-        beam = int(beam)
-
-        beam_dat = beam_cat.loc[beam]
-        beam_coord = SkyCoord(beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
-        field_coord = SkyCoord(
-            master_cat["RA_DEG"] * u.deg, master_cat["DEC_DEG"] * u.deg
-        )
-
-        beam_ra_str, beam_dec_str = coord_to_string(beam_coord)
-        field_ra_str, field_dec_str = coord_to_string(field_coord)
-
-        row = [
-            beam,
-            f"{offsets.loc[beam]['RA']:0.3f}",
-            f"{offsets.loc[beam]['Dec']:0.3f}",
-            beam_ra_str,
-            beam_dec_str,
-            field_ra_str,
-            field_dec_str,
-        ]
-        cols += [row]
-    tab = Table(
-        data=np.array(cols), names=names, dtype=[int, str, str, str, str, str, str]
-    )
-    tab.add_index("BEAM")
-    return tab
-
-
-@delayed
 def genparset(
     field: str,
     src_name: str,
@@ -318,13 +248,6 @@ def main(
 
     logger.info(f"The yandasoft image is {image=}")
 
-    beamseps = gen_seps(
-        field=field,
-        host=host,
-        epoch=epoch,
-        username=username,
-        password=password,
-    )
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
