@@ -24,15 +24,7 @@ from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
 from arrakis.logger import logger
-from arrakis.utils import (
-    chunk_dask,
-    coord_to_string,
-    get_beam_inf_db,
-    get_db,
-    get_field_db,
-    test_db,
-    tqdm_dask,
-)
+from arrakis.utils import chunk_dask, get_db, test_db
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -220,7 +212,6 @@ def main(
     field: str,
     datadir: str,
     host: str,
-    epoch: int = 0,
     holofile: Optional[str] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
@@ -349,12 +340,6 @@ def cli():
         metavar="datadir",
         type=str,
         help="Directory containing cutouts (in subdir outdir/cutouts)..",
-    )
-    parser.add_argument(
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch to read field data from",
     )
     parser.add_argument(
         "--holofile", type=str, default=None, help="Path to holography image"

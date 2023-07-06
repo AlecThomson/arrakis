@@ -84,7 +84,6 @@ def process_spice(args, host: str) -> None:
                 field=args.field,
                 datadir=args.datadir,
                 host=host,
-                epoch=args.epoch,
                 holofile=args.holofile,
                 username=args.username,
                 password=args.password,
