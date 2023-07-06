@@ -1364,6 +1364,29 @@ def get_field_db(host: str, username=None, password=None) -> Collection:
     return field_col
 
 
+def get_beam_inf_db(host: str, username=None, password=None) -> Collection:
+    """Get MongoDBs
+
+    Args:
+        host (str): Mongo host IP.
+        username (str, optional): Username. Defaults to None.
+        password (str, optional): Password. Defaults to None.
+
+    Returns:
+        pymongo.Collection: beams_col, island_col, comp_col
+    """
+    dbclient = pymongo.MongoClient(
+        host=host,
+        connect=False,
+        username=username,
+        password=password,
+        authMechanism="SCRAM-SHA-256",
+    )  # type: pymongo.MongoClient
+    mydb = dbclient["arrakis"]  # Create/open database
+    beam_inf_col = mydb["beam_inf"]  # Create/open collection
+    return beam_inf_col
+
+
 # stolen from https://github.com/tqdm/tqdm/issues/278
 class TqdmProgressBar(ProgressBar):
     """Tqdm for Dask"""
