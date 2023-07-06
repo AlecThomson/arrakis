@@ -352,6 +352,8 @@ def main(args: configargparse.Namespace) -> None:
             multiscale=args.multiscale,
             multiscale_scale_bias=args.multiscale_scale_bias,
             absmem=args.absmem,
+            ms_glob_pattern=args.ms_glob_pattern,
+            data_column=args.data_column
         )
         client.close()
         del dask_runner

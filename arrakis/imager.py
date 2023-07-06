@@ -155,6 +155,7 @@ def image_beam(
     local_rms_window: Optional[float] = None,
     multiscale: bool = False,
     multiscale_scale_bias: Optional[float] = None,
+    data_column: str = 'CORRECTED_DATA'
 ) -> ImageSet:
     """Image a single beam"""
     logger = logging.getLogger(__name__)
@@ -205,6 +206,7 @@ def image_beam(
             local_rms_window=local_rms_window,
             multiscale_scale_bias=multiscale_scale_bias,
             multiscale=multiscale,
+            data_column=data_column
         )
         commands.append(command)
         pols = pols.replace("I", "")
@@ -254,6 +256,7 @@ def image_beam(
         local_rms_window=local_rms_window,
         multiscale=multiscale,
         multiscale_scale_bias=multiscale_scale_bias,
+        data_column=data_column
     )
     commands.append(command)
 
@@ -634,11 +637,14 @@ def main(
     multiscale: Optional[bool] = None,
     multiscale_scale_bias: Optional[float] = None,
     absmem: Optional[float] = None,
-    make_residual_cubes: Optional[bool] = False
+    make_residual_cubes: Optional[bool] = False,
+    ms_glob_pattern: str = "scienceData*_averaged_cal.leakage.ms",
+    data_column: str = 'CORRECTED_DATA'
 ):
     simage = get_wsclean(wsclean=wsclean_path)
 
-    mslist = sorted(msdir.glob("scienceData*_averaged_cal.leakage.ms"))
+    logger.info(f"Searching {msdir} for MS matching {ms_glob_pattern}.")
+    mslist = sorted(msdir.glob(ms_glob_pattern))
 
     scale = scale * u.arcsecond
 
@@ -693,6 +699,7 @@ def main(
             multiscale=multiscale,
             multiscale_scale_bias=multiscale_scale_bias,
             absmem=absmem,
+            data_column=data_column
         )
 
         image_sets.append(image_set)
@@ -915,7 +922,24 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         default=None,
         help="Absolute memory limit in GB",
     )
-
+    parser.add_argument(
+        "--make_residual_cubes",
+        action='store_true',
+        help="Create residual cubes as well as cubes from restored images. "
+    )
+    parser.add_argument(
+        "--ms_glob_pattern",
+        type=str,
+        default="scienceData*_averaged_cal.leakage.ms",
+        help="The pattern used to search for measurement sets. "
+    )
+    parser.add_argument(
+        '--data_column',
+        type=str,
+        default='CORRECTED_DATA',
+        help='Which column in the measurement set to image. '
+    )
+    
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--hosted-wsclean",
@@ -930,11 +954,6 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Path to local wsclean Singularity image",
     )
     
-    group.add_argument(
-        "--make_residual_cubes",
-        action='store_true',
-        help="Create residual cubes as well as cubes from restored images. "
-    )
 
     return img_parser
 
@@ -983,6 +1002,8 @@ def cli():
             if args.local_wsclean
             else args.hosted_wsclean,
             multiscale=args.multiscale,
+            ms_glob_pattern=args.ms_glob_pattern,
+            data_column=args.data_column
         )
 
 
