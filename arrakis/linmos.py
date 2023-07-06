@@ -50,6 +50,7 @@ def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
     offsets = Table.read(offset_file)
     offsets.add_index("Beam")
 
+    # TODO: Replace with DB query
     field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
     master_cat = Table.read(field_path)
     master_cat.add_index("FIELD_NAME")
@@ -58,11 +59,13 @@ def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
         master_cat = master_cat[0]
 
     # Look for multiple SBIDs - only need one
-    cats_wild = f"beam_inf_*-RACS_{field}.csv"
+    cats_wild = f"beam_inf_*-{field}.csv"
     cats = list((survey_dir / "db" / f"epoch_{epoch}").glob(cats_wild))
 
     if len(cats) == 0:
-        raise FileNotFoundError(f"No catalogues found for {cats_wild=}")
+        raise FileNotFoundError(
+            f"No catalogues found for {cats_wild=} in {survey_dir / 'db' / f'epoch_{epoch}'}"
+        )
 
     beam_cat = Table.read(cats[0])
     beam_cat.add_index("BEAM_NUM")
