@@ -24,7 +24,15 @@ from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
 from arrakis.logger import logger
-from arrakis.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
+from arrakis.utils import (
+    chunk_dask,
+    coord_to_string,
+    get_beam_inf_db,
+    get_db,
+    get_field_db,
+    test_db,
+    tqdm_dask,
+)
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -35,7 +43,13 @@ logger.setLevel(logging.INFO)
 
 
 @delayed
-def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
+def gen_seps(
+    field: str,
+    host: str,
+    epoch: int = 0,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> Table:
     """Get separation table for a given RACS field
 
     Args:
@@ -45,29 +59,17 @@ def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
         Table: Table of separation for each beam.
     """
     offset_file = pkg_resources.resource_filename(
-        "arrakis", f"racs_epoch_{epoch}_offsets.csv"
+        "arrakis.offsets", f"racs_epoch_{epoch}_offsets.csv"
     )
     offsets = Table.read(offset_file)
     offsets.add_index("Beam")
 
-    # TODO: Replace with DB query
-    field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
-    master_cat = Table.read(field_path)
-    master_cat.add_index("FIELD_NAME")
-    master_cat = master_cat.loc[f"{field}"]
-    if type(master_cat) is not astropy.table.row.Row:
-        master_cat = master_cat[0]
-
     # Look for multiple SBIDs - only need one
-    cats_wild = f"beam_inf_*-{field}.csv"
-    cats = list((survey_dir / "db" / f"epoch_{epoch}").glob(cats_wild))
-
-    if len(cats) == 0:
-        raise FileNotFoundError(
-            f"No catalogues found for {cats_wild=} in {survey_dir / 'db' / f'epoch_{epoch}'}"
-        )
-
-    beam_cat = Table.read(cats[0])
+    field_col = get_field_db(host, username=username, password=password)
+    query = {"FIELD_NAME": field}
+    master_cat = Table(field_col.find_one(query))
+    beam_inf_col = get_beam_inf_db(host, username=username, password=password)
+    beam_cat = Table.read(beam_inf_col.find_one(query))
     beam_cat.add_index("BEAM_NUM")
 
     names = [
@@ -117,7 +119,6 @@ def genparset(
     beams: dict,
     stoke: str,
     datadir: str,
-    septab: Table,
     holofile: Union[str, None] = None,
 ) -> str:
     """Generate parset for LINMOS
@@ -128,7 +129,6 @@ def genparset(
         beams (dict): Mongo entry for RACS beams.
         stoke (str): Stokes parameter.
         datadir (str): Data directory.
-        septab (Table): Table of separations.
         holofile (str): Full path to holography file.
 
     Raises:
@@ -289,12 +289,11 @@ def get_yanda(version="1.3.0") -> str:
 def main(
     field: str,
     datadir: str,
-    survey_dir: Path,
     host: str,
     epoch: int = 0,
-    holofile: Union[str, None] = None,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    holofile: Optional[str] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     yanda: str = "1.3.0",
     yanda_img: Optional[Path] = None,
     stokeslist: Union[List[str], None] = None,
@@ -321,8 +320,10 @@ def main(
 
     beamseps = gen_seps(
         field=field,
-        survey_dir=survey_dir,
+        host=host,
         epoch=epoch,
+        username=username,
+        password=password,
     )
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
@@ -376,7 +377,6 @@ def main(
                     beams=beams,
                     stoke=stoke.capitalize(),
                     datadir=cutdir,
-                    septab=beamseps,
                     holofile=holofile,
                 )
                 parfiles.append(parfile)
@@ -426,11 +426,6 @@ def cli():
         metavar="datadir",
         type=str,
         help="Directory containing cutouts (in subdir outdir/cutouts)..",
-    )
-    parser.add_argument(
-        "survey",
-        type=str,
-        help="Survey directory",
     )
     parser.add_argument(
         "--epoch",
