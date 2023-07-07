@@ -211,54 +211,55 @@ def image_beam(
         commands.append(command)
         pols = pols.replace("I", "")
 
-    if squared_channel_joining:
-        logger.info("Using squared channel joining")
-        logger.info("Reducing mask by sqrt(2) to account for this")
-        auto_mask_reduce = np.round(auto_mask / (np.sqrt(2)), decimals=2)
+    if all([p in pols.upper() for p in ('Q', 'U')]):
+        if squared_channel_joining:
+            logger.info("Using squared channel joining")
+            logger.info("Reducing mask by sqrt(2) to account for this")
+            auto_mask_reduce = np.round(auto_mask / (np.sqrt(2)), decimals=2)
 
-        logger.info(f"auto_mask = {auto_mask}")
-        logger.info(f"auto_mask_reduce = {auto_mask_reduce}")
-    else:
-        auto_mask_reduce = auto_mask
+            logger.info(f"auto_mask = {auto_mask}")
+            logger.info(f"auto_mask_reduce = {auto_mask_reduce}")
+        else:
+            auto_mask_reduce = auto_mask
 
-    if local_rms_window:
-        local_rms_window = int(local_rms_window / 2)
-        logger.info(f"Scaled local RMS window to {local_rms_window}.")
-        
-    command = wsclean(
-        mslist=[ms.resolve(strict=True).as_posix()],
-        use_mpi=False,
-        name=prefix,
-        pol=pols,
-        verbose=True,
-        channels_out=nchan,
-        scale=f"{scale.to(u.arcsec).value}asec",
-        size=f"{npix} {npix}",
-        join_polarizations=join_polarizations,
-        join_channels=join_channels,
-        squared_channel_joining=squared_channel_joining,
-        mgain=mgain,
-        niter=niter,
-        auto_mask=auto_mask_reduce,
-        force_mask_rounds=force_mask_rounds,
-        auto_threshold=auto_threshold,
-        gridder=gridder,
-        weight=f"briggs {robust}",
-        log_time=False,
-        mem=mem,
-        abs_mem=absmem,
-        taper_gaussian=f"{taper}asec" if taper else None,
-        field=field_idx,
-        parallel_deconvolution=parallel_deconvolution,
-        minuv_l=minuv_l,
-        nmiter=nmiter,
-        local_rms=local_rms,
-        local_rms_window=local_rms_window,
-        multiscale=multiscale,
-        multiscale_scale_bias=multiscale_scale_bias,
-        data_column=data_column
-    )
-    commands.append(command)
+        if local_rms_window:
+            local_rms_window = int(local_rms_window / 2)
+            logger.info(f"Scaled local RMS window to {local_rms_window}.")
+            
+        command = wsclean(
+            mslist=[ms.resolve(strict=True).as_posix()],
+            use_mpi=False,
+            name=prefix,
+            pol=pols,
+            verbose=True,
+            channels_out=nchan,
+            scale=f"{scale.to(u.arcsec).value}asec",
+            size=f"{npix} {npix}",
+            join_polarizations=join_polarizations,
+            join_channels=join_channels,
+            squared_channel_joining=squared_channel_joining,
+            mgain=mgain,
+            niter=niter,
+            auto_mask=auto_mask_reduce,
+            force_mask_rounds=force_mask_rounds,
+            auto_threshold=auto_threshold,
+            gridder=gridder,
+            weight=f"briggs {robust}",
+            log_time=False,
+            mem=mem,
+            abs_mem=absmem,
+            taper_gaussian=f"{taper}asec" if taper else None,
+            field=field_idx,
+            parallel_deconvolution=parallel_deconvolution,
+            minuv_l=minuv_l,
+            nmiter=nmiter,
+            local_rms=local_rms,
+            local_rms_window=local_rms_window,
+            multiscale=multiscale,
+            multiscale_scale_bias=multiscale_scale_bias,
+            data_column=data_column
+        )
+        commands.append(command)
 
     root_dir = ms.parent
 
