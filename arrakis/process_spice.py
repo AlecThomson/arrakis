@@ -83,9 +83,7 @@ def process_spice(args, host: str) -> None:
             linmos_task.submit(
                 field=args.field,
                 datadir=args.datadir,
-                survey_dir=Path(args.survey),
                 host=host,
-                epoch=args.epoch,
                 holofile=args.holofile,
                 username=args.username,
                 password=args.password,
@@ -392,7 +390,7 @@ def cli():
 
     descStr = f"""
     {logo_str}
-    
+
     Arrakis pipeline.
 
     Before running make sure to start a session of mongodb e.g.

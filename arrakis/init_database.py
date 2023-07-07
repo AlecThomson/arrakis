@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from astropy import units as u
@@ -15,7 +15,14 @@ from pymongo.results import InsertManyResult
 from tqdm import tqdm
 
 from arrakis.logger import logger
-from arrakis.utils import MyEncoder, get_db, get_field_db, test_db, yes_or_no
+from arrakis.utils import (
+    MyEncoder,
+    get_beam_inf_db,
+    get_db,
+    get_field_db,
+    test_db,
+    yes_or_no,
+)
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> Table:
@@ -311,13 +318,42 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
     return beam_list
 
 
+def beam_inf(
+    database: Table,
+    basedir: Path,
+    host: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> InsertManyResult:
+    """Get the beam information"""
+    tabs: List[Table] = []
+    for row in tqdm(database, desc="Reading beam info"):
+        tab = Table.read(basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv")
+        tab.add_column(row["FIELD_NAME"], name="FIELD_NAME", index=0)
+        tabs.append(tab)
+
+    big = vstack(tabs)
+    big_dict = big.to_pandas().to_dict("records")
+
+    logger.info("Loading beam inf into mongo...")
+    beam_inf_col = get_beam_inf_db(host, username=username, password=password)
+    delete_res = beam_inf_col.delete_many({})
+    logger.warning(f"Deleted documents: {delete_res.deleted_count}")
+    insert_res = beam_inf_col.insert_many(big_dict)
+    count = beam_inf_col.count_documents({})
+    logger.info("Done loading")
+    logger.info(f"Total documents: {count}")
+
+    return insert_res
+
+
 def field_database(
     survey_dir: Path,
     host: str,
-    username: Union[str, None],
-    password: Union[str, None],
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     epoch: int = 0,
-) -> InsertManyResult:
+) -> Tuple[InsertManyResult, InsertManyResult]:
     """Reset and load the field database
 
     Args:
@@ -327,7 +363,7 @@ def field_database(
         epoch (int, optional): RACS epoch number. Defaults to 0.
 
     Returns:
-        InsertManyResult: Field insert object.
+        Tuple[InsertManyResult, InsertManyResult]: Field and beam info insert object.
     """
     basedir = survey_dir / "db" / f"epoch_{epoch}"
     data_file = basedir / "field_data.csv"
@@ -343,17 +379,25 @@ def field_database(
     logger.info("Done loading")
     logger.info(f"Total documents: {count}")
 
-    return insert_res
+    beam_res = beam_inf(
+        database=database,
+        basedir=basedir,
+        host=host,
+        username=username,
+        password=password,
+    )
+
+    return insert_res, beam_res
 
 
 def main(
     load: bool = False,
-    islandcat: Union[str, None] = None,
-    compcat: Union[str, None] = None,
-    database_path: Union[Path, None] = None,
+    islandcat: Optional[str] = None,
+    compcat: Optional[str] = None,
+    database_path: Optional[Path] = None,
     host: str = "localhost",
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     field: bool = False,
     epoch: int = 0,
     force: bool = False,
@@ -424,7 +468,7 @@ def main(
                 epoch=epoch,
             )
     if field:
-        logger.critical("This will overwrite the field database!")
+        logger.critical("This will overwrite the field and beam info database!")
         check_field = (
             yes_or_no("Are you sure you wish to proceed?") if not force else True
         )
@@ -433,7 +477,7 @@ def main(
             database_path = Path(input("Enter database path:"))
 
         if check_field:
-            field_res = field_database(
+            field_res, beam_res = field_database(
                 survey_dir=database_path,
                 host=host,
                 username=username,
