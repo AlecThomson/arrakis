@@ -8,9 +8,9 @@ This will make them compatible with most imagers (e.g. wsclean, CASA)
 
 The new correlations are placed in a new column called 'CORRECTED_DATA'
 """
-from typing import Iterator
 import logging
 from pathlib import Path
+from typing import Iterator
 
 import astropy.units as u
 import numpy as np
@@ -24,14 +24,14 @@ logger.setLevel(logging.INFO)
 
 def get_pol_axis(ms: Path) -> u.Quantity:
     """Get the polarization axis from the ASKAP MS. Checks are performed
-    to ensure this polarisation axis angle is constant throughout the observation. 
+    to ensure this polarisation axis angle is constant throughout the observation.
 
 
     Args:
         ms (Path): The path to the measurement set that will be inspected
 
     Returns:
-        astropy.units.Quantity: The rotation of the PAF throughout the observing. 
+        astropy.units.Quantity: The rotation of the PAF throughout the observing.
     """
     with table((ms / "FEED").as_posix(), readonly=True, ack=False) as tf:
         ms_feed = tf.getcol("RECEPTOR_ANGLE") * u.rad
@@ -43,9 +43,7 @@ def get_pol_axis(ms: Path) -> u.Quantity:
     return pol_axes[0, 0].to(u.deg)
 
 
-def convert_correlations(
-    correlations: np.ndarray, pol_axis: u.Quantity
-) -> np.ndarray:
+def convert_correlations(correlations: np.ndarray, pol_axis: u.Quantity) -> np.ndarray:
     """
     Convert ASKAP standard correlations to the 'standard' correlations
 
@@ -162,8 +160,10 @@ def convert_correlations(
     return np.einsum("ij,...j->...i", correction_matrix, correlations)
 
 
-def get_data_chunk(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP") -> Iterator[np.ndarray]:
-    """Generator function that will yield a chunk of data from the `ms` data table. 
+def get_data_chunk(
+    ms: Path, chunksize: int, data_column: str = "DATA_ASKAP"
+) -> Iterator[np.ndarray]:
+    """Generator function that will yield a chunk of data from the `ms` data table.
 
     Args:
         ms (Path): Measurement set whose data will be iterated over
@@ -181,7 +181,7 @@ def get_data_chunk(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP") ->
 
 def get_nchunks(ms: Path, chunksize: int, data_column: str = "DATA_ASKAP") -> int:
     """Returns the number of chunks that are needed to iterator over the datacolumsn
-    using a specified `chunksize`. 
+    using a specified `chunksize`.
 
     Args:
         ms (Path): Measurement sett thatt will be iterated over
@@ -202,29 +202,27 @@ def main(
     corrected_data_column: str = "CORRECTED_DATA",
 ) -> None:
     """Apply corrections to the ASKAP visibilities to bring them inline with
-    what is expectede from other imagers, including CASA and WSClean. The 
+    what is expectede from other imagers, including CASA and WSClean. The
     original data in `data_column` are copied to `DATA_ASKAP`. The corrected
     datsa are placed back into `data_column`.
-    
+
     If `CORRECTED_DATA` is detected as an existing column then the correction
     will not be applied.
 
     Args:
-        ms (Path): Path of the ASKAP measurement set tto correct. 
+        ms (Path): Path of the ASKAP measurement set tto correct.
         chunksize (int, optional): Size of chunked data to correct. Defaults to 10_000.
         data_column (str, optional): The name of the data column to correct. Defaults to "DATA".
         corrected_data_column (str, optional): The name of the corrected data column. Defaults to "CORRECTED_DATA".
-    """    
+    """
     logger.info(f"Correcting {data_column} of {str(ms)}.")
-    
-   # Do checks
+
+    # Do checks
     with table(ms.as_posix(), readonly=True, ack=False) as tab:
         cols = tab.colnames()
         # Check if 'data_column' exists
         if data_column not in cols:
-            logger.critical(
-                f"Column {data_column} does not exist in {ms}! Exiting..."
-            )
+            logger.critical(f"Column {data_column} does not exist in {ms}! Exiting...")
             return
         # Check if 'corrected_data_column' exists
         if corrected_data_column in cols:
@@ -249,7 +247,7 @@ def main(
             tab.addcols(desc)
         except RuntimeError:
             # This can happen if this correction/script has been run more
-            # than once on the same measurement set. 
+            # than once on the same measurement set.
             # Putting this here for interactive use when you might muck around with the MS
             logger.critical(
                 (
@@ -259,15 +257,15 @@ def main(
                 )
             )
         else:
-            # Only perform this correction if the data column was 
-            # successfully renamed. 
+            # Only perform this correction if the data column was
+            # successfully renamed.
             for data_chunk in tqdm(data_chunks, total=nchunks):
                 data_chunk_cor = convert_correlations(
                     data_chunk,
                     pol_axis,
                 )
                 tab.putcol(
-                    data_column,
+                    corrected_data_column,
                     data_chunk_cor,
                     startrow=start_row,
                     nrow=len(data_chunk_cor),
