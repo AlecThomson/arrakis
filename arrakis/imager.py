@@ -25,11 +25,11 @@ from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
 from racs_tools import beamcon_2D
 from radio_beam import Beam
-from schwimmbad import SerialPool
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
+from fixms.fix_ms_dir import fix_ms_dir
+from fixms.fix_ms_corrs import fix_ms_corrs
 
-from arrakis import fix_ms_dir, fix_ms_corrs
 from arrakis.logger import logger
 from arrakis.utils import (
     beam_from_ms,
@@ -155,7 +155,7 @@ def image_beam(
     local_rms_window: Optional[float] = None,
     multiscale: bool = False,
     multiscale_scale_bias: Optional[float] = None,
-    data_column: str = 'CORRECTED_DATA'
+    data_column: str = "CORRECTED_DATA",
 ) -> ImageSet:
     """Image a single beam"""
     logger = logging.getLogger(__name__)
@@ -206,12 +206,12 @@ def image_beam(
             local_rms_window=local_rms_window,
             multiscale_scale_bias=multiscale_scale_bias,
             multiscale=multiscale,
-            data_column=data_column
+            data_column=data_column,
         )
         commands.append(command)
         pols = pols.replace("I", "")
 
-    if all([p in pols.upper() for p in ('Q', 'U')]):
+    if all([p in pols.upper() for p in ("Q", "U")]):
         if squared_channel_joining:
             logger.info("Using squared channel joining")
             logger.info("Reducing mask by sqrt(2) to account for this")
@@ -225,7 +225,7 @@ def image_beam(
         if local_rms_window:
             local_rms_window = int(local_rms_window / 2)
             logger.info(f"Scaled local RMS window to {local_rms_window}.")
-            
+
         command = wsclean(
             mslist=[ms.resolve(strict=True).as_posix()],
             use_mpi=False,
@@ -257,7 +257,7 @@ def image_beam(
             local_rms_window=local_rms_window,
             multiscale=multiscale,
             multiscale_scale_bias=multiscale_scale_bias,
-            data_column=data_column
+            data_column=data_column,
         )
         commands.append(command)
 
@@ -389,7 +389,9 @@ def make_cube(
             new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
             new_name = os.path.join(out_dir, new_base)
 
-        plane = fits.getdata(image) # Stokes do NOT need to be scaled so long as fix_ms_corrs applied!
+        plane = fits.getdata(
+            image
+        )  # Stokes do NOT need to be scaled so long as fix_ms_corrs applied!
         plane_rms = mad_std(plane, ignore_nan=True)
         rmss.append(plane_rms)
         data_cube[:, chan] = plane
@@ -590,14 +592,15 @@ def fix_ms(ms: Path) -> Path:
     Returns:
         Path: Path to the corrected measurement set.
     """
-    fix_ms_dir.main(ms.resolve(strict=True).as_posix())
+    fix_ms_dir(ms.resolve(strict=True).as_posix())
     return ms
+
 
 @delayed()
 def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
     """Applies a correction to raw telescope polarisation products to rotate them
-    to the wsclean espected form. This is essentially related to the third-axis of 
-    ASKAP and reorientating its 'X' and 'Y's. 
+    to the wsclean espected form. This is essentially related to the third-axis of
+    ASKAP and reorientating its 'X' and 'Y's.
 
     Args:
         ms (Path): Path to the measurement set to fix.
@@ -606,10 +609,11 @@ def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
         Path: Path of the measurementt set containing the corrections.
     """
     logger.info(f"Correcting {str(ms)} correlations for wsclean. ")
-    
-    fix_ms_corrs.main(ms=ms, *args, **kwargs)
+
+    fix_ms_corrs(ms=ms, *args, **kwargs)
 
     return ms
+
 
 def main(
     msdir: Path,
@@ -640,7 +644,7 @@ def main(
     absmem: Optional[float] = None,
     make_residual_cubes: Optional[bool] = False,
     ms_glob_pattern: str = "scienceData*_averaged_cal.leakage.ms",
-    data_column: str = 'CORRECTED_DATA'
+    data_column: str = "CORRECTED_DATA",
 ):
     simage = get_wsclean(wsclean=wsclean_path)
 
@@ -671,7 +675,9 @@ def main(
         logger.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
         ms_fix = fix_ms(ms)
-        ms_fix = fix_ms_askap_corrs(ms=ms_fix, data_column="DATA", corrected_data_column="CORRECTED_DATA")
+        ms_fix = fix_ms_askap_corrs(
+            ms=ms_fix, data_column="DATA", corrected_data_column="CORRECTED_DATA"
+        )
         # Image with wsclean
         image_set = image_beam(
             ms=ms_fix,
@@ -700,7 +706,7 @@ def main(
             multiscale=multiscale,
             multiscale_scale_bias=multiscale_scale_bias,
             absmem=absmem,
-            data_column=data_column
+            data_column="CORRECTED_DATA",
         )
 
         image_sets.append(image_set)
@@ -710,7 +716,7 @@ def main(
     # set of ImageSets are first derived before this is called.
     common_beam_pkl = get_beam(image_sets=image_sets, cutoff=cutoff)
 
-    cube_aux_modes = (None, "residual") if make_residual_cubes else (None, )
+    cube_aux_modes = (None, "residual") if make_residual_cubes else (None,)
 
     # With the final beam each *image* in the ImageSet across IQU are
     # smoothed and then form the cube for each stokes.
@@ -925,22 +931,22 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--make_residual_cubes",
-        action='store_true',
-        help="Create residual cubes as well as cubes from restored images. "
+        action="store_true",
+        help="Create residual cubes as well as cubes from restored images. ",
     )
     parser.add_argument(
         "--ms_glob_pattern",
         type=str,
         default="scienceData*_averaged_cal.leakage.ms",
-        help="The pattern used to search for measurement sets. "
+        help="The pattern used to search for measurement sets. ",
     )
     parser.add_argument(
-        '--data_column',
+        "--data_column",
         type=str,
-        default='CORRECTED_DATA',
-        help='Which column in the measurement set to image. '
+        default="CORRECTED_DATA",
+        help="Which column in the measurement set to image. ",
     )
-    
+
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--hosted-wsclean",
@@ -954,7 +960,6 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         default=None,
         help="Path to local wsclean Singularity image",
     )
-    
 
     return img_parser
 
@@ -1004,7 +1009,7 @@ def cli():
             else args.hosted_wsclean,
             multiscale=args.multiscale,
             ms_glob_pattern=args.ms_glob_pattern,
-            data_column=args.data_column
+            data_column=args.data_column,
         )
 
 
