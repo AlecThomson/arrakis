@@ -319,42 +319,45 @@ def main(args: configargparse.Namespace) -> None:
         )
 
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
-        process_imager.with_options(
-            name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
-        )(
-            msdir=args.msdir,
-            out_dir=args.outdir,
-            cutoff=args.psf_cutoff,
-            robust=args.robust,
-            pols=args.pols,
-            nchan=args.nchan,
-            local_rms=args.local_rms,
-            local_rms_window=args.local_rms_window,
-            size=args.size,
-            scale=args.scale,
-            mgain=args.mgain,
-            niter=args.niter,
-            nmiter=args.nmiter,
-            auto_mask=args.auto_mask,
-            force_mask_rounds=args.force_mask_rounds,
-            auto_threshold=args.auto_threshold,
-            minuv=args.minuv,
-            purge=args.purge,
-            taper=args.taper,
-            reimage=args.reimage,
-            parallel_deconvolution=args.parallel,
-            gridder=args.gridder,
-            wsclean_path=Path(args.local_wsclean)
-            if args.local_wsclean
-            else args.hosted_wsclean,
-            multiscale=args.multiscale,
-            multiscale_scale_bias=args.multiscale_scale_bias,
-            absmem=args.absmem,
-            ms_glob_pattern=args.ms_glob_pattern,
-            data_column=args.data_column
-        )
-        client.close()
-        del dask_runner
+        with performance_report(
+            f"arrakis-imaging-{args.field}-report-{Time.now().fits}.html"
+        ):
+            process_imager.with_options(
+                name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
+            )(
+                msdir=args.msdir,
+                out_dir=args.outdir,
+                cutoff=args.psf_cutoff,
+                robust=args.robust,
+                pols=args.pols,
+                nchan=args.nchan,
+                local_rms=args.local_rms,
+                local_rms_window=args.local_rms_window,
+                size=args.size,
+                scale=args.scale,
+                mgain=args.mgain,
+                niter=args.niter,
+                nmiter=args.nmiter,
+                auto_mask=args.auto_mask,
+                force_mask_rounds=args.force_mask_rounds,
+                auto_threshold=args.auto_threshold,
+                minuv=args.minuv,
+                purge=args.purge,
+                taper=args.taper,
+                reimage=args.reimage,
+                parallel_deconvolution=args.parallel,
+                gridder=args.gridder,
+                wsclean_path=Path(args.local_wsclean)
+                if args.local_wsclean
+                else args.hosted_wsclean,
+                multiscale=args.multiscale,
+                multiscale_scale_bias=args.multiscale_scale_bias,
+                absmem=args.absmem,
+                ms_glob_pattern=args.ms_glob_pattern,
+                data_column=args.data_column,
+            )
+            client.close()
+            del dask_runner
     else:
         logger.warn(f"Skipping the image creation step. ")
 
@@ -371,17 +374,16 @@ def main(args: configargparse.Namespace) -> None:
     )
 
     # Define flow
-    process_spice.with_options(
-        name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
-    )(args, host)
+    with performance_report(
+        f"arrakis-synthesis-{args.field}-report-{Time.now().fits}.html"
+    ):
+        process_spice.with_options(
+            name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
+        )(args, host)
 
     # TODO: Access the client via the `dask_runner`. Perhaps a
     #       way to do this is to extend the DaskTaskRunner's
     #       destructor and have it create it then.
-    # with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
-    #     executor = DaskExecutor(address=client.scheduler.address)
-    #     flow.run(executor=executor)
-    # client.close()
 
 
 def cli():
