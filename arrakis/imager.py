@@ -645,6 +645,7 @@ def main(
     make_residual_cubes: Optional[bool] = False,
     ms_glob_pattern: str = "scienceData*_averaged_cal.leakage.ms",
     data_column: str = "CORRECTED_DATA",
+    skip_fix_ms: bool = False,
 ):
     simage = get_wsclean(wsclean=wsclean_path)
 
@@ -674,10 +675,13 @@ def main(
     for ms in mslist:
         logger.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
-        ms_fix = fix_ms(ms)
-        ms_fix = fix_ms_askap_corrs(
-            ms=ms_fix, data_column="DATA", corrected_data_column="CORRECTED_DATA"
-        )
+        if not skip_fix_ms:
+            ms_fix = fix_ms(ms)
+            ms_fix = fix_ms_askap_corrs(
+                ms=ms_fix, data_column="DATA", corrected_data_column=data_column
+            )
+        else:
+            fix_ms = ms
         # Image with wsclean
         image_set = image_beam(
             ms=ms_fix,
@@ -706,7 +710,7 @@ def main(
             multiscale=multiscale,
             multiscale_scale_bias=multiscale_scale_bias,
             absmem=absmem,
-            data_column="CORRECTED_DATA",
+            data_column=data_column,
         )
 
         image_sets.append(image_set)
@@ -946,6 +950,13 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         default="CORRECTED_DATA",
         help="Which column in the measurement set to image. ",
     )
+    parser.add_argument(
+        "--skip_fix_ms",
+        type=bool,
+        action="store_true",
+        default=False,
+        help="Do not apply the ASKAP MS corrections from the package fixms. ",
+    )
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -1010,6 +1021,7 @@ def cli():
             multiscale=args.multiscale,
             ms_glob_pattern=args.ms_glob_pattern,
             data_column=args.data_column,
+            skip_fix_ms=args.skip_fix_ms,
         )
 
 
