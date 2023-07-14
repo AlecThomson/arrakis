@@ -681,7 +681,7 @@ def main(
                 ms=ms_fix, data_column="DATA", corrected_data_column=data_column
             )
         else:
-            fix_ms = ms
+            ms_fix = ms
         # Image with wsclean
         image_set = image_beam(
             ms=ms_fix,
@@ -952,7 +952,6 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--skip_fix_ms",
-        type=bool,
         action="store_true",
         default=False,
         help="Do not apply the ASKAP MS corrections from the package fixms. ",
