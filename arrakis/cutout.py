@@ -321,6 +321,7 @@ def cutout_islands(
     field: str,
     directory: str,
     host: str,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     pad: float = 3,
@@ -358,7 +359,7 @@ def cutout_islands(
     )
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     # Query the DB
@@ -451,6 +452,7 @@ def main(args: argparse.Namespace, verbose=True) -> None:
         field=args.field,
         directory=args.datadir,
         host=args.host,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         pad=args.pad,
@@ -465,7 +467,7 @@ def main(args: argparse.Namespace, verbose=True) -> None:
 def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
     {logo_str}
-    
+
     Arrakis Stage 1:
     Produce cubelets from a RACS field using a Selavy table.
     If Stokes V is present, it will be squished into RMS spectra.
@@ -479,7 +481,7 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     cut_parser = argparse.ArgumentParser(
         add_help=not parent_parser,
         description=descStr,
-        formatter_class=argparse.RawTextHelpFormatter,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser = cut_parser.add_argument_group("cutout arguments")
 
@@ -499,6 +501,14 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         metavar="host",
         type=str,
         help="Host of mongodb (probably $hostname -i).",
+    )
+
+    parser.add_argument(
+        "epoch",
+        metavar="epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
     )
 
     parser.add_argument(
