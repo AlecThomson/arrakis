@@ -96,6 +96,7 @@ def source_database(
     islandcat: Table,
     compcat: Table,
     host: str,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
 ) -> Tuple[InsertManyResult, InsertManyResult]:
@@ -127,7 +128,7 @@ def source_database(
     source_dict_list = df_i.to_dict("records")
     logger.info("Loading islands into mongo...")
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
     island_delete_res = island_col.delete_many({})  # Delete previous database
     logger.warning(
@@ -166,9 +167,9 @@ def beam_database(
     database_path: Path,
     islandcat: Table,
     host: str,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
-    epoch: int = 0,
 ) -> InsertManyResult:
     """Insert beams into the database
 
@@ -193,7 +194,7 @@ def beam_database(
     logger.info("Loading into mongo...")
     json_data = json.loads(json.dumps(beam_list, cls=MyEncoder))
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
     delete_res = beams_col.delete_many({})  # Delete previous databas
     logger.warning(f"Deleted {delete_res.deleted_count} documents from beam collection")
@@ -322,6 +323,7 @@ def beam_inf(
     database: Table,
     basedir: Path,
     host: str,
+    epoch: int,
     username: Optional[str] = None,
     password: Optional[str] = None,
 ) -> InsertManyResult:
@@ -336,7 +338,9 @@ def beam_inf(
     big_dict = big.to_pandas().to_dict("records")
 
     logger.info("Loading beam inf into mongo...")
-    beam_inf_col = get_beam_inf_db(host, username=username, password=password)
+    beam_inf_col = get_beam_inf_db(
+        host, epoch=epoch, username=username, password=password
+    )
     delete_res = beam_inf_col.delete_many({})
     logger.warning(f"Deleted documents: {delete_res.deleted_count}")
     insert_res = beam_inf_col.insert_many(big_dict)
@@ -350,17 +354,18 @@ def beam_inf(
 def field_database(
     survey_dir: Path,
     host: str,
+    epoch: int,
     username: Optional[str] = None,
     password: Optional[str] = None,
-    epoch: int = 0,
 ) -> Tuple[InsertManyResult, InsertManyResult]:
     """Reset and load the field database
 
     Args:
+        survey_dir (Path): Path to RACS database (i.e. 'askap_surveys/racs' repo).
         host (str): Mongo host
+        epoch (int, optional): RACS epoch number.
         username (Union[str, None]): Mongo username
         password (Union[str, None]): Mongo password
-        epoch (int, optional): RACS epoch number. Defaults to 0.
 
     Returns:
         Tuple[InsertManyResult, InsertManyResult]: Field and beam info insert object.
@@ -371,7 +376,9 @@ def field_database(
     df = database.to_pandas()
     field_list_dict = df.to_dict("records")
     logger.info("Loading fields into mongo...")
-    field_col = get_field_db(host, username=username, password=password)
+    field_col = get_field_db(
+        host=host, epoch=epoch, username=username, password=password
+    )
     delete_res = field_col.delete_many({})
     logger.warning(f"Deleted documents: {delete_res.deleted_count}")
     insert_res = field_col.insert_many(field_list_dict)
@@ -383,6 +390,7 @@ def field_database(
         database=database,
         basedir=basedir,
         host=host,
+        epoch=epoch,
         username=username,
         password=password,
     )
@@ -399,7 +407,7 @@ def main(
     username: Optional[str] = None,
     password: Optional[str] = None,
     field: bool = False,
-    epoch: int = 0,
+    epochs: List[int] = 0,
     force: bool = False,
 ) -> None:
     """Main script
@@ -412,7 +420,7 @@ def main(
         username (Union[str, None], optional): Mongo username. Defaults to None.
         password (Union[str, None], optional): Mongo password. Defaults to None.
         field (bool, optional): Load the field database. Defaults to False.
-        epoch (int, optional): RACS epoch to load. Defaults to 0.
+        epochs (List[int], optional): Epochs to load. Defaults to [0].
         force (bool, optional): Force overwrite of database. Defaults to False.
 
     Raises:
@@ -425,68 +433,71 @@ def main(
         time.sleep(30)
         logger.critical("Continuing...you have been warned!")
 
-    if load:
-        # Get database from master cat
-        if islandcat is None:
-            logger.critical("Island catalogue is required!")
-            islandcat = input("Enter catalogue file:")
-        if compcat is None:
-            logger.critical("Component catalogue is required!")
-            compcat = input("Enter catalogue file:")
-        if database_path is None:
-            logger.critical("Database path is required!")
-            database_path = Path(input("Enter database path:"))
+    for epoch in epochs:
+        logger.warning(f"Loading epoch {epoch}")
+        if load:
+            # Get database from master cat
+            if islandcat is None:
+                logger.critical("Island catalogue is required!")
+                islandcat = input("Enter catalogue file:")
+            if compcat is None:
+                logger.critical("Component catalogue is required!")
+                compcat = input("Enter catalogue file:")
+            if database_path is None:
+                logger.critical("Database path is required!")
+                database_path = Path(input("Enter database path:"))
 
-        # Get the master cat
-        logger.info(f"Reading {islandcat}")
-        island_cat = Table.read(islandcat)
-        logger.info(f"Reading {compcat}")
-        comp_cat = Table.read(compcat)
-        logger.critical("This will overwrite the source database!")
-        check_source = (
-            yes_or_no("Are you sure you wish to proceed?") if not force else True
-        )
-        logger.critical("This will overwrite the beams database!")
-        check_beam = (
-            yes_or_no("Are you sure you wish to proceed?") if not force else True
-        )
-        if check_source:
-            source_database(
-                islandcat=island_cat,
-                compcat=comp_cat,
-                host=host,
-                username=username,
-                password=password,
+            # Get the master cat
+            logger.info(f"Reading {islandcat}")
+            island_cat = Table.read(islandcat)
+            logger.info(f"Reading {compcat}")
+            comp_cat = Table.read(compcat)
+            logger.critical("This will overwrite the source database!")
+            check_source = (
+                yes_or_no("Are you sure you wish to proceed?") if not force else True
             )
-        if check_beam:
-            beam_database(
-                database_path=database_path,
-                islandcat=island_cat,
-                host=host,
-                username=username,
-                password=password,
-                epoch=epoch,
+            logger.critical("This will overwrite the beams database!")
+            check_beam = (
+                yes_or_no("Are you sure you wish to proceed?") if not force else True
             )
-    if field:
-        logger.critical("This will overwrite the field and beam info database!")
-        check_field = (
-            yes_or_no("Are you sure you wish to proceed?") if not force else True
-        )
-        if database_path is None:
-            logger.critical("Database path is required!")
-            database_path = Path(input("Enter database path:"))
+            if check_source:
+                source_database(
+                    islandcat=island_cat,
+                    compcat=comp_cat,
+                    host=host,
+                    epoch=epoch,
+                    username=username,
+                    password=password,
+                )
+            if check_beam:
+                beam_database(
+                    database_path=database_path,
+                    islandcat=island_cat,
+                    host=host,
+                    username=username,
+                    password=password,
+                    epoch=epoch,
+                )
+        if field:
+            logger.critical("This will overwrite the field and beam info database!")
+            check_field = (
+                yes_or_no("Are you sure you wish to proceed?") if not force else True
+            )
+            if database_path is None:
+                logger.critical("Database path is required!")
+                database_path = Path(input("Enter database path:"))
 
-        if check_field:
-            field_res, beam_res = field_database(
-                survey_dir=database_path,
-                host=host,
-                username=username,
-                password=password,
-                epoch=epoch,
-            )
+            if check_field:
+                field_res, beam_res = field_database(
+                    survey_dir=database_path,
+                    host=host,
+                    username=username,
+                    password=password,
+                    epoch=epoch,
+                )
 
-    else:
-        logger.info("Nothing to do!")
+        else:
+            logger.info("Nothing to do!")
 
     logger.info("Done!")
 
@@ -523,7 +534,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
     parser.add_argument(
@@ -554,29 +565,28 @@ def cli():
     parser.add_argument(
         "-c", "--compcat", type=str, help="Master component RACS catalogue."
     )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Verbose output [False]."
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     parser.add_argument(
         "-l",
         "--load",
         action="store_true",
-        help="Load catalogue into database [False].",
+        help="Load catalogue into database.",
     )
 
     parser.add_argument(
         "-f",
         "--field",
         action="store_true",
-        help="Load field table into database [False].",
+        help="Load field table into database.",
     )
 
     parser.add_argument(
         "-e",
-        "--epoch",
+        "--epochs",
         type=int,
-        default=0,
-        help="RACS epoch to load [0].",
+        default=[0],
+        help="Epochs to load.",
+        nargs="+",
     )
 
     args = parser.parse_args()
@@ -595,7 +605,7 @@ def cli():
         username=args.username,
         password=args.password,
         field=args.field,
-        epoch=args.epoch,
+        epochs=args.epochs,
     )
 
 
