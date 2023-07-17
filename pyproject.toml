@@ -86,6 +86,7 @@ docs = [
 [build-system]
 requires = ["poetry-core>=1.2"]
 build-backend = "poetry.core.masonry.api"
+requires = ["numpy"]
 
 [tool.poetry.scripts]
 spice_init = "arrakis.init_database:cli"
