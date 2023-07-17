@@ -86,7 +86,7 @@ docs = [
 ]
 
 [build-system]
-requires = ["poetry-core>=1.2"]
+requires = ["poetry-core>=1.2", "numpy"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]

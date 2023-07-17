@@ -8,7 +8,7 @@ The documentation is available at [arrakis.readthedocs.io](https://arrakis.readt
 
 ## Acknowledging
 
-If you use Arrakis in your research, please cite [Thomson et al. (in prep)](https://ui.adsabs.harvard.edu/abs/).
+If you use Arrakis in your research, please cite [Thomson et al. (2023)](https://arxiv.org/abs/2307.07207).
 
 ### 3rd party software
 
