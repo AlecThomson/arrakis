@@ -321,7 +321,7 @@ def main(args: configargparse.Namespace) -> None:
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
         with performance_report(
             f"arrakis-imaging-{args.field}-report-{Time.now().fits}.html"
-        ):
+        ), get_dask_client():
             process_imager.with_options(
                 name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
             )(
@@ -376,7 +376,7 @@ def main(args: configargparse.Namespace) -> None:
     # Define flow
     with performance_report(
         f"arrakis-synthesis-{args.field}-report-{Time.now().fits}.html"
-    ):
+    ), get_dask_client():
         process_spice.with_options(
             name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
         )(args, host)
