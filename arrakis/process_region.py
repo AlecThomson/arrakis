@@ -38,6 +38,7 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir: str) -> 
             merge_name=args.merge_name,
             output_dir=args.output_dir,
             host=host,
+            epoch=args.epoch,
             username=args.username,
             password=args.password,
             yanda=args.yanda,
@@ -52,6 +53,7 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir: str) -> 
             field=args.merge_name,
             outdir=inter_dir,
             host=host,
+            epoch=args.epoch,
             username=args.username,
             password=args.password,
             dimension=args.dimension,
@@ -87,6 +89,7 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir: str) -> 
             field=args.merge_name,
             outdir=inter_dir,
             host=host,
+            epoch=args.epoch,
             username=args.username,
             password=args.password,
             dimension=args.dimension,
@@ -110,6 +113,7 @@ def process_merge(args: configargparse.Namespace, host: str, inter_dir: str) -> 
         process_spice.cat_task.submit(
             field=args.merge_name,
             host=host,
+            epoch=args.epoch,
             username=args.username,
             password=args.password,
             verbose=args.verbose,
@@ -255,6 +259,13 @@ def cli():
         "--output_dir",
         type=str,
         help="Path to save merged data (in output_dir/merge_name/cutouts)",
+    )
+
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch to read field data from",
     )
 
     parser.add_argument(
