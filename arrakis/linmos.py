@@ -212,6 +212,7 @@ def main(
     field: str,
     datadir: str,
     host: str,
+    epoch: int,
     holofile: Optional[str] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
@@ -251,7 +252,7 @@ def main(
         holofile = os.path.abspath(holofile)
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
     logger.debug(f"{beams_col = }")
     # Query the DB
@@ -375,6 +376,14 @@ def cli():
     )
 
     parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
+    )
+
+    parser.add_argument(
         "-v", dest="verbose", action="store_true", help="Verbose output [False]."
     )
 
@@ -400,6 +409,7 @@ def cli():
         field=args.field,
         datadir=args.datadir,
         host=args.host,
+        epoch=args.epoch,
         holofile=args.holofile,
         username=args.username,
         password=args.password,

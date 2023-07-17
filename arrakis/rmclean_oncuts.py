@@ -205,6 +205,7 @@ def main(
     field: str,
     outdir: str,
     host: str,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     dimension="1d",
@@ -245,7 +246,7 @@ def main(
 
     # default connection (ie, local)
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
@@ -402,6 +403,14 @@ def cli():
         metavar="host",
         type=str,
         help="Host of mongodb (probably $hostname -i).",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
     )
 
     parser.add_argument(

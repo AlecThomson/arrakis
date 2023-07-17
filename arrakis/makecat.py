@@ -769,6 +769,7 @@ def write_votable(rmtab: TableLike, outfile: str) -> None:
 def main(
     field: str,
     host: str,
+    epoch: str,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     verbose: bool = True,
@@ -787,7 +788,7 @@ def main(
     """
     # default connection (ie, local)
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
     logger.info("Starting beams collection query")
     tick = time.time()
@@ -1013,6 +1014,14 @@ def cli():
         metavar="host",
         type=str,
         help="Host of mongodb (probably $hostname -i).",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
     )
 
     parser.add_argument(

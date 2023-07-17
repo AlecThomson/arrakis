@@ -211,6 +211,7 @@ def main(
     merge_name: str,
     output_dir: str,
     host: str,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     yanda="1.3.0",
@@ -230,7 +231,7 @@ def main(
     image = get_yanda(version=yanda)
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     output_dir = os.path.abspath(output_dir)
@@ -335,6 +336,14 @@ def cli():
     )
 
     parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
+    )
+
+    parser.add_argument(
         "-v", dest="verbose", action="store_true", help="Verbose output [False]."
     )
 
@@ -362,6 +371,7 @@ def cli():
         merge_name=args.merge_name,
         output_dir=args.output_dir,
         host=args.host,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         yanda=args.yanda,

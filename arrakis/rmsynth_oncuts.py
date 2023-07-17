@@ -561,6 +561,7 @@ def rmsynthoncut_i(
     freq: np.ndarray,
     host: str,
     field: str,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     nSamples: int = 5,
@@ -583,7 +584,7 @@ def rmsynthoncut_i(
     logger.setLevel(logging.INFO)
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     # Basic querey
@@ -694,6 +695,7 @@ def main(
     field: str,
     outdir: str,
     host: str,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     dimension: str = "1d",
@@ -727,7 +729,7 @@ def main(
         try_mkdir(plotdir)
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     beam_query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
@@ -793,6 +795,7 @@ def main(
                 outdir=outdir,
                 freq=freq,
                 host=host,
+                epoch=epoch,
                 field=field,
                 username=username,
                 password=password,
@@ -944,6 +947,14 @@ def cli():
         metavar="host",
         type=str,
         help="Host of mongodb (probably $hostname -i).",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
     )
 
     parser.add_argument(
