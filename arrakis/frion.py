@@ -200,7 +200,9 @@ def main(
     query_2 = {"Source_ID": {"$in": island_ids}}
     islands = list(island_col.find(query_2).sort("Source_ID"))
 
-    field_col = get_field_db(host, username=username, password=password)
+    field_col = get_field_db(
+        host=host, epoch=epoch, username=username, password=password
+    )
     query_3 = {"FIELD_NAME": f"{field}"}
     logger.info(f"{query_3}")
 

@@ -882,7 +882,9 @@ def main(
     # )
 
     # Add integration time
-    field_col = get_field_db(host=host, username=username, password=password)
+    field_col = get_field_db(
+        host=host, epoch=epoch, username=username, password=password
+    )
     tints = get_integration_time(rmtab, field_col)
     rmtab.add_column(Column(data=tints, name="int_time"))
     # Add epoch
