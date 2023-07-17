@@ -504,8 +504,8 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "epoch",
-        metavar="epoch",
+        "-e",
+        "--epoch",
         type=int,
         default=0,
         help="Epoch of observation.",
