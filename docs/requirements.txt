@@ -4,4 +4,4 @@ sphinx-autoapi
 m2r2
 numpydoc
 myst_parser
--e ../../
+-e ./
