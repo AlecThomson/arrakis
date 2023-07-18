@@ -193,10 +193,6 @@ def main(args: configargparse.Namespace) -> None:
         name=f"SPICE-RACS: {args.merge_name}", task_runner=dask_runner
     )(args, host, inter_dir)
 
-    with performance_report(f"{args.merge_name}-report-{Time.now().fits}.html"):
-        executor = DaskExecutor(address=client.scheduler.address)
-        flow.run(executor=executor)
-
     client.close()
 
 
