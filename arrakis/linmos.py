@@ -9,10 +9,8 @@ from pathlib import Path
 from pprint import pformat
 from typing import List, Optional, Union
 
-import astropy
 import astropy.units as u
 import numpy as np
-import pkg_resources
 import pymongo
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
