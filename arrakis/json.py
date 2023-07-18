@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 """JSON utilities"""
 
+import dataclasses
+import json
+
+import numpy as np
+from astropy.io import fits
+
+from arrakis.utils.fitsutils import head2dict
+
 
 class MyEncoder(json.JSONEncoder):
     """Cutom JSON encorder.
