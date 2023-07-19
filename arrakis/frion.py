@@ -18,7 +18,10 @@ from dask.distributed import Client, LocalCluster, progress, wait
 from FRion import correct, predict
 
 from arrakis.logger import logger
-from arrakis.utils import get_db, get_field_db, getfreq, test_db, tqdm_dask, try_mkdir
+from arrakis.utils.database import get_db, get_field_db, test_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import tqdm_dask
 
 logger.setLevel(logging.INFO)
 
