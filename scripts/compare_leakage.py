@@ -134,6 +134,7 @@ def main(
     field,
     datadir,
     host,
+    epoch: int,
     holofile,
     username=None,
     password=None,
@@ -150,7 +151,7 @@ def main(
     holofile = os.path.abspath(holofile)
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     # Query the DB
