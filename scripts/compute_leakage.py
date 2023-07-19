@@ -12,7 +12,9 @@ from astropy.wcs import WCS
 from tqdm.auto import tqdm, trange
 
 from arrakis.logger import logger, logging
-from arrakis.utils import MyEncoder, get_db, getdata
+from arrakis.utils.database import get_db
+from arrakis.utils.fitsutils import getdata
+from arrakis.utils.json import MyEncoder
 
 
 def makesurf(start, stop, field, datadir, save_plots=True, data=None):

@@ -28,15 +28,11 @@ from RMutils.util_misc import create_frac_spectra
 from tqdm import tqdm, trange
 
 from arrakis.logger import logger
-from arrakis.utils import (
-    MyEncoder,
-    chunk_dask,
-    fit_pl,
-    get_db,
-    getfreq,
-    test_db,
-    try_mkdir,
-)
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.fitting import fit_pl
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import chunk_dask
 
 logger.setLevel(logging.INFO)
 

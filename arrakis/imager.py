@@ -23,20 +23,16 @@ from dask import compute, delayed, visualize
 from dask.delayed import Delayed
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
+from fixms.fix_ms_corrs import fix_ms_corrs
+from fixms.fix_ms_dir import fix_ms_dir
 from racs_tools import beamcon_2D
 from radio_beam import Beam
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
-from fixms.fix_ms_dir import fix_ms_dir
-from fixms.fix_ms_corrs import fix_ms_corrs
 
 from arrakis.logger import logger
-from arrakis.utils import (
-    beam_from_ms,
-    field_idx_from_ms,
-    logo_str,
-    wsclean,
-)
+from arrakis.utils.msutils import beam_from_ms, field_idx_from_ms, wsclean
+from arrakis.utils.pipeline import logo_str
 
 
 class ImageSet(NamedTuple):

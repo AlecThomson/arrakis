@@ -18,7 +18,9 @@ from RMtools_3D import do_RMclean_3D
 from tqdm import tqdm
 
 from arrakis.logger import logger
-from arrakis.utils import MyEncoder, chunk_dask, get_db, getfreq, test_db, tqdm_dask
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.pipeline import chunk_dask, tqdm_dask
 
 
 @delayed

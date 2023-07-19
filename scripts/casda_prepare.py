@@ -33,7 +33,8 @@ from tqdm.auto import tqdm
 
 from arrakis.logger import logger
 from arrakis.makecat import write_votable
-from arrakis.utils import chunk_dask, tqdm_dask, try_mkdir, try_symlink, zip_equal
+from arrakis.utils.io import try_mkdir, try_symlink
+from arrakis.utils.pipeline import chunk_dask
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):

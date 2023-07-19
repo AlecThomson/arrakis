@@ -30,7 +30,9 @@ from dask.distributed import Client, LocalCluster
 
 from arrakis.linmos import gen_seps
 from arrakis.logger import logger, logging
-from arrakis.utils import chunk_dask, get_db, getfreq
+from arrakis.utils.database import get_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.pipeline import chunk_dask
 
 
 def make_plot(data, comp, imfile):

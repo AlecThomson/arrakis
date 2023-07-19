@@ -14,14 +14,10 @@ from pymongo.results import InsertManyResult
 from tqdm import tqdm
 
 from arrakis.logger import logger
-from arrakis.utils import (
-    MyEncoder,
-    get_beam_inf_db,
-    get_db,
-    get_field_db,
-    test_db,
-    yes_or_no,
-)
+from arrakis.utils.database import get_beam_inf_db, get_db, get_field_db, test_db
+from arrakis.utils.json import MyEncoder
+from arrakis.utils.meta import yes_or_no
+from arrakis.utils.pipeline import logo_str
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> Table:
@@ -495,22 +491,8 @@ def cli():
     import argparse
 
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis Initialisation:
 
     Create MongoDB database from RACS catalogues.

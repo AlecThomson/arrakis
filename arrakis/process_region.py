@@ -16,7 +16,8 @@ from prefect_dask import DaskTaskRunner
 
 from arrakis import merge_fields, process_spice
 from arrakis.logger import logger
-from arrakis.utils import port_forward, test_db
+from arrakis.utils.database import test_db
+from arrakis.utils.pipeline import port_forward
 
 merge_task = task(merge_fields.main, name="Merge fields")
 

@@ -11,7 +11,9 @@ from dask.distributed import Client, LocalCluster
 
 from arrakis.linmos import get_yanda, linmos
 from arrakis.logger import logger
-from arrakis.utils import chunk_dask, get_db, test_db, tqdm_dask, try_mkdir
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import chunk_dask, tqdm_dask
 
 
 def make_short_name(name: str) -> str:

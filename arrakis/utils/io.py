@@ -19,6 +19,14 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 
+def rsync(src, tgt):
+    os.system(f"rsync -rPvh {src} {tgt}")
+
+
+def prsync(wild_src: str, tgt: str, ncores: int):
+    os.system(f"ls -d {wild_src} | xargs -n 1 -P {ncores} -I% rsync -rvh % {tgt}")
+
+
 def try_symlink(src: str, dst: str, verbose=True):
     """Create symlink if it doesn't exist
 
