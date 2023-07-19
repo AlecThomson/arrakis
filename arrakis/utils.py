@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import astropy.units as u
-import dask
 import dask.array as da
 import dask.distributed as distributed
 import numpy as np
@@ -41,6 +40,7 @@ from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner, is_kernel
 from FRion.correct import find_freq_axis
+from prefect_dask import get_dask_client
 from pymongo.collection import Collection
 from scipy.optimize import curve_fit
 from scipy.stats import normaltest
@@ -60,16 +60,91 @@ print = functools.partial(print, flush=True)
 logo_str = """
     mmm   mmm   mmm   mmm   mmm
     )-(   )-(   )-(   )-(   )-(
-( S ) ( P ) ( I ) ( C ) ( E )
-|   | |   | |   | |   | |   |
-|___| |___| |___| |___| |___|
+   ( S ) ( P ) ( I ) ( C ) ( E )
+   |   | |   | |   | |   | |   |
+   |___| |___| |___| |___| |___|
     mmm     mmm     mmm     mmm
     )-(     )-(     )-(     )-(
-( R )   ( A )   ( C )   ( S )
-|   |   |   |   |   |   |   |
-|___|   |___|   |___|   |___|
+   ( R )   ( A )   ( C )   ( S )
+   |   |   |   |   |   |   |   |
+   |___|   |___|   |___|   |___|
 
 """
+
+
+class performance_report_prefect:
+    """Gather performance report from prefect_dask
+
+    Basically stolen from:
+        https://distributed.dask.org/en/latest/_modules/distributed/client.html#performance_report
+
+    This creates a static HTML file that includes many of the same plots of the
+    dashboard for later viewing.
+
+    The resulting file uses JavaScript, and so must be viewed with a web
+    browser.  Locally we recommend using ``python -m http.server`` or hosting
+    the file live online.
+
+    Parameters
+    ----------
+    filename: str, optional
+        The filename to save the performance report locally
+
+    stacklevel: int, optional
+        The code execution frame utilized for populating the Calling Code section
+        of the report. Defaults to `1` which is the frame calling ``performance_report_prefect``
+
+    mode: str, optional
+        Mode parameter to pass to :func:`bokeh.io.output.output_file`. Defaults to ``None``.
+
+    storage_options: dict, optional
+         Any additional arguments to :func:`fsspec.open` when writing to a URL.
+
+    Examples
+    --------
+    >>> with performance_report_prefect(filename="myfile.html", stacklevel=1):
+    ...     x.compute()
+    """
+
+    def __init__(
+        self, filename="dask-report.html", stacklevel=1, mode=None, storage_options=None
+    ):
+        self.filename = filename
+        # stacklevel 0 or less - shows dask internals which likely isn't helpful
+        self._stacklevel = stacklevel if stacklevel > 0 else 1
+        self.mode = mode
+        self.storage_options = storage_options or {}
+
+    async def __aenter__(self):
+        self.start = time()
+        self.last_count = await get_dask_client().run_on_scheduler(
+            lambda dask_scheduler: dask_scheduler.monitor.count
+        )
+        await get_dask_client().get_task_stream(start=0, stop=0)  # ensure plugin
+
+    async def __aexit__(self, exc_type, exc_value, traceback, code=None):
+        import fsspec
+
+        client = get_dask_client()
+        if code is None:
+            frames = client._get_computation_code(self._stacklevel + 1, nframes=1)
+            code = frames[0].code if frames else "<Code not available>"
+        data = await client.scheduler.performance_report(
+            start=self.start, last_count=self.last_count, code=code, mode=self.mode
+        )
+        with fsspec.open(
+            self.filename, mode="w", compression="infer", **self.storage_options
+        ) as f:
+            f.write(data)
+
+    def __enter__(self):
+        get_dask_client().sync(self.__aenter__)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        client = get_dask_client()
+        frames = client._get_computation_code(self._stacklevel + 1, nframes=1)
+        code = frames[0].code if frames else "<Code not available>"
+        client.sync(self.__aexit__, exc_type, exc_value, traceback, code=code)
 
 
 def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float:

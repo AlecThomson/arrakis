@@ -27,7 +27,7 @@ from arrakis import (
     rmsynth_oncuts,
 )
 from arrakis.logger import logger
-from arrakis.utils import logo_str, port_forward, test_db
+from arrakis.utils import logo_str, performance_report_prefect, port_forward, test_db
 
 # Defining tasks
 cut_task = task(cutout.cutout_islands, name="Cutout")
@@ -325,9 +325,9 @@ def main(args: configargparse.Namespace) -> None:
         )
 
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
-        with performance_report(
+        with performance_report_prefect(
             f"arrakis-imaging-{args.field}-report-{Time.now().fits}.html"
-        ), get_dask_client():
+        ):
             process_imager.with_options(
                 name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
             )(
@@ -380,9 +380,9 @@ def main(args: configargparse.Namespace) -> None:
     )
 
     # Define flow
-    with performance_report(
+    with performance_report_prefect(
         f"arrakis-synthesis-{args.field}-report-{Time.now().fits}.html"
-    ), get_dask_client():
+    ):
         process_spice.with_options(
             name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
         )(args, host)
