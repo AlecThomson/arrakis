@@ -792,7 +792,7 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     img_parser = argparse.ArgumentParser(
         add_help=not parent_parser,
         description=descStr,
-        formatter_class=argparse.RawTextHelpFormatter,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     parser = img_parser.add_argument_group("imaging arguments")

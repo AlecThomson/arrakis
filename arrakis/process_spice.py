@@ -407,7 +407,7 @@ def cli():
     parser = configargparse.ArgParser(
         default_config_files=[".default_config.txt"],
         description=descStr,
-        formatter_class=configargparse.RawTextHelpFormatter,
+        formatter_class=configargparse.ArgumentDefaultsHelpFormatter,
         parents=[imager_parser],
     )
     parser.add("--config", required=False, is_config_file=True, help="Config file path")
