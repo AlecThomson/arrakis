@@ -18,7 +18,6 @@ from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
 from astropy.wcs import WCS
-from casatasks import vishead
 from dask import compute, delayed, visualize
 from dask.delayed import Delayed
 from dask.distributed import Client, LocalCluster
@@ -31,7 +30,13 @@ from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
 from arrakis.logger import logger
-from arrakis.utils import beam_from_ms, field_idx_from_ms, logo_str, wsclean
+from arrakis.utils import (
+    beam_from_ms,
+    field_idx_from_ms,
+    field_name_from_ms,
+    logo_str,
+    wsclean,
+)
 
 
 class ImageSet(NamedTuple):
@@ -109,10 +114,7 @@ def get_prefix(
     Returns:
         Path: The prefix, including the output directory name.
     """
-    idx = field_idx_from_ms(ms.resolve(strict=True).as_posix())
-    field = vishead(vis=ms.resolve(strict=True).as_posix(), mode="list")["field"][0][
-        idx
-    ]
+    field = field_name_from_ms(ms.resolve(strict=True).as_posix())
     beam = beam_from_ms(ms.resolve(strict=True).as_posix())
     prefix = f"image.{field}.contcube.beam{beam:02}"
     return out_dir / prefix

@@ -32,7 +32,6 @@ from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
 from casacore.tables import table
-from casatasks import listobs
 from dask import delayed
 from dask.delayed import Delayed
 from dask.distributed import Client, get_client
@@ -191,21 +190,28 @@ def inspect_client(
 
 def beam_from_ms(ms: str) -> int:
     """Work out which beam is in this MS"""
-    t = table(ms, readonly=True, ack=False)
-    vis_feed = t.getcol("FEED1", 0, 1)
-    beam = vis_feed[0]
-    t.close()
+    with table(ms, readonly=True, ack=False) as t:
+        vis_feed = t.getcol("FEED1", 0, 1)
+        beam = vis_feed[0]
     return beam
 
 
 def field_idx_from_ms(ms: str) -> int:
     """Get the field from MS metadata"""
-    obs = listobs(vis=ms, verbose=True)
-    fields = [k for k in obs.keys() if "field_" in k]
-    assert len(fields) == 1
-    field = fields[0]
-    idx = int(field.replace("field_", ""))
+    with table(f"{ms}/FIELD", readonly=True, ack=False) as field:
+        idxs = list(field.SOURCE_ID)
+        assert len(idxs) == 1, "More than one field in MS"
+        idx = idxs[0]
     return idx
+
+
+def field_name_from_ms(ms: str) -> str:
+    """Get the field name from MS metadata"""
+    with table(f"{ms}/FIELD", readonly=True, ack=False) as field:
+        names = list(field.NAME)
+        assert len(names) == 1, "More than one field in MS"
+        name = names[0]
+    return name
 
 
 def wsclean(
