@@ -17,7 +17,7 @@ from prefect_dask import DaskTaskRunner
 from arrakis import merge_fields, process_spice
 from arrakis.logger import logger
 from arrakis.utils.database import test_db
-from arrakis.utils.pipeline import port_forward
+from arrakis.utils.pipeline import logo_str, port_forward
 
 merge_task = task(merge_fields.main, name="Merge fields")
 
@@ -200,22 +200,8 @@ def main(args: configargparse.Namespace) -> None:
 def cli():
     """Command-line interface"""
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis regional pipeline.
 
     Before running make sure to start a session of mongodb e.g.

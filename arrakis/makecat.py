@@ -29,6 +29,7 @@ from vorbin.voronoi_2d_binning import voronoi_2d_binning
 from arrakis import columns_possum
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, get_field_db, test_db
+from arrakis.utils.pipeline import logo_str
 from arrakis.utils.plotting import latexify
 from arrakis.utils.typing import ArrayLike, TableLike
 
@@ -975,23 +976,10 @@ def cli():
 
     warnings.simplefilter("ignore", category=VerifyWarning)
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
 
     # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis Stage 7:
     Make RM catalogue.
 
