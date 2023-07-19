@@ -26,16 +26,10 @@ from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 
 from arrakis.logger import logger
-from arrakis.utils import (
-    MyEncoder,
-    chunk_dask,
-    fix_header,
-    get_db,
-    logo_str,
-    test_db,
-    tqdm_dask,
-    try_mkdir,
-)
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.fitsutils import fix_header
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import chunk_dask, logo_str, tqdm_dask
 
 iers.conf.auto_download = False
 warnings.filterwarnings(
@@ -465,7 +459,7 @@ def main(args: argparse.Namespace, verbose=True) -> None:
 def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
     {logo_str}
-    
+
     Arrakis Stage 1:
     Produce cubelets from a RACS field using a Selavy table.
     If Stokes V is present, it will be squished into RMS spectra.

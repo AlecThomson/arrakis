@@ -9,7 +9,7 @@ from dask import delayed
 from dask.distributed import Client, LocalCluster
 
 from arrakis.logger import logger
-from arrakis.utils import chunk_dask
+from arrakis.utils.pipeline import chunk_dask
 
 logger.setLevel(logging.INFO)
 
