@@ -9,7 +9,7 @@ from dask import delayed
 from dask.distributed import Client, LocalCluster
 
 from arrakis.logger import logger
-from arrakis.utils import chunk_dask
+from arrakis.utils.pipeline import chunk_dask, logo_str
 
 logger.setLevel(logging.INFO)
 
@@ -81,23 +81,9 @@ def cli():
     """Command-line interface"""
     import argparse
 
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
     # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis Stage:
 
     Clean up after LINMOS

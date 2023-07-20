@@ -28,15 +28,11 @@ from RMutils.util_misc import create_frac_spectra
 from tqdm import tqdm, trange
 
 from arrakis.logger import logger
-from arrakis.utils import (
-    MyEncoder,
-    chunk_dask,
-    fit_pl,
-    get_db,
-    getfreq,
-    test_db,
-    try_mkdir,
-)
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.fitting import fit_pl
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import chunk_dask, logo_str
 
 logger.setLevel(logging.INFO)
 
@@ -904,23 +900,8 @@ def cli():
     warnings.simplefilter("ignore", category=VerifyWarning)
     warnings.simplefilter("ignore", category=RuntimeWarning)
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
-    # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis Stage 5:
     Run RMsynthesis on cubelets.
 

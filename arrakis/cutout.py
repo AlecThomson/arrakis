@@ -26,16 +26,10 @@ from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 
 from arrakis.logger import logger
-from arrakis.utils import (
-    MyEncoder,
-    chunk_dask,
-    fix_header,
-    get_db,
-    logo_str,
-    test_db,
-    tqdm_dask,
-    try_mkdir,
-)
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.fitsutils import fix_header
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import chunk_dask, logo_str, tqdm_dask
 
 iers.conf.auto_download = False
 warnings.filterwarnings(

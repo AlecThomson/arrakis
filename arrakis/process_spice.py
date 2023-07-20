@@ -27,7 +27,8 @@ from arrakis import (
     rmsynth_oncuts,
 )
 from arrakis.logger import logger
-from arrakis.utils import logo_str, performance_report_prefect, port_forward, test_db
+from arrakis.utils.database import test_db
+from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 # Defining tasks
 cut_task = task(cutout.cutout_islands, name="Cutout")
