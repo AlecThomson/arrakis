@@ -28,12 +28,10 @@ from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
 from arrakis import columns_possum
 from arrakis.logger import logger
-from arrakis.utils import get_db, get_field_db, latexify, test_db
-
-ArrayLike = TypeVar(
-    "ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, u.Quantity
-)
-TableLike = TypeVar("TableLike", RMTable, Table)
+from arrakis.utils.database import get_db, get_field_db, test_db
+from arrakis.utils.pipeline import logo_str
+from arrakis.utils.plotting import latexify
+from arrakis.utils.typing import ArrayLike, TableLike
 
 logger.setLevel(logging.INFO)
 
@@ -165,14 +163,14 @@ def flag_blended_components(cat: RMTable) -> RMTable:
         ).compute()
 
     # TODO: It looks like is_blended as a multi-index of [source_id, cat_id],
-    # and the attempt to use `reindex` was returning a dataframe of 
-    # nan's. Highlighting for future discussion. 
+    # and the attempt to use `reindex` was returning a dataframe of
+    # nan's. Highlighting for future discussion.
     # logger.info(is_blended)
     is_blended = is_blended.reset_index()
     is_blended = is_blended.set_index("cat_id")
-    is_blended = is_blended.reindex(cat["cat_id"])    
+    is_blended = is_blended.reindex(cat["cat_id"])
     # logger.info(is_blended)
-        
+
     cat.add_column(
         Column(
             is_blended["is_blended_flag"],
@@ -197,7 +195,7 @@ def flag_blended_components(cat: RMTable) -> RMTable:
         ),
         index=-1,
     )
-    
+
     cat.write("blended_cat.fits", overwrite=True)
     # logger.info(cat['cat_id'])
 
@@ -296,7 +294,12 @@ def is_leakage(frac, sep, fit):
 
 
 def get_fit_func(
-    tab: Table, nbins: int=21, offset: float=0.002, degree: int=2, do_plot: bool=False, high_snr_cut: float=30.
+    tab: Table,
+    nbins: int = 21,
+    offset: float = 0.002,
+    degree: int = 2,
+    do_plot: bool = False,
+    high_snr_cut: float = 30.0,
 ):
     """Fit an envelope to define leakage sources
 
@@ -309,17 +312,17 @@ def get_fit_func(
     """
     logger.info("Writing junk file. ")
     tab.write("junk_cat.fits", overwrite=True)
-    
+
     logger.info(f"Using {high_snr_cut=}.")
-    
+
     # Select high SNR sources
     hi_snr = (
         tab["stokesI"].to(u.Jy / u.beam) / tab["stokesI_err"].to(u.Jy / u.beam)
     ) > high_snr_cut
     hi_i_tab = tab[hi_snr]
-    
+
     logger.info(f"{np.sum(hi_snr)} sources with Stokes I SNR above {high_snr_cut=}.")
-    
+
     # Get fractional pol
     frac_P = np.array(hi_i_tab["fracpol"].value)
     # Bin sources by separation from tile centre
@@ -367,7 +370,7 @@ def get_fit_func(
         zorder=0,
         rasterized=True,
     )
-    
+
     # is_finite = np.logical_and(
     #     np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P)
     # )
@@ -423,7 +426,9 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     target_sn = 30
     target_bins = 6
     while target_sn > 1:
-        logger.debug(f"Trying to find Voroni bins with RMs per bin={target_sn}, Number of bins={target_bins}")
+        logger.debug(
+            f"Trying to find Voroni bins with RMs per bin={target_sn}, Number of bins={target_bins}"
+        )
         try:
             (
                 bin_number,
@@ -448,11 +453,15 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
                 wvt=False,
             )
             num_of_bins = len(np.unique(bin_number))
-            logger.info(f"Target RMs per bin and number of bins: {target_sn} / {target_bins}.")
+            logger.info(
+                f"Target RMs per bin and number of bins: {target_sn} / {target_bins}."
+            )
             if num_of_bins >= target_bins:
                 break
             else:
-                logger.info(f"Found {num_of_bins} bins, targeting minimum {target_bins}")
+                logger.info(
+                    f"Found {num_of_bins} bins, targeting minimum {target_bins}"
+                )
                 target_sn -= 5
         except ValueError as e:
             if not "Not enough S/N in the whole set of pixels." in str(e):
@@ -464,9 +473,9 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     else:
         fail_msg = "Failed to converge towards a Voronoi binning solution. "
         logger.error(fail_msg)
-        
+
         raise ValueError(fail_msg)
-            
+
     logger.info(f"Found {len(set(bin_number))} bins")
     df = good_cat.to_pandas()
     df.reset_index(inplace=True)
@@ -527,7 +536,7 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     )
     cat.add_column(Column(data=leakage_flag, name="leakage_flag"))
     # Channel flag
-    chan_flag = cat["Nchan"] < int(np.max(cat["Nchan"]) * 0.5 )
+    chan_flag = cat["Nchan"] < int(np.max(cat["Nchan"]) * 0.5)
     cat.add_column(Column(data=chan_flag, name="channel_flag"))
 
     # Stokes I flag
@@ -596,11 +605,9 @@ def get_alpha(cat):
 
 
 def get_integration_time(cat, field_col):
-
     logger.warn(f"Will be stripping the trailing field character prefix. ")
     field_names = [
-        name[:-1] if name[-1] in ('A', 'B') else name 
-        for name in list(cat["tile_id"])
+        name[:-1] if name[-1] in ("A", "B") else name for name in list(cat["tile_id"])
     ]
 
     logger.debug(f"Searching integration times for {field_names=}")
@@ -609,9 +616,9 @@ def get_integration_time(cat, field_col):
     tint_dicts = list(
         field_col.find(query, {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1})
     )
-    
+
     logger.debug(f"Returned results: {tint_dicts=}")
-    
+
     tint_dict = {}
     for d in tint_dicts:
         tint_dict.update({d["FIELD_NAME"]: d["SCAN_TINT"]})
@@ -969,23 +976,10 @@ def cli():
 
     warnings.simplefilter("ignore", category=VerifyWarning)
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
 
     # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis Stage 7:
     Make RM catalogue.
 
@@ -993,7 +987,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."

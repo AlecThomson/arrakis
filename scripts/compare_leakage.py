@@ -30,7 +30,9 @@ from dask.distributed import Client, LocalCluster
 
 from arrakis.linmos import gen_seps
 from arrakis.logger import logger, logging
-from arrakis.utils import chunk_dask, get_db, getfreq
+from arrakis.utils.database import get_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.pipeline import chunk_dask, logo_str
 
 
 def make_plot(data, comp, imfile):
@@ -217,23 +219,8 @@ def cli():
     warnings.simplefilter("ignore", category=VerifyWarning)
     warnings.simplefilter("ignore", category=RuntimeWarning)
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
-    # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis:
     Make leakage comparison plots.
 

@@ -22,7 +22,8 @@ from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
 from arrakis.logger import logger
-from arrakis.utils import chunk_dask, get_db, test_db
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.pipeline import chunk_dask
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -326,7 +327,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
     parser.add_argument(

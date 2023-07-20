@@ -30,13 +30,13 @@ from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
 from arrakis.logger import logger
-from arrakis.utils import (
+from arrakis.utils.msutils import (
     beam_from_ms,
     field_idx_from_ms,
     field_name_from_ms,
-    logo_str,
     wsclean,
 )
+from arrakis.utils.pipeline import logo_str
 
 
 class ImageSet(NamedTuple):
@@ -793,7 +793,7 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     img_parser = argparse.ArgumentParser(
         add_help=not parent_parser,
         description=descStr,
-        formatter_class=argparse.RawTextHelpFormatter,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     parser = img_parser.add_argument_group("imaging arguments")

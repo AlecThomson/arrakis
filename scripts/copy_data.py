@@ -8,24 +8,8 @@ from shutil import SameFileError, copyfile
 from astropy.table import Table
 
 from arrakis.logger import logger
-from arrakis.utils import try_mkdir
-
-
-def yes_or_no(question):
-    while "Please answer 'y' or 'n'":
-        reply = str(input(question + " (y/n): ")).lower().strip()
-        if reply[:1] == "y":
-            return True
-        if reply[:1] == "n":
-            return False
-
-
-def rsync(src, tgt):
-    os.system(f"rsync -rPvh {src} {tgt}")
-
-
-def prsync(wild_src: str, tgt: str, ncores: int):
-    os.system(f"ls -d {wild_src} | xargs -n 1 -P {ncores} -I% rsync -rvh % {tgt}")
+from arrakis.utils.io import prsync, rsync, try_mkdir
+from arrakis.utils.meta import yes_or_no
 
 
 def main(
@@ -102,7 +86,7 @@ def cli():
     Copy data from RACS area to SPICE area'
     """
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to find e.g. 2132-50A"

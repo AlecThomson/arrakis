@@ -18,7 +18,10 @@ from dask.distributed import Client, LocalCluster, progress, wait
 from FRion import correct, predict
 
 from arrakis.logger import logger
-from arrakis.utils import get_db, get_field_db, getfreq, test_db, tqdm_dask, try_mkdir
+from arrakis.utils.database import get_db, get_field_db, test_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import logo_str, tqdm_dask
 
 logger.setLevel(logging.INFO)
 
@@ -288,23 +291,8 @@ def cli():
     warnings.simplefilter("ignore", category=VerifyWarning)
     warnings.simplefilter("ignore", category=RuntimeWarning)
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
-    # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis Stage:
     Correct for ionospheric Faraday rotation
 
@@ -312,7 +300,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."

@@ -11,7 +11,7 @@ import spica
 from astropy.table import Table
 
 from arrakis.logger import logger, logging
-from arrakis.utils import try_mkdir
+from arrakis.utils.io import try_mkdir
 
 logger.setLevel(logging.INFO)
 
@@ -53,7 +53,7 @@ def cli():
     Copy data from RACS area to SPICE area'
     """
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to find e.g. 2132-50A"

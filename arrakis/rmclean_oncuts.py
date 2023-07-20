@@ -18,7 +18,9 @@ from RMtools_3D import do_RMclean_3D
 from tqdm import tqdm
 
 from arrakis.logger import logger
-from arrakis.utils import MyEncoder, chunk_dask, get_db, getfreq, test_db, tqdm_dask
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.pipeline import chunk_dask, logo_str, tqdm_dask
 
 
 @delayed
@@ -359,23 +361,8 @@ def cli():
 
     warnings.simplefilter("ignore", category=VerifyWarning)
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
-    # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis Stage 6:
     Run RM-CLEAN on cubelets.
 
@@ -385,7 +372,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
