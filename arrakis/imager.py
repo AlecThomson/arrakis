@@ -18,7 +18,6 @@ from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
 from astropy.wcs import WCS
-from casatasks import vishead
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
 from fixms.fix_ms_corrs import fix_ms_corrs
