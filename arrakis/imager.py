@@ -667,7 +667,7 @@ def main(
         else:
             ms_fix = ms
         # Image with wsclean
-        image_set = image_beam(
+        image_set = image_beam.submit(
             ms=ms_fix,
             field_idx=field_idxs[ms],
             out_dir=out_dir,
