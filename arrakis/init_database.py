@@ -363,6 +363,8 @@ def field_database(
     basedir = survey_dir / "db" / f"epoch_{epoch}"
     data_file = basedir / "field_data.csv"
     database = Table.read(data_file)
+    # Remove rows with SBID < 0
+    database = database[database["SBID"] >= 0]
     df = database.to_pandas()
     field_list_dict = df.to_dict("records")
     logger.info("Loading fields into mongo...")
