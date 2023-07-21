@@ -579,7 +579,7 @@ def fix_ms(ms: Path) -> Path:
 
 
 @task(name="Fix MeasurementSet Correlations")
-def fix_ms_askap_corrs(ms: Path) -> Path:
+def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
     """Applies a correction to raw telescope polarisation products to rotate them
     to the wsclean espected form. This is essentially related to the third-axis of
     ASKAP and reorientating its 'X' and 'Y's.
@@ -594,7 +594,7 @@ def fix_ms_askap_corrs(ms: Path) -> Path:
 
     logger.info(f"Correcting {str(ms)} correlations for wsclean. ")
 
-    fix_ms_corrs(ms=ms)
+    fix_ms_corrs(ms=ms, *args, **kwargs)
 
     return ms
 
