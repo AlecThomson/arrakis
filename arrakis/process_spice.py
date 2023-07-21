@@ -334,7 +334,6 @@ def main(args: configargparse.Namespace) -> None:
                 minuv=args.minuv,
                 purge=args.purge,
                 taper=args.taper,
-                reimage=args.reimage,
                 parallel_deconvolution=args.parallel,
                 gridder=args.gridder,
                 wsclean_path=Path(args.local_wsclean)

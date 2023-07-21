@@ -144,7 +144,6 @@ def image_beam(
     mem: float = 90,
     absmem: Optional[float] = None,
     taper: Optional[float] = None,
-    reimage: bool = False,
     minuv_l: float = 0.0,
     parallel_deconvolution: Optional[int] = None,
     nmiter: Optional[int] = None,
@@ -152,19 +151,10 @@ def image_beam(
     local_rms_window: Optional[float] = None,
     multiscale: bool = False,
     multiscale_scale_bias: Optional[float] = None,
+    data_column: str = "CORRECTED_DATA",
 ) -> ImageSet:
     """Image a single beam"""
     logger = get_run_logger()
-
-    if not reimage:
-        # Look for existing images
-        # NOTE: The current format of the I polarisation is different to the expression below.
-        # Raising an error for visibility.
-        checkvals = np.array(
-            [f"{prefix}-{i:04}-{s}-image.fits" for s in pols for i in range(nchan)]
-        )
-        checks = np.array([os.path.exists(f) for f in checkvals])
-        raise ValueError("The reimage option is not properly supported. ")
 
     commands = []
     # Do any I cleaning separately
@@ -626,7 +616,6 @@ def main(
     force_mask_rounds: Union[int, None] = None,
     auto_threshold: float = 1,
     taper: Union[float, None] = None,
-    reimage: bool = False,
     purge: bool = False,
     minuv: float = 0.0,
     parallel_deconvolution: Optional[int] = None,
@@ -696,7 +685,6 @@ def main(
             force_mask_rounds=force_mask_rounds,
             auto_threshold=auto_threshold,
             taper=taper,
-            reimage=reimage,
             minuv_l=minuv,
             parallel_deconvolution=parallel_deconvolution,
             gridder=gridder,
@@ -908,11 +896,6 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Use MPI",
     )
     parser.add_argument(
-        "--reimage",
-        action="store_true",
-        help="Force a new round of imaging. Otherwise, will skip if images already exist.",
-    )
-    parser.add_argument(
         "--multiscale",
         action="store_true",
         help="Use multiscale clean",
@@ -1007,7 +990,6 @@ def cli():
             minuv=args.minuv,
             purge=args.purge,
             taper=args.taper,
-            reimage=args.reimage,
             parallel_deconvolution=args.parallel,
             gridder=args.gridder,
             wsclean_path=Path(args.local_wsclean)
