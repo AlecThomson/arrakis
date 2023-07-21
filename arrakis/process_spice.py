@@ -38,17 +38,6 @@ cleanup_task = task(cleanup.main, name="Clean up")
 rmsynth_task = task(rmsynth_oncuts.main, name="RM Synthesis")
 rmclean_task = task(rmclean_oncuts.main, name="RM-CLEAN")
 cat_task = task(makecat.main, name="Catalogue")
-imager_task = task(imager.main, name="Imaging stage")
-
-
-@flow(name="Imaging Arrakis data")
-def process_imager(**kwargs) -> bool:
-    logger.info("Running the imager stage.")
-
-    with get_dask_client():
-        imager_task.submit(**kwargs)
-
-    return True
 
 
 @flow(name="Combining+Synthesis on Arrakis")
@@ -323,7 +312,7 @@ def main(args: configargparse.Namespace) -> None:
         with performance_report_prefect(
             f"arrakis-imaging-{args.field}-report-{Time.now().fits}.html"
         ):
-            process_imager.with_options(
+            imager.main.with_options(
                 name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
             )(
                 msdir=args.msdir,
