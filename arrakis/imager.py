@@ -152,6 +152,7 @@ def image_beam(
     local_rms_window: Optional[float] = None,
     multiscale: bool = False,
     multiscale_scale_bias: Optional[float] = None,
+    data_column: str = "CORRECTED_DATA",
 ) -> ImageSet:
     """Image a single beam"""
     logger = get_run_logger()
