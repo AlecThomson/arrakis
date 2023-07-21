@@ -43,7 +43,6 @@ logo_str = """
 
 """
 
-
 class performance_report_prefect:
     """Gather performance report from prefect_dask
 
@@ -88,35 +87,37 @@ class performance_report_prefect:
         self.storage_options = storage_options or {}
 
     async def __aenter__(self):
-        self.start = time()
-        self.last_count = await get_dask_client().run_on_scheduler(
-            lambda dask_scheduler: dask_scheduler.monitor.count
-        )
-        await get_dask_client().get_task_stream(start=0, stop=0)  # ensure plugin
+        self.start = time.time()
+        with get_dask_client() as client:
+            self.last_count = client.run_on_scheduler(
+                lambda dask_scheduler: dask_scheduler.monitor.count
+            )
+            client.get_task_stream(start=0, stop=0)  # ensure plugin
 
     async def __aexit__(self, exc_type, exc_value, traceback, code=None):
         import fsspec
 
-        client = get_dask_client()
-        if code is None:
-            frames = client._get_computation_code(self._stacklevel + 1, nframes=1)
-            code = frames[0].code if frames else "<Code not available>"
-        data = await client.scheduler.performance_report(
-            start=self.start, last_count=self.last_count, code=code, mode=self.mode
-        )
-        with fsspec.open(
-            self.filename, mode="w", compression="infer", **self.storage_options
-        ) as f:
-            f.write(data)
+        with get_dask_client() as client:
+            if code is None:
+                frames = client._get_computation_code(self._stacklevel + 1, nframes=1)
+                code = frames[0].code if frames else "<Code not available>"
+            data = client.scheduler.performance_report(
+                start=self.start, last_count=self.last_count, code=code, mode=self.mode
+            )
+            with fsspec.open(
+                self.filename, mode="w", compression="infer", **self.storage_options
+            ) as f:
+                f.write(data)
 
     def __enter__(self):
-        get_dask_client().sync(self.__aenter__)
+        with get_dask_client() as client:
+            client.sync(self.__aenter__)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        client = get_dask_client()
-        frames = client._get_computation_code(self._stacklevel + 1, nframes=1)
-        code = frames[0].code if frames else "<Code not available>"
-        client.sync(self.__aexit__, exc_type, exc_value, traceback, code=code)
+        with get_dask_client() as client:
+            frames = client._get_computation_code(self._stacklevel + 1, nframes=1)
+            code = frames[0].code if frames else "<Code not available>"
+            client.sync(self.__aexit__, exc_type, exc_value, traceback, code=code)
 
 
 def inspect_client(
