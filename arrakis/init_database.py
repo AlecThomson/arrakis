@@ -19,6 +19,7 @@ from arrakis.utils.json import MyEncoder
 from arrakis.utils.meta import yes_or_no
 from arrakis.utils.pipeline import logo_str
 
+logger.setLevel(logging.INFO)
 
 def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> Table:
     """Find RACS beams that contain a given source position
