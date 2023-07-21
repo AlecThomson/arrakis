@@ -136,6 +136,10 @@ def source_database(
     logger.info("Done loading")
     logger.info(f"Total documents: {count}")
 
+    logger.info("Creating index...")
+    idx_res = island_col.create_index("Source_ID")
+    logger.info(f"Index created: {idx_res}")
+
     df_c = compcat.to_pandas()
     if type(df_c["Source_ID"][0]) is bytes:
         logger.info("Decoding strings!")
@@ -155,6 +159,10 @@ def source_database(
     count = comp_col.count_documents({})
     logger.info("Done loading")
     logger.info(f"Total documents: {count}")
+
+    logger.info("Creating index...")
+    idx_res = comp_col.create_index("Gaussian_ID")
+    logger.info(f"Index created: {idx_res}")
 
     return island_insert_res, comp_insert_res
 
@@ -198,6 +206,9 @@ def beam_database(
     count = beams_col.count_documents({})
     logger.info("Done loading")
     logger.info(f"Total documents: {count}")
+    logger.info("Creating index...")
+    idx_res = beams_col.create_index("Source_ID")
+    logger.info(f"Index created: {idx_res}")
 
     return insert_res
 
@@ -343,6 +354,9 @@ def beam_inf(
     count = beam_inf_col.count_documents({})
     logger.info("Done loading")
     logger.info(f"Total documents: {count}")
+    logger.info("Creating index...")
+    idx_res = beam_inf_col.create_index("FIELD_NAME")
+    logger.info(f"Index created: {idx_res}")
 
     return insert_res
 
@@ -381,6 +395,9 @@ def field_database(
     count = field_col.count_documents({})
     logger.info("Done loading")
     logger.info(f"Total documents: {count}")
+    logger.info("Creating index...")
+    idx_res = field_col.create_index("FIELD_NAME")
+    logger.info(f"Index created: {idx_res}")
 
     beam_res = beam_inf(
         database=database,
@@ -429,6 +446,23 @@ def main(
         time.sleep(30)
         logger.critical("Continuing...you have been warned!")
 
+    # Do checks up front
+    if load:
+        logger.critical("This will overwrite the source database!")
+        check_source = (
+            yes_or_no("Are you sure you wish to proceed?") if not force else True
+        )
+        logger.critical("This will overwrite the beams database!")
+        check_beam = (
+            yes_or_no("Are you sure you wish to proceed?") if not force else True
+        )
+
+    if field:
+        logger.critical("This will overwrite the field and beam info database!")
+        check_field = (
+            yes_or_no("Are you sure you wish to proceed?") if not force else True
+        )
+
     for epoch in epochs:
         logger.warning(f"Loading epoch {epoch}")
         if load:
@@ -444,18 +478,10 @@ def main(
                 database_path = Path(input("Enter database path:"))
 
             # Get the master cat
-            logger.info(f"Reading {islandcat}")
+            logger.info(f"Reading {islandcat}. If VOTable, this may take a while...")
             island_cat = Table.read(islandcat)
-            logger.info(f"Reading {compcat}")
+            logger.info(f"Reading {compcat}. If VOTable, this may take a while...")
             comp_cat = Table.read(compcat)
-            logger.critical("This will overwrite the source database!")
-            check_source = (
-                yes_or_no("Are you sure you wish to proceed?") if not force else True
-            )
-            logger.critical("This will overwrite the beams database!")
-            check_beam = (
-                yes_or_no("Are you sure you wish to proceed?") if not force else True
-            )
             if check_source:
                 source_database(
                     islandcat=island_cat,
@@ -475,10 +501,6 @@ def main(
                     epoch=epoch,
                 )
         if field:
-            logger.critical("This will overwrite the field and beam info database!")
-            check_field = (
-                yes_or_no("Are you sure you wish to proceed?") if not force else True
-            )
             if database_path is None:
                 logger.critical("Database path is required!")
                 database_path = Path(input("Enter database path:"))
