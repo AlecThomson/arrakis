@@ -574,7 +574,7 @@ def fix_ms(ms: Path) -> Path:
     Returns:
         Path: Path to the corrected measurement set.
     """
-    fix_ms_dir.main(ms.resolve(strict=True).as_posix())
+    fix_ms_dir.fix_ms_dir(ms.resolve(strict=True).as_posix())
     return ms
 
 
@@ -594,7 +594,7 @@ def fix_ms_askap_corrs(ms: Path) -> Path:
 
     logger.info(f"Correcting {str(ms)} correlations for wsclean. ")
 
-    fix_ms_corrs.main(ms=ms)
+    fix_ms_corrs.fix_ms_corrs(ms=ms)
 
     return ms
 
