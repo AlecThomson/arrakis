@@ -99,9 +99,8 @@ class performance_report_prefect:
 
         with get_dask_client() as client:
             if code is None:
-                frames = client._get_computation_code(self._stacklevel + 1, nframes=1)
-                code = frames[0].code if frames else "<Code not available>"
-            data = client.scheduler.performance_report(
+                code = client._get_computation_code(self._stacklevel + 1)
+            data = await client.scheduler.performance_report(
                 start=self.start, last_count=self.last_count, code=code, mode=self.mode
             )
             with fsspec.open(
@@ -115,8 +114,7 @@ class performance_report_prefect:
 
     def __exit__(self, exc_type, exc_value, traceback):
         with get_dask_client() as client:
-            frames = client._get_computation_code(self._stacklevel + 1, nframes=1)
-            code = frames[0].code if frames else "<Code not available>"
+            code = client._get_computation_code(self._stacklevel + 1)
             client.sync(self.__aexit__, exc_type, exc_value, traceback, code=code)
 
 
