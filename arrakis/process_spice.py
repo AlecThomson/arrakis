@@ -367,7 +367,7 @@ def main(args: configargparse.Namespace) -> None:
         use_mpi=args.use_mpi,
         port_forward=args.port_forward,
         minimum=1,
-        maximum=1024,
+        maximum=4096,
     )
 
     # Define flow
