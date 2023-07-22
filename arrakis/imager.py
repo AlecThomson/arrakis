@@ -18,12 +18,11 @@ from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
 from astropy.wcs import WCS
-from dask import compute, delayed, visualize
-from dask.delayed import Delayed
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
+from prefect import flow, get_run_logger, task
 from racs_tools import beamcon_2D
 from radio_beam import Beam
 from spython.main import Client as sclient
@@ -120,7 +119,7 @@ def get_prefix(
     return out_dir / prefix
 
 
-@delayed()
+@task(name="Image Beam")
 def image_beam(
     ms: Path,
     field_idx: int,
@@ -144,7 +143,6 @@ def image_beam(
     mem: float = 90,
     absmem: Optional[float] = None,
     taper: Optional[float] = None,
-    reimage: bool = False,
     minuv_l: float = 0.0,
     parallel_deconvolution: Optional[int] = None,
     nmiter: Optional[int] = None,
@@ -155,18 +153,7 @@ def image_beam(
     data_column: str = "CORRECTED_DATA",
 ) -> ImageSet:
     """Image a single beam"""
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-
-    if not reimage:
-        # Look for existing images
-        # NOTE: The current format of the I polarisation is different to the expression below.
-        # Raising an error for visibility.
-        checkvals = np.array(
-            [f"{prefix}-{i:04}-{s}-image.fits" for s in pols for i in range(nchan)]
-        )
-        checks = np.array([os.path.exists(f) for f in checkvals])
-        raise ValueError("The reimage option is not properly supported. ")
+    logger = get_run_logger()
 
     commands = []
     # Do any I cleaning separately
@@ -335,13 +322,12 @@ def image_beam(
     return image_set
 
 
-@delayed(nout=2)
+@task(name="Make Cube")
 def make_cube(
     pol: str, image_set: ImageSet, common_beam_pkl: Path, aux_mode: Optional[str] = None
 ) -> Tuple[Path, Path]:
     """Make a cube from the images"""
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+    logger = get_run_logger()
 
     logger.info(f"Creating cube for {pol=} {image_set.ms=}")
     image_list = image_set.image_lists[pol]
@@ -444,7 +430,7 @@ def make_cube(
     return new_name, new_w_name
 
 
-@delayed()
+@task(name="Get Beam")
 def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
     """Derive a common resolution across all images within a set of ImageSet
 
@@ -457,8 +443,7 @@ def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
     Returns:
         Path: Path to the pickled beam object
     """
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+    logger = get_run_logger()
 
     # convert dict to list
     image_list = []
@@ -488,7 +473,7 @@ def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
     return common_beam_pkl
 
 
-@delayed()
+@task(name="Smooth ImageSet")
 def smooth_imageset(
     image_set: ImageSet,
     common_beam_pkl: Path,
@@ -507,8 +492,7 @@ def smooth_imageset(
         ImageSet: A copy of `image_set` pointing to the smoothed images. Note the `aux_images` property is not carried forward.
     """
     # Smooth image
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+    logger = get_run_logger()
 
     # Deserialise the beam
     with open(common_beam_pkl, "rb") as f:
@@ -552,19 +536,20 @@ def smooth_imageset(
     )
 
 
-@delayed()
-def cleanup(purge: bool, image_sets: List[ImageSet], ignore_files: List[Any]) -> None:
+@task(name="Cleanup")
+def cleanup(
+    purge: bool, image_sets: List[ImageSet], ignore_files: Optional[List[Any]] = None
+) -> None:
     """Utility to remove all images described by an collection of ImageSets. Internally
     called `cleanup_imageset`.
 
     Args:
         purge (bool): Whether files are actually removed or skipped.
         image_sets (List[ImageSet]): Collection of ImageSets that would be deleted
-        ignore_files (List[Any]): Collection of items to ignore. Nothing is done with this
+        ignore_files (Optional, List[Any]): Collection of items to ignore. Nothing is done with this
         and is purely used to exploit the dask dependency tracking.
     """
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+    logger = get_run_logger()
 
     logger.warn(f"Ignoring files in {ignore_files=}. ")
 
@@ -578,7 +563,7 @@ def cleanup(purge: bool, image_sets: List[ImageSet], ignore_files: List[Any]) ->
     return
 
 
-@delayed()
+@task(name="Fix MeasurementSet Directions")
 def fix_ms(ms: Path) -> Path:
     """Apply the corrections to the FEED table of a measurement set that
     is required for the ASKAP measurement sets.
@@ -593,18 +578,20 @@ def fix_ms(ms: Path) -> Path:
     return ms
 
 
-@delayed()
+@task(name="Fix MeasurementSet Correlations")
 def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
     """Applies a correction to raw telescope polarisation products to rotate them
     to the wsclean espected form. This is essentially related to the third-axis of
     ASKAP and reorientating its 'X' and 'Y's.
 
     Args:
-        ms (Path): Path to the measurement set to fix.
+        ms (Path): Path to the measurement set to be corrected.
 
     Returns:
         Path: Path of the measurementt set containing the corrections.
     """
+    logger = get_run_logger()
+
     logger.info(f"Correcting {str(ms)} correlations for wsclean. ")
 
     fix_ms_corrs(ms=ms, *args, **kwargs)
@@ -612,6 +599,7 @@ def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
     return ms
 
 
+@flow(name="Imager")
 def main(
     msdir: Path,
     out_dir: Path,
@@ -627,7 +615,6 @@ def main(
     force_mask_rounds: Union[int, None] = None,
     auto_threshold: float = 1,
     taper: Union[float, None] = None,
-    reimage: bool = False,
     purge: bool = False,
     minuv: float = 0.0,
     parallel_deconvolution: Optional[int] = None,
@@ -656,7 +643,7 @@ def main(
     ), f"Incorrect number of MS files found: {len(mslist)} / 36"
 
     logger.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
-    cleans = []  # type: List[Delayed]
+    cleans = []
 
     # Do this in serial since CASA gets upset
     prefixs = {}
@@ -680,7 +667,7 @@ def main(
         else:
             ms_fix = ms
         # Image with wsclean
-        image_set = image_beam(
+        image_set = image_beam.submit(
             ms=ms_fix,
             field_idx=field_idxs[ms],
             out_dir=out_dir,
@@ -697,7 +684,6 @@ def main(
             force_mask_rounds=force_mask_rounds,
             auto_threshold=auto_threshold,
             taper=taper,
-            reimage=reimage,
             minuv_l=minuv,
             parallel_deconvolution=parallel_deconvolution,
             gridder=gridder,
@@ -715,7 +701,9 @@ def main(
     # Compute the smallest beam that all images can be convolved to.
     # This requires all imaging rounds to be completed, so the total
     # set of ImageSets are first derived before this is called.
-    common_beam_pkl = get_beam(image_sets=image_sets, cutoff=cutoff)
+    common_beam_pkl = get_beam.submit(
+        image_sets=image_sets, cutoff=cutoff, wait_for=image_sets
+    )
 
     cube_aux_modes = (None, "residual") if make_residual_cubes else (None,)
 
@@ -723,27 +711,26 @@ def main(
     # smoothed and then form the cube for each stokes.
     for image_set in image_sets:
         # Per loop containers since we are iterating over image modes
-        smooth_image_sets = []
         clean_sm_image_sets = []
         for aux_mode in cube_aux_modes:
             # Smooth the *images* in an ImageSet across all Stokes. This
             # limits the number of workers to 36, i.e. this is operating
             # beamwise
-            sm_image_set = smooth_imageset(
+            sm_image_set = smooth_imageset.submit(
                 image_set,
                 common_beam_pkl=common_beam_pkl,
                 cutoff=cutoff,
                 aux_mode=aux_mode,
             )
-            smooth_image_sets.append(sm_image_set)
 
             # Make a cube. This is operating across beams and stokes
             cube_images = [
-                make_cube(
+                make_cube.submit(
                     pol=pol,
                     image_set=sm_image_set,
                     common_beam_pkl=common_beam_pkl,
                     aux_mode=aux_mode,
+                    wait_for=[sm_image_set],
                 )
                 for pol in pols
             ]
@@ -751,25 +738,24 @@ def main(
             # Clean up smoothed images files. Note the
             # ignore_files that is used to preserve the
             # dependency between dask tasks
-            clean = cleanup(
+            clean = cleanup.submit(
                 purge=purge,
                 image_sets=[sm_image_set],
-                ignore_files=cube_images,  # To keep the dask dependency tracking
+                wait_for=cube_images,
             )
             clean_sm_image_sets.append(clean)
 
         # Now clean the original output images from wscean
-        clean = cleanup(
+        clean = cleanup.submit(
             purge=purge,
             image_sets=[image_set],
-            ignore_files=clean_sm_image_sets,  # To keep the dask dependency tracking
+            wait_for=clean_sm_image_sets,
         )
         cleans.append(clean)
 
-    # Trust nothing
-    visualize(cleans, filename="compute_graph.pdf", optimize_graph=True, rankdir="LR")
+    logger.info(f"Imager finished!")
 
-    return compute(cleans)
+    return
 
 
 def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
@@ -909,11 +895,6 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Use MPI",
     )
     parser.add_argument(
-        "--reimage",
-        action="store_true",
-        help="Force a new round of imaging. Otherwise, will skip if images already exist.",
-    )
-    parser.add_argument(
         "--multiscale",
         action="store_true",
         help="Use multiscale clean",
@@ -1008,7 +989,6 @@ def cli():
             minuv=args.minuv,
             purge=args.purge,
             taper=args.taper,
-            reimage=args.reimage,
             parallel_deconvolution=args.parallel,
             gridder=args.gridder,
             wsclean_path=Path(args.local_wsclean)
