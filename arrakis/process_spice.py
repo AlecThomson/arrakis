@@ -215,7 +215,7 @@ def save_args(args: configargparse.Namespace) -> Path:
 
 
 def create_client(
-    dask_config: str, field: str, use_mpi: bool, port_forward: Any
+    dask_config: str, use_mpi: bool, port_forward: Any, minimum: int = 1, maximum: int = 38
 ) -> Client:
     logger.info("Creating a Client")
     if dask_config is None:
@@ -251,7 +251,7 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        cluster.adapt(minimum=1, maximum=38)
+        cluster.adapt(minimum=minimum, maximum=maximum)
         # cluster.scale(36)
 
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
@@ -309,9 +309,10 @@ def main(args: configargparse.Namespace) -> None:
         # pipeline.
         dask_runner, client = create_dask_runner(
             dask_config=args.imager_dask_config,
-            field=args.field,
             use_mpi=args.use_mpi,
             port_forward=args.port_forward,
+            minimum=1,
+            maximum=38,
         )
 
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
@@ -363,9 +364,10 @@ def main(args: configargparse.Namespace) -> None:
     # This is the client and pipeline for the RM extraction
     dask_runner_2, client = create_dask_runner(
         dask_config=args.dask_config,
-        field=args.field,
         use_mpi=args.use_mpi,
         port_forward=args.port_forward,
+        minimum=1,
+        maximum=1024,
     )
 
     # Define flow
