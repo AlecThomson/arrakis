@@ -30,7 +30,7 @@ def cli():
     Find row in RACS-DB for given field
     """
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to find e.g. 2132-50A"

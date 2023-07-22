@@ -315,6 +315,7 @@ def cutout_islands(
     field: str,
     directory: str,
     host: str,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     pad: float = 3,
@@ -352,7 +353,7 @@ def cutout_islands(
     )
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     # Query the DB
@@ -445,6 +446,7 @@ def main(args: argparse.Namespace, verbose=True) -> None:
         field=args.field,
         directory=args.datadir,
         host=args.host,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         pad=args.pad,
@@ -493,6 +495,14 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         metavar="host",
         type=str,
         help="Host of mongodb (probably $hostname -i).",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
     )
 
     parser.add_argument(

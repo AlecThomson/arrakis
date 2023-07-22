@@ -162,6 +162,7 @@ def main(
     field: str,
     outdir: str,
     host: str,
+    epoch: int,
     username: Optional[str] = None,
     password: Optional[str] = None,
     database=False,
@@ -190,7 +191,7 @@ def main(
     try_mkdir(plotdir)
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     query_1 = {"$and": [{f"beams.{field}": {"$exists": True}}]}
@@ -202,7 +203,9 @@ def main(
     query_2 = {"Source_ID": {"$in": island_ids}}
     islands = list(island_col.find(query_2).sort("Source_ID"))
 
-    field_col = get_field_db(host, username=username, password=password)
+    field_col = get_field_db(
+        host=host, epoch=epoch, username=username, password=password
+    )
     query_3 = {"FIELD_NAME": f"{field}"}
     logger.info(f"{query_3}")
 
@@ -317,6 +320,14 @@ def cli():
         metavar="host",
         type=str,
         help="Host of mongodb (probably $hostname -i).",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
     )
 
     parser.add_argument(

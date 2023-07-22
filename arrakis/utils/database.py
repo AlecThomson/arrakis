@@ -53,7 +53,7 @@ def test_db(
 
 
 def get_db(
-    host: str, username: Union[str, None] = None, password: Union[str, None] = None
+    host: str, epoch: int, username: Union[str, None] = None, password: Union[str, None] = None
 ) -> Tuple[Collection, Collection, Collection,]:
     """Get MongoDBs
 
@@ -72,14 +72,14 @@ def get_db(
         password=password,
         authMechanism="SCRAM-SHA-256",
     )  # type: pymongo.MongoClient
-    mydb = dbclient["arrakis"]  # Create/open database
+    mydb = dbclient[f"arrakis_epoch_{epoch}"]  # Create/open database
     comp_col = mydb["components"]  # Create/open collection
     island_col = mydb["islands"]  # Create/open collection
     beams_col = mydb["beams"]  # Create/open collection
     return beams_col, island_col, comp_col
 
 
-def get_field_db(host: str, username=None, password=None) -> Collection:
+def get_field_db(host: str, epoch: int, username=None, password=None) -> Collection:
     """Get MongoDBs
 
     Args:
@@ -97,12 +97,12 @@ def get_field_db(host: str, username=None, password=None) -> Collection:
         password=password,
         authMechanism="SCRAM-SHA-256",
     )  # type: pymongo.MongoClient
-    mydb = dbclient["arrakis"]  # Create/open database
+    mydb = dbclient[f"arrakis_epoch_{epoch}"]  # Create/open database
     field_col = mydb["fields"]  # Create/open collection
     return field_col
 
 
-def get_beam_inf_db(host: str, username=None, password=None) -> Collection:
+def get_beam_inf_db(host: str, epoch: int, username=None, password=None) -> Collection:
     """Get MongoDBs
 
     Args:
@@ -120,6 +120,6 @@ def get_beam_inf_db(host: str, username=None, password=None) -> Collection:
         password=password,
         authMechanism="SCRAM-SHA-256",
     )  # type: pymongo.MongoClient
-    mydb = dbclient["arrakis"]  # Create/open database
+    mydb = dbclient[f"arrakis_epoch_{epoch}"]  # Create/open database
     beam_inf_col = mydb["beam_inf"]  # Create/open collection
     return beam_inf_col
