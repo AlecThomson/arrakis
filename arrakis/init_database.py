@@ -246,14 +246,15 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
     for row in tqdm(database[1:], desc="Reading RACS database"):
         beamfile = basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv"
         if not beamfile.exists():
-            raise FileNotFoundError(f"{beamfile} not found!")
+            logger.error(f"{beamfile} not found!")
+            continue
         tab = Table.read(beamfile)
         try:
             tab.add_column(row["FIELD_NAME"], name="FIELD_NAME", index=0)
             tab.add_column(row["SBID"], name="SBID", index=0)
             racs_fields = vstack([racs_fields, tab])
         except TypeError:
-            logger.warning(f"{SBID} failed...")
+            logger.error(f"{SBID} failed...")
             continue
     return racs_fields
 
@@ -337,7 +338,11 @@ def beam_inf(
     """Get the beam information"""
     tabs: List[Table] = []
     for row in tqdm(database, desc="Reading beam info"):
-        tab = Table.read(basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv")
+        fname = basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv"
+        if not fname.exists():
+            logger.error(f"{fname} not found!")
+            continue
+        tab = Table.read(fname)
         if len(tab) == 0:
             logger.error(f"{row['SBID']}-{row['FIELD_NAME']} failed...")
             continue
