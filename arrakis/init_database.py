@@ -338,6 +338,9 @@ def beam_inf(
     tabs: List[Table] = []
     for row in tqdm(database, desc="Reading beam info"):
         tab = Table.read(basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv")
+        if len(tab) == 0:
+            logger.error(f"{row['SBID']}-{row['FIELD_NAME']} failed...")
+            continue
         tab.add_column(row["FIELD_NAME"], name="FIELD_NAME", index=0)
         tabs.append(tab)
 
