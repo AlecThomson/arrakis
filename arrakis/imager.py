@@ -431,11 +431,11 @@ def make_cube(
 
 
 @task(name="Get Beam")
-def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
+def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
     """Derive a common resolution across all images within a set of ImageSet
 
     Args:
-        image_sets (List[ImageSet]): All input beam ImageSets that a common resolution will be derived for
+        image_set (ImageSet): ImageSet that a common resolution will be derived for
         cuttoff (float, optional): The maximum major axis of the restoring beam that is allowed when
         searching for the lowest common beam. Images whose restoring beam's major acis is larger than
         this are ignored. Defaults to None.
@@ -447,9 +447,8 @@ def get_beam(image_sets: List[ImageSet], cutoff: Optional[float]) -> Path:
 
     # convert dict to list
     image_list = []
-    for image_set in image_sets:
-        for _, sub_image_list in image_set.image_lists.items():
-            image_list.extend(sub_image_list)
+    for _, sub_image_list in image_set.image_lists.items():
+        image_list.extend(sub_image_list)
 
     # Consistent hash between runs
     image_list = sorted(image_list)
@@ -653,9 +652,10 @@ def main(
         prefixs[ms] = prefix
         field_idxs[ms] = field_idx_from_ms(ms.resolve(strict=True).as_posix())
 
+    cube_aux_modes = (None, "residual") if make_residual_cubes else (None,)
+
     # Image_sets will be a containter that represents the output wsclean image products
     # produced for each beam. A single ImageSet is a container for a single beam.
-    image_sets = []
     for ms in mslist:
         logger.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
@@ -696,20 +696,15 @@ def main(
             data_column=data_column,
         )
 
-        image_sets.append(image_set)
-
-    # Compute the smallest beam that all images can be convolved to.
-    # This requires all imaging rounds to be completed, so the total
-    # set of ImageSets are first derived before this is called.
-    common_beam_pkl = get_beam.submit(
-        image_sets=image_sets, cutoff=cutoff, wait_for=image_sets
-    )
-
-    cube_aux_modes = (None, "residual") if make_residual_cubes else (None,)
-
-    # With the final beam each *image* in the ImageSet across IQU are
-    # smoothed and then form the cube for each stokes.
-    for image_set in image_sets:
+        # Compute the smallest beam that all images can be convolved to.
+        # This requires all imaging rounds to be completed, so the total
+        # set of ImageSets are first derived before this is called.
+        common_beam_pkl = get_beam.submit(
+            image_set=image_set,
+            cutoff=cutoff,
+        )
+        # With the final beam each *image* in the ImageSet across IQU are
+        # smoothed and then form the cube for each stokes.
         # Per loop containers since we are iterating over image modes
         clean_sm_image_sets = []
         for aux_mode in cube_aux_modes:
