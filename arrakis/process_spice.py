@@ -215,7 +215,11 @@ def save_args(args: configargparse.Namespace) -> Path:
 
 
 def create_client(
-    dask_config: str, use_mpi: bool, port_forward: Any, minimum: int = 1, maximum: int = 38
+    dask_config: str,
+    use_mpi: bool,
+    port_forward: Any,
+    minimum: int = 1,
+    maximum: int = 38,
 ) -> Client:
     logger.info("Creating a Client")
     if dask_config is None:

@@ -43,6 +43,7 @@ logo_str = """
 
 """
 
+
 class performance_report_prefect:
     """Gather performance report from prefect_dask
 
