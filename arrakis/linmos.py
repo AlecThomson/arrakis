@@ -34,7 +34,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 logger.setLevel(logging.INFO)
 
 
-@delayed
+@delayed(nout=2)
 def find_images(
     field: str,
     src_name: str,
@@ -186,7 +186,7 @@ linmos.removeleakage    = true
 
 @delayed
 def linmos(
-    parset: str, fieldname: str, image: str, holofile: Union[Path, str], verbose=False
+    parset: str, fieldname: str, image: str, holofile: Union[Path, str]
 ) -> pymongo.UpdateOne:
     """Run linmos
 
@@ -352,9 +352,8 @@ def main(
                 smooth_image_list = smooth_images(image_list)
                 smooth_weight_list = smooth_images(weight_list)
                 parfile = genparset(
-                    field=field,
-                    src_name=src,
-                    beams=beams,
+                    image_list=smooth_image_list,
+                    weight_list=smooth_weight_list,
                     stoke=stoke.capitalize(),
                     datadir=cutdir,
                     holofile=holofile,
@@ -364,7 +363,7 @@ def main(
     results = []
     for parset in parfiles:
         results.append(
-            linmos(parset, field, str(image), holofile=holofile, verbose=True)
+            linmos(parset, field, str(image), holofile=holofile)
         )
 
     futures = chunk_dask(
