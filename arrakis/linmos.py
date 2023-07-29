@@ -148,9 +148,9 @@ def genparset(
     """
     logger.setLevel(logging.INFO)
 
-    image_string = f"[{','.join([im.resolve().as_posix().with_suffix('') for im in image_list])}]"
+    image_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_list])}]"
     weight_string = (
-        f"[{','.join([im.resolve().as_posix().with_suffix('') for im in weight_list])}]"
+        f"[{','.join([im.resolve().with_suffix('').as_posix() for im in weight_list])}]"
     )
 
     parset_dir = datadir.resolve() / image_list[0].parent.name
