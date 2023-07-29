@@ -122,6 +122,7 @@ def predict_worker(
         ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
         server=server,
         proxy_server=proxy_server,
+        use_proxy=True, # Always use proxy - forces urllib
         **proxy_args,
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
