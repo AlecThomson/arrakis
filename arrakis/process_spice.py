@@ -73,10 +73,10 @@ def process_spice(args, host: str) -> None:
         previous_future = (
             linmos_task.submit(
                 field=args.field,
-                datadir=args.datadir,
+                datadir=Path(args.datadir),
                 host=host,
                 epoch=args.epoch,
-                holofile=args.holofile,
+                holofile=Path(args.holofile),
                 username=args.username,
                 password=args.password,
                 yanda=args.yanda,
