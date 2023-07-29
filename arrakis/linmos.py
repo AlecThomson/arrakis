@@ -102,7 +102,12 @@ def smooth_images(
     Returns:
         List[Path]: Smoothed cubelets.
     """
-
+    infiles: List[str] = []
+    for im in image_list:
+        if im.suffix == ".fits":
+            infiles.append(im.resolve().as_posix())
+    if len(infiles) == 0:
+        return image_list
     datadict = beamcon_3D.main(
         infile=[im.resolve().as_posix() for im in image_list],
         uselogs=False,
@@ -123,7 +128,7 @@ def genparset(
     weight_list: List[Path],
     stoke: str,
     datadir: Path,
-    holofile: Union[str, None] = None,
+    holofile: Optional[Path] = None,
 ) -> str:
     """Generate parset for LINMOS
 
@@ -172,7 +177,7 @@ linmos.weightstate      = Inherent
 
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
-linmos.primarybeam.ASKAP_PB.image = {holofile}
+linmos.primarybeam.ASKAP_PB.image = {holofile.resolve().as_posix()}
 linmos.removeleakage    = true
 """
     else:
@@ -186,7 +191,7 @@ linmos.removeleakage    = true
 
 @delayed
 def linmos(
-    parset: str, fieldname: str, image: str, holofile: Union[Path, str]
+    parset: str, fieldname: str, image: str, holofile: Path
 ) -> pymongo.UpdateOne:
     """Run linmos
 
@@ -215,7 +220,7 @@ def linmos(
     log_file = parset.replace(".in", ".log")
     linmos_command = shlex.split(f"linmos -c {parset}")
 
-    holo_folder = Path(holofile).parent
+    holo_folder = holofile.parent
 
     output = sclient.execute(
         image=image,
@@ -269,7 +274,7 @@ def main(
     datadir: Path,
     host: str,
     epoch: int,
-    holofile: Optional[str] = None,
+    holofile: Optional[Path] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
     yanda: str = "1.3.0",
@@ -299,13 +304,7 @@ def main(
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
-    if datadir is not None:
-        datadir = os.path.abspath(datadir)
-
-    cutdir = os.path.abspath(os.path.join(datadir, "cutouts"))
-
-    if holofile is not None:
-        holofile = os.path.abspath(holofile)
+    cutdir = datadir /  "cutouts"
 
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
@@ -474,7 +473,7 @@ def cli():
         datadir=Path(args.datadir),
         host=args.host,
         epoch=args.epoch,
-        holofile=args.holofile,
+        holofile=Path(args.holofile),
         username=args.username,
         password=args.password,
         yanda=args.yanda,
