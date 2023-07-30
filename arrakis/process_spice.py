@@ -112,6 +112,7 @@ def process_spice(args, host: str) -> None:
                 verbose=args.verbose,
                 ionex_server=args.ionex_server,
                 ionex_proxy_server=args.ionex_proxy_server,
+                ionex_formatter=args.ionex_formatter,
                 wait_for=[previous_future],
             )
             if not args.skip_frion
@@ -707,6 +708,12 @@ def cli():
         type=str,
         default=None,
         help="Proxy server [None].",
+    )
+    tools.add_argument(
+        "--ionex-formatter",
+        type=str,
+        default=None,
+        help="IONEX formatter [None].",
     )
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args

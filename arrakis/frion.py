@@ -6,7 +6,7 @@ import time
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Callable
 
 import astropy.units as u
 import dask
@@ -77,6 +77,7 @@ def predict_worker(
     cutdir: str,
     plotdir: str,
     server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    formatter: Optional[Union[str, Callable]] = None,
     proxy_server: Optional[str] = None,
 ) -> Tuple[str, pymongo.UpdateOne]:
     """Make FRion prediction for a single island
@@ -123,6 +124,7 @@ def predict_worker(
         server=server,
         proxy_server=proxy_server,
         use_proxy=True, # Always use proxy - forces urllib
+        formatter=formatter,
         **proxy_args,
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
@@ -170,6 +172,7 @@ def main(
     verbose=True,
     ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
     ionex_proxy_server: Optional[str] = None,
+    ionex_formatter: Optional[Union[str, Callable]] = "ftp.aiub.unibe.ch",
 ):
     """Main script
 
@@ -183,6 +186,7 @@ def main(
         verbose (bool, optional): Verbose output. Defaults to True.
         ionex_server (str, optional): IONEX server. Defaults to "ftp://ftp.aiub.unibe.ch/CODE/".
         ionex_proxy_server (str, optional): Proxy server. Defaults to None.
+        ionex_formatter (Union[str, Callable], optional): IONEX formatter. Defaults to "ftp.aiub.unibe.ch".
     """
     # Query database for data
     outdir = os.path.abspath(outdir)
@@ -248,6 +252,7 @@ def main(
             plotdir=plotdir,
             server=ionex_server,
             proxy_server=ionex_proxy_server,
+            formatter=ionex_formatter,
         )
         updates_arrays.append(update)
         # Apply FRion predictions
