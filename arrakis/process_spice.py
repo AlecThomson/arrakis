@@ -221,6 +221,7 @@ def create_client(
     port_forward: Any,
     minimum: int = 1,
     maximum: int = 38,
+    mode: str = "adapt",
 ) -> Client:
     logger.info("Creating a Client")
     if dask_config is None:
@@ -256,7 +257,10 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        cluster.adapt(minimum=minimum, maximum=maximum)
+        if mode == "adapt":
+            cluster.adapt(minimum=minimum, maximum=maximum)
+        elif mode == "scale":
+            cluster.scale(maximum)
         # cluster.scale(36)
 
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
@@ -371,8 +375,8 @@ def main(args: configargparse.Namespace) -> None:
         dask_config=args.dask_config,
         use_mpi=args.use_mpi,
         port_forward=args.port_forward,
-        minimum=1,
-        maximum=4096,
+        minimum=128,
+        maximum=128,
     )
 
     # Define flow
@@ -702,7 +706,12 @@ def cli():
         default="ftp://ftp.aiub.unibe.ch/CODE/",
         help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
     )
-
+    tools.add_argument(
+        "--ionex_prefix",
+        type=str,
+        default="codg",
+        help="IONEX prefix.",
+    )
     tools.add_argument(
         "--ionex_proxy_server",
         type=str,
@@ -710,7 +719,7 @@ def cli():
         help="Proxy server [None].",
     )
     tools.add_argument(
-        "--ionex-formatter",
+        "--ionex_formatter",
         type=str,
         default=None,
         help="IONEX formatter [None].",
