@@ -65,7 +65,7 @@ RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
 rm-tools = {git = "https://github.com/AlecThomson/RM-Tools.git", branch="spiceracs_dev"}
 PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git", branch="spiceracs"}
 setuptools = "*"
-fixms = "*"
+fixms = { git = "https://github.com/AlecThomson/FixMS.git@swap_test"}
 
 [tool.poetry.dev-dependencies]
 black = "^23"
