@@ -7,7 +7,7 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import astropy.units as u
 import numpy as np
@@ -18,6 +18,7 @@ from astropy.utils.exceptions import AstropyWarning
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 from IPython import embed
+from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
@@ -33,14 +34,101 @@ os.environ["OMP_NUM_THREADS"] = "1"
 logger.setLevel(logging.INFO)
 
 
-@delayed
-def genparset(
+@delayed(nout=2)
+def find_images(
     field: str,
     src_name: str,
     beams: dict,
     stoke: str,
-    datadir: str,
-    holofile: Union[str, None] = None,
+    datadir: Path,
+) -> Tuple[List[Path], List[Path]]:
+    """Find the images and weights for a given field and stokes parameter
+
+    Args:
+        field (str): Field name.
+        src_name (str): Source name.
+        beams (dict): Beam information.
+        stoke (str): Stokes parameter.
+        datadir (Path): Data directory.
+
+    Raises:
+        Exception: If no files are found.
+
+    Returns:
+        Tuple[List[Path], List[Path]]: List of images and weights.
+    """
+    logger.setLevel(logging.INFO)
+    field_beams = beams["beams"][field]
+
+    # First check that the images exist
+    image_list: List[Path] = []
+    for bm in list(set(field_beams["beam_list"])):  # Ensure list of beams is unique!
+        imfile = Path(field_beams[f"{stoke.lower()}_beam{bm}_image_file"])
+        assert imfile.parent.name == src_name, "Looking in wrong directory!"
+        new_imfile = datadir.resolve() / imfile
+        image_list.append(new_imfile)
+    image_list = sorted(image_list)
+
+    if len(image_list) == 0:
+        raise Exception("No files found. Have you run imaging? Check your prefix?")
+
+    weight_list: List[Path] = []
+    for bm in list(set(field_beams["beam_list"])):  # Ensure list of beams is unique!
+        wgtsfile = Path(field_beams[f"{stoke.lower()}_beam{bm}_weight_file"])
+        assert wgtsfile.parent.name == src_name, "Looking in wrong directory!"
+        new_wgtsfile = datadir.resolve() / wgtsfile
+        weight_list.append(new_wgtsfile)
+    weight_list = sorted(weight_list)
+
+    assert len(image_list) == len(weight_list), "Unequal number of weights and images"
+
+    for im, wt in zip(image_list, weight_list):
+        assert (
+            im.parent.name == wt.parent.name
+        ), "Image and weight are in different areas!"
+
+    return image_list, weight_list
+
+
+@delayed
+def smooth_images(
+    image_list: List[Path],
+) -> List[Path]:
+    """Smooth cubelets to a common resolution
+
+    Args:
+        image_list (List[Path]): List of cubelets to smooth.
+
+    Returns:
+        List[Path]: Smoothed cubelets.
+    """
+    infiles: List[str] = []
+    for im in image_list:
+        if im.suffix == ".fits":
+            infiles.append(im.resolve().as_posix())
+    if len(infiles) == 0:
+        return image_list
+    datadict = beamcon_3D.main(
+        infile=[im.resolve().as_posix() for im in image_list],
+        uselogs=False,
+        mode="total",
+        conv_mode="robust",
+        suffix="cres",
+    )
+    smooth_files: List[Path] = []
+    for key, val in datadict.items():
+        smooth_files.append(Path(val["outfile"]))
+
+    return smooth_files
+
+
+@delayed
+def genparset(
+    image_list: List[Path],
+    weight_list: List[Path],
+    stoke: str,
+    datadir: Path,
+    holofile: Optional[Path] = None,
 ) -> str:
     """Generate parset for LINMOS
 
@@ -60,50 +148,24 @@ def genparset(
     """
     logger.setLevel(logging.INFO)
 
-    beams = beams["beams"][field]
-    ims = []
-    for bm in list(set(beams["beam_list"])):  # Ensure list of beams is unique!
-        imfile = beams[f"{stoke.lower()}_beam{bm}_image_file"]
-        assert (
-            os.path.basename(os.path.dirname(imfile)) == src_name
-        ), "Looking in wrong directory!"
-        imfile = os.path.join(os.path.abspath(datadir), imfile)
-        ims.append(imfile)
-    ims = sorted(ims)
-
-    if len(ims) == 0:
-        raise Exception("No files found. Have you run imaging? Check your prefix?")
-    imlist = "[" + ",".join([im.replace(".fits", "") for im in ims]) + "]"
-
-    wgts = []
-    for bm in list(set(beams["beam_list"])):  # Ensure list of beams is unique!
-        wgtsfile = beams[f"{stoke.lower()}_beam{bm}_weight_file"]
-        assert (
-            os.path.basename(os.path.dirname(wgtsfile)) == src_name
-        ), "Looking in wrong directory!"
-        wgtsfile = os.path.join(os.path.abspath(datadir), wgtsfile)
-        wgts.append(wgtsfile)
-    wgts = sorted(wgts)
-
-    assert len(ims) == len(wgts), "Unequal number of weights and images"
-
-    for im, wt in zip(ims, wgts):
-        assert os.path.basename(os.path.dirname(im)) == os.path.basename(
-            os.path.dirname(wt)
-        ), "Image and weight are in different areas!"
-
-    weightlist = "[" + ",".join([wgt.replace(".fits", "") for wgt in wgts]) + "]"
-
-    parset_dir = os.path.join(
-        os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0]))
+    image_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_list])}]"
+    weight_string = (
+        f"[{','.join([im.resolve().with_suffix('').as_posix() for im in weight_list])}]"
     )
 
+    parset_dir = datadir.resolve() / image_list[0].parent.name
+
+    first_image = image_list[0].resolve().with_suffix('').as_posix()
+    first_weight = weight_list[0].resolve().with_suffix('').as_posix()
+    linmos_image_str = f"{first_image[:first_image.find('beam')]}linmos"
+    linmos_weight_str = f"{first_weight[:first_weight.find('beam')]}linmos"
+
     parset_file = os.path.join(parset_dir, f"linmos_{stoke}.in")
-    parset = f"""linmos.names            = {imlist}
-linmos.weights          = {weightlist}
+    parset = f"""linmos.names            = {image_string}
+linmos.weights          = {weight_string}
 linmos.imagetype        = fits
-linmos.outname          = {ims[0][:ims[0].find('beam')]}linmos
-linmos.outweight        = {wgts[0][:wgts[0].find('beam')]}linmos
+linmos.outname          = {linmos_image_str}
+linmos.outweight        = {linmos_weight_str}
 # For ASKAPsoft>1.3.0
 linmos.useweightslog    = true
 linmos.weighttype       = Combined
@@ -115,7 +177,7 @@ linmos.weightstate      = Inherent
 
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
-linmos.primarybeam.ASKAP_PB.image = {holofile}
+linmos.primarybeam.ASKAP_PB.image = {holofile.resolve().as_posix()}
 linmos.removeleakage    = true
 """
     else:
@@ -129,7 +191,7 @@ linmos.removeleakage    = true
 
 @delayed
 def linmos(
-    parset: str, fieldname: str, image: str, holofile: Union[Path, str], verbose=False
+    parset: str, fieldname: str, image: str, holofile: Path
 ) -> pymongo.UpdateOne:
     """Run linmos
 
@@ -158,7 +220,7 @@ def linmos(
     log_file = parset.replace(".in", ".log")
     linmos_command = shlex.split(f"linmos -c {parset}")
 
-    holo_folder = Path(holofile).parent
+    holo_folder = holofile.parent
 
     output = sclient.execute(
         image=image,
@@ -209,10 +271,10 @@ def get_yanda(version="1.3.0") -> str:
 
 def main(
     field: str,
-    datadir: str,
+    datadir: Path,
     host: str,
     epoch: int,
-    holofile: Optional[str] = None,
+    holofile: Optional[Path] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
     yanda: str = "1.3.0",
@@ -242,13 +304,7 @@ def main(
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
-    if datadir is not None:
-        datadir = os.path.abspath(datadir)
-
-    cutdir = os.path.abspath(os.path.join(datadir, "cutouts"))
-
-    if holofile is not None:
-        holofile = os.path.abspath(holofile)
+    cutdir = datadir /  "cutouts"
 
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
@@ -285,10 +341,18 @@ def main(
             continue
         else:
             for stoke in stokeslist:
-                parfile = genparset(
+                image_list, weight_list = find_images(
                     field=field,
                     src_name=src,
                     beams=beams,
+                    stoke=stoke.capitalize(),
+                    datadir=cutdir,
+                )
+                smooth_image_list = smooth_images(image_list)
+                smooth_weight_list = smooth_images(weight_list)
+                parfile = genparset(
+                    image_list=smooth_image_list,
+                    weight_list=smooth_weight_list,
                     stoke=stoke.capitalize(),
                     datadir=cutdir,
                     holofile=holofile,
@@ -298,7 +362,7 @@ def main(
     results = []
     for parset in parfiles:
         results.append(
-            linmos(parset, field, str(image), holofile=holofile, verbose=True)
+            linmos(parset, field, str(image), holofile=holofile)
         )
 
     futures = chunk_dask(
@@ -406,10 +470,10 @@ def cli():
 
     main(
         field=args.field,
-        datadir=args.datadir,
+        datadir=Path(args.datadir),
         host=args.host,
         epoch=args.epoch,
-        holofile=args.holofile,
+        holofile=Path(args.holofile),
         username=args.username,
         password=args.password,
         yanda=args.yanda,

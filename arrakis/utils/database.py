@@ -53,7 +53,10 @@ def test_db(
 
 
 def get_db(
-    host: str, epoch: int, username: Union[str, None] = None, password: Union[str, None] = None
+    host: str,
+    epoch: int,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
 ) -> Tuple[Collection, Collection, Collection,]:
     """Get MongoDBs
 

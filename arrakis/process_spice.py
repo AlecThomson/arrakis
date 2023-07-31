@@ -73,10 +73,10 @@ def process_spice(args, host: str) -> None:
         previous_future = (
             linmos_task.submit(
                 field=args.field,
-                datadir=args.datadir,
+                datadir=Path(args.datadir),
                 host=host,
                 epoch=args.epoch,
-                holofile=args.holofile,
+                holofile=Path(args.holofile),
                 username=args.username,
                 password=args.password,
                 yanda=args.yanda,
@@ -112,6 +112,7 @@ def process_spice(args, host: str) -> None:
                 verbose=args.verbose,
                 ionex_server=args.ionex_server,
                 ionex_proxy_server=args.ionex_proxy_server,
+                ionex_formatter=args.ionex_formatter,
                 wait_for=[previous_future],
             )
             if not args.skip_frion
@@ -215,7 +216,12 @@ def save_args(args: configargparse.Namespace) -> Path:
 
 
 def create_client(
-    dask_config: str, use_mpi: bool, port_forward: Any, minimum: int = 1, maximum: int = 38
+    dask_config: str,
+    use_mpi: bool,
+    port_forward: Any,
+    minimum: int = 1,
+    maximum: int = 38,
+    mode: str = "adapt",
 ) -> Client:
     logger.info("Creating a Client")
     if dask_config is None:
@@ -251,7 +257,10 @@ def create_client(
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        cluster.adapt(minimum=minimum, maximum=maximum)
+        if mode == "adapt":
+            cluster.adapt(minimum=minimum, maximum=maximum)
+        elif mode == "scale":
+            cluster.scale(maximum)
         # cluster.scale(36)
 
         # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
@@ -366,8 +375,8 @@ def main(args: configargparse.Namespace) -> None:
         dask_config=args.dask_config,
         use_mpi=args.use_mpi,
         port_forward=args.port_forward,
-        minimum=1,
-        maximum=4096,
+        minimum=64,
+        maximum=64,
     )
 
     # Define flow
@@ -697,12 +706,23 @@ def cli():
         default="ftp://ftp.aiub.unibe.ch/CODE/",
         help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
     )
-
+    tools.add_argument(
+        "--ionex_prefix",
+        type=str,
+        default="codg",
+        help="IONEX prefix.",
+    )
     tools.add_argument(
         "--ionex_proxy_server",
         type=str,
         default=None,
         help="Proxy server [None].",
+    )
+    tools.add_argument(
+        "--ionex_formatter",
+        type=str,
+        default=None,
+        help="IONEX formatter [None].",
     )
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args

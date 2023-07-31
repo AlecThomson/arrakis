@@ -6,7 +6,7 @@ import time
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Callable
 
 import astropy.units as u
 import dask
@@ -77,6 +77,8 @@ def predict_worker(
     cutdir: str,
     plotdir: str,
     server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    prefix: str = "",
+    formatter: Optional[Union[str, Callable]] = None,
     proxy_server: Optional[str] = None,
 ) -> Tuple[str, pymongo.UpdateOne]:
     """Make FRion prediction for a single island
@@ -122,6 +124,9 @@ def predict_worker(
         ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
         server=server,
         proxy_server=proxy_server,
+        use_proxy=True, # Always use proxy - forces urllib
+        prefix=prefix,
+        formatter=formatter,
         **proxy_args,
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
@@ -168,7 +173,9 @@ def main(
     database=False,
     verbose=True,
     ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    ionex_prefix: str = "codg",
     ionex_proxy_server: Optional[str] = None,
+    ionex_formatter: Optional[Union[str, Callable]] = "ftp.aiub.unibe.ch",
 ):
     """Main script
 
@@ -182,6 +189,7 @@ def main(
         verbose (bool, optional): Verbose output. Defaults to True.
         ionex_server (str, optional): IONEX server. Defaults to "ftp://ftp.aiub.unibe.ch/CODE/".
         ionex_proxy_server (str, optional): Proxy server. Defaults to None.
+        ionex_formatter (Union[str, Callable], optional): IONEX formatter. Defaults to "ftp.aiub.unibe.ch".
     """
     # Query database for data
     outdir = os.path.abspath(outdir)
@@ -246,7 +254,9 @@ def main(
             cutdir=cutdir,
             plotdir=plotdir,
             server=ionex_server,
+            prefix=ionex_prefix,
             proxy_server=ionex_proxy_server,
+            formatter=ionex_formatter,
         )
         updates_arrays.append(update)
         # Apply FRion predictions
@@ -351,6 +361,21 @@ def cli():
     )
 
     parser.add_argument(
+        "-x",
+        "--ionex_prefix",
+        type=str,
+        default="codg",
+    )
+
+    parser.add_argument(
+        "-f",
+        "--ionex_formatter",
+        type=str,
+        default="ftp.aiub.unibe.ch",
+        help="IONEX formatter.",
+    )
+
+    parser.add_argument(
         "-p",
         "--ionex_proxy_server",
         type=str,
@@ -375,19 +400,22 @@ def cli():
     logger.info(client)
 
     test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
+        host=args.host, username=args.username, password=args.password
     )
 
     main(
         field=args.field,
         outdir=args.outdir,
         host=args.host,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         database=args.database,
         verbose=verbose,
         ionex_server=args.ionex_server,
         ionex_proxy_server=args.ionex_proxy_server,
+        ionex_formatter=args.ionex_formatter,
+        ionex_prefix=args.ionex_prefix,
     )
 
 

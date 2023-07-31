@@ -48,12 +48,12 @@ pymongo = "*"
 pymultinest = "*"
 pytest = "*"
 python_casacore = "*"
-RACS-tools = "^2.1"
+RACS-tools = {git = "https://github.com/AlecThomson/RACS-tools.git"}
 radio_beam = "*"
-RMextract = "*"
+RMextract = {git = "https://github.com/AlecThomson/RMextract@race"}
 schwimmbad = "*"
 scipy = "*"
-spectral_cube = "*"
+spectral_cube = {git = "https://github.com/AlecThomson/spectral-cube.git@fix_beams"}
 spython = "*"
 tqdm = "*"
 vorbin = "*"
