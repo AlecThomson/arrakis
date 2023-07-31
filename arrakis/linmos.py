@@ -155,8 +155,8 @@ def genparset(
 
     parset_dir = datadir.resolve() / image_list[0].parent.name
 
-    first_image = image_list[0].resolve().as_posix()
-    first_weight = weight_list[0].resolve().as_posix()
+    first_image = image_list[0].resolve().with_suffix('').as_posix()
+    first_weight = weight_list[0].resolve().with_suffix('').as_posix()
     linmos_image_str = f"{first_image[:first_image.find('beam')]}linmos"
     linmos_weight_str = f"{first_weight[:first_weight.find('beam')]}linmos"
 
