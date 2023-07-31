@@ -77,6 +77,7 @@ def predict_worker(
     cutdir: str,
     plotdir: str,
     server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    prefix: str = "",
     formatter: Optional[Union[str, Callable]] = None,
     proxy_server: Optional[str] = None,
 ) -> Tuple[str, pymongo.UpdateOne]:
@@ -124,6 +125,7 @@ def predict_worker(
         server=server,
         proxy_server=proxy_server,
         use_proxy=True, # Always use proxy - forces urllib
+        prefix=prefix,
         formatter=formatter,
         **proxy_args,
     )
@@ -171,6 +173,7 @@ def main(
     database=False,
     verbose=True,
     ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    ionex_prefix: str = "codg",
     ionex_proxy_server: Optional[str] = None,
     ionex_formatter: Optional[Union[str, Callable]] = "ftp.aiub.unibe.ch",
 ):
@@ -251,6 +254,7 @@ def main(
             cutdir=cutdir,
             plotdir=plotdir,
             server=ionex_server,
+            prefix=ionex_prefix,
             proxy_server=ionex_proxy_server,
             formatter=ionex_formatter,
         )
@@ -357,6 +361,21 @@ def cli():
     )
 
     parser.add_argument(
+        "-x",
+        "--ionex_prefix",
+        type=str,
+        default="codg",
+    )
+
+    parser.add_argument(
+        "-f",
+        "--ionex_formatter",
+        type=str,
+        default="ftp.aiub.unibe.ch",
+        help="IONEX formatter.",
+    )
+
+    parser.add_argument(
         "-p",
         "--ionex_proxy_server",
         type=str,
@@ -381,19 +400,22 @@ def cli():
     logger.info(client)
 
     test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
+        host=args.host, username=args.username, password=args.password
     )
 
     main(
         field=args.field,
         outdir=args.outdir,
         host=args.host,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         database=args.database,
         verbose=verbose,
         ionex_server=args.ionex_server,
         ionex_proxy_server=args.ionex_proxy_server,
+        ionex_formatter=args.ionex_formatter,
+        ionex_prefix=args.ionex_prefix,
     )
 
 
