@@ -375,8 +375,8 @@ def main(args: configargparse.Namespace) -> None:
         dask_config=args.dask_config,
         use_mpi=args.use_mpi,
         port_forward=args.port_forward,
-        minimum=128,
-        maximum=128,
+        minimum=64,
+        maximum=64,
     )
 
     # Define flow
