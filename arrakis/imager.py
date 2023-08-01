@@ -385,8 +385,8 @@ def make_cube(
         f"image.{image_type}", f"weights.{image_type}"
     ).replace(".fits", ".txt")
     data = dict(
-        Channel=np.arange(len(rmss_arr.value)),
-        Weight=rmss_arr.value,
+        Channel=np.arange(len(rmss_arr)),
+        Weight=rmss_arr,
     )
     tab = Table(data)
     tab.write(new_w_name, format="ascii.commented_header", overwrite=True)
