@@ -22,6 +22,7 @@ from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
+from fitscube import combine_fits
 from prefect import flow, get_run_logger, task
 from racs_tools import beamcon_2D
 from radio_beam import Beam
@@ -335,62 +336,12 @@ def make_cube(
     image_type = "restored" if aux_mode is None else aux_mode
 
     # First combine images into cubes
-    freqs = []
-    rmss = []
-    for chan, image in enumerate(
-        tqdm(
-            image_list,
-            desc="Reading channel image",
-            leave=False,
-        )
-    ):
-        # init cube
-        if chan == 0:
-            old_name = image
-            old_header = fits.getheader(old_name)
-            wcs = WCS(old_header)
-            idx = 0
-            for j, t in enumerate(
-                wcs.axis_type_names[::-1]
-            ):  # Reverse to match index order
-                if t == "FREQ":
-                    idx = j
-                    break
-
-            plane_shape = list(fits.getdata(old_name).shape)
-            cube_shape = plane_shape.copy()
-            cube_shape[idx] = len(image_list)
-
-            data_cube = np.zeros(cube_shape)
-
-            out_dir = os.path.dirname(old_name)
-            old_base = os.path.basename(old_name)
-            new_base = old_base
-            b_idx = new_base.find("beam") + len("beam") + 2
-            sub = new_base[b_idx:]
-            new_base = new_base.replace(sub, ".conv.fits")
-            new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
-            new_name = os.path.join(out_dir, new_base)
-
-        plane = fits.getdata(
-            image
-        )  # Stokes do NOT need to be scaled so long as fix_ms_corrs applied!
-        plane_rms = mad_std(plane, ignore_nan=True)
-        rmss.append(plane_rms)
-        data_cube[:, chan] = plane
-        freq = WCS(image).spectral.pixel_to_world(0)
-        freqs.append(freq.to(u.Hz).value)
-    # Write out cubes
-    freqs = np.array(freqs) * u.Hz
-    rmss_arr = np.array(rmss) * u.Jy / u.beam
-    assert np.diff(freqs).std() < 1e-6 * u.Hz, "Frequencies are not evenly spaced"
-    new_header = old_header.copy()
-    new_header["NAXIS"] = len(cube_shape)
-    new_header["NAXIS3"] = len(freqs)
-    new_header["CRPIX3"] = 1
-    new_header["CRVAL3"] = freqs[0].value
-    new_header["CDELT3"] = np.diff(freqs).mean().value
-    new_header["CUNIT3"] = "Hz"
+    hdu_list, freqs = combine_fits(
+        file_list=image_list,
+        create_blanks=True
+    )
+    new_header = hdu_list[0].header
+    data_cube = hdu_list[0].data
 
     tmp_header = new_header.copy()
     # Need to swap NAXIS 3 and 4 to make LINMOS happy - booo
@@ -404,6 +355,19 @@ def make_cube(
     # Cube is currently STOKES, FREQ, RA, DEC - needs to be FREQ, STOKES, RA, DEC
     data_cube = np.moveaxis(data_cube, 1, 0)
 
+    # Calculate rms noise
+    rmss_arr = mad_std(data_cube, axis=0, ignore_nan=True)
+
+    # Create a cube name
+    old_name = image_list[0]
+    out_dir = os.path.dirname(old_name)
+    old_base = os.path.basename(old_name)
+    new_base = old_base
+    b_idx = new_base.find("beam") + len("beam") + 2
+    sub = new_base[b_idx:]
+    new_base = new_base.replace(sub, ".conv.fits")
+    new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
+    new_name = os.path.join(out_dir, new_base)
     # Deserialise beam
     with open(common_beam_pkl, "rb") as f:
         common_beam = pickle.load(f)
