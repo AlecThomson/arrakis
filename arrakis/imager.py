@@ -356,7 +356,7 @@ def make_cube(
     data_cube = np.moveaxis(data_cube, 1, 0)
 
     # Calculate rms noise
-    rmss_arr = mad_std(data_cube, axis=0, ignore_nan=True)
+    rmss_arr = mad_std(data_cube, axis=(1,2,3), ignore_nan=True)
 
     # Create a cube name
     old_name = image_list[0]
