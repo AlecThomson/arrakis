@@ -34,7 +34,7 @@ dask = "*"
 distributed = "*"
 dask_jobqueue = "*"
 dask_mpi = "*"
-FRion = "^1.0.1"
+FRion = {git+https://github.com/CIRADA-Tools/FRion.git}
 h5py = "*"
 ipython = "*"
 matplotlib = "*"
@@ -53,7 +53,7 @@ radio_beam = "*"
 RMextract = {git = "https://github.com/AlecThomson/RMextract@race"}
 schwimmbad = "*"
 scipy = "*"
-spectral_cube = {git = "https://github.com/AlecThomson/spectral-cube.git@fix_beams"}
+# spectral_cube = {git = "https://github.com/AlecThomson/spectral-cube.git@fix_beams"}
 spython = "*"
 tqdm = "*"
 vorbin = "*"
