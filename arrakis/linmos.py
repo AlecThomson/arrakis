@@ -106,7 +106,7 @@ def smooth_images(
     for im in image_list:
         if im.suffix == ".fits":
             infiles.append(im.resolve().as_posix())
-    if len(infiles) == 0:
+    if len(infiles) == 0 or len(infiles) == 1:
         return image_list
     beams = set([im.name[im.name.find("beam"):im.name.find("beam")+6] for im in image_list])
     suffix = "-".join(beams)
