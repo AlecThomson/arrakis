@@ -108,12 +108,22 @@ def smooth_images(
             infiles.append(im.resolve().as_posix())
     if len(infiles) == 0:
         return image_list
+    beams = set([im.name[im.name.find("beam"):im.name.find("beam")+6] for im in image_list])
+    suffix = "-".join(beams)
+
+    # Don't smooth if already done
+    smooth_files: List[Path] = []
+    for infile in infiles:
+        smooth_files.append(Path(infile.replace(".fits", f".{suffix}.fits")))
+    if all([sf.exists() for sf in smooth_files]):
+        return smooth_files
+
     datadict = beamcon_3D.main(
         infile=[im.resolve().as_posix() for im in image_list],
         uselogs=False,
         mode="total",
         conv_mode="robust",
-        suffix="cres",
+        suffix=suffix,
     )
     smooth_files: List[Path] = []
     for key, val in datadict.items():
