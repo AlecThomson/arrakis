@@ -56,7 +56,7 @@ def process_spice(args, host: str) -> None:
         previous_future = (
             cut_task.submit(
                 field=args.field,
-                directory=args.datadir,
+                directory=args.outdir,
                 host=host,
                 epoch=args.epoch,
                 username=args.username,
@@ -73,7 +73,7 @@ def process_spice(args, host: str) -> None:
         previous_future = (
             linmos_task.submit(
                 field=args.field,
-                datadir=Path(args.datadir),
+                datadir=Path(args.outdir),
                 host=host,
                 epoch=args.epoch,
                 holofile=Path(args.holofile),
@@ -91,7 +91,7 @@ def process_spice(args, host: str) -> None:
 
         previous_future = (
             cleanup_task.submit(
-                datadir=args.datadir,
+                datadir=args.outdir,
                 stokeslist=["I", "Q", "U"],
                 verbose=True,
                 wait_for=[previous_future],
@@ -103,7 +103,7 @@ def process_spice(args, host: str) -> None:
         previous_future = (
             frion_task.submit(
                 field=args.field,
-                outdir=args.datadir,
+                outdir=args.outdir,
                 host=host,
                 epoch=args.epoch,
                 username=args.username,
@@ -122,7 +122,7 @@ def process_spice(args, host: str) -> None:
         previous_future = (
             rmsynth_task.submit(
                 field=args.field,
-                outdir=args.datadir,
+                outdir=args.outdir,
                 host=host,
                 epoch=args.epoch,
                 username=args.username,
@@ -158,7 +158,7 @@ def process_spice(args, host: str) -> None:
         previous_future = (
             rmclean_task.submit(
                 field=args.field,
-                outdir=args.datadir,
+                outdir=args.outdir,
                 host=host,
                 epoch=args.epoch,
                 username=args.username,
@@ -419,19 +419,6 @@ def cli():
 
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
-    )
-
-    parser.add_argument(
-        "datadir",
-        metavar="datadir",
-        type=str,
-        help="Directory containing data cubes in FITS format.",
-    )
-
-    parser.add_argument(
-        "survey",
-        type=str,
-        help="Survey directory",
     )
     parser.add_argument(
         "--epoch",
