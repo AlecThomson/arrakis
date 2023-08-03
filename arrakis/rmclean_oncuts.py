@@ -4,6 +4,7 @@ import os
 import sys
 import warnings
 from glob import glob
+from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
 from typing import List, Union
@@ -205,7 +206,7 @@ def rmclean3d(
 
 def main(
     field: str,
-    outdir: str,
+    outdir: Path,
     host: str,
     epoch: int,
     username: Union[str, None] = None,
@@ -381,7 +382,7 @@ def cli():
     parser.add_argument(
         "outdir",
         metavar="outdir",
-        type=str,
+        type=Path,
         help="Directory containing cutouts (in subdir outdir/cutouts).",
     )
 
@@ -494,7 +495,7 @@ def cli():
         )
     main(
         field=args.field,
-        outdir=args.outdir,
+        outdir=Path(args.outdir),
         host=host,
         username=args.username,
         password=args.password,

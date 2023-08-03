@@ -3,6 +3,7 @@
 import logging
 import os
 from glob import glob
+from pathlib import Path
 from typing import List, Union
 
 from dask import delayed
@@ -31,7 +32,7 @@ def cleanup(workdir: str, stoke: str) -> None:
 
 
 def main(
-    datadir: str,
+    datadir: Path,
     stokeslist: Union[List[str], None] = None,
     verbose=True,
 ) -> None:
@@ -46,11 +47,7 @@ def main(
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
-    if datadir is not None:
-        if datadir[-1] == "/":
-            datadir = datadir[:-1]
-
-    cutdir = f"{datadir}/cutouts"
+    cutdir = datadir / "cutouts"
     files = sorted(
         [
             name
@@ -97,7 +94,7 @@ def cli():
     parser.add_argument(
         "outdir",
         metavar="outdir",
-        type=str,
+        type=Path,
         help="Directory containing cutouts (in subdir outdir/cutouts).",
     )
 
@@ -113,7 +110,7 @@ def cli():
     cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
 
-    main(datadir=args.outdir, stokeslist=None, verbose=verbose)
+    main(datadir=Path(args.outdir), stokeslist=None, verbose=verbose)
 
     client.close()
     cluster.close()

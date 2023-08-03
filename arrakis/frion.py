@@ -4,9 +4,10 @@ import logging
 import os
 import time
 from glob import glob
+from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Optional, Tuple, Union, Callable
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import astropy.units as u
 import dask
@@ -124,7 +125,7 @@ def predict_worker(
         ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
         server=server,
         proxy_server=proxy_server,
-        use_proxy=True, # Always use proxy - forces urllib
+        use_proxy=True,  # Always use proxy - forces urllib
         prefix=prefix,
         formatter=formatter,
         **proxy_args,
@@ -165,7 +166,7 @@ def predict_worker(
 
 def main(
     field: str,
-    outdir: str,
+    outdir: Path,
     host: str,
     epoch: int,
     username: Optional[str] = None,
@@ -321,7 +322,7 @@ def cli():
     parser.add_argument(
         "outdir",
         metavar="outdir",
-        type=str,
+        type=Path,
         help="Directory containing cutouts (in subdir outdir/cutouts).",
     )
 
@@ -399,13 +400,11 @@ def cli():
     client = Client(cluster)
     logger.info(client)
 
-    test_db(
-        host=args.host, username=args.username, password=args.password
-    )
+    test_db(host=args.host, username=args.username, password=args.password)
 
     main(
         field=args.field,
-        outdir=args.outdir,
+        outdir=Path(args.outdir),
         host=args.host,
         epoch=args.epoch,
         username=args.username,
