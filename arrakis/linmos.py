@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
+import hashlib
 import logging
 import os
 import shlex
@@ -7,6 +8,7 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
+from time import time
 from typing import List, Optional, Tuple, Union
 
 import astropy.units as u
@@ -108,8 +110,14 @@ def smooth_images(
             infiles.append(im.resolve().as_posix())
     if len(infiles) == 0 or len(infiles) == 1:
         return image_list
-    beams = set([im.name[im.name.find("beam"):im.name.find("beam")+6] for im in image_list])
-    suffix = "-".join(beams)
+
+    # Create unique suffix with hash
+    # Use current time to create unique suffix
+    beams = set(
+        [im.name[im.name.find("beam") : im.name.find("beam") + 6] for im in image_list]
+    )
+    hash_str = hashlib.md5(str(time()).encode("utf-8")).hexdigest()
+    suffix = f"{'-'.join(beams)}-{hash_str}"
 
     # Don't smooth if already done
     smooth_files: List[Path] = []
@@ -158,15 +166,17 @@ def genparset(
     """
     logger.setLevel(logging.INFO)
 
-    image_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_list])}]"
+    image_string = (
+        f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_list])}]"
+    )
     weight_string = (
         f"[{','.join([im.resolve().with_suffix('').as_posix() for im in weight_list])}]"
     )
 
     parset_dir = datadir.resolve() / image_list[0].parent.name
 
-    first_image = image_list[0].resolve().with_suffix('').as_posix()
-    first_weight = weight_list[0].resolve().with_suffix('').as_posix()
+    first_image = image_list[0].resolve().with_suffix("").as_posix()
+    first_weight = weight_list[0].resolve().with_suffix("").as_posix()
     linmos_image_str = f"{first_image[:first_image.find('beam')]}linmos"
     linmos_weight_str = f"{first_weight[:first_weight.find('beam')]}linmos"
 
@@ -314,7 +324,7 @@ def main(
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
-    cutdir = datadir /  "cutouts"
+    cutdir = datadir / "cutouts"
 
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
@@ -371,9 +381,7 @@ def main(
 
     results = []
     for parset in parfiles:
-        results.append(
-            linmos(parset, field, str(image), holofile=holofile)
-        )
+        results.append(linmos(parset, field, str(image), holofile=holofile))
 
     futures = chunk_dask(
         outputs=results,
