@@ -34,7 +34,7 @@ dask = "*"
 distributed = "*"
 dask_jobqueue = "*"
 dask_mpi = "*"
-FRion = {git+https://github.com/CIRADA-Tools/FRion.git}
+FRion = {git = "https://github.com/CIRADA-Tools/FRion.git" }
 h5py = "*"
 ipython = "*"
 matplotlib = "*"
