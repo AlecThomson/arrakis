@@ -9,7 +9,7 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from time import time
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import astropy.units as u
 import numpy as np
@@ -94,8 +94,8 @@ def find_images(
 
 @delayed
 def smooth_images(
-    image_list: List[Path],
-) -> List[Path]:
+    image_dict: Dict[str, List[Path]],
+) -> Dict[str, List[Path]]:
     """Smooth cubelets to a common resolution
 
     Args:
@@ -104,40 +104,25 @@ def smooth_images(
     Returns:
         List[Path]: Smoothed cubelets.
     """
-    infiles: List[str] = []
-    for im in image_list:
-        if im.suffix == ".fits":
-            infiles.append(im.resolve().as_posix())
-    if len(infiles) == 0 or len(infiles) == 1:
-        return image_list
+    smooth_dict: Dict[str, List[Path]] = {}
+    for stoke, image_list in image_dict.items():
+        infiles: List[str] = []
+        for im in image_list:
+            if im.suffix == ".fits":
+                infiles.append(im.resolve().as_posix())
+        datadict = beamcon_3D.main(
+            infile=[im.resolve().as_posix() for im in image_list],
+            uselogs=False,
+            mode="total",
+            conv_mode="robust",
+            suffix="cres",
+        )
+        smooth_files: List[Path] = []
+        for key, val in datadict.items():
+            smooth_files.append(Path(val["outfile"]))
+        smooth_dict[stoke] = smooth_files
 
-    # Create unique suffix with hash
-    # Use current time to create unique suffix
-    beams = set(
-        [im.name[im.name.find("beam") : im.name.find("beam") + 6] for im in image_list]
-    )
-    hash_str = hashlib.md5(str(time()).encode("utf-8")).hexdigest()
-    suffix = f"{'-'.join(beams)}-{hash_str}"
-
-    # Don't smooth if already done
-    smooth_files: List[Path] = []
-    for infile in infiles:
-        smooth_files.append(Path(infile.replace(".fits", f".{suffix}.fits")))
-    if all([sf.exists() for sf in smooth_files]):
-        return smooth_files
-
-    datadict = beamcon_3D.main(
-        infile=[im.resolve().as_posix() for im in image_list],
-        uselogs=False,
-        mode="total",
-        conv_mode="robust",
-        suffix=suffix,
-    )
-    smooth_files: List[Path] = []
-    for key, val in datadict.items():
-        smooth_files.append(Path(val["outfile"]))
-
-    return smooth_files
+    return smooth_dict
 
 
 @delayed
@@ -360,6 +345,8 @@ def main(
             warnings.warn(f"Skipping island {src} -- no components found")
             continue
         else:
+            image_dict: Dict[str, List[Path]] = {}
+            weight_dict: Dict[str, List[Path]] = {}
             for stoke in stokeslist:
                 image_list, weight_list = find_images(
                     field=field,
@@ -368,11 +355,14 @@ def main(
                     stoke=stoke.capitalize(),
                     datadir=cutdir,
                 )
-                smooth_image_list = smooth_images(image_list)
-                smooth_weight_list = smooth_images(weight_list)
+                image_dict[stoke] = image_list
+                weight_dict[stoke] = weight_list
+
+            smooth_dict = smooth_images(image_dict)
+            for stoke in stokeslist:
                 parfile = genparset(
-                    image_list=smooth_image_list,
-                    weight_list=smooth_weight_list,
+                    image_list=smooth_dict[stoke],
+                    weight_list=weight_dict[stoke],
                     stoke=stoke.capitalize(),
                     datadir=cutdir,
                     holofile=holofile,
