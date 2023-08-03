@@ -195,10 +195,6 @@ def flag_blended_components(cat: RMTable) -> RMTable:
         ),
         index=-1,
     )
-
-    cat.write("blended_cat.fits", overwrite=True)
-    # logger.info(cat['cat_id'])
-
     # Sanity check - no single-component sources should be flagged
     assert np.array_equal(is_blended.index.values, cat["cat_id"].data), "Index mismatch"
     assert not any(
@@ -310,8 +306,6 @@ def get_fit_func(
     Returns:
         np.polynomial.Polynomial.fit: 3rd order polynomial fit.
     """
-    logger.info("Writing junk file. ")
-    tab.write("junk_cat.fits", overwrite=True)
 
     logger.info(f"Using {high_snr_cut=}.")
 
@@ -560,8 +554,6 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     goodL = goodI & ~cat["leakage_flag"] & (cat["snr_polint"] > 5)
     goodRM = goodL & ~cat["snr_flag"]
     good_cat = cat[goodRM]
-
-    good_cat.write(f"good_cat.fits", overwrite=True)
 
     cat_out = compute_local_rm_flag(good_cat=good_cat, big_cat=cat)
 
