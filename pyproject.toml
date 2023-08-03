@@ -58,7 +58,7 @@ spython = "*"
 tqdm = "*"
 vorbin = "*"
 graphviz = "*"
-bokeh = "*"
+bokeh = "<3"
 prefect = "^2"
 prefect-dask = "*"
 RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
