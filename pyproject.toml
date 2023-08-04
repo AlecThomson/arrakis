@@ -48,7 +48,7 @@ pymongo = "*"
 pymultinest = "*"
 pytest = "*"
 python_casacore = "*"
-RACS-tools = {git = "https://github.com/AlecThomson/RACS-tools.git@header"}
+RACS-tools = {git = "https://github.com/AlecThomson/RACS-tools.git"}
 radio_beam = "*"
 RMextract = {git = "https://github.com/AlecThomson/RMextract@race"}
 schwimmbad = "*"
