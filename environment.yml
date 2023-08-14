@@ -1,4 +1,4 @@
-name: arrakis2
+name: arrakis
 channels:
 - astropy
 - conda-forge

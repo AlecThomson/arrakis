@@ -959,9 +959,7 @@ def cli():
 
     else:
         cluster = LocalCluster(
-            n_workers=1,
             threads_per_worker=1,
-            # processes=False,
         )
 
     with Client(cluster) as client:
