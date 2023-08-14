@@ -968,7 +968,7 @@ def cli():
         main(
             msdir=args.msdir,
             out_dir=args.outdir,
-            cutoff=args.cutoff,
+            cutoff=args.psf_cutoff,
             robust=args.robust,
             pols=args.pols,
             nchan=args.nchan,
