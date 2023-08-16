@@ -8,7 +8,7 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List, NamedTuple, Tuple, Union
+from typing import List, NamedTuple, Optional, Tuple, Union
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -65,6 +65,23 @@ class StokesSpectra(NamedTuple):
     """The U spectrum"""
 
 
+class StokesIFitResult(NamedTuple):
+    """Data structure for the Stokes I fit results"""
+
+    alpha: float
+    """The alpha parameter of the fit"""
+    amplitude: float
+    """The amplitude parameter of the fit"""
+    x_0: float
+    """The x_0 parameter of the fit"""
+    model_repr: str
+    """The model representation of the fit"""
+    modStokesI: np.ndarray
+    """The model Stokes I spectrum"""
+    fit_dict: dict
+    """The dictionary of the fit results"""
+
+
 @delayed
 def rmsynthoncut3d(
     island_id: str,
@@ -72,8 +89,8 @@ def rmsynthoncut3d(
     outdir: str,
     freq: np.ndarray,
     field: str,
-    phiMax_radm2: Union[None, float] = None,
-    dPhi_radm2: Union[None, float] = None,
+    phiMax_radm2: Optional[float] = None,
+    dPhi_radm2: Optional[float] = None,
     nSamples: int = 5,
     weightType: str = "variance",
     fitRMSF: bool = True,
@@ -334,6 +351,65 @@ def sigma_clip_spectra(
     return StokesSpectra(*filtered_data_list)
 
 
+def fit_stokes_I(
+    freq: np.ndarray,
+    coord: SkyCoord,
+    tt0: Optional[str] = None,
+    tt1: Optional[str] = None,
+    do_own_fit: bool = False,
+    iarr: Optional[np.ndarray] = None,
+    rmsi: Optional[np.ndarray] = None,
+    polyOrd: Optional[int] = None,
+) -> StokesIFitResult:
+    if tt0 and tt1:
+        mfs_i_0 = fits.getdata(tt0, memmap=True)
+        mfs_i_1 = fits.getdata(tt1, memmap=True)
+        mfs_head = fits.getheader(tt0)
+        mfs_wcs = WCS(mfs_head)
+        xp, yp = np.array(mfs_wcs.celestial.world_to_pixel(coord)).round().astype(int)
+        tt1_p = mfs_i_1[yp, xp]
+        tt0_p = mfs_i_0[yp, xp]
+
+        alpha = -1 * tt1_p / tt0_p
+        amplitude = tt0_p
+        x_0 = mfs_head["RESTFREQ"]
+
+        logger.debug(f"alpha is {alpha}")
+        model_I = models.PowerLaw1D(amplitude=amplitude, x_0=x_0, alpha=alpha)
+
+        return StokesIFitResult(
+            alpha=alpha,
+            amplitude=amplitude,
+            x_0=x_0,
+            model_repr=model_I.__repr__(),
+            modStokesI=model_I(freq),
+            fit_dict=None,
+        )
+
+    elif do_own_fit:
+        logger.info(f"Doing own fit")
+        fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
+
+        return StokesIFitResult(
+            alpha=None,
+            amplitude=None,
+            x_0=None,
+            model_repr=None,
+            modStokesI=fit_dict["best_m"],
+            fit_dict=fit_dict,
+        )
+
+    else:
+        return StokesIFitResult(
+            alpha=None,
+            amplitude=None,
+            x_0=None,
+            model_repr=None,
+            modStokesI=None,
+            fit_dict=None,
+        )
+
+
 @delayed
 def rmsynthoncut1d(
     comp: dict,
@@ -342,8 +418,8 @@ def rmsynthoncut1d(
     freq: np.ndarray,
     field: str,
     polyOrd: int = 3,
-    phiMax_radm2: Union[float, None] = None,
-    dPhi_radm2: Union[float, None] = None,
+    phiMax_radm2: Optional[float] = None,
+    dPhi_radm2: Optional[float] = None,
     nSamples: int = 5,
     weightType: str = "variance",
     fitRMSF: bool = True,
@@ -353,8 +429,8 @@ def rmsynthoncut1d(
     debug: bool = False,
     rm_verbose: bool = False,
     fit_function: str = "log",
-    tt0: Union[str, None] = None,
-    tt1: Union[str, None] = None,
+    tt0: Optional[str] = None,
+    tt1: Optional[str] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> pymongo.UpdateOne:
@@ -408,41 +484,22 @@ def rmsynthoncut1d(
     # Filter by RMS for outlier rejection
     filtered_stokes_spectra = sigma_clip_spectra(stokes_spectra)
 
-    if tt0 and tt1:
-        mfs_i_0 = fits.getdata(tt0, memmap=True)
-        mfs_i_1 = fits.getdata(tt1, memmap=True)
-        mfs_head = fits.getheader(tt0)
-        mfs_wcs = WCS(mfs_head)
-        xp, yp = np.array(mfs_wcs.celestial.world_to_pixel(coord)).round().astype(int)
-        tt1_p = mfs_i_1[yp, xp]
-        tt0_p = mfs_i_0[yp, xp]
+    stokes_i_fit_result = fit_stokes_I(
+        freq=freq,
+        coord=coord,
+        tt0=tt0,
+        tt1=tt1,
+        do_own_fit=do_own_fit,
+        iarr=filtered_stokes_spectra.i.data,
+        rmsi=filtered_stokes_spectra.i.rms,
+        polyOrd=polyOrd,
+    )
 
-        alpha = -1 * tt1_p / tt0_p
-        amplitude = tt0_p
-        x_0 = mfs_head["RESTFREQ"]
-
-        logger.debug(f"alpha is {alpha}")
-        model_I = models.PowerLaw1D(amplitude=amplitude, x_0=x_0, alpha=alpha)
-        modStokesI = model_I(freq)
-        model_repr = model_I.__repr__()
-
-    elif do_own_fit:
-        logger.info(f"Doing own fit")
-        fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
-        alpha = None
-        amplitude = None
-        x_0 = None
-        model_repr = None
-        modStokesI = fit_dict["best_m"]
-
-    else:
-        alpha = None
-        amplitude = None
-        x_0 = None
-        model_repr = None
-        modStokesI = None
-
-    if np.sum(np.isfinite(qarr)) < 2 or np.sum(np.isfinite(uarr)) < 2:
+    # Check for totally bad data in Q and U
+    if (
+        np.sum(np.isfinite(filtered_stokes_spectra.q.data)) < 2
+        or np.sum(np.isfinite(filtered_stokes_spectra.u.data)) < 2
+    ):
         logger.critical(f"{cname} QU data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
         badvalues = {"$set": {"rmsynth1d": False}}
