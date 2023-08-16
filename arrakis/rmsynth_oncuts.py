@@ -41,6 +41,30 @@ from arrakis.utils.pipeline import chunk_dask, logo_str
 logger.setLevel(logging.INFO)
 
 
+class Spectrum(NamedTuple):
+    """Data structure for a single spectrum"""
+
+    data: np.ndarray
+    """The spectrum data"""
+    rms: np.ndarray
+    """The RMS of the spectrum"""
+    bkg: np.ndarray
+    """The background of the spectrum"""
+    filename: str
+    """The filename associated with the spectrum"""
+
+
+class StokesSpectra(NamedTuple):
+    """Data structure for multi single Stokes spectra"""
+
+    i: Spectrum
+    """The I spectrum"""
+    q: Spectrum
+    """The Q spectrum"""
+    u: Spectrum
+    """The U spectrum"""
+
+
 @delayed
 def rmsynthoncut3d(
     island_id: str,
@@ -217,19 +241,6 @@ def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
     return background, noise
 
 
-class Spectrum(NamedTuple):
-    """Data structure for a single spectrum"""
-
-    data: np.ndarray
-    """The spectrum data"""
-    rms: np.ndarray
-    """The RMS of the spectrum"""
-    bkg: np.ndarray
-    """The background of the spectrum"""
-    filename: str
-    """The filename associated with the spectrum"""
-
-
 def extract_single_spectrum(
     coord: SkyCoord,
     stokes: str,
@@ -262,17 +273,6 @@ def extract_single_spectrum(
         bkg=bkg,
         filename=filename,
     )
-
-
-class StokesSpectra(NamedTuple):
-    """Data structure for multi single Stokes spectra"""
-
-    i: Spectrum
-    """The I spectrum"""
-    q: Spectrum
-    """The Q spectrum"""
-    u: Spectrum
-    """The U spectrum"""
 
 
 def extract_all_spectra(
