@@ -298,8 +298,17 @@ def extract_all_spectra(
 
 def sigma_clip_spectra(
     stokes_spectra: StokesSpectra,
-):
-    """Sigma clip spectra"""
+) -> StokesSpectra:
+    """Sigma clip spectra
+
+    Find outliers in the RMS spectra and set them to NaN
+
+    Args:
+        stokes_spectra (StokesSpectra): The Stokes spectra
+
+    Returns:
+        StokesSpectra: The filtered Stokes spectra
+    """
     filter_list: List[np.ndarry] = []
     for spectrum in stokes_spectra:
         rms_filter = sigma_clip(
