@@ -8,7 +8,7 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Tuple, Union
+from typing import List, NamedTuple, Tuple, Union
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -176,16 +176,6 @@ def rmsynthoncut3d(
     return pymongo.UpdateOne(myquery, newvalues)
 
 
-@delayed
-def rms_1d(data):
-    """Compute RMS from bounding pixels"""
-    Nfreq, Ndec, Nra = data.shape
-    mask = np.ones((Ndec, Nra), dtype=np.bool)
-    mask[3:-3, 3:-3] = False
-    rms = np.nanstd(data[:, mask], axis=1)
-    return rms
-
-
 def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
     """Background and noise estimation on a cubelet
 
@@ -220,9 +210,119 @@ def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
 
     for chan, plane in enumerate(data_masked):
         plane = plane[np.isfinite(plane)]
+        if len(plane) == 0:
+            continue
         background[chan], noise[chan] = norm.fit(plane)
 
     return background, noise
+
+
+class Spectrum(NamedTuple):
+    """Data structure for a single spectrum"""
+
+    data: np.ndarray
+    """The spectrum data"""
+    rms: np.ndarray
+    """The RMS of the spectrum"""
+    bkg: np.ndarray
+    """The background of the spectrum"""
+    filename: str
+    """The filename associated with the spectrum"""
+
+
+def extract_single_spectrum(
+    coord: SkyCoord,
+    stokes: str,
+    ion: bool,
+    field_dict: dict,
+    outdir: str,
+) -> Spectrum:
+    """Extract a single spectrum from a cubelet"""
+    if ion and (stokes == "q" or stokes == "u"):
+        key = f"{stokes}_file_ion"
+    else:
+        key = f"{stokes}_file"
+    filename = os.path.join(outdir, field_dict[key])
+    with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
+        hdu = hdulist[0]
+        data = np.squeeze(hdu.cleardata)
+        header = hdu.header
+
+    bkg, rms = cubelet_bane(data, header)
+    rms[np.isnan(rms)] = np.nanmedian(rms)
+    wcs = WCS(header)
+    x, y = np.array(wcs.celestial.world_to_pixel(coord)).round().astype(int)
+    spectrum_arr = data[:, y, x]
+    spectrum_arr[spectrum_arr == 0] = np.nan
+    # Do background subtraction
+    spectrum_arr -= bkg
+    return Spectrum(
+        data=spectrum_arr,
+        rms=rms,
+        bkg=bkg,
+        filename=filename,
+    )
+
+
+class StokesSpectra(NamedTuple):
+    """Data structure for multi single Stokes spectra"""
+
+    i: Spectrum
+    """The I spectrum"""
+    q: Spectrum
+    """The Q spectrum"""
+    u: Spectrum
+    """The U spectrum"""
+
+
+def extract_all_spectra(
+    coord: SkyCoord,
+    ion: bool,
+    field_dict: dict,
+    outdir: str,
+) -> StokesSpectra:
+    """Extract spectra from cubelets"""
+    StokesSpectra(
+        *[
+            extract_single_spectrum(
+                coord=coord,
+                stokes=stokes,
+                ion=ion,
+                field_dict=field_dict,
+                outdir=outdir,
+            )
+            for stokes in "iqu"
+        ]
+    )
+
+
+def sigma_clip_spectra(
+    stokes_spectra: StokesSpectra,
+):
+    """Sigma clip spectra"""
+    filter_list: List[np.ndarry] = []
+    for spectrum in stokes_spectra:
+        rms_filter = sigma_clip(
+            spectrum.rms,
+            sigma=5,
+            stdfunc=mad_std,
+            cenfunc=np.nanmedian,
+        )
+        filter_list.append(rms_filter.mask)
+    filter_idx = np.any(filter_list, axis=0)
+
+    filtered_data_list: List[Spectrum] = []
+    for spectrum in stokes_spectra:
+        filtered_data = spectrum.data.copy()
+        filtered_data[filter_idx] = np.nan
+        filtered_spectrum = Spectrum(
+            data=filtered_data,
+            rms=spectrum.rms,
+            bkg=spectrum.bkg,
+            filename=spectrum.filename,
+        )
+        filtered_data_list.append(filtered_spectrum)
+    return StokesSpectra(*filtered_data_list)
 
 
 @delayed
@@ -274,73 +374,30 @@ def rmsynthoncut1d(
 
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
-    ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
-    if ion:
-        qfile = os.path.join(outdir, beam["beams"][field]["q_file_ion"])
-        ufile = os.path.join(outdir, beam["beams"][field]["u_file_ion"])
-    else:
-        qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
-        ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
-
-    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
-    header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
-    header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
-
-    dataQ = np.squeeze(dataQ)
-    dataU = np.squeeze(dataU)
-    dataI = np.squeeze(dataI)
-
-    if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
-        logger.critical(f"Entire data is NaN for {iname}")
-        myquery = {"Gaussian_ID": cname}
-        badvalues = {"$set": {"rmsynth1d": False}}
-        return pymongo.UpdateOne(myquery, badvalues)
-
-    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
-    rmsi[rmsi == 0] = np.nan
-    rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
-
-    rmsq = estimate_noise_annulus(dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
-    rmsq[rmsq == 0] = np.nan
-    rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
-
-    rmsu = estimate_noise_annulus(dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
-    rmsu[rmsu == 0] = np.nan
-    rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
-
-    prefix = f"{os.path.dirname(ifile)}/{cname}"
-
     ra = comp["RA"]
     dec = comp["Dec"]
     coord = SkyCoord(ra * u.deg, dec * u.deg)
-    if len(dataI.shape) == 4:
-        # drop Stokes axis
-        wcs = WCS(header).dropaxis(2)
-    else:
-        wcs = WCS(header)
+    field_dict = beam["beams"][field]
 
-    x, y = np.array(wcs.celestial.world_to_pixel(coord)).round().astype(int)
+    # Extract the spectra from the cubelets
+    stokes_spectra = extract_all_spectra(
+        coord=coord,
+        ion=ion,
+        field_dict=field_dict,
+        outdir=outdir,
+    )
+    # Check for totally bad data
+    for spectrum in stokes_spectra:
+        if np.isnan(spectrum.data).all():
+            logger.critical(f"Entire data is NaN for {iname} in {spectrum.filename}")
+            myquery = {"Gaussian_ID": cname}
+            badvalues = {"$set": {"rmsynth1d": False}}
+            return pymongo.UpdateOne(myquery, badvalues)
 
-    qarr = dataQ[:, y, x]
-    uarr = dataU[:, y, x]
-    iarr = dataI[:, y, x]
+    prefix = f"{os.path.dirname(stokes_spectra.i.filename)}/{cname}"
 
-    iarr[iarr == 0] = np.nan
-    qarr[qarr == 0] = np.nan
-    uarr[uarr == 0] = np.nan
-
-    i_filter = sigma_clip(rmsi, sigma=5, stdfunc=mad_std)
-    q_filter = sigma_clip(rmsq, sigma=5, stdfunc=mad_std)
-    u_filter = sigma_clip(rmsu, sigma=5, stdfunc=mad_std)
-
-    filter_idx = (i_filter.mask) | (q_filter.mask) | (u_filter.mask)
-
-    iarr[filter_idx] = np.nan
-    qarr[filter_idx] = np.nan
-    uarr[filter_idx] = np.nan
-    rmsi[filter_idx] = np.nan
-    rmsq[filter_idx] = np.nan
-    rmsu[filter_idx] = np.nan
+    # Filter by RMS for outlier rejection
+    filtered_stokes_spectra = sigma_clip_spectra(stokes_spectra)
 
     if tt0 and tt1:
         mfs_i_0 = fits.getdata(tt0, memmap=True)
