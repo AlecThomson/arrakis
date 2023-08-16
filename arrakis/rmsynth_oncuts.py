@@ -145,17 +145,12 @@ def rmsynthoncut3d(
             }
         }
         return pymongo.UpdateOne(myquery, badvalues)
-    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
-    rmsi[rmsi == 0] = np.nan
-    rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
 
-    # rmsq = rms_1d(dataQ)
-    rmsq = estimate_noise_annulus(dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
+    bkgq, rmsq = cubelet_bane(dataQ, header)
     rmsq[rmsq == 0] = np.nan
     rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
 
-    # rmsu = rms_1d(dataU)
-    rmsu = estimate_noise_annulus(dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
+    bkgu, rmsu = cubelet_bane(dataU, header)
     rmsu[rmsu == 0] = np.nan
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
     rmsArr = np.max([rmsq, rmsu], axis=0)
@@ -677,7 +672,7 @@ def rmsynthoncut1d(
                     "x_0": float(stokes_i_fit_result.x_0)
                     if stokes_i_fit_result.x_0 is not None
                     else None,
-                    "model_repr": stokes_i_fit_resultmodel_repr,
+                    "model_repr": stokes_i_fit_result.model_repr,
                 },
                 "I": filtered_stokes_spectra.i.data.tolist(),
                 "Q": filtered_stokes_spectra.q.data.tolist(),
@@ -769,7 +764,7 @@ def rmsynthoncut_i(
 
     data = np.nansum(dataI[:, y - 1 : y + 1 + 1, x - 1 : x + 1 + 1], axis=(1, 2))
 
-    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
+    bkgi, rmsi = cubelet_bane(dataI, header)
     rmsi[rmsi == 0] = np.nan
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
     noise = rmsi
