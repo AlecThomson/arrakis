@@ -255,6 +255,7 @@ def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
     return background, noise
 
 
+# TODO: Add NxN sum of pixels
 def extract_single_spectrum(
     coord: SkyCoord,
     stokes: str,
