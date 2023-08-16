@@ -8,7 +8,7 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Union
+from typing import Tuple, Union
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -20,12 +20,15 @@ from astropy.io import fits
 from astropy.modeling import models
 from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
+from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 from IPython import embed
+from radio_beam import Beam
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
 from RMutils.util_misc import create_frac_spectra
+from scipy.stats import norm
 from tqdm import tqdm, trange
 
 from arrakis.logger import logger
@@ -183,60 +186,43 @@ def rms_1d(data):
     return rms
 
 
-def estimate_noise_annulus(x_center, y_center, cube):
+def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
+    """Background and noise estimation on a cubelet
+
+    Args:
+        cubelet (np.ndarray): 3D array of data
+        header (fits.Header): Header of cubelet
+
+    Returns:
+        Tuple[np.ndarray]: Background and noise per channel
     """
-    Noise estimation for annulus taken around point source. Annulus has fixed
-    inner radius of 10 and outer radius of 31. Function makes an annulus shaped
-    mask, then for each source applies the mask at each frequency and takes the
-    standard deviation.
+    # Get beam and pixel information
+    wcs = WCS(header).celestial
+    pixelscales = max(proj_plane_pixel_scales(wcs)) * u.deg / u.pixel
+    beam = Beam.from_fits_header(header)
+    pix_per_beam = (beam.minor / pixelscales).decompose()
 
-    ​Inputs: Array of sets of pixel coordinates (y-position,x-position) for
-    sources, Stokes cube (assumes 4 axes), array of flagged channels (can be an
-    empty array), number of frequency channels.
-
-    ​Output: 2D array of standard deviation values with shape (length of
-    coordinate array, number of unflagged frequency channels).
-    """
-    cube = np.nan_to_num(cube, nan=0)
-    inner_radius = 10
-    # Set outer radius to cutout edge if default value is too big
-    if min(cube.shape[-2:]) <= 62:
-        outer_radius = min(cube.shape[-2:]) // 2 - 1
-    else:
-        outer_radius = 31
-
-    lenfreq = cube.shape[0]
-    naxis = len(cube.shape)
-    err = np.zeros(lenfreq)
-    # try:
-    y, x = np.ogrid[
-        -1 * outer_radius : outer_radius + 1, -1 * outer_radius : outer_radius + 1
-    ]
-    grid_mask = np.logical_or(
-        x**2 + y**2 < inner_radius**2, x**2 + y**2 > outer_radius**2
+    # Create annulus mask
+    x_grid, y_grid = np.meshgrid(
+        np.arange(cubelet.shape[2]), np.arange(cubelet.shape[1])
     )
-    for i in range(lenfreq):
-        if naxis == 4:
-            grid = cube[
-                i,
-                0,
-                y_center - outer_radius : y_center + outer_radius + 1,
-                x_center - outer_radius : x_center + outer_radius + 1,
-            ]
-        else:  # naxis ==3
-            grid = cube[
-                i,
-                y_center - outer_radius : y_center + outer_radius + 1,
-                x_center - outer_radius : x_center + outer_radius + 1,
-            ]
+    x_grid -= cubelet.shape[2] // 2
+    y_grid -= cubelet.shape[1] // 2
+    r_grid = np.hypot(x_grid, y_grid)
+    mask = (r_grid > 1.5 * pix_per_beam.to(u.pix).value) & (
+        r_grid < 5 * pix_per_beam.to(u.pix).value
+    )
 
-        # Calculate the MADFM, and convert to standard sigma:
-        noisepix = np.ma.masked_array(grid, grid_mask)
-        # if (noisepix == np.nan).any():
-        #    embed
-        err[i] = np.ma.median(np.ma.fabs(noisepix - np.ma.median(noisepix))) / 0.6745
-    err[err == 0] = np.nan
-    return err
+    data_masked = cubelet[:, mask]
+
+    background = np.zeros(cubelet.shape[0]) * np.nan
+    noise = np.zeros(cubelet.shape[0]) * np.nan
+
+    for chan, plane in enumerate(data_masked):
+        plane = plane[np.isfinite(plane)]
+        background[chan], noise[chan] = norm.fit(plane)
+
+    return background, noise
 
 
 @delayed
@@ -395,6 +381,7 @@ def rmsynthoncut1d(
         myquery = {"Gaussian_ID": cname}
         badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
+
     if noStokesI:
         data = [np.array(freq), qarr, uarr, rmsq, rmsu]
     else:
