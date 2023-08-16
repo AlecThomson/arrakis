@@ -52,6 +52,8 @@ class Spectrum(NamedTuple):
     """The background of the spectrum"""
     filename: str
     """The filename associated with the spectrum"""
+    header: fits.Header
+    """The header associated with the spectrum"""
 
 
 class StokesSpectra(NamedTuple):
@@ -68,17 +70,17 @@ class StokesSpectra(NamedTuple):
 class StokesIFitResult(NamedTuple):
     """Data structure for the Stokes I fit results"""
 
-    alpha: float
+    alpha: Optional[float]
     """The alpha parameter of the fit"""
-    amplitude: float
+    amplitude: Optional[float]
     """The amplitude parameter of the fit"""
-    x_0: float
+    x_0: Optional[float]
     """The x_0 parameter of the fit"""
-    model_repr: str
+    model_repr: Optional[str]
     """The model representation of the fit"""
-    modStokesI: np.ndarray
+    modStokesI: Optional[np.ndarray]
     """The model Stokes I spectrum"""
-    fit_dict: dict
+    fit_dict: Optional[dict]
     """The dictionary of the fit results"""
 
 
@@ -289,6 +291,7 @@ def extract_single_spectrum(
         rms=rms,
         bkg=bkg,
         filename=filename,
+        header=header,
     )
 
 
@@ -346,6 +349,7 @@ def sigma_clip_spectra(
             rms=spectrum.rms,
             bkg=spectrum.bkg,
             filename=spectrum.filename,
+            header=spectrum.header,
         )
         filtered_data_list.append(filtered_spectrum)
     return StokesSpectra(*filtered_data_list)
@@ -408,6 +412,52 @@ def fit_stokes_I(
             modStokesI=None,
             fit_dict=None,
         )
+
+
+def update_rmtools_dict(
+    mDict: dict,
+    fit_dict: dict,
+) -> dict:
+    """Update the RM-Tools dictionary with the fit results from the Stokes I fit
+
+    Args:
+        mDict (dict): The RM-Tools dictionary
+        fit_dict (dict): The fit results dictionary
+
+    Returns:
+        dict: The updated RM-Tools dictionary
+    """
+    # Wrangle into format that matches RM-Tools
+    mDict["polyCoeffs"] = ",".join(
+        [
+            # Pad with zeros to length 5
+            str(i)
+            for i in np.pad(
+                fit_dict["best_p"],
+                (0, 5 - len(fit_dict["best_p"])),
+                "constant",
+                constant_values=np.nan,
+            )[::-1]
+        ]
+    )
+    mDict["polyCoefferr"] = ",".join(
+        [
+            str(i)
+            for i in np.pad(
+                fit_dict["best_e"],
+                (0, 5 - len(fit_dict["best_e"])),
+                "constant",
+                constant_values=np.nan,
+            )[::-1]
+        ]
+    )
+    mDict["polyOrd"] = (
+        int(fit_dict["best_n"]) if np.isfinite(fit_dict["best_n"]) else float(np.nan)
+    )
+    mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
+    mDict["IfitChiSqRed"] = float(fit_dict["chi_sq_red"])
+    for key, val in fit_dict["fit_flag"].items():
+        mDict[f"fit_flag_{key}"] = val
 
 
 @delayed
@@ -504,17 +554,19 @@ def rmsynthoncut1d(
         myquery = {"Gaussian_ID": cname}
         badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
-
-    if noStokesI:
-        data = [np.array(freq), qarr, uarr, rmsq, rmsu]
-    else:
-        data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
-
-    if np.isnan(iarr).all():
+    # And I
+    if np.isnan(filtered_stokes_spectra.i.data).all():
         logger.critical(f"{cname} I data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
         badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
+
+    data = [np.array(freq)]
+    for stokes in "iqu":
+        if noStokesI and stokes == "i":
+            continue
+        data.append(filtered_stokes_spectra.__getattribute__(stokes).data)
+        data.append(filtered_stokes_spectra.__getattribute__(stokes).rms)
 
     # Run 1D RM-synthesis on the spectra
     np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
@@ -529,7 +581,7 @@ def rmsynthoncut1d(
             weightType=weightType,
             fitRMSF=fitRMSF,
             noStokesI=noStokesI,
-            modStokesI=modStokesI,
+            modStokesI=stokes_i_fit_result.modStokesI,
             nBits=32,
             saveFigures=savePlots,
             showPlots=showPlots,
@@ -544,7 +596,9 @@ def rmsynthoncut1d(
     if savePlots:
         plt.close("all")
         plotdir = os.path.join(outdir, "plots")
-        plot_files = glob(os.path.join(os.path.dirname(ifile), "*.pdf"))
+        plot_files = glob(
+            os.path.join(os.path.dirname(filtered_stokes_spectra.i.filename), "*.pdf")
+        )
         for src in plot_files:
             base = os.path.basename(src)
             dst = os.path.join(plotdir, base)
@@ -552,39 +606,7 @@ def rmsynthoncut1d(
 
     # Update model values if own fit was used
     if do_own_fit:
-        # Wrangle into format that matches RM-Tools
-        mDict["polyCoeffs"] = ",".join(
-            [
-                # Pad with zeros to length 5
-                str(i)
-                for i in np.pad(
-                    fit_dict["best_p"],
-                    (0, 5 - len(fit_dict["best_p"])),
-                    "constant",
-                    constant_values=np.nan,
-                )[::-1]
-            ]
-        )
-        mDict["polyCoefferr"] = ",".join(
-            [
-                str(i)
-                for i in np.pad(
-                    fit_dict["best_e"],
-                    (0, 5 - len(fit_dict["best_e"])),
-                    "constant",
-                    constant_values=np.nan,
-                )[::-1]
-            ]
-        )
-        mDict["polyOrd"] = (
-            int(fit_dict["best_n"])
-            if np.isfinite(fit_dict["best_n"])
-            else float(np.nan)
-        )
-        mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
-        mDict["IfitChiSqRed"] = float(fit_dict["chi_sq_red"])
-        for key, val in fit_dict["fit_flag"].items():
-            mDict[f"fit_flag_{key}"] = val
+        mDict = update_rmtools_dict(mDict, stokes_i_fit_result.fit_dict)
     else:
         # 0: Improper input parameters (not sure what would trigger this in RM-Tools?)
         # 1-4: One or more of the convergence criteria was met.
@@ -619,12 +641,12 @@ def rmsynthoncut1d(
     myquery = {"Gaussian_ID": cname}
 
     # Prep header
-    head_dict = dict(header)
+    head_dict = dict(filtered_stokes_spectra.i.header)
     head_dict.pop("", None)
     if "COMMENT" in head_dict.keys():
         head_dict["COMMENT"] = str(head_dict["COMMENT"])
 
-    outer_dir = os.path.basename(os.path.dirname(ifile))
+    outer_dir = os.path.basename(os.path.dirname(filtered_stokes_spectra.i.filename))
 
     # Fix for json encoding
 
@@ -642,19 +664,27 @@ def rmsynthoncut1d(
             "rmsynth_summary": mDict,
             "spectra": {
                 "freq": np.array(freq).tolist(),
-                "I_model": modStokesI.tolist() if modStokesI is not None else None,
+                "I_model": stokes_i_fit_result.modStokesI.tolist()
+                if stokes_i_fit_result.modStokesI is not None
+                else None,
                 "I_model_params": {
-                    "alpha": float(alpha) if alpha is not None else None,
-                    "amplitude": float(amplitude) if amplitude is not None else None,
-                    "x_0": float(x_0) if x_0 is not None else None,
-                    "model_repr": model_repr,
+                    "alpha": float(stokes_i_fit_result.alpha)
+                    if stokes_i_fit_result.alpha is not None
+                    else None,
+                    "amplitude": float(stokes_i_fit_result.amplitude)
+                    if stokes_i_fit_result.amplitude is not None
+                    else None,
+                    "x_0": float(stokes_i_fit_result.x_0)
+                    if stokes_i_fit_result.x_0 is not None
+                    else None,
+                    "model_repr": stokes_i_fit_resultmodel_repr,
                 },
-                "I": iarr.tolist(),
-                "Q": qarr.tolist(),
-                "U": uarr.tolist(),
-                "I_err": rmsi.tolist(),
-                "Q_err": rmsq.tolist(),
-                "U_err": rmsu.tolist(),
+                "I": filtered_stokes_spectra.i.data.tolist(),
+                "Q": filtered_stokes_spectra.q.data.tolist(),
+                "U": filtered_stokes_spectra.u.data.tolist(),
+                "I_err": filtered_stokes_spectra.i.rms.tolist(),
+                "Q_err": filtered_stokes_spectra.q.rms.tolist(),
+                "U_err": filtered_stokes_spectra.u.rms.tolist(),
             },
         }
     }
