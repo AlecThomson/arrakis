@@ -279,7 +279,7 @@ def extract_single_spectrum(
     rms[np.isnan(rms)] = np.nanmedian(rms)
     wcs = WCS(header)
     x, y = np.array(wcs.celestial.world_to_pixel(coord)).round().astype(int)
-    spectrum_arr = data[:, y, x]
+    spectrum_arr = np.array(data[:, y, x])
     spectrum_arr[spectrum_arr == 0] = np.nan
     # Do background subtraction
     spectrum_arr -= bkg
