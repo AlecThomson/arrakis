@@ -62,11 +62,11 @@ class StokesSpectra(Struct):
     """Multi Stokes spectra"""
 
     i: Spectrum
-    """The I spectrum"""
+    """The Stokes I spectrum"""
     q: Spectrum
-    """The Q spectrum"""
+    """The Stokes Q spectrum"""
     u: Spectrum
-    """The U spectrum"""
+    """The Stokes U spectrum"""
 
 
 class StokesIFitResult(Struct):
