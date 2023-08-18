@@ -9,7 +9,9 @@ import pickle
 from glob import glob
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, Dict, List
+from typing import NamedTuple as Struct
+from typing import Optional, Tuple, Union
 
 import astropy.units as u
 import numpy as np
@@ -20,9 +22,9 @@ from astropy.table import Table
 from astropy.wcs import WCS
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
+from fitscube import combine_fits
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
-from fitscube import combine_fits
 from prefect import flow, get_run_logger, task
 from racs_tools import beamcon_2D
 from radio_beam import Beam
@@ -39,13 +41,17 @@ from arrakis.utils.msutils import (
 from arrakis.utils.pipeline import logo_str
 
 
-class ImageSet(NamedTuple):
+class ImageSet(Struct):
     """Container to organise files related to t he imaging of a measurement set."""
 
     ms: Path
+    """Path to the measurement set that was imaged."""
     prefix: str
+    """Prefix used for the wsclean output files."""
     image_lists: Dict[str, List[str]]
+    """Dictionary of lists of images. The keys are the polarisations and the values are the list of images for that polarisation."""
     aux_lists: Optional[Dict[Tuple[str, str], List[str]]] = None
+    """Dictionary of lists of auxillary images. The keys are a tuple of the polarisation and the image type, and the values are the list of images for that polarisation and image type."""
 
 
 def get_wsclean(wsclean: Union[Path, str]) -> Path:
@@ -336,10 +342,7 @@ def make_cube(
     image_type = "restored" if aux_mode is None else aux_mode
 
     # First combine images into cubes
-    hdu_list, freqs = combine_fits(
-        file_list=image_list,
-        create_blanks=True
-    )
+    hdu_list, freqs = combine_fits(file_list=image_list, create_blanks=True)
     new_header = hdu_list[0].header
     data_cube = hdu_list[0].data
 
@@ -356,7 +359,7 @@ def make_cube(
     data_cube = np.moveaxis(data_cube, 1, 0)
 
     # Calculate rms noise
-    rmss_arr = mad_std(data_cube, axis=(1,2,3), ignore_nan=True)
+    rmss_arr = mad_std(data_cube, axis=(1, 2, 3), ignore_nan=True)
 
     # Create a cube name
     old_name = image_list[0]

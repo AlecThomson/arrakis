@@ -8,7 +8,9 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List, NamedTuple, Optional, Tuple, Union
+from typing import List
+from typing import NamedTuple as Struct
+from typing import Optional, Tuple, Union
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -41,8 +43,8 @@ from arrakis.utils.pipeline import chunk_dask, logo_str
 logger.setLevel(logging.INFO)
 
 
-class Spectrum(NamedTuple):
-    """Data structure for a single spectrum"""
+class Spectrum(Struct):
+    """Single spectrum"""
 
     data: np.ndarray
     """The spectrum data"""
@@ -56,8 +58,8 @@ class Spectrum(NamedTuple):
     """The header associated with the spectrum"""
 
 
-class StokesSpectra(NamedTuple):
-    """Data structure for multi single Stokes spectra"""
+class StokesSpectra(Struct):
+    """Multi Stokes spectra"""
 
     i: Spectrum
     """The I spectrum"""
@@ -67,8 +69,8 @@ class StokesSpectra(NamedTuple):
     """The U spectrum"""
 
 
-class StokesIFitResult(NamedTuple):
-    """Data structure for the Stokes I fit results"""
+class StokesIFitResult(Struct):
+    """Stokes I fit results"""
 
     alpha: Optional[float]
     """The alpha parameter of the fit"""
@@ -240,12 +242,11 @@ def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
     mask = (r_grid > 1.5 * pix_per_beam.to(u.pix).value) & (
         r_grid < 5 * pix_per_beam.to(u.pix).value
     )
-
     data_masked = cubelet[:, mask]
 
+    # Fit background and noise for each channel
     background = np.zeros(cubelet.shape[0]) * np.nan
     noise = np.zeros(cubelet.shape[0]) * np.nan
-
     for chan, plane in enumerate(data_masked):
         plane = plane[np.isfinite(plane)]
         if len(plane) == 0:
