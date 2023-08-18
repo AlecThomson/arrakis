@@ -272,7 +272,7 @@ def extract_single_spectrum(
     filename = os.path.join(outdir, field_dict[key])
     with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
         hdu = hdulist[0]
-        data = np.squeeze(hdu.cleardata)
+        data = np.squeeze(hdu.data)
         header = hdu.header
 
     bkg, rms = cubelet_bane(data, header)
