@@ -559,14 +559,17 @@ def rmsynthoncut1d(
         return pymongo.UpdateOne(myquery, badvalues)
 
     data = [np.array(freq)]
+    bkg_data = [np.array(freq)]
     for stokes in "iqu":
         if noStokesI and stokes == "i":
             continue
         data.append(filtered_stokes_spectra.__getattribute__(stokes).data)
         data.append(filtered_stokes_spectra.__getattribute__(stokes).rms)
+        bkg_data.append(filtered_stokes_spectra.__getattribute__(stokes).bkg)
 
     # Run 1D RM-synthesis on the spectra
     np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
+    np.savetxt(f"{prefix}_bkg.dat", np.vstack(bkg_data).T, delimiter=" ")
     try:
         logger.info(f"Using {fit_function} to fit Stokes I")
         mDict, aDict = do_RMsynth_1D.run_rmsynth(
@@ -682,6 +685,9 @@ def rmsynthoncut1d(
                 "I_err": filtered_stokes_spectra.i.rms.tolist(),
                 "Q_err": filtered_stokes_spectra.q.rms.tolist(),
                 "U_err": filtered_stokes_spectra.u.rms.tolist(),
+                "I_bkg": filtered_stokes_spectra.i.bkg.tolist(),
+                "Q_bkg": filtered_stokes_spectra.q.bkg.tolist(),
+                "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
             },
         }
     }
