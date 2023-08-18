@@ -113,6 +113,7 @@ def process_spice(args, host: str) -> None:
                 ionex_server=args.ionex_server,
                 ionex_proxy_server=args.ionex_proxy_server,
                 ionex_formatter=args.ionex_formatter,
+                ionex_predownload=args.ionex_predownload,
                 wait_for=[previous_future],
             )
             if not args.skip_frion
@@ -710,6 +711,11 @@ def cli():
         type=str,
         default=None,
         help="IONEX formatter [None].",
+    )
+    tools.add_argument(
+        "--ionex_predownload",
+        action="store_true",
+        help="Pre-download IONEX files [False].",
     )
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args
