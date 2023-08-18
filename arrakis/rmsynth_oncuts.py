@@ -299,7 +299,7 @@ def extract_all_spectra(
     outdir: str,
 ) -> StokesSpectra:
     """Extract spectra from cubelets"""
-    StokesSpectra(
+    return StokesSpectra(
         *[
             extract_single_spectrum(
                 coord=coord,
