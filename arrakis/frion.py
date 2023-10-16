@@ -4,9 +4,10 @@ import logging
 import os
 import time
 from glob import glob
+from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import astropy.units as u
 import dask
@@ -18,7 +19,12 @@ from dask.distributed import Client, LocalCluster, progress, wait
 from FRion import correct, predict
 
 from arrakis.logger import logger
-from arrakis.utils import get_db, get_field_db, getfreq, test_db, tqdm_dask, try_mkdir
+from arrakis.utils.database import get_db, get_field_db, test_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import logo_str, tqdm_dask
+
+logger.setLevel(logging.INFO)
 
 
 @delayed
@@ -71,6 +77,11 @@ def predict_worker(
     freq: np.ndarray,
     cutdir: str,
     plotdir: str,
+    server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    prefix: str = "",
+    formatter: Optional[Union[str, Callable]] = None,
+    proxy_server: Optional[str] = None,
+    pre_download: bool = False,
 ) -> Tuple[str, pymongo.UpdateOne]:
     """Make FRion prediction for a single island
 
@@ -87,11 +98,22 @@ def predict_worker(
     Returns:
         Tuple[str, pymongo.UpdateOne]: FRion prediction file and pymongo update query
     """
+    logger.setLevel(logging.INFO)
+
     ifile = os.path.join(cutdir, beam["beams"][field]["i_file"])
     i_dir = os.path.dirname(ifile)
     iname = island["Source_ID"]
     ra = island["RA"]
     dec = island["Dec"]
+
+    # Tricking the ionex lookup to use the a custom server
+    proxy_args = {
+        "proxy_type": None,
+        "proxy_port": None,
+        "proxy_user": None,
+        "proxy_pass": None,
+    }
+    logger.info(f"Set up empty Proxy structure.")
 
     times, RMs, theta = predict.calculate_modulation(
         start_time=start_time.fits,
@@ -102,6 +124,13 @@ def predict_worker(
         dec=dec,
         timestep=300.0,
         ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
+        server=server,
+        proxy_server=proxy_server,
+        use_proxy=True,  # Always use proxy - forces urllib
+        prefix=prefix,
+        formatter=formatter,
+        pre_download=pre_download,
+        **proxy_args,
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
     predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
@@ -111,6 +140,7 @@ def predict_worker(
         times, RMs, theta, freq, position=[ra, dec], savename=plot_file
     )
     plot_files = glob(os.path.join(i_dir, "*ion.pdf"))
+    logger.info(f"Plotting files: {plot_files=}")
     for src in plot_files:
         base = os.path.basename(src)
         dst = os.path.join(plotdir, base)
@@ -138,13 +168,18 @@ def predict_worker(
 
 def main(
     field: str,
-    outdir: str,
+    outdir: Path,
     host: str,
-    client: Client,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    epoch: int,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     database=False,
     verbose=True,
+    ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
+    ionex_prefix: str = "codg",
+    ionex_proxy_server: Optional[str] = None,
+    ionex_formatter: Optional[Union[str, Callable]] = "ftp.aiub.unibe.ch",
+    ionex_predownload: bool = False,
 ):
     """Main script
 
@@ -152,11 +187,13 @@ def main(
         field (str): RACS field name
         outdir (str): Output directory
         host (str): MongoDB host IP address
-        client (Client): Dask distributed client
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo passwrod. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
         verbose (bool, optional): Verbose output. Defaults to True.
+        ionex_server (str, optional): IONEX server. Defaults to "ftp://ftp.aiub.unibe.ch/CODE/".
+        ionex_proxy_server (str, optional): Proxy server. Defaults to None.
+        ionex_formatter (Union[str, Callable], optional): IONEX formatter. Defaults to "ftp.aiub.unibe.ch".
     """
     # Query database for data
     outdir = os.path.abspath(outdir)
@@ -166,12 +203,10 @@ def main(
     try_mkdir(plotdir)
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
-    query_1 = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
-    }
+    query_1 = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     beams = list(beams_col.find(query_1).sort("Source_ID"))
     island_ids = sorted(beams_col.distinct("Source_ID", query_1))
@@ -180,17 +215,23 @@ def main(
     query_2 = {"Source_ID": {"$in": island_ids}}
     islands = list(island_col.find(query_2).sort("Source_ID"))
 
-    field_col = get_field_db(host, username=username, password=password)
-    query_3 = {"FIELD_NAME": f"RACS_{field}"}
+    field_col = get_field_db(
+        host=host, epoch=epoch, username=username, password=password
+    )
+    query_3 = {"FIELD_NAME": f"{field}"}
+    logger.info(f"{query_3}")
+
     # Get most recent SBID
     if field_col.count_documents(query_3) > 1:
-        field_datas = list(field_col.find({"FIELD_NAME": f"RACS_{field}"}))
+        field_datas = list(field_col.find({"FIELD_NAME": f"{field}"}))
         sbids = [f["CAL_SBID"] for f in field_datas]
         max_idx = np.argmax(sbids)
         logger.info(f"Using CAL_SBID {sbids[max_idx]}")
         field_data = field_datas[max_idx]
     else:
-        field_data = field_col.find_one({"FIELD_NAME": f"RACS_{field}"})
+        field_data = field_col.find_one({"FIELD_NAME": f"{field}"})
+
+    logger.info(f"{field_data=}")
 
     start_time = Time(field_data["SCAN_START"] * u.second, format="mjd")
     end_time = start_time + TimeDelta(field_data["SCAN_TINT"] * u.second)
@@ -216,6 +257,11 @@ def main(
             freq=freq.to(u.Hz).value,
             cutdir=cutdir,
             plotdir=plotdir,
+            server=ionex_server,
+            prefix=ionex_prefix,
+            proxy_server=ionex_proxy_server,
+            formatter=ionex_formatter,
+            pre_download=ionex_predownload,
         )
         updates_arrays.append(update)
         # Apply FRion predictions
@@ -263,23 +309,8 @@ def cli():
     warnings.simplefilter("ignore", category=VerifyWarning)
     warnings.simplefilter("ignore", category=RuntimeWarning)
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
-    # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis Stage:
     Correct for ionospheric Faraday rotation
 
@@ -287,7 +318,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
@@ -295,7 +326,7 @@ def cli():
     parser.add_argument(
         "outdir",
         metavar="outdir",
-        type=str,
+        type=Path,
         help="Directory containing cutouts (in subdir outdir/cutouts).",
     )
 
@@ -304,6 +335,14 @@ def cli():
         metavar="host",
         type=str,
         help="Host of mongodb (probably $hostname -i).",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
     )
 
     parser.add_argument(
@@ -316,6 +355,44 @@ def cli():
 
     parser.add_argument(
         "-m", "--database", action="store_true", help="Add data to MongoDB [False]."
+    )
+
+    parser.add_argument(
+        "-s",
+        "--ionex_server",
+        type=str,
+        default="ftp://ftp.aiub.unibe.ch/CODE/",
+        help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
+    )
+
+    parser.add_argument(
+        "-x",
+        "--ionex_prefix",
+        type=str,
+        default="codg",
+    )
+
+    parser.add_argument(
+        "-f",
+        "--ionex_formatter",
+        type=str,
+        default="ftp.aiub.unibe.ch",
+        help="IONEX formatter.",
+    )
+
+    parser.add_argument(
+        "-p",
+        "--ionex_proxy_server",
+        type=str,
+        default=None,
+        help="Proxy server [None].",
+    )
+
+    parser.add_argument(
+        "-d",
+        "--ionex_predownload",
+        action="store_true",
+        help="Pre-download IONEX files [False].",
     )
 
     parser.add_argument(
@@ -334,19 +411,22 @@ def cli():
     client = Client(cluster)
     logger.info(client)
 
-    test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
-    )
+    test_db(host=args.host, username=args.username, password=args.password)
 
     main(
         field=args.field,
-        outdir=args.outdir,
+        outdir=Path(args.outdir),
         host=args.host,
-        client=client,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         database=args.database,
         verbose=verbose,
+        ionex_server=args.ionex_server,
+        ionex_proxy_server=args.ionex_proxy_server,
+        ionex_formatter=args.ionex_formatter,
+        ionex_prefix=args.ionex_prefix,
+        ionex_predownload=args.ionex_predownload,
     )
 
 

@@ -12,14 +12,14 @@ from astropy.wcs import WCS
 from tqdm.auto import tqdm, trange
 
 from arrakis.logger import logger, logging
-from arrakis.utils import MyEncoder, get_db, getdata
+from arrakis.utils.database import get_db
+from arrakis.utils.fitsutils import getdata
+from arrakis.utils.json import MyEncoder
 
 
 def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     # myquery = {'rmsynth1d': True}
-    query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
-    }
+    query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     beams = list(beams_col.find(query).sort("Source_ID"))
     island_ids = sorted(beams_col.distinct("Source_ID", query))
@@ -271,7 +271,7 @@ def cli():
     """
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."

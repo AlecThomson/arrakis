@@ -1,54 +1,35 @@
 #!/usr/bin/env python
 """Produce cutouts from RACS cubes"""
 import argparse
-import functools
-import json
 import logging
 import os
-import shlex
-import subprocess
-import sys
-import time
 import warnings
-from functools import partial
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 import astropy.units as u
-import dask
-import matplotlib.pyplot as plt
 import numpy as np
-import psutil
 import pymongo
 from astropy import units as u
-from astropy.coordinates import Latitude, Longitude, SkyCoord, search_around_sky
+from astropy.coordinates import Latitude, Longitude, SkyCoord
 from astropy.io import fits
-from astropy.table import Table, vstack
 from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
-from astropy.wcs import WCS
 from astropy.wcs.utils import skycoord_to_pixel
 from dask import delayed
-from dask.diagnostics import ProgressBar
 from dask.distributed import Client, LocalCluster, progress
+from distributed import get_client
 from IPython import embed
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
-from tqdm import tqdm, trange
 
 from arrakis.logger import logger
-from arrakis.utils import (
-    MyEncoder,
-    chunk_dask,
-    fix_header,
-    get_db,
-    getdata,
-    test_db,
-    tqdm_dask,
-    try_mkdir,
-)
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.fitsutils import fix_header
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import chunk_dask, logo_str, tqdm_dask
 
 iers.conf.auto_download = False
 warnings.filterwarnings(
@@ -58,6 +39,8 @@ warnings.filterwarnings(
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
+
+logger.setLevel(logging.INFO)
 
 
 @delayed
@@ -96,6 +79,12 @@ def cutout(
     Returns:
         pymongo.UpdateOne: Update query for MongoDB
     """
+    logger.setLevel(logging.INFO)
+    # logger = logging.getLogger('distributed.worker')
+    # logger = get_run_logger()
+
+    logger.info(f"Timwashere - {image=}")
+
     outdir = os.path.abspath(outdir)
 
     ret = []
@@ -105,11 +94,11 @@ def cutout(
         outfile = os.path.join(outdir, outname)
 
         if imtype == "weight":
-            image = image.replace("image.restored", "weights").replace(
-                ".conv.fits", ".txt"
+            image = image.replace("image.restored", "weights.restored").replace(
+                ".fits", ".txt"
             )
-            outfile = outfile.replace("image.restored", "weights").replace(
-                ".conv.fits", ".txt"
+            outfile = outfile.replace("image.restored", "weights.restored").replace(
+                ".fits", ".txt"
             )
             copyfile(image, outfile)
             logger.info(f"Written to {outfile}")
@@ -211,6 +200,8 @@ def get_args(
         List[Dict]: List of cutout arguments for cutout function
     """
 
+    logger.setLevel(logging.INFO)
+
     assert island["Source_ID"] == island_id
     assert beam["Source_ID"] == island_id
 
@@ -264,6 +255,11 @@ def get_args(
             images = glob(wild)
             if len(images) == 0:
                 raise Exception(f"No images found matching '{wild}'")
+            elif len(images) > 1:
+                raise Exception(
+                    f"More than one image found matching '{wild}'. Files {images=}"
+                )
+
             for image in images:
                 args.extend(
                     [
@@ -319,7 +315,7 @@ def cutout_islands(
     field: str,
     directory: str,
     host: str,
-    client: Client,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     pad: float = 3,
@@ -344,18 +340,24 @@ def cutout_islands(
     """
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
+    client = get_client()
     logger.debug(f"Client is {client}")
     directory = os.path.abspath(directory)
     outdir = os.path.join(directory, "cutouts")
 
+    logger.info("Testing database. ")
+    test_db(
+        host=host,
+        username=username,
+        password=password,
+    )
+
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     # Query the DB
-    query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
-    }
+    query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
     beams = list(beams_col.find(query).sort("Source_ID"))
 
@@ -420,7 +422,6 @@ def cutout_islands(
 
     futures = chunk_dask(
         outputs=cuts,
-        client=client,
         task_name="cutouts",
         progress_text="Cutting out",
     )
@@ -441,16 +442,11 @@ def main(args: argparse.Namespace, verbose=True) -> None:
         args (argparse.Namespace): Command-line args
         verbose (bool, optional): Verbose output. Defaults to True.
     """
-    cluster = LocalCluster(
-        n_workers=12, threads_per_worker=1, dashboard_address=":9898"
-    )
-    client = Client(cluster)
-    logger.info(client)
     cutout_islands(
         field=args.field,
         directory=args.datadir,
         host=args.host,
-        client=client,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         pad=args.pad,
@@ -462,25 +458,10 @@ def main(args: argparse.Namespace, verbose=True) -> None:
     logger.info("Done!")
 
 
-def cli() -> None:
-    """Command-line interface"""
-    # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
+def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
-    {logostr}
+    {logo_str}
+
     Arrakis Stage 1:
     Produce cubelets from a RACS field using a Selavy table.
     If Stokes V is present, it will be squished into RMS spectra.
@@ -491,9 +472,13 @@ def cli() -> None:
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+    cut_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser = cut_parser.add_argument_group("cutout arguments")
+
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
     )
@@ -510,6 +495,14 @@ def cli() -> None:
         metavar="host",
         type=str,
         help="Host of mongodb (probably $hostname -i).",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
     )
 
     parser.add_argument(
@@ -550,11 +543,24 @@ def cli() -> None:
         help="List of Stokes parameters to image [ALL]",
     )
 
+    return cut_parser
+
+
+def cli() -> None:
+    """Command-line interface"""
+    parser = cutout_parser()
+
     args = parser.parse_args()
 
     verbose = args.verbose
     if verbose:
         logger.setLevel(logging.INFO)
+
+    cluster = LocalCluster(
+        n_workers=12, threads_per_worker=1, dashboard_address=":9898"
+    )
+    client = Client(cluster)
+    logger.info(client)
 
     test_db(
         host=args.host,

@@ -1,123 +1,137 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
-import ast
+import hashlib
 import logging
 import os
 import shlex
-import subprocess
-import sys
-import time
 import warnings
 from glob import glob
-from logging import disable
 from pathlib import Path
 from pprint import pformat
-from typing import List, Tuple, Union
+from time import time
+from typing import Dict, List, Optional, Tuple, Union
 
-import astropy
 import astropy.units as u
-import dask
 import numpy as np
-import pkg_resources
 import pymongo
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
-from dask import delayed, distributed
-from dask.diagnostics import ProgressBar
+from dask import delayed
 from dask.distributed import Client, LocalCluster
 from IPython import embed
+from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
 from arrakis.logger import logger
-from arrakis.utils import chunk_dask, coord_to_string, get_db, test_db, tqdm_dask
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.pipeline import chunk_dask
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
-
-@delayed
-def gen_seps(field: str, survey_dir: Path, epoch: int = 0) -> Table:
-    """Get separation table for a given RACS field
-
-    Args:
-        field (str): RACS field name.
-
-    Returns:
-        Table: Table of separation for each beam.
-    """
-    offset_file = pkg_resources.resource_filename(
-        "arrakis", f"racs_epoch_{epoch}_offsets.csv"
-    )
-    offsets = Table.read(offset_file)
-    offsets.add_index("Beam")
-
-    field_path = survey_dir / "db" / f"epoch_{epoch}" / "field_data.csv"
-    master_cat = Table.read(field_path)
-    master_cat.add_index("FIELD_NAME")
-    master_cat = master_cat.loc[f"RACS_{field}"]
-    if type(master_cat) is not astropy.table.row.Row:
-        master_cat = master_cat[0]
-
-    # Look for multiple SBIDs - only need one
-    cats = list(
-        (survey_dir / "db" / f"epoch_{epoch}").glob(f"beam_inf_*-RACS_{field}.csv")
-    )
-    beam_cat = Table.read(cats[0])
-    beam_cat.add_index("BEAM_NUM")
-
-    names = [
-        "BEAM",
-        "DELTA_RA",
-        "DELTA_DEC",
-        "BEAM_RA",
-        "BEAM_DEC",
-        "FOOTPRINT_RA",
-        "FOOTPRINT_DEC",
-    ]
-
-    cols = []
-    for beam in range(36):
-        beam = int(beam)
-
-        beam_dat = beam_cat.loc[beam]
-        beam_coord = SkyCoord(beam_dat["RA_DEG"] * u.deg, beam_dat["DEC_DEG"] * u.deg)
-        field_coord = SkyCoord(
-            master_cat["RA_DEG"] * u.deg, master_cat["DEC_DEG"] * u.deg
-        )
-
-        beam_ra_str, beam_dec_str = coord_to_string(beam_coord)
-        field_ra_str, field_dec_str = coord_to_string(field_coord)
-
-        row = [
-            beam,
-            f"{offsets.loc[beam]['RA']:0.3f}",
-            f"{offsets.loc[beam]['Dec']:0.3f}",
-            beam_ra_str,
-            beam_dec_str,
-            field_ra_str,
-            field_dec_str,
-        ]
-        cols += [row]
-    tab = Table(
-        data=np.array(cols), names=names, dtype=[int, str, str, str, str, str, str]
-    )
-    tab.add_index("BEAM")
-    return tab
+logger.setLevel(logging.INFO)
 
 
-@delayed
-def genparset(
+@delayed(nout=2)
+def find_images(
     field: str,
     src_name: str,
     beams: dict,
     stoke: str,
-    datadir: str,
-    septab: Table,
-    holofile: Union[str, None] = None,
+    datadir: Path,
+) -> Tuple[List[Path], List[Path]]:
+    """Find the images and weights for a given field and stokes parameter
+
+    Args:
+        field (str): Field name.
+        src_name (str): Source name.
+        beams (dict): Beam information.
+        stoke (str): Stokes parameter.
+        datadir (Path): Data directory.
+
+    Raises:
+        Exception: If no files are found.
+
+    Returns:
+        Tuple[List[Path], List[Path]]: List of images and weights.
+    """
+    logger.setLevel(logging.INFO)
+    field_beams = beams["beams"][field]
+
+    # First check that the images exist
+    image_list: List[Path] = []
+    for bm in list(set(field_beams["beam_list"])):  # Ensure list of beams is unique!
+        imfile = Path(field_beams[f"{stoke.lower()}_beam{bm}_image_file"])
+        assert imfile.parent.name == src_name, "Looking in wrong directory!"
+        new_imfile = datadir.resolve() / imfile
+        image_list.append(new_imfile)
+    image_list = sorted(image_list)
+
+    if len(image_list) == 0:
+        raise Exception("No files found. Have you run imaging? Check your prefix?")
+
+    weight_list: List[Path] = []
+    for bm in list(set(field_beams["beam_list"])):  # Ensure list of beams is unique!
+        wgtsfile = Path(field_beams[f"{stoke.lower()}_beam{bm}_weight_file"])
+        assert wgtsfile.parent.name == src_name, "Looking in wrong directory!"
+        new_wgtsfile = datadir.resolve() / wgtsfile
+        weight_list.append(new_wgtsfile)
+    weight_list = sorted(weight_list)
+
+    assert len(image_list) == len(weight_list), "Unequal number of weights and images"
+
+    for im, wt in zip(image_list, weight_list):
+        assert (
+            im.parent.name == wt.parent.name
+        ), "Image and weight are in different areas!"
+
+    return image_list, weight_list
+
+
+@delayed
+def smooth_images(
+    image_dict: Dict[str, List[Path]],
+) -> Dict[str, List[Path]]:
+    """Smooth cubelets to a common resolution
+
+    Args:
+        image_list (List[Path]): List of cubelets to smooth.
+
+    Returns:
+        List[Path]: Smoothed cubelets.
+    """
+    smooth_dict: Dict[str, List[Path]] = {}
+    for stoke, image_list in image_dict.items():
+        infiles: List[str] = []
+        for im in image_list:
+            if im.suffix == ".fits":
+                infiles.append(im.resolve().as_posix())
+        datadict = beamcon_3D.main(
+            infile=[im.resolve().as_posix() for im in image_list],
+            uselogs=False,
+            mode="total",
+            conv_mode="robust",
+            suffix="cres",
+        )
+        smooth_files: List[Path] = []
+        for key, val in datadict.items():
+            smooth_files.append(Path(val["outfile"]))
+        smooth_dict[stoke] = smooth_files
+
+    return smooth_dict
+
+
+@delayed
+def genparset(
+    image_list: List[Path],
+    weight_list: List[Path],
+    stoke: str,
+    datadir: Path,
+    holofile: Optional[Path] = None,
 ) -> str:
     """Generate parset for LINMOS
 
@@ -127,7 +141,6 @@ def genparset(
         beams (dict): Mongo entry for RACS beams.
         stoke (str): Stokes parameter.
         datadir (str): Data directory.
-        septab (Table): Table of separations.
         holofile (str): Full path to holography file.
 
     Raises:
@@ -136,50 +149,28 @@ def genparset(
     Returns:
         str: Path to parset file.
     """
-    beams = beams["beams"][field]
-    ims = []
-    for bm in list(set(beams["beam_list"])):  # Ensure list of beams is unique!
-        imfile = beams[f"{stoke.lower()}_beam{bm}_image_file"]
-        assert (
-            os.path.basename(os.path.dirname(imfile)) == src_name
-        ), "Looking in wrong directory!"
-        imfile = os.path.join(os.path.abspath(datadir), imfile)
-        ims.append(imfile)
-    ims = sorted(ims)
+    logger.setLevel(logging.INFO)
 
-    if len(ims) == 0:
-        raise Exception("No files found. Have you run imaging? Check your prefix?")
-    imlist = "[" + ",".join([im.replace(".fits", "") for im in ims]) + "]"
-
-    wgts = []
-    for bm in list(set(beams["beam_list"])):  # Ensure list of beams is unique!
-        wgtsfile = beams[f"{stoke.lower()}_beam{bm}_weight_file"]
-        assert (
-            os.path.basename(os.path.dirname(wgtsfile)) == src_name
-        ), "Looking in wrong directory!"
-        wgtsfile = os.path.join(os.path.abspath(datadir), wgtsfile)
-        wgts.append(wgtsfile)
-    wgts = sorted(wgts)
-
-    assert len(ims) == len(wgts), "Unequal number of weights and images"
-
-    for im, wt in zip(ims, wgts):
-        assert os.path.basename(os.path.dirname(im)) == os.path.basename(
-            os.path.dirname(wt)
-        ), "Image and weight are in different areas!"
-
-    weightlist = "[" + ",".join([wgt.replace(".fits", "") for wgt in wgts]) + "]"
-
-    parset_dir = os.path.join(
-        os.path.abspath(datadir), os.path.basename(os.path.dirname(ims[0]))
+    image_string = (
+        f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_list])}]"
+    )
+    weight_string = (
+        f"[{','.join([im.resolve().with_suffix('').as_posix() for im in weight_list])}]"
     )
 
+    parset_dir = datadir.resolve() / image_list[0].parent.name
+
+    first_image = image_list[0].resolve().with_suffix("").as_posix()
+    first_weight = weight_list[0].resolve().with_suffix("").as_posix()
+    linmos_image_str = f"{first_image[:first_image.find('beam')]}linmos"
+    linmos_weight_str = f"{first_weight[:first_weight.find('beam')]}linmos"
+
     parset_file = os.path.join(parset_dir, f"linmos_{stoke}.in")
-    parset = f"""linmos.names            = {imlist}
-linmos.weights          = {weightlist}
+    parset = f"""linmos.names            = {image_string}
+linmos.weights          = {weight_string}
 linmos.imagetype        = fits
-linmos.outname          = {ims[0][:ims[0].find('beam')]}linmos
-linmos.outweight        = {wgts[0][:wgts[0].find('beam')]}linmos
+linmos.outname          = {linmos_image_str}
+linmos.outweight        = {linmos_weight_str}
 # For ASKAPsoft>1.3.0
 linmos.useweightslog    = true
 linmos.weighttype       = Combined
@@ -191,7 +182,7 @@ linmos.weightstate      = Inherent
 
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
-linmos.primarybeam.ASKAP_PB.image = {holofile}
+linmos.primarybeam.ASKAP_PB.image = {holofile.resolve().as_posix()}
 linmos.removeleakage    = true
 """
     else:
@@ -204,13 +195,16 @@ linmos.removeleakage    = true
 
 
 @delayed
-def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.UpdateOne:
+def linmos(
+    parset: str, fieldname: str, image: str, holofile: Path
+) -> pymongo.UpdateOne:
     """Run linmos
 
     Args:
         parset (str): Path to parset file.
         fieldname (str): Name of RACS field.
         image (str): Name of Yandasoft image.
+        holofile (Union[Path,str]): Path to the holography file to include in the bind list.
         verbose (bool, optional): Verbose output. Defaults to False.
 
     Raises:
@@ -220,6 +214,7 @@ def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.Up
     Returns:
         pymongo.UpdateOne: Mongo update object.
     """
+    logger.setLevel(logging.INFO)
 
     workdir = os.path.dirname(parset)
     rootdir = os.path.split(workdir)[0]
@@ -229,10 +224,13 @@ def linmos(parset: str, fieldname: str, image: str, verbose=False) -> pymongo.Up
     stoke = parset_name[parset_name.find(".in") - 1]
     log_file = parset.replace(".in", ".log")
     linmos_command = shlex.split(f"linmos -c {parset}")
+
+    holo_folder = holofile.parent
+
     output = sclient.execute(
         image=image,
         command=linmos_command,
-        bind=f"{rootdir}:{rootdir}",
+        bind=f"{rootdir}:{rootdir},{holo_folder}:{holo_folder}",
         return_result=True,
     )
 
@@ -278,15 +276,14 @@ def get_yanda(version="1.3.0") -> str:
 
 def main(
     field: str,
-    datadir: str,
-    survey_dir: Path,
-    client: Client,
+    datadir: Path,
     host: str,
-    epoch: int = 0,
-    holofile: Union[str, None] = None,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
-    yanda="1.3.0",
+    epoch: int,
+    holofile: Optional[Path] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    yanda: str = "1.3.0",
+    yanda_img: Optional[Path] = None,
     stokeslist: Union[List[str], None] = None,
     verbose=True,
 ) -> None:
@@ -295,45 +292,33 @@ def main(
     Args:
         field (str): RACS field name.
         datadir (str): Data directory.
-        client (Client): Dask client.
         host (str): MongoDB host IP.
         holofile (str): Path to primary beam file.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
         yanda (str, optional): Yandasoft version. Defaults to "1.3.0".
+        yanda_img (Path, optional): Path to a yandasoft singularirt image. If `None`, the container version `yanda` will be downloaded. Defaults to None.
         stokeslist (List[str], optional): Stokes parameters to process. Defaults to None.
         verbose (bool, optional): Verbose output. Defaults to True.
     """
     # Setup singularity image
-    image = get_yanda(version=yanda)
-    # image = sclient.pull()
+    image = get_yanda(version=yanda) if yanda_img is None else yanda_img
 
-    # Use ASKAPcli to get beam separations for PB correction
+    logger.info(f"The yandasoft image is {image=}")
 
-    beamseps = gen_seps(
-        field=field,
-        survey_dir=survey_dir,
-        epoch=epoch,
-    )
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
-    if datadir is not None:
-        datadir = os.path.abspath(datadir)
-
-    cutdir = os.path.abspath(os.path.join(datadir, "cutouts"))
-
-    if holofile is not None:
-        holofile = os.path.abspath(holofile)
+    cutdir = datadir / "cutouts"
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
     logger.debug(f"{beams_col = }")
     # Query the DB
-    query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
-    }
+    query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+
+    logger.info(f"The query is {query=}")
 
     island_ids = sorted(beams_col.distinct("Source_ID", query))
     big_beams = list(
@@ -360,25 +345,36 @@ def main(
             warnings.warn(f"Skipping island {src} -- no components found")
             continue
         else:
+            image_dict: Dict[str, List[Path]] = {}
+            weight_dict: Dict[str, List[Path]] = {}
             for stoke in stokeslist:
-                parfile = genparset(
+                image_list, weight_list = find_images(
                     field=field,
                     src_name=src,
                     beams=beams,
                     stoke=stoke.capitalize(),
                     datadir=cutdir,
-                    septab=beamseps,
+                )
+                image_dict[stoke] = image_list
+                weight_dict[stoke] = weight_list
+
+            smooth_dict = smooth_images(image_dict)
+            for stoke in stokeslist:
+                parfile = genparset(
+                    image_list=smooth_dict[stoke],
+                    weight_list=weight_dict[stoke],
+                    stoke=stoke.capitalize(),
+                    datadir=cutdir,
                     holofile=holofile,
                 )
                 parfiles.append(parfile)
 
     results = []
     for parset in parfiles:
-        results.append(linmos(parset, field, image, verbose=True))
+        results.append(linmos(parset, field, str(image), holofile=holofile))
 
     futures = chunk_dask(
         outputs=results,
-        client=client,
         task_name="LINMOS",
         progress_text="Runing LINMOS",
         verbose=verbose,
@@ -404,7 +400,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
     parser.add_argument(
@@ -418,17 +414,6 @@ def cli():
         help="Directory containing cutouts (in subdir outdir/cutouts)..",
     )
     parser.add_argument(
-        "survey",
-        type=str,
-        help="Survey directory",
-    )
-    parser.add_argument(
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch to read field data from",
-    )
-    parser.add_argument(
         "--holofile", type=str, default=None, help="Path to holography image"
     )
 
@@ -437,6 +422,12 @@ def cli():
         type=str,
         default="1.3.0",
         help="Yandasoft version to pull from DockerHub [1.3.0].",
+    )
+    parser.add_argument(
+        "--yanda_image",
+        default=None,
+        type=Path,
+        help="Path to an existing yandasoft singularity container image. ",
     )
 
     parser.add_argument(
@@ -453,6 +444,14 @@ def cli():
         metavar="host",
         type=str,
         help="Host of mongodb (probably $hostname -i).",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
     )
 
     parser.add_argument(
@@ -479,13 +478,14 @@ def cli():
 
     main(
         field=args.field,
-        datadir=args.datadir,
-        client=client,
+        datadir=Path(args.datadir),
         host=args.host,
-        holofile=args.holofile,
+        epoch=args.epoch,
+        holofile=Path(args.holofile),
         username=args.username,
         password=args.password,
         yanda=args.yanda,
+        yanda_img=args.yanda_image,
         stokeslist=args.stokeslist,
         verbose=verbose,
     )

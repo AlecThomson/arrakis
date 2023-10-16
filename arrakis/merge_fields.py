@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
-import logging
 import os
-import time
-from pprint import pformat, pprint
+from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 import pymongo
-from dask import delayed, distributed
+from dask import delayed
 from dask.distributed import Client, LocalCluster
-from tqdm import tqdm
 
 from arrakis.linmos import get_yanda, linmos
 from arrakis.logger import logger
-from arrakis.utils import chunk_dask, get_db, test_db, tqdm_dask, try_mkdir
+from arrakis.utils.database import get_db, test_db
+from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import chunk_dask, tqdm_dask
 
 
 def make_short_name(name: str) -> str:
@@ -213,8 +212,8 @@ def main(
     field_dirs: List[str],
     merge_name: str,
     output_dir: str,
-    client: Client,
     host: str,
+    epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     yanda="1.3.0",
@@ -234,7 +233,7 @@ def main(
     image = get_yanda(version=yanda)
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     output_dir = os.path.abspath(output_dir)
@@ -260,7 +259,6 @@ def main(
 
     singleton_futures = chunk_dask(
         outputs=singleton_updates,
-        client=client,
         task_name="singleton islands",
         progress_text="Copying singleton islands",
         verbose=verbose,
@@ -269,7 +267,6 @@ def main(
 
     multiple_futures = chunk_dask(
         outputs=mutilple_updates,
-        client=client,
         task_name="overlapping islands",
         progress_text="Running LINMOS on overlapping islands",
         verbose=verbose,
@@ -301,7 +298,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
     parser.add_argument(
@@ -341,6 +338,14 @@ def cli():
     )
 
     parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
+    )
+
+    parser.add_argument(
         "-v", dest="verbose", action="store_true", help="Verbose output [False]."
     )
 
@@ -367,13 +372,16 @@ def cli():
         field_dirs=args.datadirs,
         merge_name=args.merge_name,
         output_dir=args.output_dir,
-        client=client,
         host=args.host,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         yanda=args.yanda,
         verbose=verbose,
     )
+
+    client.close()
+    cluster.close()
 
 
 if __name__ == "__main__":

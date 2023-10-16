@@ -91,7 +91,7 @@ def cli():
     Check cutouts
     """
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("cutdir", metavar="cutdir", type=str, help="Cutout dir")
 

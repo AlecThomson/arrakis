@@ -2,175 +2,294 @@
 """Arrakis single-field pipeline"""
 import logging
 import os
-import socket
-from time import sleep
+from pathlib import Path
+from typing import Any
 
+import astropy.units as u
 import configargparse
 import pkg_resources
-import pymongo
 import yaml
 from astropy.time import Time
-from dask import delayed, distributed
-from dask.diagnostics import ProgressBar
-from dask.distributed import Client, LocalCluster, performance_report, progress
+from dask.distributed import Client, performance_report
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
-from IPython import embed
-from prefect import Flow, Task, task
-from prefect.engine import signals
-from prefect.engine.executors import DaskExecutor
+from prefect import flow, task
+from prefect_dask import DaskTaskRunner, get_dask_client
 
 from arrakis import (
     cleanup,
     cutout,
     frion,
+    imager,
     linmos,
     makecat,
     rmclean_oncuts,
     rmsynth_oncuts,
 )
 from arrakis.logger import logger
-from arrakis.utils import port_forward, test_db
+from arrakis.utils.database import test_db
+from arrakis.utils.pipeline import logo_str, performance_report_prefect
+
+# Defining tasks
+cut_task = task(cutout.cutout_islands, name="Cutout")
+linmos_task = task(linmos.main, name="LINMOS")
+frion_task = task(frion.main, name="FRion")
+cleanup_task = task(cleanup.main, name="Clean up")
+rmsynth_task = task(rmsynth_oncuts.main, name="RM Synthesis")
+rmclean_task = task(rmclean_oncuts.main, name="RM-CLEAN")
+cat_task = task(makecat.main, name="Catalogue")
 
 
-@task(name="Cutout", skip_on_upstream_skip=False)
-def cut_task(skip: bool, **kwargs) -> Task:
-    """Cutout task
-
-    Kwargs passed to cutout.cutout_islands
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs cutout.cutout_islands
-    """
-    if skip:
-        raise signals.SKIP("Skipping cutout task")
-    return cutout.cutout_islands(**kwargs)
-
-
-@task(name="LINMOS", skip_on_upstream_skip=False)
-def linmos_task(skip: bool, **kwargs) -> Task:
-    """LINOS task
-
-    Kwargs passed to linmos.main
+@flow(name="Combining+Synthesis on Arrakis")
+def process_spice(args, host: str) -> None:
+    """Workflow to process the SPIRCE-RACS data
 
     Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs linmos.main
+        args (configargparse.Namespace): Configuration parameters for this run
+        host (str): Host address of the mongoDB.
     """
-    if skip:
-        raise signals.SKIP("Skipping LINMOS task")
-    return linmos.main(**kwargs)
+    # TODO: Fix the type assigned to args. The `configargparse.Namespace` was causing issues
+    # with the pydantic validation used by prefect / flow.
+
+    with get_dask_client():
+        previous_future = None
+        previous_future = (
+            cut_task.submit(
+                field=args.field,
+                directory=args.outdir,
+                host=host,
+                epoch=args.epoch,
+                username=args.username,
+                password=args.password,
+                pad=args.pad,
+                stokeslist=["I", "Q", "U"],
+                verbose_worker=args.verbose_worker,
+                dryrun=args.dryrun,
+            )
+            if not args.skip_cutout
+            else previous_future
+        )
+
+        previous_future = (
+            linmos_task.submit(
+                field=args.field,
+                datadir=Path(args.outdir),
+                host=host,
+                epoch=args.epoch,
+                holofile=Path(args.holofile),
+                username=args.username,
+                password=args.password,
+                yanda=args.yanda,
+                yanda_img=args.yanda_image,
+                stokeslist=["I", "Q", "U"],
+                verbose=True,
+                wait_for=[previous_future],
+            )
+            if not args.skip_linmos
+            else previous_future
+        )
+
+        previous_future = (
+            cleanup_task.submit(
+                datadir=args.outdir,
+                stokeslist=["I", "Q", "U"],
+                verbose=True,
+                wait_for=[previous_future],
+            )
+            if not args.skip_cleanup
+            else previous_future
+        )
+
+        previous_future = (
+            frion_task.submit(
+                field=args.field,
+                outdir=args.outdir,
+                host=host,
+                epoch=args.epoch,
+                username=args.username,
+                password=args.password,
+                database=args.database,
+                verbose=args.verbose,
+                ionex_server=args.ionex_server,
+                ionex_proxy_server=args.ionex_proxy_server,
+                ionex_formatter=args.ionex_formatter,
+                ionex_predownload=args.ionex_predownload,
+                wait_for=[previous_future],
+            )
+            if not args.skip_frion
+            else previous_future
+        )
+
+        previous_future = (
+            rmsynth_task.submit(
+                field=args.field,
+                outdir=args.outdir,
+                host=host,
+                epoch=args.epoch,
+                username=args.username,
+                password=args.password,
+                dimension=args.dimension,
+                verbose=args.verbose,
+                database=args.database,
+                validate=args.validate,
+                limit=args.limit,
+                savePlots=args.savePlots,
+                weightType=args.weightType,
+                fitRMSF=args.fitRMSF,
+                phiMax_radm2=args.phiMax_radm2,
+                dPhi_radm2=args.dPhi_radm2,
+                nSamples=args.nSamples,
+                polyOrd=args.polyOrd,
+                noStokesI=args.noStokesI,
+                showPlots=args.showPlots,
+                not_RMSF=args.not_RMSF,
+                rm_verbose=args.rm_verbose,
+                debug=args.debug,
+                fit_function=args.fit_function,
+                tt0=args.tt0,
+                tt1=args.tt1,
+                ion=True,
+                do_own_fit=args.do_own_fit,
+                wait_for=[previous_future],
+            )
+            if not args.skip_rmsynth
+            else previous_future
+        )
+
+        previous_future = (
+            rmclean_task.submit(
+                field=args.field,
+                outdir=args.outdir,
+                host=host,
+                epoch=args.epoch,
+                username=args.username,
+                password=args.password,
+                dimension=args.dimension,
+                verbose=args.verbose,
+                database=args.database,
+                validate=args.validate,
+                limit=args.limit,
+                cutoff=args.cutoff,
+                maxIter=args.maxIter,
+                gain=args.gain,
+                window=args.window,
+                showPlots=args.showPlots,
+                rm_verbose=args.rm_verbose,
+                wait_for=[previous_future],
+            )
+            if not args.skip_rmclean
+            else previous_future
+        )
+
+        previous_future = (
+            cat_task.submit(
+                field=args.field,
+                host=host,
+                epoch=args.epoch,
+                username=args.username,
+                password=args.password,
+                verbose=args.verbose,
+                outfile=args.outfile,
+                wait_for=[previous_future],
+            )
+            if not args.skip_cat
+            else previous_future
+        )
 
 
-@task(name="FRion", skip_on_upstream_skip=False)
-def frion_task(skip: bool, **kwargs) -> Task:
-    """FRion task
-
-    Kwargs passed to frion.main
+def save_args(args: configargparse.Namespace) -> Path:
+    """Helper function to create a record of the input configuration arguments that
+    govern the pipeline instance
 
     Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
+        args (configargparse.Namespace): Supplied arguments for the Arrakis pipeline instance
 
     Returns:
-        Task: Runs frion.main
+        Path: Output path of the saved file
     """
-    if skip:
-        raise signals.SKIP("Skipping FRion task")
-    return frion.main(**kwargs)
+    args_yaml = yaml.dump(vars(args))
+    args_yaml_f = os.path.abspath(f"{args.field}-config-{Time.now().fits}.yaml")
+    logger.info(f"Saving config to '{args_yaml_f}'")
+    with open(args_yaml_f, "w") as f:
+        f.write(args_yaml)
+
+    return Path(args_yaml_f)
 
 
-@task(name="Clean up", skip_on_upstream_skip=False)
-def cleanup_task(skip: bool, **kwargs) -> Task:
-    """Cleanup task
+def create_client(
+    dask_config: str,
+    use_mpi: bool,
+    port_forward: Any,
+    minimum: int = 1,
+    maximum: int = 38,
+    mode: str = "adapt",
+) -> Client:
+    logger.info("Creating a Client")
+    if dask_config is None:
+        config_dir = pkg_resources.resource_filename("arrakis", "configs")
+        dask_config = f"{config_dir}/default.yaml"
 
-    Kwargs passed to cleanup.main
+    # Following https://github.com/dask/dask-jobqueue/issues/499
+    with open(dask_config) as f:
+        logger.info(f"Loading {dask_config}")
+        config = yaml.safe_load(f)
 
-    Args:
-        skip (bool): Whether to skip this task
+    logger.info("Overwriting config attributes.")
+    config["job_cpu"] = config["cores"]
+    config["cores"] = 1
+    config["processes"] = 1
 
-    Raises:
-        signals.SKIP: If task is skipped
+    # config.update(
+    #     {
+    #         "log_directory": f"{field}_{Time.now().fits}_spice_logs/"
+    #     }
+    # )
+    if use_mpi:
+        initialize(
+            interface=config["interface"],
+            local_directory=config["local_directory"],
+            nthreads=config["cores"] / config["processes"],
+        )
+        client = Client()
+    else:
+        # TODO: load the cluster type and initialise it from field specified in the loaded config
+        cluster = SLURMCluster(
+            **config,
+        )
+        logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
+
+        if mode == "adapt":
+            cluster.adapt(minimum=minimum, maximum=maximum)
+        elif mode == "scale":
+            cluster.scale(maximum)
+        # cluster.scale(36)
+
+        # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
+        client = Client(cluster)
+    port = client.scheduler_info()["services"]["dashboard"]
+
+    # Forward ports
+    if port_forward is not None:
+        for p in port_forward:
+            port_forward(port, p)
+
+    # Prin out Dask client info
+    logger.info(client.scheduler_info()["services"])
+
+    return client
+
+
+def create_dask_runner(*args, **kwargs) -> DaskTaskRunner:
+    """Internally creates a Client object via `create_client`,
+    and then initialises a DaskTaskRunner.
 
     Returns:
-        Task: Runs cleanup.main
+        DaskTaskRunner: A Prefect dask based task runner
     """
-    if skip:
-        raise signals.SKIP("Skipping cleanup task")
-    return cleanup.main(**kwargs)
+    client = create_client(*args, **kwargs)
 
-
-@task(name="RM Synthesis", skip_on_upstream_skip=False)
-def rmsynth_task(skip: bool, **kwargs) -> Task:
-    """RM synth task
-
-    Kwargs passed to rmsynth_oncuts.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs rmsynth_oncuts.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping RM Synthesis task")
-    return rmsynth_oncuts.main(**kwargs)
-
-
-@task(name="RM-CLEAN", skip_on_upstream_skip=False)
-def rmclean_task(skip: bool, **kwargs) -> Task:
-    """RM-CLEAN task
-
-    Kwargs passed to rmclean_oncuts.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs rmclean_oncuts.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping RM-CLEAN task")
-    return rmclean_oncuts.main(**kwargs)
-
-
-@task(name="Catalogue", skip_on_upstream_skip=False)
-def cat_task(skip: bool, **kwargs) -> Task:
-    """Catalogue task
-
-    Kwargs passed to makecat.main
-
-    Args:
-        skip (bool): Whether to skip this task
-
-    Raises:
-        signals.SKIP: If task is skipped
-
-    Returns:
-        Task: Runs makecat.main
-    """
-    if skip:
-        raise signals.SKIP("Skipping catalogue task")
-    return makecat.main(**kwargs)
+    logger.info("Creating DaskTaskRunner")
+    return DaskTaskRunner(address=client.scheduler.address), client
 
 
 def main(args: configargparse.Namespace) -> None:
@@ -181,203 +300,106 @@ def main(args: configargparse.Namespace) -> None:
     """
     host = args.host
 
-    if args.dask_config is None:
-        config_dir = pkg_resources.resource_filename("arrakis", "configs")
-        args.dask_config = f"{config_dir}/default.yaml"
+    # Lets save the args as a record for the ages
+    output_args_path = save_args(args)
+    logger.info(f"Saved arguments to {output_args_path}.")
 
-    if args.outfile is None:
-        args.outfile = f"{args.field}.pipe.test.fits"
-
-    # Following https://github.com/dask/dask-jobqueue/issues/499
-    with open(args.dask_config) as f:
-        config = yaml.safe_load(f)
-
-    config.update(
-        {
-            # 'scheduler_options': {
-            # "dashboard_address": f":{args.port}"
-            # },
-            "log_directory": f"{args.field}_{Time.now().fits}_spice_logs/"
-        }
-    )
-    if args.use_mpi:
-        initialize(
-            interface=config["interface"],
-            local_directory=config["local_directory"],
-            nthreads=config["cores"] / config["processes"],
-        )
-        client = Client()
-    else:
-        cluster = SLURMCluster(
-            **config,
-        )
-        logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
-
-        # Request 15 nodes
-        cluster.scale(jobs=15)
-        # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
-        client = Client(cluster)
-
+    # Test the mongoDB
     test_db(
-        host=args.host,
+        host=host,
         username=args.username,
         password=args.password,
     )
 
-    args_yaml = yaml.dump(vars(args))
-    args_yaml_f = os.path.abspath(f"{args.field}-config-{Time.now().fits}.yaml")
-    logger.info(f"Saving config to '{args_yaml_f}'")
-    with open(args_yaml_f, "w") as f:
-        f.write(args_yaml)
+    if args.outfile is None:
+        outfile = f"{args.field}.pipe.test.fits"
 
-    port = client.scheduler_info()["services"]["dashboard"]
+    if not args.skip_imager:
+        # This is the client for the imager component of the arrakis
+        # pipeline.
+        dask_runner, client = create_dask_runner(
+            dask_config=args.imager_dask_config,
+            use_mpi=args.use_mpi,
+            port_forward=args.port_forward,
+            minimum=1,
+            maximum=38,
+        )
 
-    # Forward ports
-    if args.port_forward is not None:
-        for p in args.port_forward:
-            port_forward(port, p)
+        logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
+        with performance_report_prefect(
+            f"arrakis-imaging-{args.field}-report-{Time.now().fits}.html"
+        ):
+            imager.main.with_options(
+                name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
+            )(
+                msdir=args.msdir,
+                out_dir=args.outdir,
+                cutoff=args.psf_cutoff,
+                robust=args.robust,
+                pols=args.pols,
+                nchan=args.nchan,
+                local_rms=args.local_rms,
+                local_rms_window=args.local_rms_window,
+                size=args.size,
+                scale=args.scale,
+                mgain=args.mgain,
+                niter=args.niter,
+                nmiter=args.nmiter,
+                auto_mask=args.auto_mask,
+                force_mask_rounds=args.force_mask_rounds,
+                auto_threshold=args.auto_threshold,
+                minuv=args.minuv,
+                purge=args.purge,
+                taper=args.taper,
+                parallel_deconvolution=args.parallel,
+                gridder=args.gridder,
+                wsclean_path=Path(args.local_wsclean)
+                if args.local_wsclean
+                else args.hosted_wsclean,
+                multiscale=args.multiscale,
+                multiscale_scale_bias=args.multiscale_scale_bias,
+                absmem=args.absmem,
+                ms_glob_pattern=args.ms_glob_pattern,
+                data_column=args.data_column,
+            )
+            client.close()
+            del dask_runner
+    else:
+        logger.warn(f"Skipping the image creation step. ")
 
-    # Prin out Dask client info
-    logger.info(client.scheduler_info()["services"])
+    if args.imager_only:
+        logger.info(f"Not running any stages after the imager. ")
+        return
+
+    # This is the client and pipeline for the RM extraction
+    dask_runner_2, client = create_dask_runner(
+        dask_config=args.dask_config,
+        use_mpi=args.use_mpi,
+        port_forward=args.port_forward,
+        minimum=64,
+        maximum=64,
+    )
 
     # Define flow
-    with Flow(f"Arrakis: {args.field}") as flow:
-        cuts = cut_task(
-            args.skip_cutout,
-            field=args.field,
-            directory=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            client=client,
-            verbose=args.verbose,
-            pad=args.pad,
-            stokeslist=["I", "Q", "U"],
-            verbose_worker=args.verbose_worker,
-            dryrun=args.dryrun,
-        )
-        mosaics = linmos_task(
-            args.skip_linmos,
-            field=args.field,
-            datadir=args.datadir,
-            client=client,
-            host=host,
-            holofile=args.holofile,
-            username=args.username,
-            password=args.password,
-            yanda=args.yanda,
-            stokeslist=["I", "Q", "U"],
-            verbose=True,
-            upstream_tasks=[cuts],
-        )
-        tidy = cleanup_task(
-            args.skip_cleanup,
-            datadir=args.datadir,
-            client=client,
-            stokeslist=["I", "Q", "U"],
-            verbose=True,
-            upstream_tasks=[mosaics],
-        )
-        frion_run = frion_task(
-            args.skip_frion,
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            client=client,
-            username=args.username,
-            password=args.password,
-            database=args.database,
-            verbose=args.verbose,
-            upstream_tasks=[mosaics],
-        )
-        dirty_spec = rmsynth_task(
-            args.skip_rmsynth,
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            client=client,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            savePlots=args.savePlots,
-            weightType=args.weightType,
-            fitRMSF=args.fitRMSF,
-            phiMax_radm2=args.phiMax_radm2,
-            dPhi_radm2=args.dPhi_radm2,
-            nSamples=args.nSamples,
-            polyOrd=args.polyOrd,
-            noStokesI=args.noStokesI,
-            showPlots=args.showPlots,
-            not_RMSF=args.not_RMSF,
-            rm_verbose=args.rm_verbose,
-            debug=args.debug,
-            fit_function=args.fit_function,
-            tt0=args.tt0,
-            tt1=args.tt1,
-            ion=True,
-            do_own_fit=args.do_own_fit,
-            upstream_tasks=[frion_run],
-        )
-        clean_spec = rmclean_task(
-            args.skip_rmclean,
-            field=args.field,
-            outdir=args.datadir,
-            host=host,
-            username=args.username,
-            password=args.password,
-            client=client,
-            dimension=args.dimension,
-            verbose=args.verbose,
-            database=args.database,
-            validate=args.validate,
-            limit=args.limit,
-            cutoff=args.cutoff,
-            maxIter=args.maxIter,
-            gain=args.gain,
-            window=args.window,
-            showPlots=args.showPlots,
-            rm_verbose=args.rm_verbose,
-            upstream_tasks=[dirty_spec],
-        )
-        catalogue = cat_task(
-            args.skip_cat,
-            field=args.field,
-            host=host,
-            username=args.username,
-            password=args.password,
-            verbose=args.verbose,
-            outfile=args.outfile,
-            upstream_tasks=[clean_spec],
-        )
+    with performance_report_prefect(
+        f"arrakis-synthesis-{args.field}-report-{Time.now().fits}.html"
+    ):
+        process_spice.with_options(
+            name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
+        )(args, host)
 
-    with performance_report(f"{args.field}-report-{Time.now().fits}.html"):
-        flow.run()
-    client.close()
+    # TODO: Access the client via the `dask_runner`. Perhaps a
+    #       way to do this is to extend the DaskTaskRunner's
+    #       destructor and have it create it then.
 
 
 def cli():
     """Command-line interface"""
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
 
     descStr = f"""
-    {logostr}
+    {logo_str}
+
     Arrakis pipeline.
 
     Before running make sure to start a session of mongodb e.g.
@@ -385,22 +407,25 @@ def cli():
 
     """
 
+    imager_parser = imager.imager_parser(parent_parser=True)
+
     # Parse the command line options
     parser = configargparse.ArgParser(
         default_config_files=[".default_config.txt"],
         description=descStr,
-        formatter_class=configargparse.RawTextHelpFormatter,
+        formatter_class=configargparse.ArgumentDefaultsHelpFormatter,
+        parents=[imager_parser],
     )
     parser.add("--config", required=False, is_config_file=True, help="Config file path")
+
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
     )
-
     parser.add_argument(
-        "datadir",
-        metavar="datadir",
-        type=str,
-        help="Directory containing data cubes in FITS format.",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch to read field data from",
     )
 
     parser.add_argument(
@@ -443,6 +468,12 @@ def cli():
         help="Config file for Dask SlurmCLUSTER.",
     )
     parser.add_argument(
+        "--imager_dask_config",
+        type=str,
+        default=None,
+        help="Config file for Dask SlurmCLUSTER.",
+    )
+    parser.add_argument(
         "--holofile", type=str, default=None, help="Path to holography image"
     )
 
@@ -453,7 +484,22 @@ def cli():
         help="Yandasoft version to pull from DockerHub [1.3.0].",
     )
 
+    parser.add_argument(
+        "--yanda_image",
+        default=None,
+        type=Path,
+        help="Path to an existing yandasoft singularity container image. ",
+    )
+
     flowargs = parser.add_argument_group("pipeline flow options")
+    flowargs.add_argument(
+        "--imager_only",
+        action="store_true",
+        help="Only run the imager component of the pipeline. ",
+    )
+    flowargs.add_argument(
+        "--skip_imager", action="store_true", help="Skip imaging stage [False]."
+    )
     flowargs.add_argument(
         "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
     )
@@ -486,6 +532,7 @@ def cli():
         action="store_true",
         help="Verbose worker output [False].",
     )
+
     cutargs = parser.add_argument_group("cutout arguments")
     cutargs.add_argument(
         "-p",
@@ -641,6 +688,35 @@ def cli():
         default=None,
         help="Further CLEAN in mask to this threshold [False].",
     )
+    tools.add_argument(
+        "--ionex_server",
+        type=str,
+        default="ftp://ftp.aiub.unibe.ch/CODE/",
+        help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
+    )
+    tools.add_argument(
+        "--ionex_prefix",
+        type=str,
+        default="codg",
+        help="IONEX prefix.",
+    )
+    tools.add_argument(
+        "--ionex_proxy_server",
+        type=str,
+        default=None,
+        help="Proxy server [None].",
+    )
+    tools.add_argument(
+        "--ionex_formatter",
+        type=str,
+        default=None,
+        help="IONEX formatter [None].",
+    )
+    tools.add_argument(
+        "--ionex_predownload",
+        action="store_true",
+        help="Pre-download IONEX files [False].",
+    )
     cat = parser.add_argument_group("catalogue arguments")
     # Cat args
     cat.add_argument(
@@ -652,7 +728,11 @@ def cli():
 
     verbose = args.verbose
     if verbose:
-        logger.setLevel(logger.INFO)
+        logger.setLevel(logging.INFO)
+
+    logger.info(logo_str)
+    logger.info(f"\n\nArguments: ")
+    logger.info(args)
 
     main(args)
 

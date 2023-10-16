@@ -17,7 +17,7 @@ conda activate spice
 module load singularity
 export SINGULARITY_BINDPATH=$(pwd),/group
 
-field='1416+00A'
+field='1600-50A'
 
 echo Running pipeline on $field
 cal_sbid=`find_sbid.py $field --cal`

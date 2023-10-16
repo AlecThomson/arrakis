@@ -1,11 +1,11 @@
 [tool.poetry]
 name = "arrakis"
-version = "1.0.0"
+version = "2.0.0"
 description = "Processing the SPICE."
 homepage = "https://research.csiro.au/racs/"
 repository = "https://github.com/AlecThomson/arrakis"
 documentation = "https://arrakis.readthedocs.io/en/latest/"
-authors = ["Alec Thomson"]
+authors = ["Alec Thomson", "Tim Galvin"]
 license = "BSD-3-Clause"
 readme = "README.md"
 classifiers=[
@@ -27,22 +27,20 @@ include = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-rm-tools = {path = "./RM-Tools"}
 astropy = "^5"
 bilby = "*"
-casatasks = "*"
 ConfigArgParse = "*"
 dask = "*"
 distributed = "*"
 dask_jobqueue = "*"
 dask_mpi = "*"
-FRion = "*"
+FRion = {git = "https://github.com/CIRADA-Tools/FRion.git" }
 h5py = "*"
 ipython = "*"
 matplotlib = "*"
 numba = "*"
 numba_progress = "*"
-mpi4py = "*"
+#mpi4py = "*"
 pandas = "*"
 Polspectra = "*"
 psutil = "*"
@@ -50,21 +48,25 @@ pymongo = "*"
 pymultinest = "*"
 pytest = "*"
 python_casacore = "*"
-RACS_tools = "^2.2.2"
+RACS-tools = {git = "https://github.com/AlecThomson/RACS-tools.git"}
 radio_beam = "*"
-RMextract = "*"
+RMextract = {git = "https://github.com/AlecThomson/RMextract@race"}
 schwimmbad = "*"
 scipy = "*"
-spectral_cube = "*"
+# spectral_cube = {git = "https://github.com/AlecThomson/spectral-cube.git@fix_beams"}
 spython = "*"
 tqdm = "*"
 vorbin = "*"
 graphviz = "*"
-bokeh = "*"
-prefect = "<2"
-RMTable = { path = "./RMTable" }
-PolSpectra = { path = "./PolSpectra"}
+bokeh = "<3"
+prefect = "^2"
+prefect-dask = "*"
+RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
+rm-tools = {git = "https://github.com/AlecThomson/RM-Tools.git", branch="spiceracs_dev"}
+PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git", branch="spiceracs"}
 setuptools = "*"
+fixms = { git = "https://github.com/AlecThomson/FixMS.git@swap_test"}
+fitscube = "^0.3"
 
 [tool.poetry.dev-dependencies]
 black = "^23"
@@ -92,6 +94,8 @@ spice_init = "arrakis.init_database:cli"
 spice_process = "arrakis.process_spice:cli"
 spice_region = "arrakis.process_region:cli"
 spice_cat = "arrakis.makecat:cli"
+spice_image = "arrakis.imager:cli"
+fix_ms_corrs = "arrakis.fix_ms_corrs:cli"
 # Unified script script
 casda_prepare = { reference="scripts/casda_prepare.py", type="file"}
 check_cutout = { reference="scripts/check_cutout.py", type="file"}

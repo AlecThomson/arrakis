@@ -2,15 +2,17 @@
 """DANGER ZONE: Purge directories of un-needed FITS files."""
 import logging
 import os
-import time
 from glob import glob
+from pathlib import Path
 from typing import List, Union
 
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 
 from arrakis.logger import logger
-from arrakis.utils import chunk_dask
+from arrakis.utils.pipeline import chunk_dask, logo_str
+
+logger.setLevel(logging.INFO)
 
 
 @delayed
@@ -30,8 +32,7 @@ def cleanup(workdir: str, stoke: str) -> None:
 
 
 def main(
-    datadir: str,
-    client: Client,
+    datadir: Path,
     stokeslist: Union[List[str], None] = None,
     verbose=True,
 ) -> None:
@@ -46,11 +47,7 @@ def main(
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
-    if datadir is not None:
-        if datadir[-1] == "/":
-            datadir = datadir[:-1]
-
-    cutdir = f"{datadir}/cutouts"
+    cutdir = datadir / "cutouts"
     files = sorted(
         [
             name
@@ -69,7 +66,6 @@ def main(
 
     futures = chunk_dask(
         outputs=outputs,
-        client=client,
         task_name="cleanup",
         progress_text="Running cleanup",
         verbose=verbose,
@@ -82,23 +78,9 @@ def cli():
     """Command-line interface"""
     import argparse
 
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
     # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis Stage:
 
     Clean up after LINMOS
@@ -107,12 +89,12 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "outdir",
         metavar="outdir",
-        type=str,
+        type=Path,
         help="Directory containing cutouts (in subdir outdir/cutouts).",
     )
 
@@ -123,12 +105,12 @@ def cli():
     verbose = args.verbose
 
     if verbose:
-        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
 
     cluster = LocalCluster(n_workers=20)
     client = Client(cluster)
 
-    main(datadir=args.outdir, client=client, stokeslist=None, verbose=verbose)
+    main(datadir=Path(args.outdir), stokeslist=None, verbose=verbose)
 
     client.close()
     cluster.close()

@@ -13,10 +13,8 @@ x = sin(offset)*cos(angle)/incx + refx
 y = sin(offset)*sin(angle)/incy + refy
 """
 import os
-import time
 import warnings
 from glob import glob
-from shutil import copyfile
 
 import astropy
 import astropy.units as u
@@ -29,19 +27,12 @@ from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from dask import delayed
 from dask.distributed import Client, LocalCluster
-from IPython import embed
-from IPython.core.pylabtools import figsize
 
 from arrakis.linmos import gen_seps
 from arrakis.logger import logger, logging
-from arrakis.utils import (
-    chunk_dask,
-    coord_to_string,
-    get_db,
-    getfreq,
-    test_db,
-    tqdm_dask,
-)
+from arrakis.utils.database import get_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.pipeline import chunk_dask, logo_str
 
 
 def make_plot(data, comp, imfile):
@@ -142,8 +133,8 @@ def interpolate(field, comp, beams, cutdir, septab, holofile, verbose=True):
 def main(
     field,
     datadir,
-    client,
     host,
+    epoch: int,
     holofile,
     username=None,
     password=None,
@@ -160,13 +151,11 @@ def main(
     holofile = os.path.abspath(holofile)
 
     beams_col, island_col, comp_col = get_db(
-        host=host, username=username, password=password
+        host=host, epoch=epoch, username=username, password=password
     )
 
     # Query the DB
-    beam_query = {
-        "$and": [{f"beams.{field}": {"$exists": True}}, {f"beams.{field}.DR1": True}]
-    }
+    beam_query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
     island_ids = sorted(beams_col.distinct("Source_ID", beam_query))
     isl_query = {"Source_ID": {"$in": island_ids}}
     beams = pd.DataFrame(list(beams_col.find(isl_query).sort("Source_ID")))
@@ -210,7 +199,6 @@ def main(
         outputs.append(out)
     futures = chunk_dask(
         outputs=outputs,
-        client=client,
         task_name="leakage plots",
         progress_text="Making leakage plots",
         verbose=verbose,
@@ -231,23 +219,8 @@ def cli():
     warnings.simplefilter("ignore", category=VerifyWarning)
     warnings.simplefilter("ignore", category=RuntimeWarning)
     # Help string to be shown using the -h option
-    logostr = """
-     mmm   mmm   mmm   mmm   mmm
-     )-(   )-(   )-(   )-(   )-(
-    ( S ) ( P ) ( I ) ( C ) ( E )
-    |   | |   | |   | |   | |   |
-    |___| |___| |___| |___| |___|
-     mmm     mmm     mmm     mmm
-     )-(     )-(     )-(     )-(
-    ( R )   ( A )   ( C )   ( S )
-    |   |   |   |   |   |   |   |
-    |___|   |___|   |___|   |___|
-
-    """
-
-    # Help string to be shown using the -h option
     descStr = f"""
-    {logostr}
+    {logo_str}
     Arrakis:
     Make leakage comparison plots.
 
@@ -255,7 +228,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field - e.g. 2132-50A."
@@ -304,7 +277,6 @@ def cli():
     main(
         field=args.field,
         datadir=args.datadir,
-        client=client,
         host=args.host,
         holofile=args.holofile,
         username=args.username,
@@ -312,7 +284,9 @@ def cli():
         verbose=args.verbose,
         snr_cut=args.snr,
     )
+
     client.close()
+    cluster.close()
 
 
 if __name__ == "__main__":

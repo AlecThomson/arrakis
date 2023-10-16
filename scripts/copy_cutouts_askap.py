@@ -11,7 +11,7 @@ import spica
 from astropy.table import Table
 
 from arrakis.logger import logger, logging
-from arrakis.utils import try_mkdir
+from arrakis.utils.io import try_mkdir
 
 logger.setLevel(logging.INFO)
 
@@ -25,7 +25,7 @@ group_area = os.path.abspath("/group/ja3/athomson/spica")
 def main(field, dry_run=False, ncores=10):
     spica_tab = spica.main()
     spica_tab.add_index("Field name")
-    row = spica_tab.loc["Field name", f"RACS_{field}"]
+    row = spica_tab.loc["Field name", f"{field}"]
     cut_dir = os.path.join(
         spice_area, f"{row['SBID']}", f"RACS_test4_1.05_{field}", "cutouts"
     )
@@ -62,7 +62,7 @@ def cli():
     Copy data from RACS area to SPICE area'
     """
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.RawTextHelpFormatter
+        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to find e.g. 2132-50A"

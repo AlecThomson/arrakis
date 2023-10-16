@@ -141,6 +141,8 @@ conda-lock.yml
 poetry.lock
 setup.py.bak
 *.bin
+*.sif
+*.pkl
 
 # Test data
 test/data/testdb/*
