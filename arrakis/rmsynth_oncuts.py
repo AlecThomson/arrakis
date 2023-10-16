@@ -8,7 +8,9 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Union
+from typing import List
+from typing import NamedTuple as Struct
+from typing import Optional, Tuple, Union
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -20,12 +22,15 @@ from astropy.io import fits
 from astropy.modeling import models
 from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
+from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 from IPython import embed
+from radio_beam import Beam
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
 from RMutils.util_misc import create_frac_spectra
+from scipy.stats import norm
 from tqdm import tqdm, trange
 
 from arrakis.logger import logger
@@ -38,6 +43,49 @@ from arrakis.utils.pipeline import chunk_dask, logo_str
 logger.setLevel(logging.INFO)
 
 
+class Spectrum(Struct):
+    """Single spectrum"""
+
+    data: np.ndarray
+    """The spectrum data"""
+    rms: np.ndarray
+    """The RMS of the spectrum"""
+    bkg: np.ndarray
+    """The background of the spectrum"""
+    filename: str
+    """The filename associated with the spectrum"""
+    header: fits.Header
+    """The header associated with the spectrum"""
+
+
+class StokesSpectra(Struct):
+    """Multi Stokes spectra"""
+
+    i: Spectrum
+    """The Stokes I spectrum"""
+    q: Spectrum
+    """The Stokes Q spectrum"""
+    u: Spectrum
+    """The Stokes U spectrum"""
+
+
+class StokesIFitResult(Struct):
+    """Stokes I fit results"""
+
+    alpha: Optional[float]
+    """The alpha parameter of the fit"""
+    amplitude: Optional[float]
+    """The amplitude parameter of the fit"""
+    x_0: Optional[float]
+    """The x_0 parameter of the fit"""
+    model_repr: Optional[str]
+    """The model representation of the fit"""
+    modStokesI: Optional[np.ndarray]
+    """The model Stokes I spectrum"""
+    fit_dict: Optional[dict]
+    """The dictionary of the fit results"""
+
+
 @delayed
 def rmsynthoncut3d(
     island_id: str,
@@ -45,8 +93,8 @@ def rmsynthoncut3d(
     outdir: str,
     freq: np.ndarray,
     field: str,
-    phiMax_radm2: Union[None, float] = None,
-    dPhi_radm2: Union[None, float] = None,
+    phiMax_radm2: Optional[float] = None,
+    dPhi_radm2: Optional[float] = None,
     nSamples: int = 5,
     weightType: str = "variance",
     fitRMSF: bool = True,
@@ -99,17 +147,12 @@ def rmsynthoncut3d(
             }
         }
         return pymongo.UpdateOne(myquery, badvalues)
-    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
-    rmsi[rmsi == 0] = np.nan
-    rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
 
-    # rmsq = rms_1d(dataQ)
-    rmsq = estimate_noise_annulus(dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
+    bkgq, rmsq = cubelet_bane(dataQ, header)
     rmsq[rmsq == 0] = np.nan
     rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
 
-    # rmsu = rms_1d(dataU)
-    rmsu = estimate_noise_annulus(dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
+    bkgu, rmsu = cubelet_bane(dataU, header)
     rmsu[rmsu == 0] = np.nan
     rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
     rmsArr = np.max([rmsq, rmsu], axis=0)
@@ -173,70 +216,245 @@ def rmsynthoncut3d(
     return pymongo.UpdateOne(myquery, newvalues)
 
 
-@delayed
-def rms_1d(data):
-    """Compute RMS from bounding pixels"""
-    Nfreq, Ndec, Nra = data.shape
-    mask = np.ones((Ndec, Nra), dtype=np.bool)
-    mask[3:-3, 3:-3] = False
-    rms = np.nanstd(data[:, mask], axis=1)
-    return rms
+def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
+    """Background and noise estimation on a cubelet
 
+    Args:
+        cubelet (np.ndarray): 3D array of data
+        header (fits.Header): Header of cubelet
 
-def estimate_noise_annulus(x_center, y_center, cube):
+    Returns:
+        Tuple[np.ndarray]: Background and noise per channel
     """
-    Noise estimation for annulus taken around point source. Annulus has fixed
-    inner radius of 10 and outer radius of 31. Function makes an annulus shaped
-    mask, then for each source applies the mask at each frequency and takes the
-    standard deviation.
+    # Get beam and pixel information
+    wcs = WCS(header).celestial
+    pixelscales = max(proj_plane_pixel_scales(wcs)) * u.deg / u.pixel
+    beam = Beam.from_fits_header(header)
+    pix_per_beam = (beam.minor / pixelscales).decompose()
 
-    ​Inputs: Array of sets of pixel coordinates (y-position,x-position) for
-    sources, Stokes cube (assumes 4 axes), array of flagged channels (can be an
-    empty array), number of frequency channels.
-
-    ​Output: 2D array of standard deviation values with shape (length of
-    coordinate array, number of unflagged frequency channels).
-    """
-    cube = np.nan_to_num(cube, nan=0)
-    inner_radius = 10
-    # Set outer radius to cutout edge if default value is too big
-    if min(cube.shape[-2:]) <= 62:
-        outer_radius = min(cube.shape[-2:]) // 2 - 1
-    else:
-        outer_radius = 31
-
-    lenfreq = cube.shape[0]
-    naxis = len(cube.shape)
-    err = np.zeros(lenfreq)
-    # try:
-    y, x = np.ogrid[
-        -1 * outer_radius : outer_radius + 1, -1 * outer_radius : outer_radius + 1
-    ]
-    grid_mask = np.logical_or(
-        x**2 + y**2 < inner_radius**2, x**2 + y**2 > outer_radius**2
+    # Create annulus mask
+    x_grid, y_grid = np.meshgrid(
+        np.arange(cubelet.shape[2]), np.arange(cubelet.shape[1])
     )
-    for i in range(lenfreq):
-        if naxis == 4:
-            grid = cube[
-                i,
-                0,
-                y_center - outer_radius : y_center + outer_radius + 1,
-                x_center - outer_radius : x_center + outer_radius + 1,
-            ]
-        else:  # naxis ==3
-            grid = cube[
-                i,
-                y_center - outer_radius : y_center + outer_radius + 1,
-                x_center - outer_radius : x_center + outer_radius + 1,
-            ]
+    x_grid -= cubelet.shape[2] // 2
+    y_grid -= cubelet.shape[1] // 2
+    r_grid = np.hypot(x_grid, y_grid)
+    mask = (r_grid > 1.5 * pix_per_beam.to(u.pix).value) & (
+        r_grid < 5 * pix_per_beam.to(u.pix).value
+    )
+    data_masked = cubelet[:, mask]
 
-        # Calculate the MADFM, and convert to standard sigma:
-        noisepix = np.ma.masked_array(grid, grid_mask)
-        # if (noisepix == np.nan).any():
-        #    embed
-        err[i] = np.ma.median(np.ma.fabs(noisepix - np.ma.median(noisepix))) / 0.6745
-    err[err == 0] = np.nan
-    return err
+    # Fit background and noise for each channel
+    background = np.zeros(cubelet.shape[0]) * np.nan
+    noise = np.zeros(cubelet.shape[0]) * np.nan
+    for chan, plane in enumerate(data_masked):
+        plane = plane[np.isfinite(plane)]
+        if len(plane) == 0:
+            continue
+        background[chan], noise[chan] = norm.fit(plane)
+
+    return background, noise
+
+
+# TODO: Add NxN sum of pixels
+def extract_single_spectrum(
+    coord: SkyCoord,
+    stokes: str,
+    ion: bool,
+    field_dict: dict,
+    outdir: str,
+) -> Spectrum:
+    """Extract a single spectrum from a cubelet"""
+    if ion and (stokes == "q" or stokes == "u"):
+        key = f"{stokes}_file_ion"
+    else:
+        key = f"{stokes}_file"
+    filename = os.path.join(outdir, field_dict[key])
+    with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
+        hdu = hdulist[0]
+        data = np.squeeze(hdu.data)
+        header = hdu.header
+
+    bkg, rms = cubelet_bane(data, header)
+    rms[np.isnan(rms)] = np.nanmedian(rms)
+    wcs = WCS(header)
+    x, y = np.array(wcs.celestial.world_to_pixel(coord)).round().astype(int)
+    spectrum_arr = np.array(data[:, y, x])
+    spectrum_arr[spectrum_arr == 0] = np.nan
+    # Do background subtraction
+    spectrum_arr -= bkg
+    return Spectrum(
+        data=spectrum_arr,
+        rms=rms,
+        bkg=bkg,
+        filename=filename,
+        header=header,
+    )
+
+
+def extract_all_spectra(
+    coord: SkyCoord,
+    ion: bool,
+    field_dict: dict,
+    outdir: str,
+) -> StokesSpectra:
+    """Extract spectra from cubelets"""
+    return StokesSpectra(
+        *[
+            extract_single_spectrum(
+                coord=coord,
+                stokes=stokes,
+                ion=ion,
+                field_dict=field_dict,
+                outdir=outdir,
+            )
+            for stokes in "iqu"
+        ]
+    )
+
+
+def sigma_clip_spectra(
+    stokes_spectra: StokesSpectra,
+) -> StokesSpectra:
+    """Sigma clip spectra
+
+    Find outliers in the RMS spectra and set them to NaN
+
+    Args:
+        stokes_spectra (StokesSpectra): The Stokes spectra
+
+    Returns:
+        StokesSpectra: The filtered Stokes spectra
+    """
+    filter_list: List[np.ndarry] = []
+    for spectrum in stokes_spectra:
+        rms_filter = sigma_clip(
+            spectrum.rms,
+            sigma=5,
+            stdfunc=mad_std,
+            cenfunc=np.nanmedian,
+        )
+        filter_list.append(rms_filter.mask)
+    filter_idx = np.any(filter_list, axis=0)
+
+    filtered_data_list: List[Spectrum] = []
+    for spectrum in stokes_spectra:
+        filtered_data = spectrum.data.copy()
+        filtered_data[filter_idx] = np.nan
+        filtered_spectrum = Spectrum(
+            data=filtered_data,
+            rms=spectrum.rms,
+            bkg=spectrum.bkg,
+            filename=spectrum.filename,
+            header=spectrum.header,
+        )
+        filtered_data_list.append(filtered_spectrum)
+    return StokesSpectra(*filtered_data_list)
+
+
+def fit_stokes_I(
+    freq: np.ndarray,
+    coord: SkyCoord,
+    tt0: Optional[str] = None,
+    tt1: Optional[str] = None,
+    do_own_fit: bool = False,
+    iarr: Optional[np.ndarray] = None,
+    rmsi: Optional[np.ndarray] = None,
+    polyOrd: Optional[int] = None,
+) -> StokesIFitResult:
+    if tt0 and tt1:
+        mfs_i_0 = fits.getdata(tt0, memmap=True)
+        mfs_i_1 = fits.getdata(tt1, memmap=True)
+        mfs_head = fits.getheader(tt0)
+        mfs_wcs = WCS(mfs_head)
+        xp, yp = np.array(mfs_wcs.celestial.world_to_pixel(coord)).round().astype(int)
+        tt1_p = mfs_i_1[yp, xp]
+        tt0_p = mfs_i_0[yp, xp]
+
+        alpha = -1 * tt1_p / tt0_p
+        amplitude = tt0_p
+        x_0 = mfs_head["RESTFREQ"]
+
+        logger.debug(f"alpha is {alpha}")
+        model_I = models.PowerLaw1D(amplitude=amplitude, x_0=x_0, alpha=alpha)
+
+        return StokesIFitResult(
+            alpha=alpha,
+            amplitude=amplitude,
+            x_0=x_0,
+            model_repr=model_I.__repr__(),
+            modStokesI=model_I(freq),
+            fit_dict=None,
+        )
+
+    elif do_own_fit:
+        logger.info(f"Doing own fit")
+        fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
+
+        return StokesIFitResult(
+            alpha=None,
+            amplitude=None,
+            x_0=None,
+            model_repr=None,
+            modStokesI=fit_dict["best_m"],
+            fit_dict=fit_dict,
+        )
+
+    else:
+        return StokesIFitResult(
+            alpha=None,
+            amplitude=None,
+            x_0=None,
+            model_repr=None,
+            modStokesI=None,
+            fit_dict=None,
+        )
+
+
+def update_rmtools_dict(
+    mDict: dict,
+    fit_dict: dict,
+) -> dict:
+    """Update the RM-Tools dictionary with the fit results from the Stokes I fit
+
+    Args:
+        mDict (dict): The RM-Tools dictionary
+        fit_dict (dict): The fit results dictionary
+
+    Returns:
+        dict: The updated RM-Tools dictionary
+    """
+    # Wrangle into format that matches RM-Tools
+    mDict["polyCoeffs"] = ",".join(
+        [
+            # Pad with zeros to length 5
+            str(i)
+            for i in np.pad(
+                fit_dict["best_p"],
+                (0, 5 - len(fit_dict["best_p"])),
+                "constant",
+                constant_values=np.nan,
+            )[::-1]
+        ]
+    )
+    mDict["polyCoefferr"] = ",".join(
+        [
+            str(i)
+            for i in np.pad(
+                fit_dict["best_e"],
+                (0, 5 - len(fit_dict["best_e"])),
+                "constant",
+                constant_values=np.nan,
+            )[::-1]
+        ]
+    )
+    mDict["polyOrd"] = (
+        int(fit_dict["best_n"]) if np.isfinite(fit_dict["best_n"]) else float(np.nan)
+    )
+    mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
+    mDict["IfitChiSqRed"] = float(fit_dict["chi_sq_red"])
+    for key, val in fit_dict["fit_flag"].items():
+        mDict[f"fit_flag_{key}"] = val
 
 
 @delayed
@@ -247,8 +465,8 @@ def rmsynthoncut1d(
     freq: np.ndarray,
     field: str,
     polyOrd: int = 3,
-    phiMax_radm2: Union[float, None] = None,
-    dPhi_radm2: Union[float, None] = None,
+    phiMax_radm2: Optional[float] = None,
+    dPhi_radm2: Optional[float] = None,
     nSamples: int = 5,
     weightType: str = "variance",
     fitRMSF: bool = True,
@@ -258,8 +476,8 @@ def rmsynthoncut1d(
     debug: bool = False,
     rm_verbose: bool = False,
     fit_function: str = "log",
-    tt0: Union[str, None] = None,
-    tt1: Union[str, None] = None,
+    tt0: Optional[str] = None,
+    tt1: Optional[str] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> pymongo.UpdateOne:
@@ -288,126 +506,70 @@ def rmsynthoncut1d(
 
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
-    ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
-    if ion:
-        qfile = os.path.join(outdir, beam["beams"][field]["q_file_ion"])
-        ufile = os.path.join(outdir, beam["beams"][field]["u_file_ion"])
-    else:
-        qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
-        ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
-
-    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
-    header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
-    header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
-
-    dataQ = np.squeeze(dataQ)
-    dataU = np.squeeze(dataU)
-    dataI = np.squeeze(dataI)
-
-    if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
-        logger.critical(f"Entire data is NaN for {iname}")
-        myquery = {"Gaussian_ID": cname}
-        badvalues = {"$set": {"rmsynth1d": False}}
-        return pymongo.UpdateOne(myquery, badvalues)
-
-    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
-    rmsi[rmsi == 0] = np.nan
-    rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
-
-    rmsq = estimate_noise_annulus(dataQ.shape[2] // 2, dataQ.shape[1] // 2, dataQ)
-    rmsq[rmsq == 0] = np.nan
-    rmsq[np.isnan(rmsq)] = np.nanmedian(rmsq)
-
-    rmsu = estimate_noise_annulus(dataU.shape[2] // 2, dataU.shape[1] // 2, dataU)
-    rmsu[rmsu == 0] = np.nan
-    rmsu[np.isnan(rmsu)] = np.nanmedian(rmsu)
-
-    prefix = f"{os.path.dirname(ifile)}/{cname}"
-
     ra = comp["RA"]
     dec = comp["Dec"]
     coord = SkyCoord(ra * u.deg, dec * u.deg)
-    if len(dataI.shape) == 4:
-        # drop Stokes axis
-        wcs = WCS(header).dropaxis(2)
-    else:
-        wcs = WCS(header)
+    field_dict = beam["beams"][field]
 
-    x, y = np.array(wcs.celestial.world_to_pixel(coord)).round().astype(int)
+    # Extract the spectra from the cubelets
+    stokes_spectra = extract_all_spectra(
+        coord=coord,
+        ion=ion,
+        field_dict=field_dict,
+        outdir=outdir,
+    )
+    # Check for totally bad data
+    for spectrum in stokes_spectra:
+        if np.isnan(spectrum.data).all():
+            logger.critical(f"Entire data is NaN for {iname} in {spectrum.filename}")
+            myquery = {"Gaussian_ID": cname}
+            badvalues = {"$set": {"rmsynth1d": False}}
+            return pymongo.UpdateOne(myquery, badvalues)
 
-    qarr = dataQ[:, y, x]
-    uarr = dataU[:, y, x]
-    iarr = dataI[:, y, x]
+    prefix = f"{os.path.dirname(stokes_spectra.i.filename)}/{cname}"
 
-    iarr[iarr == 0] = np.nan
-    qarr[qarr == 0] = np.nan
-    uarr[uarr == 0] = np.nan
+    # Filter by RMS for outlier rejection
+    filtered_stokes_spectra = sigma_clip_spectra(stokes_spectra)
 
-    i_filter = sigma_clip(rmsi, sigma=5, stdfunc=mad_std)
-    q_filter = sigma_clip(rmsq, sigma=5, stdfunc=mad_std)
-    u_filter = sigma_clip(rmsu, sigma=5, stdfunc=mad_std)
+    stokes_i_fit_result = fit_stokes_I(
+        freq=freq,
+        coord=coord,
+        tt0=tt0,
+        tt1=tt1,
+        do_own_fit=do_own_fit,
+        iarr=filtered_stokes_spectra.i.data,
+        rmsi=filtered_stokes_spectra.i.rms,
+        polyOrd=polyOrd,
+    )
 
-    filter_idx = (i_filter.mask) | (q_filter.mask) | (u_filter.mask)
-
-    iarr[filter_idx] = np.nan
-    qarr[filter_idx] = np.nan
-    uarr[filter_idx] = np.nan
-    rmsi[filter_idx] = np.nan
-    rmsq[filter_idx] = np.nan
-    rmsu[filter_idx] = np.nan
-
-    if tt0 and tt1:
-        mfs_i_0 = fits.getdata(tt0, memmap=True)
-        mfs_i_1 = fits.getdata(tt1, memmap=True)
-        mfs_head = fits.getheader(tt0)
-        mfs_wcs = WCS(mfs_head)
-        xp, yp = np.array(mfs_wcs.celestial.world_to_pixel(coord)).round().astype(int)
-        tt1_p = mfs_i_1[yp, xp]
-        tt0_p = mfs_i_0[yp, xp]
-
-        alpha = -1 * tt1_p / tt0_p
-        amplitude = tt0_p
-        x_0 = mfs_head["RESTFREQ"]
-
-        logger.debug(f"alpha is {alpha}")
-        model_I = models.PowerLaw1D(amplitude=amplitude, x_0=x_0, alpha=alpha)
-        modStokesI = model_I(freq)
-        model_repr = model_I.__repr__()
-
-    elif do_own_fit:
-        logger.info(f"Doing own fit")
-        fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
-        alpha = None
-        amplitude = None
-        x_0 = None
-        model_repr = None
-        modStokesI = fit_dict["best_m"]
-
-    else:
-        alpha = None
-        amplitude = None
-        x_0 = None
-        model_repr = None
-        modStokesI = None
-
-    if np.sum(np.isfinite(qarr)) < 2 or np.sum(np.isfinite(uarr)) < 2:
+    # Check for totally bad data in Q and U
+    if (
+        np.sum(np.isfinite(filtered_stokes_spectra.q.data)) < 2
+        or np.sum(np.isfinite(filtered_stokes_spectra.u.data)) < 2
+    ):
         logger.critical(f"{cname} QU data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
         badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
-    if noStokesI:
-        data = [np.array(freq), qarr, uarr, rmsq, rmsu]
-    else:
-        data = [np.array(freq), iarr, qarr, uarr, rmsi, rmsq, rmsu]
-
-    if np.isnan(iarr).all():
+    # And I
+    if np.isnan(filtered_stokes_spectra.i.data).all():
         logger.critical(f"{cname} I data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
         badvalues = {"$set": {"rmsynth1d": False}}
         return pymongo.UpdateOne(myquery, badvalues)
 
+    data = [np.array(freq)]
+    bkg_data = [np.array(freq)]
+    for stokes in "iqu":
+        if noStokesI and stokes == "i":
+            continue
+        data.append(filtered_stokes_spectra.__getattribute__(stokes).data)
+        data.append(filtered_stokes_spectra.__getattribute__(stokes).rms)
+        bkg_data.append(filtered_stokes_spectra.__getattribute__(stokes).bkg)
+
     # Run 1D RM-synthesis on the spectra
     np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
+    np.savetxt(f"{prefix}_bkg.dat", np.vstack(bkg_data).T, delimiter=" ")
     try:
         logger.info(f"Using {fit_function} to fit Stokes I")
         mDict, aDict = do_RMsynth_1D.run_rmsynth(
@@ -419,7 +581,7 @@ def rmsynthoncut1d(
             weightType=weightType,
             fitRMSF=fitRMSF,
             noStokesI=noStokesI,
-            modStokesI=modStokesI,
+            modStokesI=stokes_i_fit_result.modStokesI,
             nBits=32,
             saveFigures=savePlots,
             showPlots=showPlots,
@@ -434,7 +596,9 @@ def rmsynthoncut1d(
     if savePlots:
         plt.close("all")
         plotdir = os.path.join(outdir, "plots")
-        plot_files = glob(os.path.join(os.path.dirname(ifile), "*.pdf"))
+        plot_files = glob(
+            os.path.join(os.path.dirname(filtered_stokes_spectra.i.filename), "*.pdf")
+        )
         for src in plot_files:
             base = os.path.basename(src)
             dst = os.path.join(plotdir, base)
@@ -442,39 +606,7 @@ def rmsynthoncut1d(
 
     # Update model values if own fit was used
     if do_own_fit:
-        # Wrangle into format that matches RM-Tools
-        mDict["polyCoeffs"] = ",".join(
-            [
-                # Pad with zeros to length 5
-                str(i)
-                for i in np.pad(
-                    fit_dict["best_p"],
-                    (0, 5 - len(fit_dict["best_p"])),
-                    "constant",
-                    constant_values=np.nan,
-                )[::-1]
-            ]
-        )
-        mDict["polyCoefferr"] = ",".join(
-            [
-                str(i)
-                for i in np.pad(
-                    fit_dict["best_e"],
-                    (0, 5 - len(fit_dict["best_e"])),
-                    "constant",
-                    constant_values=np.nan,
-                )[::-1]
-            ]
-        )
-        mDict["polyOrd"] = (
-            int(fit_dict["best_n"])
-            if np.isfinite(fit_dict["best_n"])
-            else float(np.nan)
-        )
-        mDict["poly_reffreq"] = float(fit_dict["ref_nu"])
-        mDict["IfitChiSqRed"] = float(fit_dict["chi_sq_red"])
-        for key, val in fit_dict["fit_flag"].items():
-            mDict[f"fit_flag_{key}"] = val
+        mDict = update_rmtools_dict(mDict, stokes_i_fit_result.fit_dict)
     else:
         # 0: Improper input parameters (not sure what would trigger this in RM-Tools?)
         # 1-4: One or more of the convergence criteria was met.
@@ -509,12 +641,12 @@ def rmsynthoncut1d(
     myquery = {"Gaussian_ID": cname}
 
     # Prep header
-    head_dict = dict(header)
+    head_dict = dict(filtered_stokes_spectra.i.header)
     head_dict.pop("", None)
     if "COMMENT" in head_dict.keys():
         head_dict["COMMENT"] = str(head_dict["COMMENT"])
 
-    outer_dir = os.path.basename(os.path.dirname(ifile))
+    outer_dir = os.path.basename(os.path.dirname(filtered_stokes_spectra.i.filename))
 
     # Fix for json encoding
 
@@ -532,19 +664,30 @@ def rmsynthoncut1d(
             "rmsynth_summary": mDict,
             "spectra": {
                 "freq": np.array(freq).tolist(),
-                "I_model": modStokesI.tolist() if modStokesI is not None else None,
+                "I_model": stokes_i_fit_result.modStokesI.tolist()
+                if stokes_i_fit_result.modStokesI is not None
+                else None,
                 "I_model_params": {
-                    "alpha": float(alpha) if alpha is not None else None,
-                    "amplitude": float(amplitude) if amplitude is not None else None,
-                    "x_0": float(x_0) if x_0 is not None else None,
-                    "model_repr": model_repr,
+                    "alpha": float(stokes_i_fit_result.alpha)
+                    if stokes_i_fit_result.alpha is not None
+                    else None,
+                    "amplitude": float(stokes_i_fit_result.amplitude)
+                    if stokes_i_fit_result.amplitude is not None
+                    else None,
+                    "x_0": float(stokes_i_fit_result.x_0)
+                    if stokes_i_fit_result.x_0 is not None
+                    else None,
+                    "model_repr": stokes_i_fit_result.model_repr,
                 },
-                "I": iarr.tolist(),
-                "Q": qarr.tolist(),
-                "U": uarr.tolist(),
-                "I_err": rmsi.tolist(),
-                "Q_err": rmsq.tolist(),
-                "U_err": rmsu.tolist(),
+                "I": filtered_stokes_spectra.i.data.tolist(),
+                "Q": filtered_stokes_spectra.q.data.tolist(),
+                "U": filtered_stokes_spectra.u.data.tolist(),
+                "I_err": filtered_stokes_spectra.i.rms.tolist(),
+                "Q_err": filtered_stokes_spectra.q.rms.tolist(),
+                "U_err": filtered_stokes_spectra.u.rms.tolist(),
+                "I_bkg": filtered_stokes_spectra.i.bkg.tolist(),
+                "Q_bkg": filtered_stokes_spectra.q.bkg.tolist(),
+                "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
             },
         }
     }
@@ -629,7 +772,7 @@ def rmsynthoncut_i(
 
     data = np.nansum(dataI[:, y - 1 : y + 1 + 1, x - 1 : x + 1 + 1], axis=(1, 2))
 
-    rmsi = estimate_noise_annulus(dataI.shape[2] // 2, dataI.shape[1] // 2, dataI)
+    bkgi, rmsi = cubelet_bane(dataI, header)
     rmsi[rmsi == 0] = np.nan
     rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
     noise = rmsi

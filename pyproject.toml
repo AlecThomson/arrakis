@@ -66,7 +66,7 @@ rm-tools = {git = "https://github.com/AlecThomson/RM-Tools.git", branch="spicera
 PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git", branch="spiceracs"}
 setuptools = "*"
 fixms = { git = "https://github.com/AlecThomson/FixMS.git@swap_test"}
-fitcube = "^0.3"
+fitscube = "^0.3"
 
 [tool.poetry.dev-dependencies]
 black = "^23"

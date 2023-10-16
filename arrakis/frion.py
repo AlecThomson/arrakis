@@ -81,6 +81,7 @@ def predict_worker(
     prefix: str = "",
     formatter: Optional[Union[str, Callable]] = None,
     proxy_server: Optional[str] = None,
+    pre_download: bool = False,
 ) -> Tuple[str, pymongo.UpdateOne]:
     """Make FRion prediction for a single island
 
@@ -128,6 +129,7 @@ def predict_worker(
         use_proxy=True,  # Always use proxy - forces urllib
         prefix=prefix,
         formatter=formatter,
+        pre_download=pre_download,
         **proxy_args,
     )
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
@@ -177,6 +179,7 @@ def main(
     ionex_prefix: str = "codg",
     ionex_proxy_server: Optional[str] = None,
     ionex_formatter: Optional[Union[str, Callable]] = "ftp.aiub.unibe.ch",
+    ionex_predownload: bool = False,
 ):
     """Main script
 
@@ -258,6 +261,7 @@ def main(
             prefix=ionex_prefix,
             proxy_server=ionex_proxy_server,
             formatter=ionex_formatter,
+            pre_download=ionex_predownload,
         )
         updates_arrays.append(update)
         # Apply FRion predictions
@@ -385,6 +389,13 @@ def cli():
     )
 
     parser.add_argument(
+        "-d",
+        "--ionex_predownload",
+        action="store_true",
+        help="Pre-download IONEX files [False].",
+    )
+
+    parser.add_argument(
         "-v", dest="verbose", action="store_true", help="verbose output [False]."
     )
 
@@ -415,6 +426,7 @@ def cli():
         ionex_proxy_server=args.ionex_proxy_server,
         ionex_formatter=args.ionex_formatter,
         ionex_prefix=args.ionex_prefix,
+        ionex_predownload=args.ionex_predownload,
     )
 
 
