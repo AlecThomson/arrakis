@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Arrakis multi-field pipeline"""
 import os
+from argparse import Namespace
 from time import sleep
 
 import configargparse
 import pkg_resources
 import yaml
 from astropy.time import Time
-from dask.distributed import Client, performance_report
+from dask.distributed import Client
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
 from IPython import embed
@@ -23,11 +24,11 @@ merge_task = task(merge_fields.main, name="Merge fields")
 
 
 @flow
-def process_merge(args: configargparse.Namespace, host: str, inter_dir: str) -> None:
+def process_merge(args, host: str, inter_dir: str) -> None:
     """Workflow to merge spectra from overlapping fields together
 
     Args:
-        args (configargparse.Namespace): Parameters to use for this process
+        args (Namespace): Parameters to use for this process
         host (str): Address of the mongoDB servicing the processing
         inter_dir (str): Location to store data from merged fields
     """
