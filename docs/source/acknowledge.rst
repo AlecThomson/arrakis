@@ -1,7 +1,7 @@
 Acknowledging
 ---------------
 
-Please cite the SPICE-RACS paper - `Thomson et al. (2023) <https://arxiv.org/abs/2307.07207>`_ - if you use this code.
+Please cite the SPICE-RACS paper - `Thomson et al. (2023) <https://ui.adsabs.harvard.edu/abs/2023PASA...40...40T/>`_ - if you use this software.
 
 Third-party software
 ^^^^^^^^^^^^^^^^^^^^
