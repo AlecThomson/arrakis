@@ -1,11 +1,11 @@
 Parallelisation
 ---------------
-The pipeline Dask for parallelisation, and optionally for job submission. Dask be run either using either `dask-jobque <https://jobqueue.dask.org/en/latest/>`_ or `dask-mpi <http://mpi.dask.org/en/latest/>`_ for parallelisation. The latter requires a working version of the `mpi4py <https://mpi4py.readthedocs.io/en/latest/>`_ package. The pipeline is currently configured for the `galaxy` and `magnus` supercomputers at the `Pawsey Centre <https://pawsey.org.au/>`_, which uses a Slurm job manager.
+The pipeline uses Dask for parallelisation, and optionally for job submission. Dask be run either using either `dask-jobque <https://jobqueue.dask.org/en/latest/>`_ or `dask-mpi <http://mpi.dask.org/en/latest/>`_ for parallelisation. The latter requires a working version of the `mpi4py <https://mpi4py.readthedocs.io/en/latest/>`_ package. The pipeline currently contains configurations for the CSIRO `petrichor` supercomputer and for the `galaxy` and `magnus` supercomputers at the `Pawsey Centre <https://pawsey.org.au/>`_, which all use the Slurm job manager.
 
 .. tip ::
     Note that mpi4py needs to point to the same MPI compiler used by the MPI executable. This can be tricky to find on some systems. If in doubt, get in touch with your local sysadmin.
 
-Configuration is specicfied by a configuration file (written in YAML). These are stored in :file:`arrakis/configs/`. Either use these as is for galaxy or magnus, or add your own configuration by editing the variable (see the dask-jobqueue `docs <https://jobqueue.dask.org/en/latest/configuration.html/>`_).
+Configuration is specicfied by a configuration file (written in YAML). These are stored in :file:`arrakis/configs/`. Add your own configuration by adding and editing a configuration, and point the pipeline to the file (see the dask-jobqueue `docs <https://jobqueue.dask.org/en/latest/configuration.html/>`_).
 
 .. code-block:: yaml
 
