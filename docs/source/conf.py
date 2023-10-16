@@ -45,6 +45,7 @@ extensions = [
     "sphinx.ext.inheritance_diagram",
     "myst_parser",
     "autoapi.extension",
+    "sphinx.ext.autosectionlabel",
 ]
 
 source_suffix = [".rst"]
