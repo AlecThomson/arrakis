@@ -101,7 +101,10 @@ The pipeline is run using the `Prefect <https://docs.prefect.io/core/>`_ workflo
 .. tip::
     If you already have a VM for running your MongoDB instance, it would be convenient to run Prefect on the same machine.
 
-To set up a Prefect Orion server, fist install Prefect with `pip`. You will also need Postgres installed on the server to store the Prefect data. We recommend using Singularity to install and run. Below we provide two scripts for starting the Postgres and Prefect server on a remote machine:
+To set up a Prefect Server, fist install Prefect with `pip`. You will also need Postgres installed on the server to store the Prefect data. We recommend using Singularity to install and run. Below we provide two scripts for starting the Postgres and Prefect server on a remote machine:
+
+.. tip::
+    The default configuration connection settings of the Prefect and Postgres services may not be appropriate if you expect to run many workers concurrently. If the services are being overwhelmed you will see API and database time outs in the logs of these services. To avoid this it is recommended to update the `max_connection` and `shared_buffers` properties of Postgres, and set `WEB_CONCURRENCY` to enable multiple `uvicorn` workers. 
 
 .. tip::
     In each of the scripts below, you will need to set the password for the Postgres database. You can do this by setting the environment variable ``POSTGRES_PASS``. You will also need toset the hostname of the machine running the database with ``POSTGRES_ADDR``.
@@ -141,18 +144,11 @@ To set up a Prefect Orion server, fist install Prefect with `pip`. You will also
 
     # Now set up some postgres values
     export POSTGRES_PASS='{SET YOUR PASSWORD HERE}'
-    POSTGRES_ADDR="{PUT YOUR HOSTNAME HERE}"
-    export POSTGRES_ADDR
+    export POSTGRES_ADDR="{PUT YOUR HOSTNAME HERE}"
     export POSTGRES_USER='postgres'
     export POSTGRES_DB=orion
-    POSTGRES_SCRATCH=$(realpath $(pwd))
-    export POSTGRES_SCRATCH
-
-    export PREFECT_ORION_DATABASE_CONNECTION_URL="postgresql+asyncpg://$POSTGRES_USER:$POSTGRES_PASS@$POSTGRES_ADDR:5432/$POSTGRES_DB"
-
-    PREFECT_HOME="$(realpath $(pwd))/prefect"
-    export PREFECT_HOME
-
+    export POSTGRES_SCRATCH=$(realpath $(pwd))
+    
     if [[ $START_POSTGRES -eq 0 ]]
     then
         # Need singulaity, and to remove the badness of pawsey
@@ -172,7 +168,7 @@ To set up a Prefect Orion server, fist install Prefect with `pip`. You will also
             singularity pull docker://postgres
         fi
         SINGULARITYENV_POSTGRES_PASSWORD="$POSTGRES_PASS" SINGULARITYENV_POSTGRES_DB="$POSTGRES_DB" SINGULARITYENV_PGDATA="$POSTGRES_SCRATCH/pgdata" \
-            singularity run --cleanenv --bind "$POSTGRES_SCRATCH":/var postgres_latest.sif
+            singularity run --cleanenv --bind "$POSTGRES_SCRATCH":/var postgres_latest.sif -c max_connections=1000 -c shared_buffers=1024MB
     fi
 
 .. code-block:: bash
@@ -184,7 +180,7 @@ To set up a Prefect Orion server, fist install Prefect with `pip`. You will also
     prefect server necessary.
 
     Options:
-        -o - will atempt to start an prefect orion server
+        -s - will atempt to start an prefect server
         -h  - will print this help page
 
     "
@@ -192,9 +188,9 @@ To set up a Prefect Orion server, fist install Prefect with `pip`. You will also
     START_ORION=1
     while getopts 'sho' arg; do
         case $arg in
-        o)
+        s)
         echo "Will attempt to start orion server"
-        START_ORION=0
+        START_SERVER=0
         ;;
         *)
             echo "$help"
@@ -205,21 +201,25 @@ To set up a Prefect Orion server, fist install Prefect with `pip`. You will also
 
     # Now set up some postgres values
     export POSTGRES_PASS="{SET YOUR PASSWORD HERE}"
-    POSTGRES_ADDR="{PUT YOUR HOSTNAME HERE}"
-    export POSTGRES_ADDR
+    export POSTGRES_ADDR="{PUT YOUR HOSTNAME HERE}"
     export POSTGRES_USER='postgres'
     export POSTGRES_DB=orion
-    POSTGRES_SCRATCH=$(pwd)
-    export POSTGRES_SCRATCH
+    export POSTGRES_SCRATCH=$(pwd)
+    
     export PREFECT_API_URL="http://${POSTGRES_ADDR}:4200/api"
-    export PREFECT_ORION_API_HOST="127.0.0.1"
+    export PREFECT_SERVER_API_HOST="127.0.0.1"
 
-    export PREFECT_ORION_DATABASE_CONNECTION_URL="postgresql+asyncpg://$POSTGRES_USER:$POSTGRES_PASS@$POSTGRES_ADDR:5432/$POSTGRES_DB"
-
+    export PREFECT_API_DATABASE_CONNECTION_URL="postgresql+asyncpg://$POSTGRES_USER:$POSTGRES_PASS@$POSTGRES_ADDR:5432/$POSTGRES_DB"
+    
+    # This establishes a larger number of workers for prefect on the webserver (uvicorn under the hood)
+    export WEB_CONCURRENCY=16
+    # These can be tweaked to allow for more persistent data connections
+    export PREFECT_SQLALCHEMY_POOL_SIZE=5
+    export PREFECT_SQLALCHEMY_MAX_OVERFLOW=10
     PREFECT_HOME="$(pwd)/prefect"
     export PREFECT_HOME
 
-    if [[ $START_ORION -eq 0 ]]
+    if [[ $START_SERVER -eq 0 ]]
     then
         prefect server start --host 0.0.0.0
     fi
