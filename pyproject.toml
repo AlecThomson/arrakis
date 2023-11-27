@@ -53,7 +53,7 @@ radio_beam = "*"
 RMextract = {git = "https://github.com/AlecThomson/RMextract@race"}
 schwimmbad = "*"
 scipy = "*"
-# spectral_cube = {git = "https://github.com/AlecThomson/spectral-cube.git@fix_beams"}
+spectral_cube = "^0.6.3"
 spython = "*"
 tqdm = "*"
 vorbin = "*"
