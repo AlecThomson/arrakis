@@ -1,3 +1,4 @@
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/AlecThomson/arrakis/master.svg)](https://results.pre-commit.ci/latest/github/AlecThomson/arrakis/master)
 # _Arrakis_
 Pipeline for extracting the _SPICE_: **S**pectra and **P**olarization **I**n **C**utouts of **E**xtragalactic sources from **R**ACS
 
