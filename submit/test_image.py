@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-#SBATCH --output=/scratch2/tho822/spiceracs/pipe_test/test_image_%j.log
-#SBATCH --error=/scratch2/tho822/spiceracs/pipe_test/test_image_%j.log
-#SBATCH --time=1-00:00:00
-#SBATCH --tasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --account=OD-217087
-#SBATCH --qos=express
+# SBATCH --output=/scratch2/tho822/spiceracs/pipe_test/test_image_%j.log
+# SBATCH --error=/scratch2/tho822/spiceracs/pipe_test/test_image_%j.log
+# SBATCH --time=1-00:00:00
+# SBATCH --tasks=1
+# SBATCH --cpus-per-task=1
+# SBATCH --account=OD-217087
+# SBATCH --qos=express
 
 import logging
+from pathlib import Path
 
 import yaml
+from astropy import units as u
 from dask.distributed import Client, LocalCluster
 from dask_jobqueue import SLURMCluster
 from IPython import embed
-from astropy import units as u
-from pathlib import Path
-
 from spiceracs import imager
-from spiceracs.utils import port_forward
 from spiceracs.logger import logger
+from spiceracs.utils import port_forward
+
 logger.setLevel(logging.INFO)
 
 
@@ -41,7 +41,6 @@ def main():
     # cluster = LocalCluster(n_workers=10, threads_per_worker=1)
     # cluster.adapt(minimum=1, maximum=36)
 
-
     client = Client(cluster)
 
     port = client.scheduler_info()["services"]["dashboard"]
@@ -60,7 +59,7 @@ def main():
         local_rms_window=60,
         auto_threshold=1,
         size=6144,
-        scale=2.5*u.arcsec,
+        scale=2.5 * u.arcsec,
         robust=-0.5,
         pols="IQU",
         gridder="wgridder",
@@ -69,9 +68,10 @@ def main():
         reimage=True,
         multiscale=False,
         # parallel_deconvolution=6144,
-        absmem=float(config["memory"].replace("GB", "").replace("GiB", ""))
+        absmem=float(config["memory"].replace("GB", "").replace("GiB", "")),
     )
     logs = client.get_worker_logs()
+
 
 if __name__ == "__main__":
     main()
