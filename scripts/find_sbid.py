@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 import argparse
-import os
 from pathlib import Path
 
-from astropy.table import Row, Table
+from astropy.table import Table
 
 from arrakis.logger import logger, logging
 

@@ -3,11 +3,9 @@ import shlex
 import subprocess as sb
 from glob import glob
 from pathlib import Path
-from pprint import pprint
 
 import copy_data
 import numpy as np
-import pkg_resources
 from astropy.table import Table
 
 from arrakis.logger import logger, logging

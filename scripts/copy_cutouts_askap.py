@@ -1,14 +1,8 @@
 import argparse
 import os
-import shlex
-import subprocess as sb
-from glob import glob
-from pprint import pprint
 
 import copy_data
-import numpy as np
 import spica
-from astropy.table import Table
 
 from arrakis.logger import logger, logging
 from arrakis.utils.io import try_mkdir
@@ -58,7 +52,7 @@ def main(field, dry_run=False, ncores=10):
 
 
 def cli():
-    descStr = f"""
+    descStr = """
     Copy data from RACS area to SPICE area'
     """
     parser = argparse.ArgumentParser(

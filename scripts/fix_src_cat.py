@@ -6,7 +6,6 @@ from pathlib import Path
 import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
-from IPython import embed
 from tqdm.auto import tqdm
 
 from arrakis.logger import logger

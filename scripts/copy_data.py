@@ -82,7 +82,7 @@ def main(
 
 
 def cli():
-    descStr = f"""
+    descStr = """
     Copy data from RACS area to SPICE area'
     """
     parser = argparse.ArgumentParser(

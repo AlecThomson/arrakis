@@ -28,7 +28,7 @@ def main(indir, outdir):
 
 
 def cli():
-    descStr = f"""
+    descStr = """
     Create symlinks to ASKAP cubes in one directory to another.
     """
     # Parse the command line options

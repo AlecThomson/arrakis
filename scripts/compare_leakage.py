@@ -119,7 +119,7 @@ def interpolate(field, comp, beams, cutdir, septab, holofile, verbose=True):
 
             data[bm].update({f"{s}_holo": holo_spec})
             data[bm].update({f"{s}_image": im_spec})
-            data[bm].update({f"freq": freq})
+            data[bm].update({"freq": freq})
 
     try:
         outname = make_plot(data, comp, imfile)

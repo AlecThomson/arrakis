@@ -9,7 +9,6 @@ import subprocess as sp
 import tarfile
 import time
 from glob import glob
-from typing import Dict
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -25,7 +24,6 @@ from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
-from IPython import embed
 from prefect_dask import get_dask_client
 from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
@@ -240,7 +238,7 @@ def convert_spectra(
         spectrum_table.table.add_column(new_col)
 
     outf = os.path.join(
-        spec_dir, os.path.basename(spectrum).replace(".dat", f"_polspec.fits")
+        spec_dir, os.path.basename(spectrum).replace(".dat", "_polspec.fits")
     )
     logger.info(f"Saving to {outf}")
     spectrum_table.write_FITS(outf, overwrite=True)

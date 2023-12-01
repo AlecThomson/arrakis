@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
-import json
 
 import astropy
 import astropy.units as units
 import matplotlib.pyplot as plt
 import numpy as np
-import pymongo
 from astropy.coordinates import SkyCoord
-from astropy.io import fits
 from astropy.wcs import WCS
 from tqdm.auto import tqdm, trange
 
-from arrakis.logger import logger, logging
+from arrakis.logger import logger
 from arrakis.utils.database import get_db
-from arrakis.utils.fitsutils import getdata
-from arrakis.utils.json import MyEncoder
 
 
 def makesurf(start, stop, field, datadir, save_plots=True, data=None):
@@ -265,7 +260,7 @@ def cli():
     import getpass
 
     # Help string to be shown using the -h option
-    descStr = f"""
+    descStr = """
     Make leakage plots for a field.
 
     """

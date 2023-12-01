@@ -6,7 +6,6 @@ from glob import glob
 
 import dask
 from dask import delayed
-from dask.distributed import Client
 from tqdm.auto import tqdm
 
 from arrakis.logger import logger

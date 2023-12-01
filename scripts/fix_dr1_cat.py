@@ -7,12 +7,10 @@ from pathlib import Path
 
 import astropy.units as u
 import numpy as np
-import pkg_resources
 from astropy.coordinates import SkyCoord
 from astropy.table import Column, Table
 from astropy.time import Time
 from astropy.units import cds
-from IPython import embed
 from rmtable import RMTable
 from spica import SPICA
 
@@ -198,7 +196,7 @@ def main(cat: str, survey_dir: Path, epoch: int = 0):
     _, ext = os.path.splitext(cat)
     outfile = cat.replace(ext, f".corrected{ext}")
 
-    outfit = cat.replace(ext, f".corrected.leakage.pkl")
+    outfit = cat.replace(ext, ".corrected.leakage.pkl")
     with open(outfit, "wb") as f:
         pickle.dump(fit, f)
         logger.info(f"Wrote leakage fit to {outfit}")
