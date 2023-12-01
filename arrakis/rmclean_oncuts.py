@@ -7,7 +7,7 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List, Union
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,8 +20,7 @@ from tqdm import tqdm
 
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
-from arrakis.utils.fitsutils import getfreq
-from arrakis.utils.pipeline import chunk_dask, logo_str, tqdm_dask
+from arrakis.utils.pipeline import chunk_dask, logo_str
 
 
 @delayed
@@ -200,7 +199,7 @@ def rmclean3d(
     )
     # Load into Mongo
     myquery = {"Source_ID": iname}
-    newvalues = {"$set": {f"rmclean3d": True}}
+    newvalues = {"$set": {"rmclean3d": True}}
     return pymongo.UpdateOne(myquery, newvalues)
 
 

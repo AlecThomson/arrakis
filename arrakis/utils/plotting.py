@@ -25,9 +25,6 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     from math import sqrt
 
     import matplotlib
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import pandas as pd
 
     # code adapted from http://www.scipy.org/Cookbook/Matplotlib/LaTeX_Examples
     # Width and max height in inches for IEEE journals taken from

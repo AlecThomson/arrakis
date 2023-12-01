@@ -3,7 +3,6 @@
 import argparse
 import hashlib
 import logging
-import multiprocessing as mp
 import os
 import pickle
 from glob import glob
@@ -19,7 +18,6 @@ from astropy import units as u
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
-from astropy.wcs import WCS
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
 from fitscube import combine_fits
@@ -27,7 +25,6 @@ from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
 from prefect import flow, get_run_logger, task
 from racs_tools import beamcon_2D
-from radio_beam import Beam
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
@@ -95,7 +92,7 @@ def cleanup_imageset(purge: bool, image_set: ImageSet) -> None:
     # The aux images are the same between the native images and the smoothed images,
     # they were just copied across directly without modification
     if image_set.aux_lists:
-        logger.critical(f"Removing auxillary images. ")
+        logger.critical("Removing auxillary images. ")
         for (pol, aux), aux_list in image_set.aux_lists.items():
             for aux_image in aux_list:
                 try:
@@ -715,7 +712,7 @@ def main(
         )
         cleans.append(clean)
 
-    logger.info(f"Imager finished!")
+    logger.info("Imager finished!")
 
     return
 

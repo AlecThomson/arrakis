@@ -5,7 +5,7 @@ import shlex
 import subprocess
 import time
 import warnings
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 import astropy.units as u
 import dask.array as da

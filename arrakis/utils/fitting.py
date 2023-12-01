@@ -3,7 +3,7 @@
 
 import warnings
 from functools import partial
-from typing import Any, Dict, Tuple
+from typing import Tuple
 
 import numpy as np
 from astropy.stats import akaike_info_criterion_lsq

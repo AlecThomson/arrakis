@@ -7,7 +7,7 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import astropy.units as u
 import dask
@@ -15,7 +15,7 @@ import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
 from dask import delayed
-from dask.distributed import Client, LocalCluster, progress, wait
+from dask.distributed import Client, LocalCluster
 from FRion import correct, predict
 
 from arrakis.logger import logger
@@ -113,7 +113,7 @@ def predict_worker(
         "proxy_user": None,
         "proxy_pass": None,
     }
-    logger.info(f"Set up empty Proxy structure.")
+    logger.info("Set up empty Proxy structure.")
 
     times, RMs, theta = predict.calculate_modulation(
         start_time=start_time.fits,

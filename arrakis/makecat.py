@@ -4,9 +4,8 @@ import logging
 import os
 import time
 import warnings
-from functools import partial
 from pprint import pformat
-from typing import Callable, Optional, Tuple, TypeVar, Union
+from typing import Tuple, Union
 
 import astropy.units as u
 import dask.dataframe as dd
@@ -14,16 +13,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy.coordinates import SkyCoord
-from astropy.io import fits
 from astropy.io import votable as vot
-from astropy.stats import mad_std, sigma_clip
+from astropy.stats import sigma_clip
 from astropy.table import Column, Table
-from corner import hist2d
 from dask.diagnostics import ProgressBar
-from IPython import embed
 from rmtable import RMTable
 from scipy.stats import lognorm, norm
-from tqdm import tqdm, tqdm_pandas, trange
+from tqdm import tqdm
 from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
 from arrakis import columns_possum
@@ -391,7 +387,7 @@ def get_fit_func(
     plt.plot(xx, fit(xx), "tab:orange", label="Leakage envelope", linewidth=2)
     plt.legend(loc="upper left")
     plt.xlabel("Separation from tile centre [deg]")
-    plt.ylabel(f"$L/I$")
+    plt.ylabel("$L/I$")
     plt.ylim(0, +0.075)
     plt.grid()
     return fit, fig
@@ -458,7 +454,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
                 )
                 target_sn -= 5
         except ValueError as e:
-            if not "Not enough S/N in the whole set of pixels." in str(e):
+            if "Not enough S/N in the whole set of pixels." not in str(e):
                 raise e
             logger.warning(
                 f"Failed with target number of RMs per bin of {target_sn}. Trying again with {target_sn-10}"
@@ -597,7 +593,7 @@ def get_alpha(cat):
 
 
 def get_integration_time(cat, field_col):
-    logger.warn(f"Will be stripping the trailing field character prefix. ")
+    logger.warn("Will be stripping the trailing field character prefix. ")
     field_names = [
         name[:-1] if name[-1] in ("A", "B") else name for name in list(cat["tile_id"])
     ]

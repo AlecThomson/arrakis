@@ -13,7 +13,7 @@ from arrakis.linmos import get_yanda, linmos
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import chunk_dask, tqdm_dask
+from arrakis.utils.pipeline import chunk_dask
 
 
 def make_short_name(name: str) -> str:
@@ -291,7 +291,7 @@ def cli():
     import argparse
 
     # Help string to be shown using the -h option
-    descStr = f"""
+    descStr = """
     Mosaic RACS beam fields with linmos.
 
     """

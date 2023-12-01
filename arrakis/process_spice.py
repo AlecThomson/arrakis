@@ -5,12 +5,11 @@ import os
 from pathlib import Path
 from typing import Any
 
-import astropy.units as u
 import configargparse
 import pkg_resources
 import yaml
 from astropy.time import Time
-from dask.distributed import Client, performance_report
+from dask.distributed import Client
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
 from prefect import flow, task
@@ -365,10 +364,10 @@ def main(args: configargparse.Namespace) -> None:
             client.close()
             del dask_runner
     else:
-        logger.warn(f"Skipping the image creation step. ")
+        logger.warn("Skipping the image creation step. ")
 
     if args.imager_only:
-        logger.info(f"Not running any stages after the imager. ")
+        logger.info("Not running any stages after the imager. ")
         return
 
     # This is the client and pipeline for the RM extraction
@@ -731,7 +730,7 @@ def cli():
         logger.setLevel(logging.INFO)
 
     logger.info(logo_str)
-    logger.info(f"\n\nArguments: ")
+    logger.info("\n\nArguments: ")
     logger.info(args)
 
     main(args)

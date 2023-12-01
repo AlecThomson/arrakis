@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
-import hashlib
 import logging
 import os
 import shlex
@@ -8,18 +7,12 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from time import time
 from typing import Dict, List, Optional, Tuple, Union
 
-import astropy.units as u
-import numpy as np
 import pymongo
-from astropy.coordinates import SkyCoord
-from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
 from dask import delayed
 from dask.distributed import Client, LocalCluster
-from IPython import embed
 from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
@@ -393,7 +386,7 @@ def cli():
     import argparse
 
     # Help string to be shown using the -h option
-    descStr = f"""
+    descStr = """
     Mosaic RACS beam cubes with linmos.
 
     """

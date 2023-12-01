@@ -3,7 +3,7 @@
 
 import copy
 import warnings
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Optional
 
 from astropy.utils.exceptions import AstropyWarning
 from casacore.tables import table

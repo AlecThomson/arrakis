@@ -25,13 +25,12 @@ from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
 from dask.distributed import Client, LocalCluster
-from IPython import embed
 from radio_beam import Beam
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
 from RMutils.util_misc import create_frac_spectra
 from scipy.stats import norm
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
@@ -388,7 +387,7 @@ def fit_stokes_I(
         )
 
     elif do_own_fit:
-        logger.info(f"Doing own fit")
+        logger.info("Doing own fit")
         fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
 
         return StokesIFitResult(
