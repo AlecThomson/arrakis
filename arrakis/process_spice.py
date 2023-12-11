@@ -30,7 +30,7 @@ from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 # Defining tasks
-cut_task = task(cutout.cutout_islands, name="Cutout")
+# cut_task = task(cutout.cutout_islands, name="Cutout")
 linmos_task = task(linmos.main, name="LINMOS")
 frion_task = task(frion.main, name="FRion")
 cleanup_task = task(cleanup.main, name="Clean up")
@@ -53,9 +53,9 @@ def process_spice(args, host: str) -> None:
     with get_dask_client():
         previous_future = None
         previous_future = (
-            cut_task.submit(
+            cutout.cutout_islands(
                 field=args.field,
-                directory=args.outdir,
+                directory=str(args.outdir),
                 host=host,
                 epoch=args.epoch,
                 username=args.username,

@@ -288,7 +288,7 @@ def get_args(
                 args.extend(
                     CutoutArgs(
                         image=image,
-                        id=island["Source_ID"],
+                        source_id=island["Source_ID"],
                         ra_high=ra_high.deg,
                         ra_low=ra_low.deg,
                         dec_high=dec_high.deg,
