@@ -25,7 +25,7 @@ from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
 from dask.distributed import Client, LocalCluster
-from prefect import task
+from prefect import flow, task, unmapped
 from radio_beam import Beam
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
@@ -101,7 +101,7 @@ def rmsynthoncut3d(
     not_RMSF: bool = False,
     rm_verbose: bool = False,
     ion: bool = False,
-):
+) -> pymongo.UpdateOne:
     """3D RM-synthesis
 
     Args:
@@ -457,7 +457,7 @@ def update_rmtools_dict(
         mDict[f"fit_flag_{key}"] = val
 
 
-@delayed
+@task(name="1D RM-synthesis")
 def rmsynthoncut1d(
     comp: dict,
     beam: dict,
@@ -694,7 +694,6 @@ def rmsynthoncut1d(
     return pymongo.UpdateOne(myquery, newvalues)
 
 
-@delayed
 def rmsynthoncut_i(
     comp_id: str,
     outdir: str,
@@ -831,6 +830,7 @@ def rmsynthoncut_i(
     do_RMsynth_1D.saveOutput(mDict, aDict, prefix, verbose=verbose)
 
 
+@flow(name="RMsynth on cutouts")
 def main(
     field: str,
     outdir: Path,
@@ -841,7 +841,7 @@ def main(
     dimension: str = "1d",
     verbose: bool = True,
     database: bool = False,
-    validate: bool = False,
+    do_validate: bool = False,
     limit: Union[int, None] = None,
     savePlots: bool = False,
     weightType: str = "variance",
@@ -915,6 +915,7 @@ def main(
         n_island = limit
         island_ids = island_ids[:limit]
         component_ids = component_ids[:limit]
+        components = components.iloc[:limit]
 
     # Make frequency file
     freq, freqfile = getfreq(
@@ -926,7 +927,7 @@ def main(
 
     outputs = []
 
-    if validate:
+    if do_validate:
         logger.info(f"Running RMsynth on {n_comp} components")
         # We don't run this in parallel!
         for i, comp_id in enumerate(component_ids):
@@ -944,44 +945,32 @@ def main(
                 verbose=verbose,
                 rm_verbose=rm_verbose,
             )
-            output.compute()
 
     elif dimension == "1d":
         logger.info(f"Running RMsynth on {n_comp} components")
-        for i, (_, comp) in tqdm(
-            enumerate(components.iterrows()),
-            total=n_comp,
-            disable=(not verbose),
-            desc="Constructing 1D RMsynth jobs",
-        ):
-            if i > n_comp + 1:
-                break
-            else:
-                beam = dict(beams.loc[comp["Source_ID"]])
-                output = rmsynthoncut1d(
-                    comp=comp,
-                    beam=beam,
-                    outdir=outdir,
-                    freq=freq,
-                    field=field,
-                    polyOrd=polyOrd,
-                    phiMax_radm2=phiMax_radm2,
-                    dPhi_radm2=dPhi_radm2,
-                    nSamples=nSamples,
-                    weightType=weightType,
-                    fitRMSF=fitRMSF,
-                    noStokesI=noStokesI,
-                    showPlots=showPlots,
-                    savePlots=savePlots,
-                    debug=debug,
-                    rm_verbose=rm_verbose,
-                    fit_function=fit_function,
-                    tt0=tt0,
-                    tt1=tt1,
-                    ion=ion,
-                    do_own_fit=do_own_fit,
-                )
-                outputs.append(output)
+        outputs = rmsynthoncut1d.map(
+            comp=components.iterrows(),
+            beam=beams.loc[components["Source_ID"]],
+            outdir=unmapped(outdir),
+            freq=unmapped(freq),
+            field=unmapped(field),
+            polyOrd=unmapped(polyOrd),
+            phiMax_radm2=unmapped(phiMax_radm2),
+            dPhi_radm2=unmapped(dPhi_radm2),
+            nSamples=unmapped(nSamples),
+            weightType=unmapped(weightType),
+            fitRMSF=unmapped(fitRMSF),
+            noStokesI=unmapped(noStokesI),
+            showPlots=unmapped(showPlots),
+            savePlots=unmapped(savePlots),
+            debug=unmapped(debug),
+            rm_verbose=unmapped(rm_verbose),
+            fit_function=unmapped(fit_function),
+            tt0=unmapped(tt0),
+            tt1=unmapped(tt1),
+            ion=unmapped(ion),
+            do_own_fit=unmapped(do_own_fit),
+        )
 
     elif dimension == "3d":
         logger.info(f"Running RMsynth on {n_island} islands")
@@ -1010,18 +999,9 @@ def main(
     else:
         raise ValueError("An incorrect RMSynth mode has been configured. ")
 
-    futures = chunk_dask(
-        outputs=outputs,
-        task_name="RMsynth",
-        progress_text="Running RMsynth",
-        verbose=verbose,
-    )
-
     if database:
         logger.info("Updating database...")
-        updates = [f.compute() for f in futures]
-        # Remove None values
-        updates = [u for u in updates if u is not None]
+        updates = [u.result() for u in outputs if u.result() is not None]
         logger.info("Sending updates to database...")
         if dimension == "1d":
             db_res = comp_col.bulk_write(updates, ordered=False)
@@ -1254,7 +1234,7 @@ def cli():
         dimension=args.dimension,
         verbose=verbose,
         database=args.database,
-        validate=args.validate,
+        do_validate=args.validate,
         limit=args.limit,
         savePlots=args.savePlots,
         weightType=args.weightType,

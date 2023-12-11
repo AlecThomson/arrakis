@@ -30,7 +30,6 @@ from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 # Defining tasks
-rmsynth_task = task(rmsynth_oncuts.main, name="RM Synthesis")
 rmclean_task = task(rmclean_oncuts.main, name="RM-CLEAN")
 cat_task = task(makecat.main, name="Catalogue")
 
@@ -112,7 +111,7 @@ def process_spice(args, host: str) -> None:
         )
 
         previous_future = (
-            rmsynth_task.submit(
+            rmsynth_oncuts.main(
                 field=args.field,
                 outdir=args.outdir,
                 host=host,
@@ -122,7 +121,7 @@ def process_spice(args, host: str) -> None:
                 dimension=args.dimension,
                 verbose=args.verbose,
                 database=args.database,
-                validate=args.validate,
+                do_validate=args.validate,
                 limit=args.limit,
                 savePlots=args.savePlots,
                 weightType=args.weightType,
@@ -141,7 +140,6 @@ def process_spice(args, host: str) -> None:
                 tt1=args.tt1,
                 ion=True,
                 do_own_fit=args.do_own_fit,
-                wait_for=[previous_future],
             )
             if not args.skip_rmsynth
             else previous_future
