@@ -285,7 +285,7 @@ def get_args(
                 )
 
             for image in images:
-                args.extend(
+                args.append(
                     CutoutArgs(
                         image=image,
                         source_id=island["Source_ID"],
