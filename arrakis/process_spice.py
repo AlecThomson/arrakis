@@ -30,7 +30,6 @@ from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 # Defining tasks
-frion_task = task(frion.main, name="FRion")
 rmsynth_task = task(rmsynth_oncuts.main, name="RM Synthesis")
 rmclean_task = task(rmclean_oncuts.main, name="RM-CLEAN")
 cat_task = task(makecat.main, name="Catalogue")
@@ -95,7 +94,7 @@ def process_spice(args, host: str) -> None:
         )
 
         previous_future = (
-            frion_task.submit(
+            frion.main(
                 field=args.field,
                 outdir=args.outdir,
                 host=host,
@@ -108,7 +107,6 @@ def process_spice(args, host: str) -> None:
                 ionex_proxy_server=args.ionex_proxy_server,
                 ionex_formatter=args.ionex_formatter,
                 ionex_predownload=args.ionex_predownload,
-                wait_for=[previous_future],
             )
             if not args.skip_frion
             else previous_future

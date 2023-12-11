@@ -179,7 +179,7 @@ def predict_worker(
 
 
 @task(name="Index beams")
-def index_beams(island: dict, beams: list[dict]) -> dict:
+def index_beams(island: dict, beams: List[dict]) -> dict:
     island_id = island["Source_ID"]
     beam_idx = [i for i, b in enumerate(beams) if b["Source_ID"] == island_id][0]
     beam = beams[beam_idx]
