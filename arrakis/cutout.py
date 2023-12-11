@@ -285,20 +285,18 @@ def get_args(
                 )
 
             for image in images:
-                args.append(
-                    [
-                        CutoutArgs(
-                            image=image,
-                            source_id=island["Source_ID"],
-                            ra_high=ra_high.deg,
-                            ra_low=ra_low.deg,
-                            dec_high=dec_high.deg,
-                            dec_low=dec_low.deg,
-                            outdir=outdir,
-                            beam=beam_num,
-                            stoke=stoke.lower(),
-                        )
-                    ]
+                args.extend(
+                    CutoutArgs(
+                        image=image,
+                        source_id=island["Source_ID"],
+                        ra_high=ra_high.deg,
+                        ra_low=ra_low.deg,
+                        dec_high=dec_high.deg,
+                        dec_low=dec_low.deg,
+                        outdir=outdir,
+                        beam=beam_num,
+                        stoke=stoke.lower(),
+                    )
                 )
     return args
 
@@ -319,7 +317,7 @@ def find_comps(island_id: str, comp_col: pymongo.collection.Collection) -> List[
 
 
 @task(name="Unpack list")
-def unpack(list_sq: List[List[T] | None]) -> List[T]:
+def unpack(list_sq: List[Union[List[T], None]]) -> List[T]:
     """Unpack list of lists of things into a list of things
     Skips None entries
 
