@@ -21,6 +21,7 @@ from astropy.wcs.utils import skycoord_to_pixel
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 from distributed import get_client
+from prefect import flow, task
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 
@@ -42,7 +43,7 @@ warnings.filterwarnings("ignore", message="invalid value encountered in true_div
 logger.setLevel(logging.INFO)
 
 
-@delayed
+@task(name="Cutout island")
 def cutout(
     image: str,
     src_name: str,
@@ -166,7 +167,7 @@ def cutout(
     return ret
 
 
-@delayed
+@task(name="Get cutout arguments")
 def get_args(
     island: Dict,
     comps: List[Dict],
@@ -278,7 +279,7 @@ def get_args(
     return args
 
 
-@delayed
+@task(name="Find components")
 def find_comps(island_id: str, comp_col: pymongo.collection.Collection) -> List[Dict]:
     """Find components for a given island
 
@@ -293,7 +294,7 @@ def find_comps(island_id: str, comp_col: pymongo.collection.Collection) -> List[
     return comps
 
 
-@delayed
+@task(name="Unpack list")
 def unpack(list_sq: List[List[Dict]]) -> List[Dict]:
     """Unpack list of lists
 
@@ -310,6 +311,7 @@ def unpack(list_sq: List[List[Dict]]) -> List[Dict]:
     return list_fl
 
 
+@flow(name="Cutout islands")
 def cutout_islands(
     field: str,
     directory: str,
