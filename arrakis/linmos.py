@@ -342,14 +342,6 @@ def main(
         big_beams = big_beams[:limit]
         comps = comps[:limit]
 
-    # parfiles = component_worker.map(
-    #     beams=big_beams,
-    #     comp=comps,
-    #     stokeslist=unmapped(stokeslist),
-    #     field=unmapped(field),
-    #     cutdir=unmapped(cutdir),
-    #     holofile=unmapped(holofile),
-    # )
     all_parfiles = []
     for stoke in stokeslist:
         image_paths = find_images.map(
