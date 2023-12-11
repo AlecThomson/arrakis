@@ -196,14 +196,14 @@ linmos.removeleakage    = true
 @task(name="Run linmos")
 def linmos(
     parset: Optional[str], fieldname: str, image: str, holofile: Path
-) -> pymongo.UpdateOne:
+) -> Optional[pymongo.UpdateOne]:
     """Run linmos
 
     Args:
         parset (str): Path to parset file.
         fieldname (str): Name of RACS field.
         image (str): Name of Yandasoft image.
-        holofile (Union[Path,str]): Path to the holography file to include in the bind list.
+        holofile (Path): Path to the holography file to include in the bind list.
         verbose (bool, optional): Verbose output. Defaults to False.
 
     Raises:
@@ -283,7 +283,7 @@ def component_worker(
     field: str,
     cutdir: Path,
     holofile: Optional[Path] = None,
-) -> Union[List[str], None]:
+) -> Optional[List[str]]:
     src = beams["Source_ID"]
     if len(comp) == 0:
         logger.warn(f"Skipping island {src} -- no components found")
@@ -377,33 +377,6 @@ def main(
 
     assert len(big_beams) == len(comps)
 
-    # parfiles = []
-    # for beams, comp in zip(big_beams, comps):
-    #     src = beams["Source_ID"]
-    #     if len(comp) == 0:
-    #         logger.warn(f"Skipping island {src} -- no components found")
-    #         continue
-
-    #     image_dict: Dict[str, ImagePaths] = {}
-    #     for stoke in stokeslist:
-    #         image_paths = find_images.submit(
-    #             field=field,
-    #             src_name=src,
-    #             beams=beams,
-    #             stoke=stoke.capitalize(),
-    #             datadir=cutdir,
-    #         )
-    #         image_dict[stoke] = image_paths
-
-    #     smooth_dict = smooth_images(image_dict)
-    #     for stoke in stokeslist:
-    #         parfile = genparset.submit(
-    #             image_paths=smooth_dict[stoke],
-    #             stoke=stoke.capitalize(),
-    #             datadir=cutdir,
-    #             holofile=holofile,
-    #         )
-    #         parfiles.append(parfile)
     parfiles = component_worker.map(
         beams=big_beams,
         comp=comps,
