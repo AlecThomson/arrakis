@@ -31,7 +31,6 @@ from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 # Defining tasks
 frion_task = task(frion.main, name="FRion")
-cleanup_task = task(cleanup.main, name="Clean up")
 rmsynth_task = task(rmsynth_oncuts.main, name="RM Synthesis")
 rmclean_task = task(rmclean_oncuts.main, name="RM-CLEAN")
 cat_task = task(makecat.main, name="Catalogue")
