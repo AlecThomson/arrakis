@@ -272,7 +272,7 @@ def get_args(
         logger.debug(f"comps are {comps=}")
         raise e
 
-    args = []
+    args: List[CutoutArgs] = []
     for beam_num in beam_list:
         for stoke in stokeslist:
             wild = f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
@@ -285,18 +285,20 @@ def get_args(
                 )
 
             for image in images:
-                args.extend(
-                    CutoutArgs(
-                        image=image,
-                        source_id=island["Source_ID"],
-                        ra_high=ra_high.deg,
-                        ra_low=ra_low.deg,
-                        dec_high=dec_high.deg,
-                        dec_low=dec_low.deg,
-                        outdir=outdir,
-                        beam=beam_num,
-                        stoke=stoke.lower(),
-                    )
+                args.append(
+                    [
+                        CutoutArgs(
+                            image=image,
+                            source_id=island["Source_ID"],
+                            ra_high=ra_high.deg,
+                            ra_low=ra_low.deg,
+                            dec_high=dec_high.deg,
+                            dec_low=dec_low.deg,
+                            outdir=outdir,
+                            beam=beam_num,
+                            stoke=stoke.lower(),
+                        )
+                    ]
                 )
     return args
 
@@ -317,21 +319,26 @@ def find_comps(island_id: str, comp_col: pymongo.collection.Collection) -> List[
 
 
 @task(name="Unpack list")
-def unpack(list_sq: List[List[T]]) -> List[T]:
+def unpack(list_sq: List[List[T] | None]) -> List[T]:
     """Unpack list of lists of things into a list of things
+    Skips None entries
 
     Args:
-        list_sq (List[List[T]]): List of lists of things
+        list_sq (List[List[T] | None]): List of lists of things or Nones
 
     Returns:
         List[T]: List of things
     """
-    list_fl = []
+    list_fl: List[T] = []
     for i in list_sq:
         if i is None:
             continue
+        if isinstance(i, list):
+            list_fl.extend(i)
+            continue
         for j in i:
             list_fl.append(j)
+
     return list_fl
 
 
