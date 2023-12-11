@@ -30,7 +30,6 @@ from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 # Defining tasks
-# cut_task = task(cutout.cutout_islands, name="Cutout")
 linmos_task = task(linmos.main, name="LINMOS")
 frion_task = task(frion.main, name="FRion")
 cleanup_task = task(cleanup.main, name="Clean up")
