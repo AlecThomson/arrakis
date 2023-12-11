@@ -238,7 +238,6 @@ def linmos(
     outstr = "\n".join(output["message"])
     with open(log_file, "w") as f:
         f.write(outstr)
-        # f.write(output['message'])
 
     if output["return_code"] != 0:
         raise Exception(f"LINMOS failed! Check '{log_file}'")
