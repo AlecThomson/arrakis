@@ -63,6 +63,7 @@ def process_spice(args, host: str) -> None:
                 stokeslist=["I", "Q", "U"],
                 verbose_worker=args.verbose_worker,
                 dryrun=args.dryrun,
+                limit=args.limit,
             )
             if not args.skip_cutout
             else previous_future

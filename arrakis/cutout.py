@@ -98,8 +98,6 @@ def cutout(
         pymongo.UpdateOne: Update query for MongoDB
     """
     logger.setLevel(logging.INFO)
-    # logger = logging.getLogger('distributed.worker')
-    # logger = get_run_logger()
 
     logger.info(f"Timwashere - {cutout_args.image=}")
 
@@ -122,10 +120,10 @@ def cutout(
             logger.info(f"Written to {outfile}")
 
         if imtype == "image":
-            logger.info(f"Reading {image}")
+            logger.info(f"Reading {cutout_args.image}")
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", AstropyWarning)
-                cube = SpectralCube.read(image)
+                cube = SpectralCube.read(cutout_args.image)
             padder = cube.header["BMAJ"] * u.deg * pad
 
             xlo = Longitude(cutout_args.ra_low * u.deg) - Longitude(padder)
@@ -147,7 +145,9 @@ def cutout(
             new_header = cutout_cube.header
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", AstropyWarning)
-                with fits.open(image, memmap=True, mode="denywrite") as hdulist:
+                with fits.open(
+                    cutout_args.image, memmap=True, mode="denywrite"
+                ) as hdulist:
                     data = hdulist[0].data
                     old_header = hdulist[0].header
 
@@ -298,6 +298,7 @@ def get_args(
                         stoke=stoke.lower(),
                     )
                 )
+    logger.info(f"{args=}")
     return args
 
 
@@ -317,7 +318,7 @@ def find_comps(island_id: str, comp_col: pymongo.collection.Collection) -> List[
 
 
 @task(name="Unpack list")
-def unpack(list_sq: List[Union[List[T], None]]) -> List[T]:
+def unpack(list_sq: List[Union[List[T], None, T]]) -> List[T]:
     """Unpack list of lists of things into a list of things
     Skips None entries
 
@@ -327,16 +328,18 @@ def unpack(list_sq: List[Union[List[T], None]]) -> List[T]:
     Returns:
         List[T]: List of things
     """
+    logger.setLevel(logging.DEBUG)
+    logger.debug(f"{list_sq=}")
     list_fl: List[T] = []
     for i in list_sq:
         if i is None:
             continue
-        if isinstance(i, list):
+        elif isinstance(i, list):
             list_fl.extend(i)
             continue
-        for j in i:
-            list_fl.append(j)
-
+        else:
+            list_fl.append(i)
+    logger.debug(f"{list_fl=}")
     return list_fl
 
 
@@ -352,6 +355,7 @@ def cutout_islands(
     stokeslist: Optional[List[str]] = None,
     verbose_worker: bool = False,
     dryrun: bool = True,
+    limit: Optional[int] = None,
 ) -> None:
     """Perform cutouts of RACS islands in parallel.
 
@@ -408,6 +412,13 @@ def cutout_islands(
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
 
+    if limit is not None:
+        logger.critical(f"Limiting to {limit} islands")
+        islands = islands[:limit]
+        island_ids = island_ids[:limit]
+        comps = comps[:limit]
+        beams = beams[:limit]
+
     args = get_args.map(
         island=islands,
         comps=comps,
@@ -419,9 +430,9 @@ def cutout_islands(
         stokeslist=unmapped(stokeslist),
         verbose=unmapped(verbose_worker),
     )
-
-    flat_args = unpack.map(args)
-
+    # args = [a.result() for a in args]
+    # flat_args = unpack.map(args)
+    flat_args = unpack(args)
     cuts = cutout.map(
         cutout_args=flat_args,
         field=unmapped(field),
@@ -457,6 +468,7 @@ def main(args: argparse.Namespace) -> None:
         stokeslist=args.stokeslist,
         verbose_worker=args.verbose_worker,
         dryrun=args.dryrun,
+        limit=args.limit,
     )
 
     logger.info("Done!")
@@ -545,6 +557,12 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         nargs="+",
         type=str,
         help="List of Stokes parameters to image [ALL]",
+    )
+    parser.add_argument(
+        "--limit",
+        type=Optional[int],
+        default=None,
+        help="Limit number of islands to process [None]",
     )
 
     return cut_parser
