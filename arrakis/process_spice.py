@@ -87,11 +87,9 @@ def process_spice(args, host: str) -> None:
         )
 
         previous_future = (
-            cleanup_task.submit(
+            cleanup.main(
                 datadir=args.outdir,
                 stokeslist=["I", "Q", "U"],
-                verbose=True,
-                wait_for=[previous_future],
             )
             if not args.skip_cleanup
             else previous_future
