@@ -7,7 +7,9 @@ import warnings
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Union
+from typing import Dict, List
+from typing import NamedTuple as Struct
+from typing import Optional, TypeVar, Union
 
 import astropy.units as u
 import numpy as np
@@ -21,7 +23,7 @@ from astropy.wcs.utils import skycoord_to_pixel
 from dask import delayed
 from dask.distributed import Client, LocalCluster
 from distributed import get_client
-from prefect import flow, task
+from prefect import flow, task, unmapped
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 
@@ -42,21 +44,37 @@ warnings.filterwarnings("ignore", message="invalid value encountered in true_div
 
 logger.setLevel(logging.INFO)
 
+T = TypeVar("T")
+
+
+class CutoutArgs(Struct):
+    """Arguments for cutout function"""
+
+    image: str
+    """Name of the image file"""
+    source_id: str
+    """Name of the source"""
+    ra_high: float
+    """Upper RA bound in degrees"""
+    ra_low: float
+    """Lower RA bound in degrees"""
+    dec_high: float
+    """Upper DEC bound in degrees"""
+    dec_low: float
+    """Lower DEC bound in degrees"""
+    outdir: str
+    """Output directory"""
+    beam: int
+    """Beam number"""
+    stoke: str
+    """Stokes parameter"""
+
 
 @task(name="Cutout island")
 def cutout(
-    image: str,
-    src_name: str,
-    beam: int,
-    ra_hi: float,
-    ra_lo: float,
-    dec_hi: float,
-    dec_lo: float,
-    outdir: str,
-    stoke: str,
+    cutout_args: CutoutArgs,
     field: str,
     pad=3,
-    verbose=False,
     dryrun=False,
 ) -> List[pymongo.UpdateOne]:
     """Perform a cutout.
@@ -65,10 +83,10 @@ def cutout(
         image (str): Name of the image file
         src_name (str): Name of the RACS source
         beam (int): Beam number
-        ra_hi (float): Upper RA bound
-        ra_lo (float): Lower RA bound
-        dec_hi (float): Upper DEC bound
-        dec_lo (float): Lower DEC bound
+        ra_high (float): Upper RA bound
+        ra_low (float): Lower RA bound
+        dec_high (float): Upper DEC bound
+        dec_low (float): Lower DEC bound
         outdir (str): Output directgory
         stoke (str): Stokes parameter
         field (str): RACS field name
@@ -83,20 +101,20 @@ def cutout(
     # logger = logging.getLogger('distributed.worker')
     # logger = get_run_logger()
 
-    logger.info(f"Timwashere - {image=}")
+    logger.info(f"Timwashere - {cutout_args.image=}")
 
-    outdir = os.path.abspath(outdir)
+    outdir = os.path.abspath(cutout_args.outdir)
 
     ret = []
     for imtype in ["image", "weight"]:
-        basename = os.path.basename(image)
-        outname = f"{src_name}.cutout.{basename}"
+        basename = os.path.basename(cutout_args.image)
+        outname = f"{cutout_args.source_id}.cutout.{basename}"
         outfile = os.path.join(outdir, outname)
 
         if imtype == "weight":
-            image = image.replace("image.restored", "weights.restored").replace(
-                ".fits", ".txt"
-            )
+            image = cutout_args.image.replace(
+                "image.restored", "weights.restored"
+            ).replace(".fits", ".txt")
             outfile = outfile.replace("image.restored", "weights.restored").replace(
                 ".fits", ".txt"
             )
@@ -110,10 +128,10 @@ def cutout(
                 cube = SpectralCube.read(image)
             padder = cube.header["BMAJ"] * u.deg * pad
 
-            xlo = Longitude(ra_lo * u.deg) - Longitude(padder)
-            xhi = Longitude(ra_hi * u.deg) + Longitude(padder)
-            ylo = Latitude(dec_lo * u.deg) - Latitude(padder)
-            yhi = Latitude(dec_hi * u.deg) + Latitude(padder)
+            xlo = Longitude(cutout_args.ra_low * u.deg) - Longitude(padder)
+            xhi = Longitude(cutout_args.ra_high * u.deg) + Longitude(padder)
+            ylo = Latitude(cutout_args.dec_low * u.deg) - Latitude(padder)
+            yhi = Latitude(cutout_args.dec_high * u.deg) + Latitude(padder)
 
             xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
             xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
@@ -141,7 +159,7 @@ def cutout(
                     ]
                 fixed_header = fix_header(new_header, old_header)
                 # Add source name to header for CASDA
-                fixed_header["OBJECT"] = src_name
+                fixed_header["OBJECT"] = cutout_args.source_id
                 if not dryrun:
                     fits.writeto(
                         outfile,
@@ -153,13 +171,15 @@ def cutout(
                     logger.info(f"Written to {outfile}")
 
         # Update database
-        myquery = {"Source_ID": src_name}
+        myquery = {"Source_ID": cutout_args.source_id}
 
         filename = os.path.join(
             os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
         )
         newvalues = {
-            "$set": {f"beams.{field}.{stoke}_beam{beam}_{imtype}_file": filename}
+            "$set": {
+                f"beams.{field}.{cutout_args.stoke}_beam{cutout_args.beam}_{imtype}_file": filename
+            }
         }
 
         ret += [pymongo.UpdateOne(myquery, newvalues, upsert=True)]
@@ -178,7 +198,7 @@ def get_args(
     datadir: str,
     stokeslist: List[str],
     verbose=True,
-) -> List[Dict]:
+) -> Union[List[CutoutArgs], None]:
     """Get arguments for cutout function
 
     Args:
@@ -197,13 +217,17 @@ def get_args(
         Exception: Problems with coordinates
 
     Returns:
-        List[Dict]: List of cutout arguments for cutout function
+        List[CutoutArgs]: List of cutout arguments for cutout function
     """
 
     logger.setLevel(logging.INFO)
 
     assert island["Source_ID"] == island_id
     assert beam["Source_ID"] == island_id
+
+    if len(comps) == 0:
+        logger.warning(f"Skipping island {island_id} -- no components found")
+        return None
 
     beam_list = list(set(beam["beams"][field]["beam_list"]))
 
@@ -227,22 +251,22 @@ def get_args(
         ra_max = np.max(coords.ra)
         ra_i_max = np.argmax(coords.ra)
         ra_off = Longitude(majs[ra_i_max])
-        ra_hi = ra_max + ra_off
+        ra_high = ra_max + ra_off
 
         ra_min = np.min(coords.ra)
         ra_i_min = np.argmin(coords.ra)
         ra_off = Longitude(majs[ra_i_min])
-        ra_lo = ra_min - ra_off
+        ra_low = ra_min - ra_off
 
         dec_max = np.max(coords.dec)
         dec_i_max = np.argmax(coords.dec)
         dec_off = Longitude(majs[dec_i_max])
-        dec_hi = dec_max + dec_off
+        dec_high = dec_max + dec_off
 
         dec_min = np.min(coords.dec)
         dec_i_min = np.argmin(coords.dec)
         dec_off = Longitude(majs[dec_i_min])
-        dec_lo = dec_min - dec_off
+        dec_low = dec_min - dec_off
     except Exception as e:
         logger.debug(f"coords are {coords=}")
         logger.debug(f"comps are {comps=}")
@@ -262,19 +286,17 @@ def get_args(
 
             for image in images:
                 args.extend(
-                    [
-                        {
-                            "image": image,
-                            "id": island["Source_ID"],
-                            "ra_hi": ra_hi.deg,
-                            "ra_lo": ra_lo.deg,
-                            "dec_hi": dec_hi.deg,
-                            "dec_lo": dec_lo.deg,
-                            "outdir": outdir,
-                            "beam": beam_num,
-                            "stoke": stoke.lower(),
-                        }
-                    ]
+                    CutoutArgs(
+                        image=image,
+                        id=island["Source_ID"],
+                        ra_high=ra_high.deg,
+                        ra_low=ra_low.deg,
+                        dec_high=dec_high.deg,
+                        dec_low=dec_low.deg,
+                        outdir=outdir,
+                        beam=beam_num,
+                        stoke=stoke.lower(),
+                    )
                 )
     return args
 
@@ -295,17 +317,19 @@ def find_comps(island_id: str, comp_col: pymongo.collection.Collection) -> List[
 
 
 @task(name="Unpack list")
-def unpack(list_sq: List[List[Dict]]) -> List[Dict]:
-    """Unpack list of lists
+def unpack(list_sq: List[List[T]]) -> List[T]:
+    """Unpack list of lists of things into a list of things
 
     Args:
-        list_sq (List[List[Dict]]): List of lists of dicts
+        list_sq (List[List[T]]): List of lists of things
 
     Returns:
-        List[Dict]: List of dicts
+        List[T]: List of things
     """
     list_fl = []
     for i in list_sq:
+        if i is None:
+            continue
         for j in i:
             list_fl.append(j)
     return list_fl
@@ -317,10 +341,10 @@ def cutout_islands(
     directory: str,
     host: str,
     epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     pad: float = 3,
-    stokeslist: Union[List[str], None] = None,
+    stokeslist: Optional[List[str]] = None,
     verbose_worker: bool = False,
     dryrun: bool = True,
 ) -> None:
@@ -379,55 +403,29 @@ def cutout_islands(
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
 
-    args = []
-    for island_id, island, comp, beam in zip(island_ids, islands, comps, beams):
-        if len(comp) == 0:
-            warnings.warn(f"Skipping island {island_id} -- no components found")
-            continue
-        else:
-            arg = get_args(
-                island,
-                comp,
-                beam,
-                island_id,
-                outdir,
-                field,
-                directory,
-                stokeslist,
-                verbose=verbose_worker,
-            )
-            args.append(arg)
-
-    flat_args = unpack(args)
-    flat_args = client.compute(flat_args)
-    tqdm_dask(flat_args, desc="Getting args", total=len(islands) + 1)
-    flat_args = flat_args.result()
-    cuts = []
-    for arg in flat_args:
-        cut = cutout(
-            image=arg["image"],
-            src_name=arg["id"],
-            beam=arg["beam"],
-            ra_hi=arg["ra_hi"],
-            ra_lo=arg["ra_lo"],
-            dec_hi=arg["dec_hi"],
-            dec_lo=arg["dec_lo"],
-            outdir=arg["outdir"],
-            stoke=arg["stoke"],
-            field=field,
-            pad=pad,
-            verbose=verbose_worker,
-            dryrun=dryrun,
-        )
-        cuts.append(cut)
-
-    futures = chunk_dask(
-        outputs=cuts,
-        task_name="cutouts",
-        progress_text="Cutting out",
+    args = get_args.map(
+        island=islands,
+        comps=comps,
+        beam=beams,
+        island_id=island_ids,
+        outdir=unmapped(outdir),
+        field=unmapped(field),
+        datadir=unmapped(directory),
+        stokeslist=unmapped(stokeslist),
+        verbose=unmapped(verbose_worker),
     )
+
+    flat_args = unpack.map(args)
+
+    cuts = cutout.map(
+        cutout_args=flat_args,
+        field=unmapped(field),
+        pad=unmapped(pad),
+        dryrun=unmapped(dryrun),
+    )
+
     if not dryrun:
-        _updates = [f.compute() for f in futures]
+        _updates = [f.result() for f in cuts]
         updates = [val for sublist in _updates for val in sublist]
         logger.info("Updating database...")
         db_res = beams_col.bulk_write(updates, ordered=False)
@@ -436,7 +434,7 @@ def cutout_islands(
     logger.info("Cutouts Done!")
 
 
-def main(args: argparse.Namespace, verbose=True) -> None:
+def main(args: argparse.Namespace) -> None:
     """Main script
 
     Args:
