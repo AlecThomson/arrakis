@@ -20,7 +20,6 @@ from astropy.io import fits
 from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs.utils import skycoord_to_pixel
-from dask import delayed
 from dask.distributed import Client, LocalCluster
 from distributed import get_client
 from prefect import flow, task, unmapped
@@ -31,7 +30,7 @@ from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import fix_header
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import chunk_dask, logo_str, tqdm_dask
+from arrakis.utils.pipeline import logo_str
 
 iers.conf.auto_download = False
 warnings.filterwarnings(

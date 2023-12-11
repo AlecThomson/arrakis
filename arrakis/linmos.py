@@ -9,11 +9,10 @@ from pathlib import Path
 from pprint import pformat
 from typing import Dict, List
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple, Union
+from typing import Optional
 
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
-from dask import delayed
 from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 from racs_tools import beamcon_3D
@@ -22,7 +21,6 @@ from spython.main import Client as sclient
 
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
-from arrakis.utils.pipeline import chunk_dask
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)

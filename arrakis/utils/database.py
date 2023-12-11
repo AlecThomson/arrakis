@@ -7,7 +7,6 @@ from typing import Tuple, Union
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
 from pymongo.collection import Collection
-from pymongo.database import Database
 from spectral_cube.utils import SpectralCubeWarning
 
 from arrakis.logger import logger

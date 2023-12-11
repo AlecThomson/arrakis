@@ -25,6 +25,7 @@ from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
 from dask.distributed import Client, LocalCluster
+from prefect import task
 from radio_beam import Beam
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
@@ -85,7 +86,7 @@ class StokesIFitResult(Struct):
     """The dictionary of the fit results"""
 
 
-@delayed
+@task(name="3D RM-synthesis")
 def rmsynthoncut3d(
     island_id: str,
     beam: dict,

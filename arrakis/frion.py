@@ -2,21 +2,18 @@
 """Correct for the ionosphere in parallel"""
 import logging
 import os
-import time
 from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Callable, Dict
+from typing import Callable, Dict, List
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import astropy.units as u
-import dask
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
-from dask import delayed
 from dask.distributed import Client, LocalCluster
 from FRion import correct, predict
 from prefect import flow, task, unmapped
@@ -25,7 +22,7 @@ from arrakis.logger import logger
 from arrakis.utils.database import get_db, get_field_db, test_db
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import logo_str, tqdm_dask
+from arrakis.utils.pipeline import logo_str
 
 logger.setLevel(logging.INFO)
 

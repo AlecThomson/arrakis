@@ -6,12 +6,11 @@ from glob import glob
 from pathlib import Path
 from typing import List, Union
 
-from dask import delayed
 from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 
 from arrakis.logger import logger
-from arrakis.utils.pipeline import chunk_dask, logo_str
+from arrakis.utils.pipeline import logo_str
 
 logger.setLevel(logging.INFO)
 
