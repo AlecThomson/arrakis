@@ -102,7 +102,6 @@ def process_spice(args, host: str) -> None:
                 username=args.username,
                 password=args.password,
                 database=args.database,
-                verbose=args.verbose,
                 ionex_server=args.ionex_server,
                 ionex_proxy_server=args.ionex_proxy_server,
                 ionex_formatter=args.ionex_formatter,

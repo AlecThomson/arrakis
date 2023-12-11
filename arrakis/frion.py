@@ -195,7 +195,6 @@ def main(
     username: Optional[str] = None,
     password: Optional[str] = None,
     database=False,
-    verbose=True,
     ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
     ionex_prefix: str = "codg",
     ionex_proxy_server: Optional[str] = None,
