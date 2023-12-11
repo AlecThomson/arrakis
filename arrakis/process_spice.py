@@ -30,7 +30,6 @@ from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 # Defining tasks
-linmos_task = task(linmos.main, name="LINMOS")
 frion_task = task(frion.main, name="FRion")
 cleanup_task = task(cleanup.main, name="Clean up")
 rmsynth_task = task(rmsynth_oncuts.main, name="RM Synthesis")
@@ -70,7 +69,7 @@ def process_spice(args, host: str) -> None:
         )
 
         previous_future = (
-            linmos_task.submit(
+            linmos.main(
                 field=args.field,
                 datadir=Path(args.outdir),
                 host=host,
@@ -81,8 +80,7 @@ def process_spice(args, host: str) -> None:
                 yanda=args.yanda,
                 yanda_img=args.yanda_image,
                 stokeslist=["I", "Q", "U"],
-                verbose=True,
-                wait_for=[previous_future],
+                limit=args.limit,
             )
             if not args.skip_linmos
             else previous_future

@@ -52,7 +52,6 @@ def find_images(
 
     Args:
         field (str): Field name.
-        src_name (str): Source name.
         beams (dict): Beam information.
         stoke (str): Stokes parameter.
         datadir (Path): Data directory.
@@ -274,45 +273,6 @@ def get_yanda(version="1.3.0") -> str:
     return image
 
 
-@task(name="Component worker")
-def component_worker(
-    beams: dict,
-    comp: List[dict],
-    stokeslist: List[str],
-    field: str,
-    cutdir: Path,
-    holofile: Optional[Path] = None,
-) -> Optional[List[str]]:
-    src = beams["Source_ID"]
-    if len(comp) == 0:
-        logger.warn(f"Skipping island {src} -- no components found")
-        return
-
-    image_dict: Dict[str, ImagePaths] = {}
-    for stoke in stokeslist:
-        image_paths = find_images(
-            field=field,
-            src_name=src,
-            beams=beams,
-            stoke=stoke.capitalize(),
-            datadir=cutdir,
-        )
-        image_dict[stoke] = image_paths
-
-    smooth_dict = smooth_images(image_dict)
-    parfiles: List[str] = []
-    for stoke in stokeslist:
-        parfile = genparset(
-            image_paths=smooth_dict[stoke],
-            stoke=stoke.capitalize(),
-            datadir=cutdir,
-            holofile=holofile,
-        )
-        parfiles.append(parfile)
-
-    return parfiles
-
-
 @flow(name="LINMOS")
 def main(
     field: str,
@@ -325,6 +285,7 @@ def main(
     yanda: str = "1.3.0",
     yanda_img: Optional[Path] = None,
     stokeslist: Optional[List[str]] = None,
+    limit: Optional[int] = None,
 ) -> None:
     """Main script
 
@@ -376,17 +337,37 @@ def main(
 
     assert len(big_beams) == len(comps)
 
-    parfiles = component_worker.map(
-        beams=big_beams,
-        comp=comps,
-        stokeslist=unmapped(stokeslist),
-        field=unmapped(field),
-        cutdir=unmapped(cutdir),
-        holofile=unmapped(holofile),
-    )
+    if limit is not None:
+        logger.critical(f"Limiting to {limit} islands")
+        big_beams = big_beams[:limit]
+        comps = comps[:limit]
+
+    # parfiles = component_worker.map(
+    #     beams=big_beams,
+    #     comp=comps,
+    #     stokeslist=unmapped(stokeslist),
+    #     field=unmapped(field),
+    #     cutdir=unmapped(cutdir),
+    #     holofile=unmapped(holofile),
+    # )
+    all_parfiles = []
+    for stoke in stokeslist:
+        image_paths = find_images.map(
+            field=unmapped(field),
+            beams=big_beams,
+            stoke=unmapped(stoke.capitalize()),
+            datadir=unmapped(cutdir),
+        )
+        parfiles = genparset.map(
+            image_paths=image_paths,
+            stoke=unmapped(stoke.capitalize()),
+            datadir=unmapped(cutdir),
+            holofile=unmapped(holofile),
+        )
+        all_parfiles.extend(parfiles)
 
     results = linmos.map(
-        parfiles,
+        all_parfiles,
         unmapped(field),
         unmapped(str(image)),
         unmapped(holofile),
@@ -478,6 +459,12 @@ def cli():
     parser.add_argument(
         "--password", type=str, default=None, help="Password of mongodb."
     )
+    parser.add_argument(
+        "--limit",
+        type=Optional[int],
+        default=None,
+        help="Limit the number of islands to process.",
+    )
 
     args = parser.parse_args()
 
@@ -500,6 +487,7 @@ def cli():
         yanda=args.yanda,
         yanda_img=args.yanda_image,
         stokeslist=args.stokeslist,
+        limit=args.limit,
     )
 
 
