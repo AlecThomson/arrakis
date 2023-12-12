@@ -209,6 +209,7 @@ def create_client(
     minimum: int = 1,
     maximum: int = 38,
     mode: str = "adapt",
+    overload: bool = False,
 ) -> Client:
     logger.info("Creating a Client")
     if dask_config is None:
@@ -220,16 +221,12 @@ def create_client(
         logger.info(f"Loading {dask_config}")
         config = yaml.safe_load(f)
 
-    logger.info("Overwriting config attributes.")
-    config["job_cpu"] = config["cores"]
-    config["cores"] = 1
-    config["processes"] = 1
+    if overload:
+        logger.info("Overwriting config attributes.")
+        config["job_cpu"] = config["cores"]
+        config["cores"] = 1
+        config["processes"] = 1
 
-    # config.update(
-    #     {
-    #         "log_directory": f"{field}_{Time.now().fits}_spice_logs/"
-    #     }
-    # )
     if use_mpi:
         initialize(
             interface=config["interface"],
@@ -306,6 +303,7 @@ def main(args: configargparse.Namespace) -> None:
             port_forward=args.port_forward,
             minimum=1,
             maximum=38,
+            overload=True,
         )
 
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
@@ -359,8 +357,8 @@ def main(args: configargparse.Namespace) -> None:
         dask_config=args.dask_config,
         use_mpi=args.use_mpi,
         port_forward=args.port_forward,
-        minimum=64,
-        maximum=64,
+        minimum=1,
+        maximum=256,
     )
 
     # Define flow
