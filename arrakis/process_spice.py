@@ -30,7 +30,6 @@ from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 # Defining tasks
-rmclean_task = task(rmclean_oncuts.main, name="RM-CLEAN")
 cat_task = task(makecat.main, name="Catalogue")
 
 
@@ -149,7 +148,7 @@ def process_spice(args, host: str) -> None:
         )
 
         previous_future = (
-            rmclean_task.submit(
+            rmclean_oncuts.main(
                 field=args.field,
                 outdir=args.outdir,
                 host=host,
@@ -157,9 +156,7 @@ def process_spice(args, host: str) -> None:
                 username=args.username,
                 password=args.password,
                 dimension=args.dimension,
-                verbose=args.verbose,
                 database=args.database,
-                validate=args.validate,
                 limit=args.limit,
                 cutoff=args.cutoff,
                 maxIter=args.maxIter,
