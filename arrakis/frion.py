@@ -11,7 +11,6 @@ from typing import NamedTuple as Struct
 from typing import Optional, Union
 
 import astropy.units as u
-import matplotlib.pyplot as plt
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta

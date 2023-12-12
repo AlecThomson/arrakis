@@ -16,11 +16,10 @@ from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D
-from tqdm import tqdm
 
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
-from arrakis.utils.pipeline import chunk_dask, logo_str
+from arrakis.utils.pipeline import logo_str
 
 
 @task(name="1D RM-CLEAN")

@@ -12,7 +12,7 @@ from astropy.time import Time
 from dask.distributed import Client
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
-from prefect import flow, task
+from prefect import flow
 from prefect_dask import DaskTaskRunner, get_dask_client
 
 from arrakis import (

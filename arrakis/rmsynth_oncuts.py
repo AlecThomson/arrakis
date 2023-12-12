@@ -23,7 +23,6 @@ from astropy.modeling import models
 from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
-from dask import delayed
 from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 from radio_beam import Beam
@@ -31,14 +30,13 @@ from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
 from RMutils.util_misc import create_frac_spectra
 from scipy.stats import norm
-from tqdm import tqdm
 
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import chunk_dask, logo_str
+from arrakis.utils.pipeline import logo_str
 
 logger.setLevel(logging.INFO)
 

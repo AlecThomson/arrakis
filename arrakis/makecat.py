@@ -17,7 +17,7 @@ from astropy.io import votable as vot
 from astropy.stats import sigma_clip
 from astropy.table import Column, Table
 from dask.diagnostics import ProgressBar
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from rmtable import RMTable
 from scipy.stats import lognorm, norm
 from tqdm import tqdm
