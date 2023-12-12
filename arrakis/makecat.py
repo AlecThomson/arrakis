@@ -17,7 +17,7 @@ from astropy.io import votable as vot
 from astropy.stats import sigma_clip
 from astropy.table import Column, Table
 from dask.diagnostics import ProgressBar
-from prefect import flow, task
+from prefect import flow, task, unmapped
 from rmtable import RMTable
 from scipy.stats import lognorm, norm
 from tqdm import tqdm
@@ -405,6 +405,15 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     logger.info("Computing voronoi bins and finding bad RMs")
     logger.info(f"Number of available sources: {len(good_cat)}.")
 
+    df = good_cat.to_pandas()
+    df.reset_index(inplace=True)
+    df.set_index("cat_id", inplace=True)
+
+    df_out = big_cat.to_pandas()
+    df_out.reset_index(inplace=True)
+    df_out.set_index("cat_id", inplace=True)
+    df_out["local_rm_flag"] = False
+
     def sn_func(index, signal=None, noise=None):
         try:
             sn = len(np.array(index))
@@ -414,6 +423,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
 
     target_sn = 30
     target_bins = 6
+    fail = True
     while target_sn > 1:
         logger.debug(
             f"Trying to find Voroni bins with RMs per bin={target_sn}, Number of bins={target_bins}"
@@ -463,32 +473,27 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
         fail_msg = "Failed to converge towards a Voronoi binning solution. "
         logger.error(fail_msg)
 
-        raise ValueError(fail_msg)
+        fail = True
 
-    logger.info(f"Found {len(set(bin_number))} bins")
-    df = good_cat.to_pandas()
-    df.reset_index(inplace=True)
-    df.set_index("cat_id", inplace=True)
-    df["bin_number"] = bin_number
-    # Use sigma clipping to find outliers
+    if not fail:
+        logger.info(f"Found {len(set(bin_number))} bins")
+        df["bin_number"] = bin_number
 
-    def masker(x):
-        return pd.Series(
-            sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
-            index=x.index,
+        # Use sigma clipping to find outliers
+        def masker(x):
+            return pd.Series(
+                sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
+                index=x.index,
+            )
+
+        perc_g = df.groupby("bin_number").apply(
+            masker,
         )
+        # Put flag into the catalogue
+        df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
+        df.drop(columns=["bin_number"], inplace=True)
+        df_out.update(df["local_rm_flag"])
 
-    perc_g = df.groupby("bin_number").apply(
-        masker,
-    )
-    # Put flag into the catalogue
-    df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
-    df.drop(columns=["bin_number"], inplace=True)
-    df_out = big_cat.to_pandas()
-    df_out.reset_index(inplace=True)
-    df_out.set_index("cat_id", inplace=True)
-    df_out["local_rm_flag"] = False
-    df_out.update(df["local_rm_flag"])
     df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
     cat_out = RMTable.from_pandas(df_out.reset_index())
     cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
