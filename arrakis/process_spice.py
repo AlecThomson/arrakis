@@ -29,9 +29,6 @@ from arrakis.logger import logger
 from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
-# Defining tasks
-cat_task = task(makecat.main, name="Catalogue")
-
 
 @flow(name="Combining+Synthesis on Arrakis")
 def process_spice(args, host: str) -> None:
@@ -171,7 +168,7 @@ def process_spice(args, host: str) -> None:
         )
 
         previous_future = (
-            cat_task.submit(
+            makecat.main(
                 field=args.field,
                 host=host,
                 epoch=args.epoch,
