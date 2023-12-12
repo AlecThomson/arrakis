@@ -316,8 +316,13 @@ def get_fit_func(
     logger.info(f"{np.sum(hi_snr)} sources with Stokes I SNR above {high_snr_cut=}.")
 
     if len(hi_i_tab) < 100:
-        logger.critcal("Not enough high SNR sources to fit leakage envelope.")
-        return np.polynomial.Polynomial.fit([0], [0], deg=1), plt.figure()
+        logger.critical("Not enough high SNR sources to fit leakage envelope.")
+        return (
+            np.polynomial.Polynomial.fit(
+                np.array([0, 1]), np.array([0, 0]), deg=0, full=False
+            ),
+            plt.figure(),
+        )
 
     # Get fractional pol
     frac_P = np.array(hi_i_tab["fracpol"].value)
