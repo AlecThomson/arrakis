@@ -89,7 +89,7 @@ class StokesIFitResult(Struct):
 @task(name="3D RM-synthesis")
 def rmsynthoncut3d(
     island_id: str,
-    beam: dict,
+    beams: pd.DataFrame,
     outdir: str,
     freq: np.ndarray,
     field: str,
@@ -118,7 +118,7 @@ def rmsynthoncut3d(
         not_RMSF (bool, optional): Skip calculation of RMSF. Defaults to False.
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
-
+    beam = dict(beams.loc[island_id])
     iname = island_id
     ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
 
@@ -927,13 +927,11 @@ def main(
     )
     freq = np.array(freq)
 
-    outputs = []
-
     if do_validate:
         logger.info(f"Running RMsynth on {n_comp} components")
         # We don't run this in parallel!
         for i, comp_id in enumerate(component_ids):
-            output = rmsynthoncut_i(
+            _ = rmsynthoncut_i(
                 comp_id=comp_id,
                 outdir=outdir,
                 freq=freq,
@@ -976,28 +974,21 @@ def main(
 
     elif dimension == "3d":
         logger.info(f"Running RMsynth on {n_island} islands")
-
-        for i, island_id in enumerate(island_ids):
-            if i > n_island + 1:
-                break
-            else:
-                beam = dict(beams.loc[island_id])
-                output = rmsynthoncut3d(
-                    island_id=island_id,
-                    beam=beam,
-                    outdir=outdir,
-                    freq=freq,
-                    field=field,
-                    phiMax_radm2=phiMax_radm2,
-                    dPhi_radm2=dPhi_radm2,
-                    nSamples=nSamples,
-                    weightType=weightType,
-                    fitRMSF=fitRMSF,
-                    not_RMSF=not_RMSF,
-                    rm_verbose=rm_verbose,
-                    ion=ion,
-                )
-                outputs.append(output)
+        outputs = rmsynthoncut3d.map(
+            island_id=island_ids,
+            beams=unmapped(beams),
+            outdir=unmapped(outdir),
+            freq=unmapped(freq),
+            field=unmapped(field),
+            phiMax_radm2=unmapped(phiMax_radm2),
+            dPhi_radm2=unmapped(dPhi_radm2),
+            nSamples=unmapped(nSamples),
+            weightType=unmapped(weightType),
+            fitRMSF=unmapped(fitRMSF),
+            not_RMSF=unmapped(not_RMSF),
+            rm_verbose=unmapped(rm_verbose),
+            ion=unmapped(ion),
+        )
     else:
         raise ValueError("An incorrect RMSynth mode has been configured. ")
 
