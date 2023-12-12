@@ -37,7 +37,7 @@ dask_mpi = "*"
 FRion = {git = "https://github.com/CIRADA-Tools/FRion.git" }
 h5py = "*"
 ipython = "*"
-matplotlib = "*"
+matplotlib = "^3.8"
 numba = "*"
 numba_progress = "*"
 #mpi4py = "*"

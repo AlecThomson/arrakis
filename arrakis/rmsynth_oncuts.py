@@ -459,8 +459,8 @@ def update_rmtools_dict(
 
 @task(name="1D RM-synthesis")
 def rmsynthoncut1d(
-    comp: dict,
-    beam: dict,
+    comp_tuple: Tuple[str, pd.Series],
+    beams: pd.DataFrame,
     outdir: str,
     freq: np.ndarray,
     field: str,
@@ -503,6 +503,8 @@ def rmsynthoncut1d(
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
     logger.setLevel(logging.INFO)
+    comp = comp_tuple[1]
+    beam = dict(beams.loc[comp["Source_ID"]])
 
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
@@ -949,8 +951,8 @@ def main(
     elif dimension == "1d":
         logger.info(f"Running RMsynth on {n_comp} components")
         outputs = rmsynthoncut1d.map(
-            comp=components.iterrows(),
-            beam=beams.loc[components["Source_ID"]],
+            comp_tuple=components.iterrows(),
+            beams=unmapped(beams),
             outdir=unmapped(outdir),
             freq=unmapped(freq),
             field=unmapped(field),

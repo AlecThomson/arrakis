@@ -45,6 +45,8 @@ def process_spice(args, host: str) -> None:
     # TODO: Fix the type assigned to args. The `configargparse.Namespace` was causing issues
     # with the pydantic validation used by prefect / flow.
 
+    outfile = f"{args.field}.pipe.test.fits" if args.outfile is None else args.outfile
+
     with get_dask_client():
         previous_future = None
         previous_future = (
@@ -105,6 +107,7 @@ def process_spice(args, host: str) -> None:
                 ionex_proxy_server=args.ionex_proxy_server,
                 ionex_formatter=args.ionex_formatter,
                 ionex_predownload=args.ionex_predownload,
+                limit=args.limit,
             )
             if not args.skip_frion
             else previous_future
@@ -178,7 +181,7 @@ def process_spice(args, host: str) -> None:
                 username=args.username,
                 password=args.password,
                 verbose=args.verbose,
-                outfile=args.outfile,
+                outfile=outfile,
                 wait_for=[previous_future],
             )
             if not args.skip_cat
@@ -299,9 +302,6 @@ def main(args: configargparse.Namespace) -> None:
         username=args.username,
         password=args.password,
     )
-
-    if args.outfile is None:
-        outfile = f"{args.field}.pipe.test.fits"
 
     if not args.skip_imager:
         # This is the client for the imager component of the arrakis

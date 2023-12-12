@@ -1,17 +1,17 @@
-name: arrakis
+name: arrakis310
 channels:
 - astropy
 - conda-forge
 - defaults
 - pkgw-forge
 dependencies:
-- python=3.8
+- python=3.10
 - pip
 - future
 - numpy
 - scipy
 - pandas
-- matplotlib
+- matplotlib>=3.8
 - setuptools
 - ipython
 - astropy>=4.3

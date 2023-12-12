@@ -11,6 +11,7 @@ from typing import NamedTuple as Struct
 from typing import Optional, Union
 
 import astropy.units as u
+import matplotlib.pyplot as plt
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
@@ -144,11 +145,15 @@ def predict_worker(
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
     predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
 
-    plot_file = os.path.join(i_dir, f"{iname}_ion.pdf")
-    predict.generate_plots(
-        times, RMs, theta, freq, position=[ra, dec], savename=plot_file
-    )
-    plot_files = glob(os.path.join(i_dir, "*ion.pdf"))
+    plot_file = os.path.join(i_dir, f"{iname}_ion.png")
+    try:
+        predict.generate_plots(
+            times, RMs, theta, freq, position=[ra, dec], savename=plot_file
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate plot: {e}")
+
+    plot_files = glob(os.path.join(i_dir, "*ion.png"))
     logger.info(f"Plotting files: {plot_files=}")
     for src in plot_files:
         base = os.path.basename(src)
@@ -197,6 +202,7 @@ def main(
     ionex_proxy_server: Optional[str] = None,
     ionex_formatter: Optional[Union[str, Callable]] = "ftp.aiub.unibe.ch",
     ionex_predownload: bool = False,
+    limit: Optional[int] = None,
 ):
     """Main script
 
@@ -255,14 +261,18 @@ def main(
 
     freq = getfreq(
         os.path.join(cutdir, f"{beams[0]['beams'][f'{field}']['q_file']}"),
-    )  # Type: u.Quantity
+    )
 
+    if limit is not None:
+        logger.info(f"Limiting to {limit} islands")
+        islands = islands[:limit]
+
+    beams_cor = []
     for island in islands:
         island_id = island["Source_ID"]
         beam_idx = [i for i, b in enumerate(beams) if b["Source_ID"] == island_id][0]
         beam = beams[beam_idx]
-
-    beams_cor = index_beams.map(island=islands, beams=unmapped(beams))
+        beams_cor.append(beam)
 
     predictions = predict_worker.map(
         island=islands,
@@ -284,8 +294,8 @@ def main(
         beam=beams_cor,
         outdir=unmapped(cutdir),
         field=unmapped(field),
-        predict_file=predictions,
-        island_id=islands,
+        prediction=predictions,
+        island=islands,
     )
 
     updates_arrays = [p.result().update for p in predictions]
