@@ -98,8 +98,6 @@ def cutout(
     """
     logger.setLevel(logging.INFO)
 
-    logger.info(f"Timwashere - {cutout_args.image=}")
-
     outdir = os.path.abspath(cutout_args.outdir)
 
     ret = []
@@ -297,7 +295,6 @@ def get_args(
                         stoke=stoke.lower(),
                     )
                 )
-    logger.info(f"{args=}")
     return args
 
 
