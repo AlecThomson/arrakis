@@ -171,12 +171,15 @@ def source_database(
 
 
 def beam_database(
-    database_path: Path,
     islandcat: Table,
     host: str,
     epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    racs_username: str,
+    racs_password: str,
+    racs_host: str,
+    racs_port: int = 5432,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> InsertManyResult:
     """Insert beams into the database
 
@@ -192,7 +195,10 @@ def beam_database(
     """
     # Get pointing info from RACS database
     racs_fields = get_catalogue(
-        survey_dir=database_path,
+        racs_username=racs_username,
+        racs_password=racs_password,
+        racs_host=racs_host,
+        racs_port=racs_port,
         epoch=epoch,
     )
 
@@ -457,13 +463,16 @@ def main(
     load: bool = False,
     islandcat: Optional[str] = None,
     compcat: Optional[str] = None,
-    database_path: Optional[Path] = None,
     host: str = "localhost",
     username: Optional[str] = None,
     password: Optional[str] = None,
     field: bool = False,
     epochs: List[int] = 0,
     force: bool = False,
+    racs_username: Optional[str] = None,
+    racs_password: Optional[str] = None,
+    racs_host: Optional[str] = None,
+    racs_port: int = 5432,
 ) -> None:
     """Main script
 
@@ -515,9 +524,6 @@ def main(
             if compcat is None:
                 logger.critical("Component catalogue is required!")
                 compcat = input("Enter catalogue file:")
-            if database_path is None:
-                logger.critical("Database path is required!")
-                database_path = Path(input("Enter database path:"))
 
             # Get the master cat
             logger.info(f"Reading {islandcat}. If VOTable, this may take a while...")
@@ -535,18 +541,17 @@ def main(
                 )
             if check_beam:
                 beam_database(
-                    database_path=database_path,
                     islandcat=island_cat,
                     host=host,
+                    racs_username=racs_username,
+                    racs_password=racs_password,
+                    racs_host=racs_host,
+                    racs_port=racs_port,
                     username=username,
                     password=password,
                     epoch=epoch,
                 )
         if field:
-            if database_path is None:
-                logger.critical("Database path is required!")
-                database_path = Path(input("Enter database path:"))
-
             if check_field:
                 field_res, beam_res = field_database(
                     survey_dir=database_path,
