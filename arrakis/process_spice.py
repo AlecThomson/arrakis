@@ -9,8 +9,7 @@ import configargparse
 import pkg_resources
 import yaml
 from astropy.time import Time
-from dask.distributed import Client
-from dask_jobqueue import SLURMCluster
+from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
 from prefect import flow
 from prefect_dask import DaskTaskRunner, get_dask_client
@@ -27,6 +26,7 @@ from arrakis import (
 )
 from arrakis.logger import logger
 from arrakis.utils.database import test_db
+from arrakis.utils.meta import class_for_name
 from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 
@@ -206,9 +206,6 @@ def create_client(
     dask_config: str,
     use_mpi: bool,
     port_forward: Any,
-    minimum: int = 1,
-    maximum: int = 38,
-    mode: str = "adapt",
     overload: bool = False,
 ) -> Client:
     logger.info("Creating a Client")
@@ -219,34 +216,39 @@ def create_client(
     # Following https://github.com/dask/dask-jobqueue/issues/499
     with open(dask_config) as f:
         logger.info(f"Loading {dask_config}")
-        config = yaml.safe_load(f)
+        config: dict = yaml.safe_load(f)
+
+    cluster_class_str = config.get("cluster_class", "distributed.LocalCluster")
+    cluster_kwargs = config.get("cluster_kwargs", {})
+    adapt_kwargs = config.get("adapt_kwargs", {})
 
     if overload:
         logger.info("Overwriting config attributes.")
-        config["job_cpu"] = config["cores"]
-        config["cores"] = 1
-        config["processes"] = 1
+        cluster_kwargs["job_cpu"] = cluster_kwargs["cores"]
+        cluster_kwargs["cores"] = 1
+        cluster_kwargs["processes"] = 1
 
     if use_mpi:
         initialize(
-            interface=config["interface"],
-            local_directory=config["local_directory"],
-            nthreads=config["cores"] / config["processes"],
+            interface=cluster_kwargs["interface"],
+            local_directory=cluster_kwargs["local_directory"],
+            nthreads=cluster_kwargs["cores"] / cluster_kwargs["processes"],
         )
         client = Client()
     else:
-        # TODO: load the cluster type and initialise it from field specified in the loaded config
-        cluster = SLURMCluster(
-            **config,
+        cluster_class = class_for_name(
+            module_name=cluster_class_str.rsplit(".", 1)[0],
+            class_name=cluster_class_str.rsplit(".", 1)[1],
+        )
+        cluster = cluster_class(
+            **cluster_kwargs,
         )
         logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
 
-        if mode == "adapt":
-            cluster.adapt(minimum=minimum, maximum=maximum)
-        elif mode == "scale":
-            cluster.scale(maximum)
+        cluster.adapt(**adapt_kwargs)
 
         client = Client(cluster)
+
     port = client.scheduler_info()["services"]["dashboard"]
 
     # Forward ports
@@ -299,8 +301,6 @@ def main(args: configargparse.Namespace) -> None:
             dask_config=args.imager_dask_config,
             use_mpi=args.use_mpi,
             port_forward=args.port_forward,
-            minimum=1,
-            maximum=38,
             overload=True,
         )
 
@@ -355,9 +355,6 @@ def main(args: configargparse.Namespace) -> None:
         dask_config=args.dask_config,
         use_mpi=args.use_mpi,
         port_forward=args.port_forward,
-        minimum=1,
-        maximum=256,
-        mode="scale",
     )
 
     # Define flow

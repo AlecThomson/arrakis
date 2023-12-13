@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Generic program utilities"""
 
+import importlib
 import warnings
 from itertools import zip_longest
 
@@ -9,6 +10,24 @@ from spectral_cube.utils import SpectralCubeWarning
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
+
+
+# From https://stackoverflow.com/questions/1176136/convert-string-to-python-class-object
+def class_for_name(module_name: str, class_name: str) -> object:
+    """Returns a class object given a module name and class name
+
+    Args:
+        module_name (str): Module name
+        class_name (str): Class name
+
+    Returns:
+        object: Class object
+    """
+    # load the module, will raise ImportError if module cannot be loaded
+    m = importlib.import_module(module_name)
+    # get the class, will raise AttributeError if class cannot be found
+    c = getattr(m, class_name)
+    return c
 
 
 # stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
