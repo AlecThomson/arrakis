@@ -7,9 +7,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import pandas as pd
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, search_around_sky
 from astropy.table import Table, vstack
+from psycopg2 import sql
 from pymongo.results import InsertManyResult
 from tqdm import tqdm
 
@@ -214,20 +216,33 @@ def beam_database(
     return insert_res
 
 
-def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
+def get_catalogue(
+    racs_username: str,
+    racs_password: str,
+    racs_host: str,
+    racs_port: int = 5432,
+    epoch: int = 0,
+) -> Table:
     """Get the RACS catalogue for a given epoch
 
     Args:
+        racs_username (str): RACS database username.
+        racs_password (str): RACS database password.
+        racs_host (str): RACS database host.
+        racs_port (int, optional): RACS database port. Defaults to 5432.
         epoch (int, optional): Epoch number. Defaults to 0.
 
     Returns:
         Table: RACS catalogue table.
 
     """
-    basedir = survey_dir / "db" / f"epoch_{epoch}"
-    logger.info(f"Loading RACS database from {basedir}")
-    data_file = basedir / "field_data.csv"
-    database = Table.read(data_file)
+
+    database = Table.from_pandas(
+        pd.read_sql(
+            "SELECT * from field_data",
+            f"postgresql://{racs_username}:{racs_password}@{racs_host}:{racs_port}/epoch_{epoch}",
+        )
+    )
     # Remove rows with SBID < 0
     database = database[database["SBID"] >= 0]
 
@@ -235,21 +250,37 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
     row = database[0]
     FIELD = row["FIELD_NAME"]
     SBID = row["SBID"]
-    # Find FIELD and SBID in beamfile name
-    beamfile = basedir / f"beam_inf_{SBID}-{FIELD}.csv"
-    if not beamfile.exists():
-        raise FileNotFoundError(f"{beamfile} not found!")
-    racs_fields = Table.read(beamfile)
+
+    try:
+        racs_fields = Table.from_pandas(
+            pd.read_sql(
+                f"SELECT * from beam_inf_{SBID}-{FIELD}",
+                f"postgresql://{racs_username}:{racs_password}@{racs_host}:{racs_port}/epoch_{epoch}",
+            )
+        )
+    except Exception as e:
+        logger.error(e)
+        logger.error(f"Failed to read beam_inf_{SBID}-{FIELD} table!")
+        raise e
+
     racs_fields.add_column(FIELD, name="FIELD_NAME", index=0)
     racs_fields.add_column(SBID, name="SBID", index=0)
 
     # Add in all others
     for row in tqdm(database[1:], desc="Reading RACS database"):
-        beamfile = basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv"
-        if not beamfile.exists():
-            logger.error(f"{beamfile} not found!")
+        try:
+            tab = Table.from_pandas(
+                pd.read_sql(
+                    f"SELECT * from beam_inf_{row['SBID']}-{row['FIELD_NAME']}",
+                    f"postgresql://{racs_username}:{racs_password}@{racs_host}:{racs_port}/epoch_{epoch}",
+                )
+            )
+        except Exception as e:
+            logger.error(e)
+            logger.error(
+                f"Failed to read beam_inf_{row['SBID']}-{row['FIELD_NAME']} table!"
+            )
             continue
-        tab = Table.read(beamfile)
         try:
             tab.add_column(row["FIELD_NAME"], name="FIELD_NAME", index=0)
             tab.add_column(row["SBID"], name="SBID", index=0)
