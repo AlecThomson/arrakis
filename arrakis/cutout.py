@@ -324,7 +324,6 @@ def unpack(list_sq: List[Union[List[T], None, T]]) -> List[T]:
     Returns:
         List[T]: List of things
     """
-    logger.setLevel(logging.DEBUG)
     logger.debug(f"{list_sq=}")
     list_fl: List[T] = []
     for i in list_sq:
