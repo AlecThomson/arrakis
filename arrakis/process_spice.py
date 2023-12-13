@@ -245,9 +245,7 @@ def create_client(
             cluster.adapt(minimum=minimum, maximum=maximum)
         elif mode == "scale":
             cluster.scale(maximum)
-        # cluster.scale(36)
 
-        # cluster = LocalCluster(n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm",dashboard_address=f":{args.port}")
         client = Client(cluster)
     port = client.scheduler_info()["services"]["dashboard"]
 
@@ -359,6 +357,7 @@ def main(args: configargparse.Namespace) -> None:
         port_forward=args.port_forward,
         minimum=1,
         maximum=256,
+        mode="scale",
     )
 
     # Define flow

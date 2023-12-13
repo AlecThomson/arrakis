@@ -358,7 +358,7 @@ def main(
         all_parfiles.extend(parfiles)
 
     results = linmos.map(
-        quote(all_parfiles),
+        all_parfiles,
         unmapped(field),
         unmapped(str(image)),
         unmapped(holofile),
