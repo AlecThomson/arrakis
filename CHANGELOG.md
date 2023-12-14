@@ -10,7 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - 2023-12-14
 
 ### Added
-- Full `prefect`  flows and tasks
+- Full `prefect` flows and tasks
+- More `prefect` documentation
+
+### Fixed
+- Incorrect image weighting for LINMOS
 
 ### Removed
 - `dask` delayed etc.
