@@ -15,7 +15,6 @@ import pymongo
 from astropy.utils.exceptions import AstropyWarning
 from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
-from prefect.utilities.annotations import quote
 from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient

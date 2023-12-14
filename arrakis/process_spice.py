@@ -3,18 +3,14 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional, Tuple
 
 import configargparse
 import pkg_resources
 import yaml
 from astropy.time import Time
-from dask.distributed import Client, LocalCluster
-from dask_mpi import initialize
-from distributed.deploy.cluster import Cluster
 from prefect import flow
 from prefect.task_runners import BaseTaskRunner
-from prefect_dask import DaskTaskRunner, get_dask_client
+from prefect_dask import DaskTaskRunner
 
 from arrakis import (
     cleanup,
@@ -28,8 +24,7 @@ from arrakis import (
 )
 from arrakis.logger import logger
 from arrakis.utils.database import test_db
-from arrakis.utils.meta import class_for_name
-from arrakis.utils.pipeline import logo_str, performance_report_prefect
+from arrakis.utils.pipeline import logo_str
 
 
 @flow(name="Combining+Synthesis on Arrakis")
