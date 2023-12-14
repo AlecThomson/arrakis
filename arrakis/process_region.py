@@ -10,18 +10,17 @@ from dask.distributed import Client
 from dask_jobqueue import SLURMCluster
 from dask_mpi import initialize
 from prefect import flow, task
+from prefect.task_runners import BaseTaskRunner
 from prefect_dask import DaskTaskRunner
 
-from arrakis import merge_fields, process_spice
+from arrakis import makecat, merge_fields, process_spice, rmclean_oncuts, rmsynth_oncuts
 from arrakis.logger import logger
 from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str, port_forward
 
-merge_task = task(merge_fields.main, name="Merge fields")
-
 
 @flow
-def process_merge(args, host: str, inter_dir: str) -> None:
+def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
     """Workflow to merge spectra from overlapping fields together
 
     Args:
@@ -31,7 +30,7 @@ def process_merge(args, host: str, inter_dir: str) -> None:
     """
     previous_future = None
     previous_future = (
-        merge_task.submit(
+        merge_fields.with_options(task_runner=task_runner)(
             fields=args.fields,
             field_dirs=args.datadirs,
             merge_name=args.merge_name,
@@ -48,7 +47,7 @@ def process_merge(args, host: str, inter_dir: str) -> None:
     )
 
     previous_future = (
-        process_spice.rmsynth_task.submit(
+        rmsynth_oncuts.main.with_options(task_runner=task_runner)(
             field=args.merge_name,
             outdir=inter_dir,
             host=host,
@@ -77,14 +76,13 @@ def process_merge(args, host: str, inter_dir: str) -> None:
             tt1=args.tt1,
             ion=False,
             do_own_fit=args.do_own_fit,
-            wait_for=[previous_future],
         )
         if not args.skip_rmsynth
         else previous_future
     )
 
     previous_future = (
-        process_spice.rmclean_task.submit(
+        rmclean_oncuts.main.with_options(task_runner=task_runner)(
             field=args.merge_name,
             outdir=inter_dir,
             host=host,
@@ -102,14 +100,13 @@ def process_merge(args, host: str, inter_dir: str) -> None:
             window=args.window,
             showPlots=args.showPlots,
             rm_verbose=args.rm_verbose,
-            wait_for=[previous_future],
         )
         if not args.skip_rmclean
         else previous_future
     )
 
     previous_future = (
-        process_spice.cat_task.submit(
+        makecat.main.with_options(task_runner=task_runner)(
             field=args.merge_name,
             host=host,
             epoch=args.epoch,
@@ -117,7 +114,6 @@ def process_merge(args, host: str, inter_dir: str) -> None:
             password=args.password,
             verbose=args.verbose,
             outfile=args.outfile,
-            wait_for=[previous_future],
         )
         if not args.skip_cat
         else previous_future
@@ -130,41 +126,12 @@ def main(args: configargparse.Namespace) -> None:
     Args:
         args (configargparse.Namespace): Command line arguments.
     """
-    host = args.host
-
     if args.dask_config is None:
         config_dir = pkg_resources.resource_filename("arrakis", "configs")
         args.dask_config = os.path.join(config_dir, "default.yaml")
 
     if args.outfile is None:
         args.outfile = f"{args.merge_name}.pipe.test.fits"
-
-    # Following https://github.com/dask/dask-jobqueue/issues/499
-    with open(args.dask_config) as f:
-        config = yaml.safe_load(f)
-
-    config.update(
-        {
-            # 'scheduler_options': {
-            # "dashboard_address": f":{args.port}"
-            # },
-            "log_directory": f"{args.merge_name}_{Time.now().fits}_spice_logs/"
-        }
-    )
-    if args.use_mpi:
-        initialize(
-            interface=config["interface"],
-            local_directory=config["local_directory"],
-            nthreads=config["cores"] / config["processes"],
-        )
-        client = Client()
-    else:
-        cluster = SLURMCluster(
-            **config,
-        )
-        logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
-
-        client = Client(cluster)
 
     test_db(
         host=args.host,
@@ -178,25 +145,15 @@ def main(args: configargparse.Namespace) -> None:
     with open(args_yaml_f, "w") as f:
         f.write(args_yaml)
 
-    port = client.scheduler_info()["services"]["dashboard"]
-
-    # Forward ports
-    if args.port_forward is not None:
-        for p in args.port_forward:
-            port_forward(port, p)
-
-    # Prin out Dask client info
-    logger.info(client.scheduler_info()["services"])
-
-    dask_runner = DaskTaskRunner(address=client.scheduler.address)
+    dask_runner = process_spice.create_dask_runner(
+        dask_config=args.dask_config,
+    )
 
     inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
 
     process_merge.with_options(
         name=f"SPICE-RACS: {args.merge_name}", task_runner=dask_runner
-    )(args, host, inter_dir)
-
-    client.close()
+    )(args, args.host, inter_dir, dask_runner)
 
 
 def cli():

@@ -158,7 +158,6 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             window=args.window,
             showPlots=args.showPlots,
             rm_verbose=args.rm_verbose,
-            wait_for=[previous_future],
         )
         if not args.skip_rmclean
         else previous_future
@@ -173,7 +172,6 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             password=args.password,
             verbose=args.verbose,
             outfile=outfile,
-            wait_for=[previous_future],
         )
         if not args.skip_cat
         else previous_future
