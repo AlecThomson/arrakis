@@ -13,7 +13,7 @@ If you use Arrakis in your research, please cite [Thomson et al. (2023)](https:/
 
 ### 3rd party software
 
-Please also consider acknowledging the following software packages outlines in [docs](https://arrakis.readthedocs.io/acknowledging.html).
+Please also consider acknowledging the following software packages outlines in [docs](https://arrakis.readthedocs.io/en/latest/acknowledge.html).
 
 ## Contibuting
 
