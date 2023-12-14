@@ -84,7 +84,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     )
 
     previous_future = (
-        cleanup.main.with_options(task_run)(
+        cleanup.main.with_options(task_runner=task_runner)(
             datadir=args.outdir,
             stokeslist=["I", "Q", "U"],
         )
@@ -641,8 +641,7 @@ def cli():
         "--outfile", default=None, type=str, help="File to save table to [None]."
     )
     args = parser.parse_args()
-    if not args.use_mpi:
-        parser.print_values()
+    parser.print_values()
 
     verbose = args.verbose
     if verbose:
