@@ -6,17 +6,12 @@ import configargparse
 import pkg_resources
 import yaml
 from astropy.time import Time
-from dask.distributed import Client
-from dask_jobqueue import SLURMCluster
-from dask_mpi import initialize
-from prefect import flow, task
-from prefect.task_runners import BaseTaskRunner
-from prefect_dask import DaskTaskRunner
+from prefect import flow
 
 from arrakis import makecat, merge_fields, process_spice, rmclean_oncuts, rmsynth_oncuts
 from arrakis.logger import logger
 from arrakis.utils.database import test_db
-from arrakis.utils.pipeline import logo_str, port_forward
+from arrakis.utils.pipeline import logo_str
 
 
 @flow

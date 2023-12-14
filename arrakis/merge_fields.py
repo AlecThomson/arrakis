@@ -3,10 +3,9 @@
 import os
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import pymongo
-from dask import delayed
 from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 
@@ -14,7 +13,6 @@ from arrakis.linmos import get_yanda, linmos
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import chunk_dask
 
 
 def make_short_name(name: str) -> str:
