@@ -14,7 +14,6 @@ from typing import Optional, TypeVar, Union
 import astropy.units as u
 import numpy as np
 import pymongo
-from astropy import units as u
 from astropy.coordinates import Latitude, Longitude, SkyCoord
 from astropy.io import fits
 from astropy.utils import iers
