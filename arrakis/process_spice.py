@@ -3,7 +3,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Tuple
 
 import configargparse
 import pkg_resources
@@ -11,7 +11,9 @@ import yaml
 from astropy.time import Time
 from dask.distributed import Client, LocalCluster
 from dask_mpi import initialize
+from distributed.deploy.cluster import Cluster
 from prefect import flow
+from prefect.task_runners import BaseTaskRunner
 from prefect_dask import DaskTaskRunner, get_dask_client
 
 from arrakis import (
@@ -31,156 +33,156 @@ from arrakis.utils.pipeline import logo_str, performance_report_prefect
 
 
 @flow(name="Combining+Synthesis on Arrakis")
-def process_spice(args, host: str) -> None:
+def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     """Workflow to process the SPIRCE-RACS data
 
     Args:
         args (configargparse.Namespace): Configuration parameters for this run
         host (str): Host address of the mongoDB.
     """
-    # TODO: Fix the type assigned to args. The `configargparse.Namespace` was causing issues
-    # with the pydantic validation used by prefect / flow.
-
     outfile = f"{args.field}.pipe.test.fits" if args.outfile is None else args.outfile
 
-    with get_dask_client():
-        previous_future = None
-        previous_future = (
-            cutout.cutout_islands(
-                field=args.field,
-                directory=str(args.outdir),
-                host=host,
-                epoch=args.epoch,
-                username=args.username,
-                password=args.password,
-                pad=args.pad,
-                stokeslist=["I", "Q", "U"],
-                verbose_worker=args.verbose_worker,
-                dryrun=args.dryrun,
-                limit=args.limit,
-            )
-            if not args.skip_cutout
-            else previous_future
+    previous_future = None
+    previous_future = (
+        cutout.cutout_islands.with_options(
+            task_runner=task_runner,
+        )(
+            field=args.field,
+            directory=str(args.outdir),
+            host=host,
+            epoch=args.epoch,
+            username=args.username,
+            password=args.password,
+            pad=args.pad,
+            stokeslist=["I", "Q", "U"],
+            verbose_worker=args.verbose_worker,
+            dryrun=args.dryrun,
+            limit=args.limit,
         )
+        if not args.skip_cutout
+        else previous_future
+    )
 
-        previous_future = (
-            linmos.main(
-                field=args.field,
-                datadir=Path(args.outdir),
-                host=host,
-                epoch=args.epoch,
-                holofile=Path(args.holofile),
-                username=args.username,
-                password=args.password,
-                yanda=args.yanda,
-                yanda_img=args.yanda_image,
-                stokeslist=["I", "Q", "U"],
-                limit=args.limit,
-            )
-            if not args.skip_linmos
-            else previous_future
+    previous_future = (
+        linmos.main.with_options(
+            task_runner=task_runner,
+        )(
+            field=args.field,
+            datadir=Path(args.outdir),
+            host=host,
+            epoch=args.epoch,
+            holofile=Path(args.holofile),
+            username=args.username,
+            password=args.password,
+            yanda=args.yanda,
+            yanda_img=args.yanda_image,
+            stokeslist=["I", "Q", "U"],
+            limit=args.limit,
         )
+        if not args.skip_linmos
+        else previous_future
+    )
 
-        previous_future = (
-            cleanup.main(
-                datadir=args.outdir,
-                stokeslist=["I", "Q", "U"],
-            )
-            if not args.skip_cleanup
-            else previous_future
+    previous_future = (
+        cleanup.main.with_options(task_run)(
+            datadir=args.outdir,
+            stokeslist=["I", "Q", "U"],
         )
+        if not args.skip_cleanup
+        else previous_future
+    )
 
-        previous_future = (
-            frion.main(
-                field=args.field,
-                outdir=args.outdir,
-                host=host,
-                epoch=args.epoch,
-                username=args.username,
-                password=args.password,
-                database=args.database,
-                ionex_server=args.ionex_server,
-                ionex_proxy_server=args.ionex_proxy_server,
-                ionex_formatter=args.ionex_formatter,
-                ionex_predownload=args.ionex_predownload,
-                limit=args.limit,
-            )
-            if not args.skip_frion
-            else previous_future
+    previous_future = (
+        frion.main.with_options(task_runner=task_runner)(
+            field=args.field,
+            outdir=args.outdir,
+            host=host,
+            epoch=args.epoch,
+            username=args.username,
+            password=args.password,
+            database=args.database,
+            ionex_server=args.ionex_server,
+            ionex_proxy_server=args.ionex_proxy_server,
+            ionex_formatter=args.ionex_formatter,
+            ionex_predownload=args.ionex_predownload,
+            limit=args.limit,
         )
+        if not args.skip_frion
+        else previous_future
+    )
 
-        previous_future = (
-            rmsynth_oncuts.main(
-                field=args.field,
-                outdir=args.outdir,
-                host=host,
-                epoch=args.epoch,
-                username=args.username,
-                password=args.password,
-                dimension=args.dimension,
-                verbose=args.verbose,
-                database=args.database,
-                do_validate=args.validate,
-                limit=args.limit,
-                savePlots=args.savePlots,
-                weightType=args.weightType,
-                fitRMSF=args.fitRMSF,
-                phiMax_radm2=args.phiMax_radm2,
-                dPhi_radm2=args.dPhi_radm2,
-                nSamples=args.nSamples,
-                polyOrd=args.polyOrd,
-                noStokesI=args.noStokesI,
-                showPlots=args.showPlots,
-                not_RMSF=args.not_RMSF,
-                rm_verbose=args.rm_verbose,
-                debug=args.debug,
-                fit_function=args.fit_function,
-                tt0=args.tt0,
-                tt1=args.tt1,
-                ion=True,
-                do_own_fit=args.do_own_fit,
-            )
-            if not args.skip_rmsynth
-            else previous_future
+    previous_future = (
+        rmsynth_oncuts.main.with_options(task_runner=task_runner)(
+            field=args.field,
+            outdir=args.outdir,
+            host=host,
+            epoch=args.epoch,
+            username=args.username,
+            password=args.password,
+            dimension=args.dimension,
+            verbose=args.verbose,
+            database=args.database,
+            do_validate=args.validate,
+            limit=args.limit,
+            savePlots=args.savePlots,
+            weightType=args.weightType,
+            fitRMSF=args.fitRMSF,
+            phiMax_radm2=args.phiMax_radm2,
+            dPhi_radm2=args.dPhi_radm2,
+            nSamples=args.nSamples,
+            polyOrd=args.polyOrd,
+            noStokesI=args.noStokesI,
+            showPlots=args.showPlots,
+            not_RMSF=args.not_RMSF,
+            rm_verbose=args.rm_verbose,
+            debug=args.debug,
+            fit_function=args.fit_function,
+            tt0=args.tt0,
+            tt1=args.tt1,
+            ion=True,
+            do_own_fit=args.do_own_fit,
         )
+        if not args.skip_rmsynth
+        else previous_future
+    )
 
-        previous_future = (
-            rmclean_oncuts.main(
-                field=args.field,
-                outdir=args.outdir,
-                host=host,
-                epoch=args.epoch,
-                username=args.username,
-                password=args.password,
-                dimension=args.dimension,
-                database=args.database,
-                limit=args.limit,
-                cutoff=args.cutoff,
-                maxIter=args.maxIter,
-                gain=args.gain,
-                window=args.window,
-                showPlots=args.showPlots,
-                rm_verbose=args.rm_verbose,
-                wait_for=[previous_future],
-            )
-            if not args.skip_rmclean
-            else previous_future
+    previous_future = (
+        rmclean_oncuts.main.with_options(task_runner=task_runner)(
+            field=args.field,
+            outdir=args.outdir,
+            host=host,
+            epoch=args.epoch,
+            username=args.username,
+            password=args.password,
+            dimension=args.dimension,
+            database=args.database,
+            limit=args.limit,
+            cutoff=args.cutoff,
+            maxIter=args.maxIter,
+            gain=args.gain,
+            window=args.window,
+            showPlots=args.showPlots,
+            rm_verbose=args.rm_verbose,
+            wait_for=[previous_future],
         )
+        if not args.skip_rmclean
+        else previous_future
+    )
 
-        previous_future = (
-            makecat.main(
-                field=args.field,
-                host=host,
-                epoch=args.epoch,
-                username=args.username,
-                password=args.password,
-                verbose=args.verbose,
-                outfile=outfile,
-                wait_for=[previous_future],
-            )
-            if not args.skip_cat
-            else previous_future
+    previous_future = (
+        makecat.main.with_options(task_runner=task_runner)(
+            field=args.field,
+            host=host,
+            epoch=args.epoch,
+            username=args.username,
+            password=args.password,
+            verbose=args.verbose,
+            outfile=outfile,
+            wait_for=[previous_future],
         )
+        if not args.skip_cat
+        else previous_future
+    )
 
 
 def save_args(args: configargparse.Namespace) -> Path:
@@ -202,25 +204,32 @@ def save_args(args: configargparse.Namespace) -> Path:
     return Path(args_yaml_f)
 
 
-def create_client(
+def create_dask_runner(
     dask_config: str,
-    use_mpi: bool,
-    port_forward: Any,
     overload: bool = False,
-) -> Client:
-    logger.info("Creating a Client")
+) -> DaskTaskRunner:
+    """Create a DaskTaskRunner
+
+    Args:
+        dask_config (str): Configuraiton file for the DaskTaskRunner
+        overload (bool, optional): Overload the options for threadded work. Defaults to False.
+
+    Returns:
+        DaskTaskRunner: The prefect DaskTaskRunner instance
+    """
+    logger.setLevel(logging.INFO)
+    logger.info("Creating a Dask Task Runner.")
     if dask_config is None:
         config_dir = pkg_resources.resource_filename("arrakis", "configs")
         dask_config = f"{config_dir}/default.yaml"
 
-    # Following https://github.com/dask/dask-jobqueue/issues/499
     with open(dask_config) as f:
         logger.info(f"Loading {dask_config}")
-        config: dict = yaml.safe_load(f)
+        yaml_config: dict = yaml.safe_load(f)
 
-    cluster_class_str = config.get("cluster_class", "distributed.LocalCluster")
-    cluster_kwargs = config.get("cluster_kwargs", {})
-    adapt_kwargs = config.get("adapt_kwargs", {})
+    cluster_class_str = yaml_config.get("cluster_class", "distributed.LocalCluster")
+    cluster_kwargs = yaml_config.get("cluster_kwargs", {})
+    adapt_kwargs = yaml_config.get("adapt_kwargs", {})
 
     if overload:
         logger.info("Overwriting config attributes.")
@@ -228,51 +237,13 @@ def create_client(
         cluster_kwargs["cores"] = 1
         cluster_kwargs["processes"] = 1
 
-    if use_mpi:
-        initialize(
-            interface=cluster_kwargs["interface"],
-            local_directory=cluster_kwargs["local_directory"],
-            nthreads=cluster_kwargs["cores"] / cluster_kwargs["processes"],
-        )
-        client = Client()
-    else:
-        cluster_class = class_for_name(
-            module_name=cluster_class_str.rsplit(".", 1)[0],
-            class_name=cluster_class_str.rsplit(".", 1)[1],
-        )
-        cluster = cluster_class(
-            **cluster_kwargs,
-        )
-        logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
+    config = {
+        "cluster_class": cluster_class_str,
+        "cluster_kwargs": cluster_kwargs,
+        "adapt_kwargs": adapt_kwargs,
+    }
 
-        cluster.adapt(**adapt_kwargs)
-
-        client = Client(cluster)
-
-    port = client.scheduler_info()["services"]["dashboard"]
-
-    # Forward ports
-    if port_forward is not None:
-        for p in port_forward:
-            port_forward(port, p)
-
-    # Prin out Dask client info
-    logger.info(client.scheduler_info()["services"])
-
-    return client
-
-
-def create_dask_runner(*args, **kwargs) -> DaskTaskRunner:
-    """Internally creates a Client object via `create_client`,
-    and then initialises a DaskTaskRunner.
-
-    Returns:
-        DaskTaskRunner: A Prefect dask based task runner
-    """
-    client = create_client(*args, **kwargs)
-
-    logger.info("Creating DaskTaskRunner")
-    return DaskTaskRunner(address=client.scheduler.address), client
+    return DaskTaskRunner(**config)
 
 
 def main(args: configargparse.Namespace) -> None:
@@ -297,52 +268,49 @@ def main(args: configargparse.Namespace) -> None:
     if not args.skip_imager:
         # This is the client for the imager component of the arrakis
         # pipeline.
-        dask_runner, client = create_dask_runner(
+        dask_runner = create_dask_runner(
             dask_config=args.imager_dask_config,
-            use_mpi=args.use_mpi,
-            port_forward=args.port_forward,
             overload=True,
         )
 
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
-        with performance_report_prefect(
-            f"arrakis-imaging-{args.field}-report-{Time.now().fits}.html"
-        ):
-            imager.main.with_options(
-                name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
-            )(
-                msdir=args.msdir,
-                out_dir=args.outdir,
-                cutoff=args.psf_cutoff,
-                robust=args.robust,
-                pols=args.pols,
-                nchan=args.nchan,
-                local_rms=args.local_rms,
-                local_rms_window=args.local_rms_window,
-                size=args.size,
-                scale=args.scale,
-                mgain=args.mgain,
-                niter=args.niter,
-                nmiter=args.nmiter,
-                auto_mask=args.auto_mask,
-                force_mask_rounds=args.force_mask_rounds,
-                auto_threshold=args.auto_threshold,
-                minuv=args.minuv,
-                purge=args.purge,
-                taper=args.taper,
-                parallel_deconvolution=args.parallel,
-                gridder=args.gridder,
-                wsclean_path=Path(args.local_wsclean)
-                if args.local_wsclean
-                else args.hosted_wsclean,
-                multiscale=args.multiscale,
-                multiscale_scale_bias=args.multiscale_scale_bias,
-                absmem=args.absmem,
-                ms_glob_pattern=args.ms_glob_pattern,
-                data_column=args.data_column,
-            )
+        imager.main.with_options(
+            name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
+        )(
+            msdir=args.msdir,
+            out_dir=args.outdir,
+            cutoff=args.psf_cutoff,
+            robust=args.robust,
+            pols=args.pols,
+            nchan=args.nchan,
+            local_rms=args.local_rms,
+            local_rms_window=args.local_rms_window,
+            size=args.size,
+            scale=args.scale,
+            mgain=args.mgain,
+            niter=args.niter,
+            nmiter=args.nmiter,
+            auto_mask=args.auto_mask,
+            force_mask_rounds=args.force_mask_rounds,
+            auto_threshold=args.auto_threshold,
+            minuv=args.minuv,
+            purge=args.purge,
+            taper=args.taper,
+            parallel_deconvolution=args.parallel,
+            gridder=args.gridder,
+            wsclean_path=Path(args.local_wsclean)
+            if args.local_wsclean
+            else args.hosted_wsclean,
+            multiscale=args.multiscale,
+            multiscale_scale_bias=args.multiscale_scale_bias,
+            absmem=args.absmem,
+            ms_glob_pattern=args.ms_glob_pattern,
+            data_column=args.data_column,
+        )
+        client = dask_runner._client
+        if client is not None:
             client.close()
-            del dask_runner
+        del dask_runner
     else:
         logger.warn("Skipping the image creation step. ")
 
@@ -351,23 +319,14 @@ def main(args: configargparse.Namespace) -> None:
         return
 
     # This is the client and pipeline for the RM extraction
-    dask_runner_2, client = create_dask_runner(
+    dask_runner_2 = create_dask_runner(
         dask_config=args.dask_config,
-        use_mpi=args.use_mpi,
-        port_forward=args.port_forward,
     )
 
     # Define flow
-    with performance_report_prefect(
-        f"arrakis-synthesis-{args.field}-report-{Time.now().fits}.html"
-    ):
-        process_spice.with_options(
-            name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
-        )(args, host)
-
-    # TODO: Access the client via the `dask_runner`. Perhaps a
-    #       way to do this is to extend the DaskTaskRunner's
-    #       destructor and have it create it then.
+    process_spice.with_options(
+        name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
+    )(args, host, dask_runner_2)
 
 
 def cli():
@@ -418,24 +377,6 @@ def cli():
 
     parser.add_argument(
         "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    # parser.add_argument(
-    #     '--port',
-    #     type=int,
-    #     default=9999,
-    #     help="Port to run Dask dashboard on."
-    # )
-    parser.add_argument(
-        "--use_mpi",
-        action="store_true",
-        help="Use Dask-mpi to parallelise -- must use srun/mpirun to assign resources.",
-    )
-    parser.add_argument(
-        "--port_forward",
-        default=None,
-        help="Platform to fowards dask port [None].",
-        nargs="+",
     )
 
     parser.add_argument(
