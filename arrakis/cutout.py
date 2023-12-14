@@ -358,7 +358,6 @@ def cutout_islands(
         field (str): RACS field name.
         directory (str): Directory to store cutouts.
         host (str): MongoDB host.
-        client (Client): Dask client.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
         verbose (bool, optional): Verbose output. Defaults to True.
@@ -369,8 +368,7 @@ def cutout_islands(
     """
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
-    client = get_client()
-    logger.debug(f"Client is {client}")
+
     directory = os.path.abspath(directory)
     outdir = os.path.join(directory, "cutouts")
 
@@ -427,7 +425,7 @@ def cutout_islands(
     )
     # args = [a.result() for a in args]
     # flat_args = unpack.map(args)
-    flat_args = unpack(args)
+    flat_args = unpack.submit(args)
     cuts = cutout.map(
         cutout_args=flat_args,
         field=unmapped(field),
