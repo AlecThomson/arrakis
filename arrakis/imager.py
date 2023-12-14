@@ -914,48 +914,34 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 def cli():
     """Command-line interface"""
     parser = imager_parser()
-
     args = parser.parse_args()
-
-    if args.mpi:
-        initialize(interface="ipogif0")
-        cluster = None
-
-    else:
-        cluster = LocalCluster(
-            threads_per_worker=1,
-        )
-
-    with Client(cluster) as client:
-        logger.debug(f"{cluster=}")
-        logger.debug(f"{client=}")
-        main(
-            msdir=args.msdir,
-            out_dir=args.outdir,
-            cutoff=args.psf_cutoff,
-            robust=args.robust,
-            pols=args.pols,
-            nchan=args.nchan,
-            size=args.size,
-            scale=args.scale,
-            mgain=args.mgain,
-            niter=args.niter,
-            auto_mask=args.auto_mask,
-            force_mask_rounds=args.force_mask_rounds,
-            auto_threshold=args.auto_threshold,
-            minuv=args.minuv,
-            purge=args.purge,
-            taper=args.taper,
-            parallel_deconvolution=args.parallel,
-            gridder=args.gridder,
-            wsclean_path=Path(args.local_wsclean)
-            if args.local_wsclean
-            else args.hosted_wsclean,
-            multiscale=args.multiscale,
-            ms_glob_pattern=args.ms_glob_pattern,
-            data_column=args.data_column,
-            skip_fix_ms=args.skip_fix_ms,
-        )
+    main(
+        msdir=args.msdir,
+        out_dir=args.outdir,
+        cutoff=args.psf_cutoff,
+        robust=args.robust,
+        pols=args.pols,
+        nchan=args.nchan,
+        size=args.size,
+        scale=args.scale,
+        mgain=args.mgain,
+        niter=args.niter,
+        auto_mask=args.auto_mask,
+        force_mask_rounds=args.force_mask_rounds,
+        auto_threshold=args.auto_threshold,
+        minuv=args.minuv,
+        purge=args.purge,
+        taper=args.taper,
+        parallel_deconvolution=args.parallel,
+        gridder=args.gridder,
+        wsclean_path=Path(args.local_wsclean)
+        if args.local_wsclean
+        else args.hosted_wsclean,
+        multiscale=args.multiscale,
+        ms_glob_pattern=args.ms_glob_pattern,
+        data_column=args.data_column,
+        skip_fix_ms=args.skip_fix_ms,
+    )
 
 
 if __name__ == "__main__":

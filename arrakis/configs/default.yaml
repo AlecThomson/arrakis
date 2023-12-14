@@ -1,25 +1,13 @@
-# Set up for Magnus
-cores: 24
-processes: 12
-name: 'spice-worker'
-memory: "60GB"
-project: 'ja3'
-queue: 'workq'
-n_workers: 1000
-walltime: '6:00:00'
-job_extra: ['-M magnus']
-# interface for the workers
-interface: "ipogif0"
-log_directory: 'spice_logs'
-env_extra: [
-    'export OMP_NUM_THREADS=1',
-    'source /home/$(whoami)/.bashrc',
-    'conda activate spice'
-]
-python: 'srun -n 1 -c 24 python'
-extra: [
-    "--lifetime", "11h",
-    "--lifetime-stagger", "5m",
-]
-death_timeout: 300
-local_directory: '/dev/shm'
+# Set up for local mahine
+cluster_class: "distributed.LocalCluster"
+cluster_kwargs:
+    cores: 1
+    processes: 1
+    name: 'spice-worker'
+    memory: "8GB"
+adapt_kwargs:
+    minimum: 1
+    maximum: 8
+    wait_count: 20
+    target_duration: "300s"
+    interval: "30s"

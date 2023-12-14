@@ -3,17 +3,16 @@
 import os
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Union
+from typing import Dict, List, Optional
 
 import pymongo
-from dask import delayed
 from dask.distributed import Client, LocalCluster
+from prefect import flow, task, unmapped
 
 from arrakis.linmos import get_yanda, linmos
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import chunk_dask
 
 
 def make_short_name(name: str) -> str:
@@ -23,49 +22,73 @@ def make_short_name(name: str) -> str:
     return short
 
 
-@delayed
+@task(name="Copy singleton island")
 def copy_singleton(
-    beam: dict, vals: dict, merge_name: str, field_dir: str, data_dir: str
-) -> pymongo.UpdateOne:
-    try:
-        i_file_old = os.path.join(field_dir, vals["i_file"])
-        q_file_old = os.path.join(field_dir, vals["q_file_ion"])
-        u_file_old = os.path.join(field_dir, vals["u_file_ion"])
-    except KeyError:
-        raise KeyError("Ion files not found. Have you run FRion?")
-    new_dir = os.path.join(data_dir, beam["Source_ID"])
+    beam: dict, field_dict: Dict[str, str], merge_name: str, data_dir: str
+) -> List[pymongo.UpdateOne]:
+    """Copy an island within a single field to the merged field
 
-    try_mkdir(new_dir, verbose=False)
+    Args:
+        beam (dict): Beam document
+        field_dict (Dict[str, str]): Field dictionary
+        merge_name (str): Merged field name
+        data_dir (str): Output directory
 
-    i_file_new = os.path.join(new_dir, os.path.basename(i_file_old)).replace(
-        ".fits", ".edge.linmos.fits"
-    )
-    q_file_new = os.path.join(new_dir, os.path.basename(q_file_old)).replace(
-        ".fits", ".edge.linmos.fits"
-    )
-    u_file_new = os.path.join(new_dir, os.path.basename(u_file_old)).replace(
-        ".fits", ".edge.linmos.fits"
-    )
+    Raises:
+        KeyError: If ion files not found
 
-    for src, dst in zip(
-        [i_file_old, q_file_old, u_file_old], [i_file_new, q_file_new, u_file_new]
-    ):
-        copyfile(src, dst)
-        src_weight = src.replace(".image.restored.", ".weights.").replace(".ion", "")
-        dst_weight = dst.replace(".image.restored.", ".weights.").replace(".ion", "")
-        copyfile(src_weight, dst_weight)
+    Returns:
+        List[pymongo.UpdateOne]: Database updates
+    """
+    updates = []
+    for field, vals in beam["beams"].items():
+        if field not in field_dict.keys():
+            continue
+        field_dir = field_dict[field]
+        try:
+            i_file_old = os.path.join(field_dir, vals["i_file"])
+            q_file_old = os.path.join(field_dir, vals["q_file_ion"])
+            u_file_old = os.path.join(field_dir, vals["u_file_ion"])
+        except KeyError:
+            raise KeyError("Ion files not found. Have you run FRion?")
+        new_dir = os.path.join(data_dir, beam["Source_ID"])
 
-    query = {"Source_ID": beam["Source_ID"]}
-    newvalues = {
-        "$set": {
-            f"beams.{merge_name}.i_file": make_short_name(i_file_new),
-            f"beams.{merge_name}.q_file": make_short_name(q_file_new),
-            f"beams.{merge_name}.u_file": make_short_name(u_file_new),
-            f"beams.{merge_name}.DR1": True,
+        try_mkdir(new_dir, verbose=False)
+
+        i_file_new = os.path.join(new_dir, os.path.basename(i_file_old)).replace(
+            ".fits", ".edge.linmos.fits"
+        )
+        q_file_new = os.path.join(new_dir, os.path.basename(q_file_old)).replace(
+            ".fits", ".edge.linmos.fits"
+        )
+        u_file_new = os.path.join(new_dir, os.path.basename(u_file_old)).replace(
+            ".fits", ".edge.linmos.fits"
+        )
+
+        for src, dst in zip(
+            [i_file_old, q_file_old, u_file_old], [i_file_new, q_file_new, u_file_new]
+        ):
+            copyfile(src, dst)
+            src_weight = src.replace(".image.restored.", ".weights.").replace(
+                ".ion", ""
+            )
+            dst_weight = dst.replace(".image.restored.", ".weights.").replace(
+                ".ion", ""
+            )
+            copyfile(src_weight, dst_weight)
+
+        query = {"Source_ID": beam["Source_ID"]}
+        newvalues = {
+            "$set": {
+                f"beams.{merge_name}.i_file": make_short_name(i_file_new),
+                f"beams.{merge_name}.q_file": make_short_name(q_file_new),
+                f"beams.{merge_name}.u_file": make_short_name(u_file_new),
+                f"beams.{merge_name}.DR1": True,
+            }
         }
-    }
 
-    return pymongo.UpdateOne(query, newvalues)
+        updates.append(pymongo.UpdateOne(query, newvalues))
+    return updates
 
 
 def copy_singletons(
@@ -73,7 +96,18 @@ def copy_singletons(
     data_dir: str,
     beams_col: pymongo.collection.Collection,
     merge_name: str,
-) -> list:
+) -> List[pymongo.UpdateOne]:
+    """Copy islands that don't overlap other fields
+
+    Args:
+        field_dict (Dict[str, str]): Field dictionary
+        data_dir (str): Data directory
+        beams_col (pymongo.collection.Collection): Beams collection
+        merge_name (str): Merged field name
+
+    Returns:
+        List[pymongo.UpdateOne]: Database updates
+    """
     # Find all islands with the given fields that DON'T overlap another field
     query = {
         "$or": [
@@ -92,18 +126,15 @@ def copy_singletons(
     big_beams = list(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
-    updates = []
-    for beam in big_beams:
-        for field, vals in beam["beams"].items():
-            if field not in field_dict.keys():
-                continue
-            field_dir = field_dict[field]
-            update = copy_singleton(beam, vals, merge_name, field_dir, data_dir)
-            updates.append(update)
+    updates = copy_singleton.map(
+        beam=big_beams,
+        field_dict=unmapped(field_dict),
+        merge_name=unmapped(merge_name),
+        data_dir=unmapped(data_dir),
+    )
     return updates
 
 
-@delayed
 def genparset(
     old_ims: list,
     stokes: str,
@@ -139,10 +170,24 @@ linmos.weightstate      = Corrected
     return parset_file
 
 
-# @delayed(nout=3)
 def merge_multiple_field(
     beam: dict, field_dict: dict, merge_name: str, data_dir: str, image: str
-) -> list:
+) -> List[pymongo.UpdateOne]:
+    """Merge an island that overlaps multiple fields
+
+    Args:
+        beam (dict): Beam document
+        field_dict (dict): Field dictionary
+        merge_name (str): Merged field name
+        data_dir (str): Data directory
+        image (str): Yandasoft image
+
+    Raises:
+        KeyError: If ion files not found
+
+    Returns:
+        List[pymongo.UpdateOne]: Database updates
+    """
     i_files_old = []
     q_files_old = []
     u_files_old = []
@@ -167,19 +212,32 @@ def merge_multiple_field(
 
     for stokes, imlist in zip(["I", "Q", "U"], [i_files_old, q_files_old, u_files_old]):
         parset_file = genparset(imlist, stokes, new_dir)
-        update = linmos(parset_file, merge_name, image)
+        update = linmos.fn(parset_file, merge_name, image)
         updates.append(update)
 
     return updates
 
 
+@task(name="Merge multiple islands")
 def merge_multiple_fields(
     field_dict: Dict[str, str],
     data_dir: str,
     beams_col: pymongo.collection.Collection,
     merge_name: str,
     image: str,
-) -> list:
+) -> List[pymongo.UpdateOne]:
+    """Merge multiple islands that overlap multiple fields
+
+    Args:
+        field_dict (Dict[str, str]): Field dictionary
+        data_dir (str): Data directory
+        beams_col (pymongo.collection.Collection): Beams collection
+        merge_name (str): Merged field name
+        image (str): Yandasoft image
+
+    Returns:
+        List[pymongo.UpdateOne]: Database updates
+    """
     # Find all islands with the given fields that overlap another field
     query = {
         "$or": [
@@ -199,14 +257,18 @@ def merge_multiple_fields(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
 
-    updates = []
-    for beam in big_beams:
-        update = merge_multiple_field(beam, field_dict, merge_name, data_dir, image)
-        updates.extend(update)
+    updates = merge_multiple_field.map(
+        beam=big_beams,
+        field_dict=unmapped(field_dict),
+        merge_name=unmapped(merge_name),
+        data_dir=unmapped(data_dir),
+        image=unmapped(image),
+    )
 
     return updates
 
 
+@flow(name="Merge fields")
 def main(
     fields: List[str],
     field_dirs: List[str],
@@ -214,10 +276,9 @@ def main(
     output_dir: str,
     host: str,
     epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     yanda="1.3.0",
-    verbose: bool = True,
 ) -> str:
     logger.debug(f"{fields=}")
 
@@ -257,21 +318,8 @@ def main(
         image=image,
     )
 
-    singleton_futures = chunk_dask(
-        outputs=singleton_updates,
-        task_name="singleton islands",
-        progress_text="Copying singleton islands",
-        verbose=verbose,
-    )
-    singleton_comp = [f.compute() for f in singleton_futures]
-
-    multiple_futures = chunk_dask(
-        outputs=mutilple_updates,
-        task_name="overlapping islands",
-        progress_text="Running LINMOS on overlapping islands",
-        verbose=verbose,
-    )
-    multiple_comp = [f.compute() for f in multiple_futures]
+    singleton_comp = [f.result() for f in singleton_updates]
+    multiple_comp = [f.result() for f in mutilple_updates]
 
     for m in multiple_comp:
         m._doc["$set"].update({f"beams.{merge_name}.DR1": True})
@@ -346,10 +394,6 @@ def cli():
     )
 
     parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="Verbose output [False]."
-    )
-
-    parser.add_argument(
         "--username", type=str, default=None, help="Username of mongodb."
     )
 
@@ -358,10 +402,6 @@ def cli():
     )
 
     args = parser.parse_args()
-
-    cluster = LocalCluster()
-    client = Client(cluster)
-
     verbose = args.verbose
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose
@@ -377,11 +417,7 @@ def cli():
         username=args.username,
         password=args.password,
         yanda=args.yanda,
-        verbose=verbose,
     )
-
-    client.close()
-    cluster.close()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "arrakis"
-version = "2.0.0"
+version = "2.1.0"
 description = "Processing the SPICE."
 homepage = "https://research.csiro.au/racs/"
 repository = "https://github.com/AlecThomson/arrakis"
@@ -37,7 +37,7 @@ dask_mpi = "*"
 FRion = {git = "https://github.com/CIRADA-Tools/FRion.git" }
 h5py = "*"
 ipython = "*"
-matplotlib = "*"
+matplotlib = "^3.8"
 numba = "*"
 numba_progress = "*"
 #mpi4py = "*"
@@ -62,7 +62,7 @@ bokeh = "<3"
 prefect = "^2"
 prefect-dask = "*"
 RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
-rm-tools = {git = "https://github.com/AlecThomson/RM-Tools.git", branch="spiceracs_dev"}
+rm-tools = {git = "https://github.com/CIRADA-Tools/RM-Tools"}
 PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git", branch="spiceracs"}
 setuptools = "*"
 fixms = "^0.1.2"

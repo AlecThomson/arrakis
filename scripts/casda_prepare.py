@@ -802,36 +802,17 @@ def cli():
         logger.setLevel(logging.INFO)
     elif args.debug:
         logger.setLevel(logging.DEBUG)
-
-    if args.mpi:
-        initialize(
-            interface=args.interface,
-            local_directory="/dev/shm",
-        )
-        cluster = None
-    else:
-        cluster = LocalCluster(
-            n_workers=12,
-            processes=True,
-            threads_per_worker=1,
-            local_directory="/dev/shm",
-        )
-
-    with Client(
-        cluster,
-    ) as client:
-        logger.debug(f"{client=}")
-        main(
-            polcatf=args.polcat,
-            data_dir=args.data_dir,
-            prep_type=args.prep_type,
-            do_update_cubes=args.convert_cubes,
-            do_convert_spectra=args.convert_spectra,
-            do_convert_plots=args.convert_plots,
-            verbose=args.verbose,
-            batch_size=args.batch_size,
-            outdir=args.outdir,
-        )
+    main(
+        polcatf=args.polcat,
+        data_dir=args.data_dir,
+        prep_type=args.prep_type,
+        do_update_cubes=args.convert_cubes,
+        do_convert_spectra=args.convert_spectra,
+        do_convert_plots=args.convert_plots,
+        verbose=args.verbose,
+        batch_size=args.batch_size,
+        outdir=args.outdir,
+    )
 
 
 if __name__ == "__main__":

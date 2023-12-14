@@ -17,6 +17,7 @@ from astropy.io import votable as vot
 from astropy.stats import sigma_clip
 from astropy.table import Column, Table
 from dask.diagnostics import ProgressBar
+from prefect import flow, task
 from rmtable import RMTable
 from scipy.stats import lognorm, norm
 from tqdm import tqdm
@@ -218,6 +219,7 @@ def lognorm_from_percentiles(x1, p1, x2, p2):
     return scale, np.exp(mean)
 
 
+@task(name="Fix sigma_add")
 def sigma_add_fix(tab):
     sigma_Q_low = np.array(tab["sigma_add_Q"] - tab["sigma_add_Q_err_minus"])
     sigma_Q_high = np.array(tab["sigma_add_Q"] + tab["sigma_add_Q_err_plus"])
@@ -292,7 +294,7 @@ def get_fit_func(
     degree: int = 2,
     do_plot: bool = False,
     high_snr_cut: float = 30.0,
-):
+) -> Tuple[np.polynomial.Polynomial.fit, plt.Figure]:
     """Fit an envelope to define leakage sources
 
     Args:
@@ -312,6 +314,15 @@ def get_fit_func(
     hi_i_tab = tab[hi_snr]
 
     logger.info(f"{np.sum(hi_snr)} sources with Stokes I SNR above {high_snr_cut=}.")
+
+    if len(hi_i_tab) < 100:
+        logger.critical("Not enough high SNR sources to fit leakage envelope.")
+        return (
+            np.polynomial.Polynomial.fit(
+                np.array([0, 1]), np.array([0, 0]), deg=0, full=False
+            ),
+            plt.figure(),
+        )
 
     # Get fractional pol
     frac_P = np.array(hi_i_tab["fracpol"].value)
@@ -340,7 +351,6 @@ def get_fit_func(
 
     # Plot the fit
     latexify(columns=2)
-    figure = plt.figure(facecolor="w")
     fig = plt.figure(facecolor="w")
     color = "tab:green"
     stoke = {
@@ -360,17 +370,6 @@ def get_fit_func(
         zorder=0,
         rasterized=True,
     )
-
-    # is_finite = np.logical_and(
-    #     np.isfinite(hi_i_tab["beamdist"].to(u.deg).value), np.isfinite(frac_P)
-    # )
-    # hist2d(
-    #     np.array(hi_i_tab["beamdist"].to(u.deg).value)[is_finite, np.newaxis],
-    #     np.array(frac_P)[is_finite, np.newaxis],
-    #     bins=(nbins, nbins),
-    #     range=[[0, 5], [0, 0.05]],
-    #     # color=color,
-    # )
     plt.plot(bins_c, meds, alpha=1, c=color, label="Median", linewidth=2)
     for s, ls in zip((1, 2), ("--", ":")):
         for r in ("ups", "los"):
@@ -406,6 +405,15 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     logger.info("Computing voronoi bins and finding bad RMs")
     logger.info(f"Number of available sources: {len(good_cat)}.")
 
+    df = good_cat.to_pandas()
+    df.reset_index(inplace=True)
+    df.set_index("cat_id", inplace=True)
+
+    df_out = big_cat.to_pandas()
+    df_out.reset_index(inplace=True)
+    df_out.set_index("cat_id", inplace=True)
+    df_out["local_rm_flag"] = False
+
     def sn_func(index, signal=None, noise=None):
         try:
             sn = len(np.array(index))
@@ -415,6 +423,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
 
     target_sn = 30
     target_bins = 6
+    fail = True
     while target_sn > 1:
         logger.debug(
             f"Trying to find Voroni bins with RMs per bin={target_sn}, Number of bins={target_bins}"
@@ -464,32 +473,27 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
         fail_msg = "Failed to converge towards a Voronoi binning solution. "
         logger.error(fail_msg)
 
-        raise ValueError(fail_msg)
+        fail = True
 
-    logger.info(f"Found {len(set(bin_number))} bins")
-    df = good_cat.to_pandas()
-    df.reset_index(inplace=True)
-    df.set_index("cat_id", inplace=True)
-    df["bin_number"] = bin_number
-    # Use sigma clipping to find outliers
+    if not fail:
+        logger.info(f"Found {len(set(bin_number))} bins")
+        df["bin_number"] = bin_number
 
-    def masker(x):
-        return pd.Series(
-            sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
-            index=x.index,
+        # Use sigma clipping to find outliers
+        def masker(x):
+            return pd.Series(
+                sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
+                index=x.index,
+            )
+
+        perc_g = df.groupby("bin_number").apply(
+            masker,
         )
+        # Put flag into the catalogue
+        df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
+        df.drop(columns=["bin_number"], inplace=True)
+        df_out.update(df["local_rm_flag"])
 
-    perc_g = df.groupby("bin_number").apply(
-        masker,
-    )
-    # Put flag into the catalogue
-    df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
-    df.drop(columns=["bin_number"], inplace=True)
-    df_out = big_cat.to_pandas()
-    df_out.reset_index(inplace=True)
-    df_out.set_index("cat_id", inplace=True)
-    df_out["local_rm_flag"] = False
-    df_out.update(df["local_rm_flag"])
     df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
     cat_out = RMTable.from_pandas(df_out.reset_index())
     cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
@@ -507,6 +511,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     return cat_out
 
 
+@task(name="Add cuts and flags")
 def cuts_and_flags(cat: RMTable) -> RMTable:
     """Cut out bad sources, and add flag columns
 
@@ -564,6 +569,7 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     return cat_out, fit
 
 
+@task(name="Get spectral indices")
 def get_alpha(cat):
     coefs_str = cat["stokesI_model_coef"]
     coefs_err_str = cat["stokesI_model_coef_err"]
@@ -592,6 +598,7 @@ def get_alpha(cat):
     )
 
 
+@task(name="Get integration times")
 def get_integration_time(cat, field_col):
     logger.warn("Will be stripping the trailing field character prefix. ")
     field_names = [
@@ -618,31 +625,6 @@ def get_integration_time(cat, field_col):
         tints.append(tint_dict[name])
 
     return np.array(tints) * u.s
-
-
-# Stolen from GASKAP pipeline
-# Credit to J. Dempsey
-# https://github.com/GASKAP/GASKAP-HI-Absorption-Pipeline/
-# https://github.com/GASKAP/GASKAP-HI-Absorption-Pipeline/blob/
-# def add_col_metadata(vo_table, col_name, description, units=None, ucd=None, datatype=None):
-#     """Add metadata to a VO table column.
-
-#     Args:
-#         vo_table (vot.): VO Table
-#         col_name (str): Column name
-#         description (str): Long description of the column
-#         units (u.Unit, optional): Unit of column. Defaults to None.
-#         ucd (str, optional): UCD string. Defaults to None.
-#         datatype (_type_, optional): _description_. Defaults to None.
-#     """
-#     col = vo_table.get_first_table().get_field_by_id(col_name)
-#     col.description = description
-#     if units:
-#         col.unit = units
-#     if ucd:
-#         col.ucd = ucd
-#     if datatype:
-#         col.datatype = datatype
 
 
 def add_metadata(vo_table: vot.tree.Table, filename: str):
@@ -732,6 +714,7 @@ def fix_blank_units(rmtab: TableLike) -> TableLike:
     return rmtab
 
 
+@task(name="Write votable")
 def write_votable(rmtab: TableLike, outfile: str) -> None:
     # Replace bad column names
     fix_columns = {
@@ -752,6 +735,7 @@ def write_votable(rmtab: TableLike, outfile: str) -> None:
     replace_nans(outfile)
 
 
+@flow(name="Make catalogue")
 def main(
     field: str,
     host: str,
@@ -862,10 +846,6 @@ def main(
     alpha_dict = get_alpha(rmtab)
     rmtab.add_column(Column(data=alpha_dict["alphas"], name="spectral_index"))
     rmtab.add_column(Column(data=alpha_dict["alphas_err"], name="spectral_index_err"))
-    # rmtab.add_column(Column(data=alpha_dict["betas"], name="spectral_curvature"))
-    # rmtab.add_column(
-    #     Column(data=alpha_dict["betas_err"], name="spectral_curvature_err")
-    # )
 
     # Add integration time
     field_col = get_field_db(

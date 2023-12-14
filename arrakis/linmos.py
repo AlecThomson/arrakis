@@ -7,19 +7,20 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List
+from typing import NamedTuple as Struct
+from typing import Optional
 
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
-from dask import delayed
 from dask.distributed import Client, LocalCluster
+from prefect import flow, task, unmapped
 from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
-from arrakis.utils.pipeline import chunk_dask
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -29,19 +30,26 @@ os.environ["OMP_NUM_THREADS"] = "1"
 logger.setLevel(logging.INFO)
 
 
-@delayed(nout=2)
+class ImagePaths(Struct):
+    """Class to hold image paths"""
+
+    images: List[Path]
+    """List of image paths"""
+    weights: List[Path]
+    """List of weight paths"""
+
+
+@task(name="Find images")
 def find_images(
     field: str,
-    src_name: str,
     beams: dict,
     stoke: str,
     datadir: Path,
-) -> Tuple[List[Path], List[Path]]:
+) -> ImagePaths:
     """Find the images and weights for a given field and stokes parameter
 
     Args:
         field (str): Field name.
-        src_name (str): Source name.
         beams (dict): Beam information.
         stoke (str): Stokes parameter.
         datadir (Path): Data directory.
@@ -50,9 +58,11 @@ def find_images(
         Exception: If no files are found.
 
     Returns:
-        Tuple[List[Path], List[Path]]: List of images and weights.
+        ImagePaths: List of images and weights.
     """
     logger.setLevel(logging.INFO)
+
+    src_name = beams["Source_ID"]
     field_beams = beams["beams"][field]
 
     # First check that the images exist
@@ -82,29 +92,29 @@ def find_images(
             im.parent.name == wt.parent.name
         ), "Image and weight are in different areas!"
 
-    return image_list, weight_list
+    return ImagePaths(image_list, weight_list)
 
 
-@delayed
+@task(name="Smooth images")
 def smooth_images(
-    image_dict: Dict[str, List[Path]],
-) -> Dict[str, List[Path]]:
+    image_dict: Dict[str, ImagePaths],
+) -> Dict[str, ImagePaths]:
     """Smooth cubelets to a common resolution
 
     Args:
-        image_list (List[Path]): List of cubelets to smooth.
+        image_list (ImagePaths): List of cubelets to smooth.
 
     Returns:
-        List[Path]: Smoothed cubelets.
+        ImagePaths: Smoothed cubelets.
     """
-    smooth_dict: Dict[str, List[Path]] = {}
+    smooth_dict: Dict[str, ImagePaths] = {}
     for stoke, image_list in image_dict.items():
         infiles: List[str] = []
-        for im in image_list:
+        for im in image_list.images:
             if im.suffix == ".fits":
                 infiles.append(im.resolve().as_posix())
         datadict = beamcon_3D.main(
-            infile=[im.resolve().as_posix() for im in image_list],
+            infile=[im.resolve().as_posix() for im in image_list.images],
             uselogs=False,
             mode="total",
             conv_mode="robust",
@@ -113,15 +123,14 @@ def smooth_images(
         smooth_files: List[Path] = []
         for key, val in datadict.items():
             smooth_files.append(Path(val["outfile"]))
-        smooth_dict[stoke] = smooth_files
+        smooth_dict[stoke] = ImagePaths(smooth_files, image_list.weights)
 
     return smooth_dict
 
 
-@delayed
+@task(name="Generate parset")
 def genparset(
-    image_list: List[Path],
-    weight_list: List[Path],
+    image_paths: ImagePaths,
     stoke: str,
     datadir: Path,
     holofile: Optional[Path] = None,
@@ -129,12 +138,10 @@ def genparset(
     """Generate parset for LINMOS
 
     Args:
-        field (str): RACS field name.
-        src_name (str): RACE source name.
-        beams (dict): Mongo entry for RACS beams.
+        image_paths (ImagePaths): List of images and weights.
         stoke (str): Stokes parameter.
-        datadir (str): Data directory.
-        holofile (str): Full path to holography file.
+        datadir (Path): Data directory.
+        holofile (Path, optional): Path to the holography file to include in the bind list. Defaults to None.
 
     Raises:
         Exception: If no files are found.
@@ -144,17 +151,13 @@ def genparset(
     """
     logger.setLevel(logging.INFO)
 
-    image_string = (
-        f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_list])}]"
-    )
-    weight_string = (
-        f"[{','.join([im.resolve().with_suffix('').as_posix() for im in weight_list])}]"
-    )
+    image_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.images])}]"
+    weight_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.weights])}]"
 
-    parset_dir = datadir.resolve() / image_list[0].parent.name
+    parset_dir = datadir.resolve() / image_paths.images[0].parent.name
 
-    first_image = image_list[0].resolve().with_suffix("").as_posix()
-    first_weight = weight_list[0].resolve().with_suffix("").as_posix()
+    first_image = image_paths.images[0].resolve().with_suffix("").as_posix()
+    first_weight = image_paths.weights[0].resolve().with_suffix("").as_posix()
     linmos_image_str = f"{first_image[:first_image.find('beam')]}linmos"
     linmos_weight_str = f"{first_weight[:first_weight.find('beam')]}linmos"
 
@@ -187,17 +190,17 @@ linmos.removeleakage    = true
     return parset_file
 
 
-@delayed
+@task(name="Run linmos")
 def linmos(
-    parset: str, fieldname: str, image: str, holofile: Path
-) -> pymongo.UpdateOne:
+    parset: Optional[str], fieldname: str, image: str, holofile: Path
+) -> Optional[pymongo.UpdateOne]:
     """Run linmos
 
     Args:
         parset (str): Path to parset file.
         fieldname (str): Name of RACS field.
         image (str): Name of Yandasoft image.
-        holofile (Union[Path,str]): Path to the holography file to include in the bind list.
+        holofile (Path): Path to the holography file to include in the bind list.
         verbose (bool, optional): Verbose output. Defaults to False.
 
     Raises:
@@ -209,9 +212,11 @@ def linmos(
     """
     logger.setLevel(logging.INFO)
 
+    if parset is None:
+        return
+
     workdir = os.path.dirname(parset)
     rootdir = os.path.split(workdir)[0]
-    junk = os.path.split(workdir)[-1]
     parset_name = os.path.basename(parset)
     source = os.path.basename(workdir)
     stoke = parset_name[parset_name.find(".in") - 1]
@@ -230,7 +235,6 @@ def linmos(
     outstr = "\n".join(output["message"])
     with open(log_file, "w") as f:
         f.write(outstr)
-        # f.write(output['message'])
 
     if output["return_code"] != 0:
         raise Exception(f"LINMOS failed! Check '{log_file}'")
@@ -267,6 +271,7 @@ def get_yanda(version="1.3.0") -> str:
     return image
 
 
+@flow(name="LINMOS")
 def main(
     field: str,
     datadir: Path,
@@ -277,8 +282,8 @@ def main(
     password: Optional[str] = None,
     yanda: str = "1.3.0",
     yanda_img: Optional[Path] = None,
-    stokeslist: Union[List[str], None] = None,
-    verbose=True,
+    stokeslist: Optional[List[str]] = None,
+    limit: Optional[int] = None,
 ) -> None:
     """Main script
 
@@ -313,15 +318,14 @@ def main(
 
     logger.info(f"The query is {query=}")
 
-    island_ids = sorted(beams_col.distinct("Source_ID", query))
-    big_beams = list(
+    island_ids: List[str] = sorted(beams_col.distinct("Source_ID", query))
+    big_beams: List[dict] = list(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
-    # files = sorted([name for name in glob(f"{cutdir}/*") if os.path.isdir(os.path.join(cutdir, name))])
-    big_comps = list(
+    big_comps: List[dict] = list(
         comp_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
-    comps = []
+    comps: List[List[dict]] = []
     for island_id in island_ids:
         _comps = []
         for c in big_comps:
@@ -331,49 +335,36 @@ def main(
 
     assert len(big_beams) == len(comps)
 
-    parfiles = []
-    for beams, comp in zip(big_beams, comps):
-        src = beams["Source_ID"]
-        if len(comp) == 0:
-            warnings.warn(f"Skipping island {src} -- no components found")
-            continue
-        else:
-            image_dict: Dict[str, List[Path]] = {}
-            weight_dict: Dict[str, List[Path]] = {}
-            for stoke in stokeslist:
-                image_list, weight_list = find_images(
-                    field=field,
-                    src_name=src,
-                    beams=beams,
-                    stoke=stoke.capitalize(),
-                    datadir=cutdir,
-                )
-                image_dict[stoke] = image_list
-                weight_dict[stoke] = weight_list
+    if limit is not None:
+        logger.critical(f"Limiting to {limit} islands")
+        big_beams = big_beams[:limit]
+        comps = comps[:limit]
 
-            smooth_dict = smooth_images(image_dict)
-            for stoke in stokeslist:
-                parfile = genparset(
-                    image_list=smooth_dict[stoke],
-                    weight_list=weight_dict[stoke],
-                    stoke=stoke.capitalize(),
-                    datadir=cutdir,
-                    holofile=holofile,
-                )
-                parfiles.append(parfile)
+    all_parfiles = []
+    for stoke in stokeslist:
+        image_paths = find_images.map(
+            field=unmapped(field),
+            beams=big_beams,
+            stoke=unmapped(stoke.capitalize()),
+            datadir=unmapped(cutdir),
+        )
+        parfiles = genparset.map(
+            image_paths=image_paths,
+            stoke=unmapped(stoke.capitalize()),
+            datadir=unmapped(cutdir),
+            holofile=unmapped(holofile),
+        )
+        all_parfiles.extend(parfiles)
 
-    results = []
-    for parset in parfiles:
-        results.append(linmos(parset, field, str(image), holofile=holofile))
-
-    futures = chunk_dask(
-        outputs=results,
-        task_name="LINMOS",
-        progress_text="Runing LINMOS",
-        verbose=verbose,
+    results = linmos.map(
+        all_parfiles,
+        unmapped(field),
+        unmapped(str(image)),
+        unmapped(holofile),
     )
 
-    updates = [f.compute() for f in futures]
+    updates = [f.result() for f in results]
+    updates = [u for u in updates if u is not None]
     logger.info("Updating database...")
     db_res = beams_col.bulk_write(updates, ordered=False)
     logger.info(pformat(db_res.bulk_api_result))
@@ -458,11 +449,14 @@ def cli():
     parser.add_argument(
         "--password", type=str, default=None, help="Password of mongodb."
     )
+    parser.add_argument(
+        "--limit",
+        type=Optional[int],
+        default=None,
+        help="Limit the number of islands to process.",
+    )
 
     args = parser.parse_args()
-
-    cluster = LocalCluster(n_workers=1)
-    client = Client(cluster)
 
     verbose = args.verbose
     test_db(
@@ -480,7 +474,7 @@ def cli():
         yanda=args.yanda,
         yanda_img=args.yanda_image,
         stokeslist=args.stokeslist,
-        verbose=verbose,
+        limit=args.limit,
     )
 
 

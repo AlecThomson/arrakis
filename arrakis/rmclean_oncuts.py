@@ -7,23 +7,22 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Union
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pymongo
-from dask import delayed
 from dask.distributed import Client, LocalCluster
+from prefect import flow, task, unmapped
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D
-from tqdm import tqdm
 
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
-from arrakis.utils.pipeline import chunk_dask, logo_str
+from arrakis.utils.pipeline import logo_str
 
 
-@delayed
+@task(name="1D RM-CLEAN")
 def rmclean1d(
     comp: dict,
     outdir: str,
@@ -135,7 +134,7 @@ def rmclean1d(
     return pymongo.UpdateOne(myquery, newvalues)
 
 
-@delayed
+@task(name="3D RM-CLEAN")
 def rmclean3d(
     island: dict,
     outdir: str,
@@ -203,19 +202,18 @@ def rmclean3d(
     return pymongo.UpdateOne(myquery, newvalues)
 
 
+@flow(name="RM-CLEAN on cutouts")
 def main(
     field: str,
     outdir: Path,
     host: str,
     epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     dimension="1d",
-    verbose=True,
     database=False,
     savePlots=True,
-    validate=False,
-    limit: Union[int, None] = None,
+    limit: Optional[int] = None,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
@@ -296,52 +294,37 @@ def main(
         n_island = count
         # component_ids = component_ids[:count]
 
-    outputs = []
     if dimension == "1d":
         logger.info(f"Running RM-CLEAN on {n_comp} components")
-        for i, comp in enumerate(tqdm(components, total=n_comp)):
-            if i > n_comp + 1:
-                break
-            else:
-                output = rmclean1d(
-                    comp=comp,
-                    outdir=outdir,
-                    cutoff=cutoff,
-                    maxIter=maxIter,
-                    gain=gain,
-                    showPlots=showPlots,
-                    savePlots=savePlots,
-                    rm_verbose=rm_verbose,
-                    window=window,
-                )
-                outputs.append(output)
-
+        outputs = rmclean1d.map(
+            comp=components,
+            outdir=unmapped(outdir),
+            cutoff=unmapped(cutoff),
+            maxIter=unmapped(maxIter),
+            gain=unmapped(gain),
+            showPlots=unmapped(showPlots),
+            savePlots=unmapped(savePlots),
+            rm_verbose=unmapped(rm_verbose),
+            window=unmapped(window),
+        )
     elif dimension == "3d":
         logger.info(f"Running RM-CLEAN on {n_island} islands")
 
-        for i, island in enumerate(islands):
-            if i > n_island + 1:
-                break
-            else:
-                output = rmclean3d(
-                    island=island,
-                    outdir=outdir,
-                    cutoff=cutoff,
-                    maxIter=maxIter,
-                    gain=gain,
-                    rm_verbose=rm_verbose,
-                )
-                outputs.append(output)
-    futures = chunk_dask(
-        outputs=outputs,
-        task_name="RM-CLEAN",
-        progress_text="Running RM-CLEAN",
-        verbose=verbose,
-    )
+        outputs = rmclean3d.map(
+            island=islands,
+            outdir=unmapped(outdir),
+            cutoff=unmapped(cutoff),
+            maxIter=unmapped(maxIter),
+            gain=unmapped(gain),
+            rm_verbose=unmapped(rm_verbose),
+        )
+
+    else:
+        raise ValueError(f"Dimension {dimension} not supported.")
 
     if database:
         logger.info("Updating database...")
-        updates = [f.compute() for f in futures]
+        updates = [f.result() for f in outputs]
         if dimension == "1d":
             db_res = comp_col.bulk_write(updates, ordered=False)
             logger.info(pformat(db_res.bulk_api_result))
@@ -425,12 +408,6 @@ def cli():
     parser.add_argument(
         "-sp", "--savePlots", action="store_true", help="save the plots [False]."
     )
-    parser.add_argument(
-        "--validate",
-        dest="validate",
-        action="store_true",
-        help="Run on Stokes I [False].",
-    )
 
     parser.add_argument(
         "--limit",
@@ -474,9 +451,6 @@ def cli():
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(n_workers=20)
-    client = Client(cluster)
-
     verbose = args.verbose
     rmv = args.rm_verbose
     host = args.host
@@ -499,10 +473,8 @@ def cli():
         username=args.username,
         password=args.password,
         dimension=args.dimension,
-        verbose=verbose,
         database=args.database,
         savePlots=args.savePlots,
-        validate=args.validate,
         limit=args.limit,
         cutoff=args.cutoff,
         maxIter=args.maxIter,
@@ -511,9 +483,6 @@ def cli():
         showPlots=args.showPlots,
         rm_verbose=args.rm_verbose,
     )
-
-    client.close()
-    cluster.close()
 
 
 if __name__ == "__main__":

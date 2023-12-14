@@ -265,12 +265,6 @@ def cli():
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(
-        n_workers=10,
-        threads_per_worker=1,
-    )
-    client = Client(cluster)
-
     if args.verbose:
         logger.setLevel(logging.INFO)
 
@@ -284,9 +278,6 @@ def cli():
         verbose=args.verbose,
         snr_cut=args.snr,
     )
-
-    client.close()
-    cluster.close()
 
 
 if __name__ == "__main__":

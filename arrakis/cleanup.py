@@ -6,35 +6,38 @@ from glob import glob
 from pathlib import Path
 from typing import List, Union
 
-from dask import delayed
 from dask.distributed import Client, LocalCluster
+from prefect import flow, task, unmapped
 
 from arrakis.logger import logger
-from arrakis.utils.pipeline import chunk_dask, logo_str
+from arrakis.utils.pipeline import logo_str
 
 logger.setLevel(logging.INFO)
 
 
-@delayed
-def cleanup(workdir: str, stoke: str) -> None:
+@task(name="Cleanup directory")
+def cleanup(workdir: str, stokeslist: List[str]) -> None:
     """Clean up beam images
 
     Args:
         workdir (str): Directory containing images
         stoke (str): Stokes parameter
     """
-    # Clean up beam images
-    # old_files = glob(f"{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits")
-    # for old in old_files:
-    #     os.remove(old)
+    if os.path.basename(workdir) == "slurmFiles":
+        return
+    for stoke in stokeslist:
+        # Clean up beam images
+        # old_files = glob(f"{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits")
+        # for old in old_files:
+        #     os.remove(old)
 
-    pass
+        ...
 
 
+@flow(name="Cleanup")
 def main(
     datadir: Path,
     stokeslist: Union[List[str], None] = None,
-    verbose=True,
 ) -> None:
     """Clean up beam images
 
@@ -55,20 +58,9 @@ def main(
             if os.path.isdir(os.path.join(cutdir, name))
         ]
     )
-
-    outputs = []
-    for file in files:
-        if os.path.basename(file) == "slurmFiles":
-            continue
-        for stoke in stokeslist:
-            output = cleanup(file, stoke)
-            outputs.append(output)
-
-    futures = chunk_dask(
-        outputs=outputs,
-        task_name="cleanup",
-        progress_text="Running cleanup",
-        verbose=verbose,
+    outputs = cleanup.map(
+        workdir=files,
+        stokeslist=unmapped(stokeslist),
     )
 
     logger.info("Cleanup done!")
@@ -107,13 +99,7 @@ def cli():
     if verbose:
         logger.setLevel(logging.DEBUG)
 
-    cluster = LocalCluster(n_workers=20)
-    client = Client(cluster)
-
     main(datadir=Path(args.outdir), stokeslist=None, verbose=verbose)
-
-    client.close()
-    cluster.close()
 
 
 if __name__ == "__main__":

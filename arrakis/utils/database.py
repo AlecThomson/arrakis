@@ -57,7 +57,7 @@ def get_db(
     epoch: int,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
-) -> Tuple[Collection, Collection, Collection,]:
+) -> Tuple[Collection, Collection, Collection]:
     """Get MongoDBs
 
     Args:

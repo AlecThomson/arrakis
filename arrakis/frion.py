@@ -2,34 +2,41 @@
 """Correct for the ionosphere in parallel"""
 import logging
 import os
-import time
 from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, List
+from typing import NamedTuple as Struct
+from typing import Optional, Union
 
 import astropy.units as u
-import dask
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
-from dask import delayed
 from dask.distributed import Client, LocalCluster
 from FRion import correct, predict
+from prefect import flow, task, unmapped
 
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, get_field_db, test_db
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import logo_str, tqdm_dask
+from arrakis.utils.pipeline import logo_str
 
 logger.setLevel(logging.INFO)
 
 
-@delayed
+class Prediction(Struct):
+    """FRion prediction"""
+
+    predict_file: str
+    update: pymongo.UpdateOne
+
+
+@task(name="FRion correction")
 def correct_worker(
-    beam: Dict, outdir: str, field: str, predict_file: str, island_id: str
+    beam: Dict, outdir: str, field: str, prediction: Prediction, island: dict
 ) -> pymongo.UpdateOne:
     """Apply FRion corrections to a single island
 
@@ -43,6 +50,8 @@ def correct_worker(
     Returns:
         pymongo.UpdateOne: Pymongo update query
     """
+    predict_file = prediction.predict_file
+    island_id = island["Source_ID"]
     qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
     ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
 
@@ -67,7 +76,7 @@ def correct_worker(
     return pymongo.UpdateOne(myquery, newvalues)
 
 
-@delayed(nout=2)
+@task(name="FRion predction")
 def predict_worker(
     island: Dict,
     field: str,
@@ -82,7 +91,7 @@ def predict_worker(
     formatter: Optional[Union[str, Callable]] = None,
     proxy_server: Optional[str] = None,
     pre_download: bool = False,
-) -> Tuple[str, pymongo.UpdateOne]:
+) -> Prediction:
     """Make FRion prediction for a single island
 
     Args:
@@ -135,11 +144,15 @@ def predict_worker(
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
     predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
 
-    plot_file = os.path.join(i_dir, f"{iname}_ion.pdf")
-    predict.generate_plots(
-        times, RMs, theta, freq, position=[ra, dec], savename=plot_file
-    )
-    plot_files = glob(os.path.join(i_dir, "*ion.pdf"))
+    plot_file = os.path.join(i_dir, f"{iname}_ion.png")
+    try:
+        predict.generate_plots(
+            times, RMs, theta, freq, position=[ra, dec], savename=plot_file
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate plot: {e}")
+
+    plot_files = glob(os.path.join(i_dir, "*ion.png"))
     logger.info(f"Plotting files: {plot_files=}")
     for src in plot_files:
         base = os.path.basename(src)
@@ -163,9 +176,18 @@ def predict_worker(
 
     update = pymongo.UpdateOne(myquery, newvalues)
 
-    return predict_file, update
+    return Prediction(predict_file, update)
 
 
+@task(name="Index beams")
+def index_beams(island: dict, beams: List[dict]) -> dict:
+    island_id = island["Source_ID"]
+    beam_idx = [i for i, b in enumerate(beams) if b["Source_ID"] == island_id][0]
+    beam = beams[beam_idx]
+    return beam
+
+
+@flow(name="FRion")
 def main(
     field: str,
     outdir: Path,
@@ -174,12 +196,12 @@ def main(
     username: Optional[str] = None,
     password: Optional[str] = None,
     database=False,
-    verbose=True,
     ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
     ionex_prefix: str = "codg",
     ionex_proxy_server: Optional[str] = None,
     ionex_formatter: Optional[Union[str, Callable]] = "ftp.aiub.unibe.ch",
     ionex_predownload: bool = False,
+    limit: Optional[int] = None,
 ):
     """Main script
 
@@ -238,61 +260,52 @@ def main(
 
     freq = getfreq(
         os.path.join(cutdir, f"{beams[0]['beams'][f'{field}']['q_file']}"),
-    )  # Type: u.Quantity
+    )
 
-    # Loop over islands in parallel
-    outputs = []
-    updates_arrays = []
+    if limit is not None:
+        logger.info(f"Limiting to {limit} islands")
+        islands = islands[:limit]
+
+    beams_cor = []
     for island in islands:
         island_id = island["Source_ID"]
         beam_idx = [i for i, b in enumerate(beams) if b["Source_ID"] == island_id][0]
         beam = beams[beam_idx]
-        # Get FRion predictions
-        predict_file, update = predict_worker(
-            island=island,
-            field=field,
-            beam=beam,
-            start_time=start_time,
-            end_time=end_time,
-            freq=freq.to(u.Hz).value,
-            cutdir=cutdir,
-            plotdir=plotdir,
-            server=ionex_server,
-            prefix=ionex_prefix,
-            proxy_server=ionex_proxy_server,
-            formatter=ionex_formatter,
-            pre_download=ionex_predownload,
-        )
-        updates_arrays.append(update)
-        # Apply FRion predictions
-        output = correct_worker(
-            beam=beam,
-            outdir=cutdir,
-            field=field,
-            predict_file=predict_file,
-            island_id=island_id,
-        )
-        outputs.append(output)
-    # Wait for IONEX data I guess...
-    _ = outputs[0].compute()
-    time.sleep(10)
-    # Execute
-    futures, future_arrays = dask.persist(outputs, updates_arrays)
-    # dumb solution for https://github.com/dask/distributed/issues/4831
-    time.sleep(10)
-    tqdm_dask(
-        futures, desc="Running FRion", disable=(not verbose), total=len(islands) * 3
+        beams_cor.append(beam)
+
+    predictions = predict_worker.map(
+        island=islands,
+        field=unmapped(field),
+        beam=beams_cor,
+        start_time=unmapped(start_time),
+        end_time=unmapped(end_time),
+        freq=unmapped(freq.to(u.Hz).value),
+        cutdir=unmapped(cutdir),
+        plotdir=unmapped(plotdir),
+        server=unmapped(ionex_server),
+        prefix=unmapped(ionex_prefix),
+        proxy_server=unmapped(ionex_proxy_server),
+        formatter=unmapped(ionex_formatter),
+        pre_download=unmapped(ionex_predownload),
     )
+
+    corrections = correct_worker.map(
+        beam=beams_cor,
+        outdir=unmapped(cutdir),
+        field=unmapped(field),
+        prediction=predictions,
+        island=islands,
+    )
+
+    updates_arrays = [p.result().update for p in predictions]
+    updates = [c.result() for c in corrections]
     if database:
         logger.info("Updating beams database...")
-        updates = [f.compute() for f in futures]
         db_res = beams_col.bulk_write(updates, ordered=False)
         logger.info(pformat(db_res.bulk_api_result))
 
         logger.info("Updating island database...")
-        updates_arrays_cmp = [f.compute() for f in future_arrays]
-
-        db_res = island_col.bulk_write(updates_arrays_cmp, ordered=False)
+        db_res = island_col.bulk_write(updates_arrays, ordered=False)
         logger.info(pformat(db_res.bulk_api_result))
 
 
@@ -404,12 +417,6 @@ def cli():
     verbose = args.verbose
     if verbose:
         logger.setLevel(logging.INFO)
-
-    cluster = LocalCluster(
-        n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm"
-    )
-    client = Client(cluster)
-    logger.info(client)
 
     test_db(host=args.host, username=args.username, password=args.password)
 

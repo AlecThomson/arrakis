@@ -37,9 +37,6 @@ def main():
     )
     cluster.scale(72)
     logger.debug(f"Submitted scripts will look like: \n {cluster.job_script()}")
-    # # exit()
-    # cluster = LocalCluster(n_workers=10, threads_per_worker=1)
-    # cluster.adapt(minimum=1, maximum=36)
 
     client = Client(cluster)
 
