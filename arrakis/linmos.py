@@ -458,9 +458,6 @@ def cli():
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(n_workers=1)
-    client = Client(cluster)
-
     verbose = args.verbose
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose

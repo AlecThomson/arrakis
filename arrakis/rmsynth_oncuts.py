@@ -1205,13 +1205,6 @@ def cli():
     elif verbose:
         logger.setLevel(logger.INFO)
 
-    cluster = LocalCluster(
-        # n_workers=12, processes=True, threads_per_worker=1,
-        local_directory="/dev/shm"
-    )
-    client = Client(cluster)
-    logger.debug(client)
-
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose
     )

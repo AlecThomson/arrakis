@@ -451,9 +451,6 @@ def cli():
 
     args = parser.parse_args()
 
-    cluster = LocalCluster(n_workers=20)
-    client = Client(cluster)
-
     verbose = args.verbose
     rmv = args.rm_verbose
     host = args.host
@@ -486,9 +483,6 @@ def cli():
         showPlots=args.showPlots,
         rm_verbose=args.rm_verbose,
     )
-
-    client.close()
-    cluster.close()
 
 
 if __name__ == "__main__":

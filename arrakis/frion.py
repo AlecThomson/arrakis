@@ -418,12 +418,6 @@ def cli():
     if verbose:
         logger.setLevel(logging.INFO)
 
-    cluster = LocalCluster(
-        n_workers=10, processes=True, threads_per_worker=1, local_directory="/dev/shm"
-    )
-    client = Client(cluster)
-    logger.info(client)
-
     test_db(host=args.host, username=args.username, password=args.password)
 
     main(

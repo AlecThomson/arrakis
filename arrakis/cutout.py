@@ -569,12 +569,6 @@ def cli() -> None:
     if verbose:
         logger.setLevel(logging.INFO)
 
-    cluster = LocalCluster(
-        n_workers=12, threads_per_worker=1, dashboard_address=":9898"
-    )
-    client = Client(cluster)
-    logger.info(client)
-
     test_db(
         host=args.host,
         username=args.username,

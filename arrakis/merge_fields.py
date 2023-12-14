@@ -402,10 +402,6 @@ def cli():
     )
 
     args = parser.parse_args()
-
-    cluster = LocalCluster()
-    client = Client(cluster)
-
     verbose = args.verbose
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose
@@ -422,9 +418,6 @@ def cli():
         password=args.password,
         yanda=args.yanda,
     )
-
-    client.close()
-    cluster.close()
 
 
 if __name__ == "__main__":

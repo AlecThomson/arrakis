@@ -99,13 +99,7 @@ def cli():
     if verbose:
         logger.setLevel(logging.DEBUG)
 
-    cluster = LocalCluster(n_workers=20)
-    client = Client(cluster)
-
     main(datadir=Path(args.outdir), stokeslist=None, verbose=verbose)
-
-    client.close()
-    cluster.close()
 
 
 if __name__ == "__main__":
