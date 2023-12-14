@@ -35,7 +35,6 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             username=args.username,
             password=args.password,
             yanda=args.yanda,
-            verbose=args.verbose,
         )
         if not args.skip_merge
         else previous_future
@@ -52,7 +51,7 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             dimension=args.dimension,
             verbose=args.verbose,
             database=args.database,
-            validate=args.validate,
+            do_validate=args.validate,
             limit=args.limit,
             savePlots=args.savePlots,
             weightType=args.weightType,
@@ -85,9 +84,7 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             username=args.username,
             password=args.password,
             dimension=args.dimension,
-            verbose=args.verbose,
             database=args.database,
-            validate=args.validate,
             limit=args.limit,
             cutoff=args.cutoff,
             maxIter=args.maxIter,

@@ -394,10 +394,6 @@ def cli():
     )
 
     parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="Verbose output [False]."
-    )
-
-    parser.add_argument(
         "--username", type=str, default=None, help="Username of mongodb."
     )
 
@@ -425,7 +421,6 @@ def cli():
         username=args.username,
         password=args.password,
         yanda=args.yanda,
-        verbose=verbose,
     )
 
     client.close()
