@@ -62,7 +62,7 @@ bokeh = "<3"
 prefect = "^2"
 prefect-dask = "*"
 RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
-rm-tools = {git = "https://github.com/AlecThomson/RM-Tools.git", branch="spiceracs_dev"}
+rm-tools = {git = "https://github.com/CIRADA-Tools/RM-Tools"}
 PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git", branch="spiceracs"}
 setuptools = "*"
 fixms = "^0.1.2"
