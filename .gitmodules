@@ -1,6 +1,0 @@
-[submodule "PolSpectra"]
-	path = PolSpectra
-	url = https://github.com/AlecThomson/PolSpectra
-[submodule "RMTable"]
-	path = RMTable
-	url = https://github.com/CIRADA-Tools/RMTable.git
