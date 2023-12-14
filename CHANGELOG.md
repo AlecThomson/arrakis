@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [2.1.0] - 2023-12-14
 
+### Added
+- Full `prefect`  flows and tasks
+
+### Removed
+- `dask` delayed etc.
+
+
+## [2.0.0] - 2023-10-16
+
+### Added
 - `pre-commit` hooks for autoformatting checks
+- `imager` script for sweet imaging
+- `prefect` backbone
 
 ## [1.0.0] - 2023-06-15
 
