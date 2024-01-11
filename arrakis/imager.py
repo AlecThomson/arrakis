@@ -297,9 +297,9 @@ def image_beam(
     aux_lists = {}
     for pol in pols:
         imglob = (
-            f"{prefix}*[0-9]-image.fits"
+            f"{prefix}-*[0-9]-image.fits"
             if pol == "I"
-            else f"{prefix}*[0-9]-{pol}-image.fits"
+            else f"{prefix}-*[0-9]-{pol}-image.fits"
         )
         image_list = sorted(glob(imglob))
         image_lists[pol] = image_list
@@ -308,9 +308,9 @@ def image_beam(
 
         for aux in ["model", "psf", "residual", "dirty"]:
             aux_list = (
-                sorted(glob(f"{prefix}*[0-9]-{aux}.fits"))
+                sorted(glob(f"{prefix}-*[0-9]-{aux}.fits"))
                 if pol == "I" or aux == "psf"
-                else sorted(glob(f"{prefix}*[0-9]-{pol}-{aux}.fits"))
+                else sorted(glob(f"{prefix}-*[0-9]-{pol}-{aux}.fits"))
             )
             aux_lists[(pol, aux)] = aux_list
 
