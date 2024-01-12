@@ -20,7 +20,7 @@ from astropy.io import fits
 from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs.utils import skycoord_to_pixel
-from prefect import flow, task
+from prefect import flow, task, unmapped
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm.auto import tqdm
@@ -308,6 +308,7 @@ def worker(
 
 @task(name="Cutout from big cube")
 def big_cutout(
+    beams: List[Dict],
     beam_num: int,
     stoke: str,
     datadir: str,
@@ -337,18 +338,6 @@ def big_cutout(
         cube = SpectralCube.read(image_name, memmap=True, mode="denywrite")
 
     data_in_mem = np.array(fits.getdata(image_name))
-
-    beams_col, _, _ = get_db(
-        host=host, epoch=epoch, username=username, password=password
-    )
-
-    query = {
-        "$and": [
-            {f"beams.{field}": {"$exists": True}},
-            {f"beams.{field}.beam_list": beam_num},
-        ]
-    }
-    beams = list(beams_col.find(query).sort("Source_ID"))
 
     if limit is not None:
         logger.critical(f"Limiting to {limit} islands")
@@ -431,11 +420,24 @@ def cutout_islands(
     unique_beams_nums: Set[int] = set(
         beams_col.distinct(f"beams.{field}.beam_list", query)
     )
+
+    beams_dict: Dict[int, List[Dict]] = dict()
+    for beam_num in unique_beams_nums:
+        query = {
+            "$and": [
+                {f"beams.{field}": {"$exists": True}},
+                {f"beams.{field}.beam_list": beam_num},
+            ]
+        }
+        beams = list(beams_col.find(query).sort("Source_ID"))
+        beams_dict[beam_num] = beams
+
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
     cuts: List[pymongo.UpdateOne] = []
     for stoke in stokeslist:
         results = big_cutout.map(
+            beams=unmapped(beams_dict[beam_num]),
             beam_num=unique_beams_nums,
             stoke=stoke,
             datadir=directory,
