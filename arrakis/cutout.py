@@ -258,7 +258,8 @@ def get_args(
 
 
 def worker(
-    comp_col: pymongo.collection.Collection,
+    host: str,
+    epoch: int,
     beam: Dict,
     datadir: str,
     image_name: str,
@@ -268,7 +269,12 @@ def worker(
     beam_num: int,
     stoke: str,
     pad: float = 3,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ):
+    _, _, comp_col = get_db(
+        host=host, epoch=epoch, username=username, password=password
+    )
     comps = list(comp_col.find({"Source_ID": beam["Source_ID"]}))
     cut_args = get_args(
         comps=comps,
@@ -332,7 +338,7 @@ def big_cutout(
 
     data_in_mem = np.array(fits.getdata(image_name))
 
-    beams_col, island_col, comp_col = get_db(
+    beams_col, _, _ = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
 
@@ -350,15 +356,14 @@ def big_cutout(
 
     updates: List[pymongo.UpdateOne] = []
     tqdm_out = TqdmToLogger(logger, level=logging.INFO)
-    # for beam in tqdm(beams, file=tqdm_out):
-    #     worker
     with ThreadPoolExecutor() as executor:
         futures = []
         for beam in beams:
             futures.append(
                 executor.submit(
                     worker,
-                    comp_col=comp_col,
+                    host=host,
+                    epoch=epoch,
                     beam=beam,
                     datadir=datadir,
                     image_name=image_name,
@@ -368,6 +373,8 @@ def big_cutout(
                     beam_num=beam_num,
                     stoke=stoke,
                     pad=pad,
+                    username=username,
+                    password=password,
                 )
             )
         for future in tqdm(futures, file=tqdm_out):
@@ -426,7 +433,7 @@ def cutout_islands(
     )
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
-    cuts: List[List[pymongo.UpdateOne]] = []
+    cuts: List[pymongo.UpdateOne] = []
     for stoke in stokeslist:
         results = big_cutout.map(
             beam_num=unique_beams_nums,
@@ -440,7 +447,7 @@ def cutout_islands(
             password=password,
             limit=limit,
         )
-        cuts.append(results)
+        cuts.extend(results)
 
     if not dryrun:
         _updates = [f.result() for f in cuts]
