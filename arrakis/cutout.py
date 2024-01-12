@@ -118,7 +118,9 @@ def cutout(
             logger.info(f"Reading {cutout_args.image}")
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", AstropyWarning)
-                cube = SpectralCube.read(cutout_args.image)
+                cube = SpectralCube.read(
+                    cutout_args.image, memmap=True, mode="denywrite"
+                )
             padder = cube.header["BMAJ"] * u.deg * pad
 
             xlo = Longitude(cutout_args.ra_low * u.deg) - Longitude(padder)
@@ -138,6 +140,7 @@ def cutout(
             # Use subcube for header transformation
             cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
             new_header = cutout_cube.header
+            del cube, cutout_cube
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", AstropyWarning)
                 with fits.open(
@@ -146,12 +149,15 @@ def cutout(
                     data = hdulist[0].data
                     old_header = hdulist[0].header
 
-                    sub_data = data[
-                        :,
-                        :,
-                        yp_lo_idx:yp_hi_idx,
-                        xp_lo_idx:xp_hi_idx,  # freq, Stokes, y, x
-                    ]
+                    # Use numpy to force into memory
+                    sub_data = np.array(
+                        data[
+                            :,
+                            :,
+                            yp_lo_idx:yp_hi_idx,
+                            xp_lo_idx:xp_hi_idx,  # freq, Stokes, y, x
+                        ]
+                    )
                 fixed_header = fix_header(new_header, old_header)
                 # Add source name to header for CASDA
                 fixed_header["OBJECT"] = cutout_args.source_id
