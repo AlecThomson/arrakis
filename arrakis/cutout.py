@@ -22,8 +22,9 @@ from astropy.wcs.utils import skycoord_to_pixel
 from prefect import flow, task
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
+from tqdm.auto import tqdm
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import fix_header
 from arrakis.utils.io import try_mkdir
@@ -64,8 +65,14 @@ def cutout_weight(
     source_id: str,
     cutout_args: CutoutArgs,
     field: str,
+    stoke: str,
+    beam_num: int,
     dryrun=False,
 ) -> pymongo.UpdateOne:
+    outdir = os.path.abspath(cutout_args.outdir)
+    basename = os.path.basename(image_name)
+    outname = f"{source_id}.cutout.{basename}"
+    outfile = os.path.join(outdir, outname)
     image = image_name.replace("image.restored", "weights.restored").replace(
         ".fits", ".txt"
     )
@@ -84,9 +91,7 @@ def cutout_weight(
         os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
     )
     newvalues = {
-        "$set": {
-            f"beams.{field}.{cutout_args.stoke}_beam{cutout_args.beam}_weight_file": filename
-        }
+        "$set": {f"beams.{field}.{stoke}_beam{beam_num}_weight_file": filename}
     }
 
     return pymongo.UpdateOne(myquery, newvalues, upsert=True)
@@ -251,46 +256,6 @@ def get_args(
     )
 
 
-@task(name="Find components")
-def find_comps(island_id: str, comp_col: pymongo.collection.Collection) -> List[Dict]:
-    """Find components for a given island
-
-    Args:
-        island_id (str): RACS island ID
-        comp_col (pymongo.collection.Collection): Component collection
-
-    Returns:
-        List[Dict]: List of mongo entries for RACS components in island
-    """
-    comps = list(comp_col.find({"Source_ID": island_id}))
-    return comps
-
-
-@task(name="Unpack list")
-def unpack(list_sq: List[Union[List[T], None, T]]) -> List[T]:
-    """Unpack list of lists of things into a list of things
-    Skips None entries
-
-    Args:
-        list_sq (List[List[T] | None]): List of lists of things or Nones
-
-    Returns:
-        List[T]: List of things
-    """
-    logger.debug(f"{list_sq=}")
-    list_fl: List[T] = []
-    for i in list_sq:
-        if i is None:
-            continue
-        elif isinstance(i, list):
-            list_fl.extend(i)
-            continue
-        else:
-            list_fl.append(i)
-    logger.debug(f"{list_fl=}")
-    return list_fl
-
-
 @task(name="Cutout from big cube")
 def big_cutout(
     beam_num: int,
@@ -321,7 +286,7 @@ def big_cutout(
         warnings.simplefilter("ignore", AstropyWarning)
         cube = SpectralCube.read(image_name, memmap=True, mode="denywrite")
 
-    data_in_mem = np.array(cube.unmasked_data[:])
+    data_in_mem = np.array(fits.getdata(image_name))
 
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
@@ -340,15 +305,14 @@ def big_cutout(
         beams = beams[:limit]
 
     updates: List[pymongo.UpdateOne] = []
-    for beam in beams:
+    tqdm_out = TqdmToLogger(logger, level=logging.INFO)
+    for beam in tqdm(beams, file=tqdm_out):
         comps = list(comp_col.find({"Source_ID": beam["Source_ID"]}))
         cut_args = get_args(
             comps=comps,
             beam=beam,
             island_id=beam["Source_ID"],
             outdir=datadir,
-            field=field,
-            datadir=datadir,
         )
         image_update = cutout_image(
             image_name=image_name,
@@ -367,6 +331,8 @@ def big_cutout(
             source_id=beam["Source_ID"],
             cutout_args=cut_args,
             field=field,
+            beam_num=beam_num,
+            stoke=stoke,
             dryrun=False,
         )
         updates.append(image_update)
@@ -385,7 +351,6 @@ def cutout_islands(
     password: Optional[str] = None,
     pad: float = 3,
     stokeslist: Optional[List[str]] = None,
-    verbose_worker: bool = False,
     dryrun: bool = True,
     limit: Optional[int] = None,
 ) -> None:
@@ -400,7 +365,6 @@ def cutout_islands(
         verbose (bool, optional): Verbose output. Defaults to True.
         pad (int, optional): Number of beamwidths to pad cutouts. Defaults to 3.
         stokeslist (List[str], optional): Stokes parameters to cutout. Defaults to None.
-        verbose_worker (bool, optional): Worker function outout. Defaults to False.
         dryrun (bool, optional): Do everything except write FITS files. Defaults to True.
     """
     if stokeslist is None:
@@ -428,6 +392,10 @@ def cutout_islands(
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
     cuts: List[List[pymongo.UpdateOne]] = []
+    from IPython import embed
+
+    embed()
+    exit()
     for stoke in stokeslist:
         results = big_cutout.map(
             beam_num=unique_beams_nums,
@@ -469,7 +437,6 @@ def main(args: argparse.Namespace) -> None:
         password=args.password,
         pad=args.pad,
         stokeslist=args.stokeslist,
-        verbose_worker=args.verbose_worker,
         dryrun=args.dryrun,
         limit=args.limit,
     )
@@ -543,13 +510,6 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         default=3,
         help="Number of beamwidths to pad around source [3].",
     )
-
-    parser.add_argument(
-        "-vw",
-        dest="verbose_worker",
-        action="store_true",
-        help="Verbose worker output [False].",
-    )
     parser.add_argument(
         "-d", "--dryrun", action="store_true", help="Do a dry-run [False]."
     )
@@ -563,7 +523,7 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--limit",
-        type=Optional[int],
+        type=int,
         default=None,
         help="Limit number of islands to process [None]",
     )
