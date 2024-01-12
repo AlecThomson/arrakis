@@ -18,8 +18,6 @@ from astropy import units as u
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
-from dask.distributed import Client, LocalCluster
-from dask_mpi import initialize
 from fitscube import combine_fits
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir

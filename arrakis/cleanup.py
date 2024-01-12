@@ -6,7 +6,6 @@ from glob import glob
 from pathlib import Path
 from typing import List, Union
 
-from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 
 from arrakis.logger import logger

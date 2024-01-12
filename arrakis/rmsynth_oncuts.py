@@ -23,7 +23,6 @@ from astropy.modeling import models
 from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
-from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 from radio_beam import Beam
 from RMtools_1D import do_RMsynth_1D

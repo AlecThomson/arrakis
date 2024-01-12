@@ -12,9 +12,8 @@ from pathlib import Path
 
 import yaml
 from astropy import units as u
-from dask.distributed import Client, LocalCluster
+from dask.distributed import Client
 from dask_jobqueue import SLURMCluster
-from IPython import embed
 from spiceracs import imager
 from spiceracs.logger import logger
 from spiceracs.utils import port_forward

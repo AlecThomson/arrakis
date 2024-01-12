@@ -26,7 +26,6 @@ from astropy.io import fits
 from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from dask import delayed
-from dask.distributed import Client, LocalCluster
 
 from arrakis.linmos import gen_seps
 from arrakis.logger import logger, logging

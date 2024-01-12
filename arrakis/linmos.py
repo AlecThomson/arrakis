@@ -13,7 +13,6 @@ from typing import Optional
 
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
-from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning

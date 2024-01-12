@@ -2,14 +2,6 @@
 
 import unittest
 
-from arrakis.rmsynth_oncuts import (
-    estimate_noise_annulus,
-    rms_1d,
-    rmsynthoncut1d,
-    rmsynthoncut3d,
-    rmsynthoncut_i,
-)
-
 # Test functions within arrakis.rmsyth_oncuts
 
 

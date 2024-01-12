@@ -22,8 +22,6 @@ from astropy.visualization import ImageNormalize, MinMaxInterval, SqrtStretch
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
-from dask.distributed import Client, LocalCluster
-from dask_mpi import initialize
 from prefect_dask import get_dask_client
 from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit

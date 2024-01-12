@@ -19,8 +19,7 @@ from astropy.io import fits
 from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs.utils import skycoord_to_pixel
-from dask.distributed import Client, LocalCluster
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 
