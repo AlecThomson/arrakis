@@ -50,7 +50,6 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             password=args.password,
             pad=args.pad,
             stokeslist=["I", "Q", "U"],
-            verbose_worker=args.verbose_worker,
             dryrun=args.dryrun,
             limit=args.limit,
         )
@@ -436,12 +435,6 @@ def cli():
     options = parser.add_argument_group("output options")
     options.add_argument(
         "-v", "--verbose", action="store_true", help="Verbose output [False]."
-    )
-    options.add_argument(
-        "-vw",
-        "--verbose_worker",
-        action="store_true",
-        help="Verbose worker output [False].",
     )
 
     cutargs = parser.add_argument_group("cutout arguments")
