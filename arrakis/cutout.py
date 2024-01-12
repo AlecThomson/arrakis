@@ -3,6 +3,7 @@
 import argparse
 import logging
 import os
+import pickle
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from glob import glob
@@ -102,6 +103,7 @@ def cutout_weight(
 def cutout_image(
     image_name: str,
     data_in_mem: np.ndarray,
+    old_header: fits.Header,
     cube: SpectralCube,
     source_id: str,
     cutout_args: CutoutArgs,
@@ -150,7 +152,7 @@ def cutout_image(
         yp_lo_idx:yp_hi_idx,
         xp_lo_idx:xp_hi_idx,  # freq, Stokes, y, x
     ]
-    fixed_header = fix_header(new_header, cube.header)
+    fixed_header = fix_header(new_header, old_header)
     # Add source name to header for CASDA
     fixed_header["OBJECT"] = source_id
     if not dryrun:
@@ -263,9 +265,10 @@ def worker(
     epoch: int,
     beam: Dict,
     comps: List[Dict],
-    datadir: str,
+    outdir: str,
     image_name: str,
     data_in_mem: np.ndarray,
+    old_header: fits.Header,
     cube: SpectralCube,
     field: str,
     beam_num: int,
@@ -281,11 +284,12 @@ def worker(
         comps=comps,
         beam=beam,
         island_id=beam["Source_ID"],
-        outdir=datadir,
+        outdir=outdir,
     )
     image_update = cutout_image(
         image_name=image_name,
         data_in_mem=data_in_mem,
+        old_header=old_header,
         cube=cube,
         source_id=beam["Source_ID"],
         cutout_args=cut_args,
@@ -310,10 +314,10 @@ def worker(
 @task(name="Cutout from big cube")
 def big_cutout(
     beams: List[Dict],
-    comps_dict: Dict[str, List[Dict]],
     beam_num: int,
     stoke: str,
     datadir: str,
+    outdir: str,
     host: str,
     epoch: int,
     field: str,
@@ -322,6 +326,8 @@ def big_cutout(
     password: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> List[pymongo.UpdateOne]:
+    with open("comps.pkl", "rb") as f:
+        comps_dict = pickle.load(f)
     wild = (
         f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
     )
@@ -340,6 +346,7 @@ def big_cutout(
         cube = SpectralCube.read(image_name, memmap=True, mode="denywrite")
 
     data_in_mem = np.array(fits.getdata(image_name))
+    old_header = fits.getheader(image_name)
 
     if limit is not None:
         logger.critical(f"Limiting to {limit} islands")
@@ -356,9 +363,10 @@ def big_cutout(
                     epoch=epoch,
                     beam=beam,
                     comps=comps_dict[beam["Source_ID"]],
-                    datadir=datadir,
+                    outdir=outdir,
                     image_name=image_name,
                     data_in_mem=data_in_mem,
+                    old_header=old_header,
                     cube=cube,
                     field=field,
                     beam_num=beam_num,
@@ -444,24 +452,30 @@ def cutout_islands(
     for comp in tqdm(all_comps, desc="Getting components", file=TQDM_OUT):
         comps_dict[comp["Source_ID"]].append(comp)
 
+    # Dump comps to file
+    with open("comps.pkl", "wb") as f:
+        pickle.dump(comps_dict, f)
+
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
     cuts: List[pymongo.UpdateOne] = []
     for stoke in stokeslist:
-        results = big_cutout.map(
-            beams=unmapped(beams_dict[beam_num]),
-            beam_num=unique_beams_nums,
-            stoke=stoke,
-            datadir=directory,
-            host=host,
-            epoch=epoch,
-            field=field,
-            pad=pad,
-            username=username,
-            password=password,
-            limit=limit,
-        )
-        cuts.extend(results)
+        for beam_num in unique_beams_nums:
+            results = big_cutout.submit(
+                beams=beams_dict[beam_num],
+                beam_num=beam_num,
+                stoke=stoke,
+                datadir=directory,
+                outdir=outdir,
+                host=host,
+                epoch=epoch,
+                field=field,
+                pad=pad,
+                username=username,
+                password=password,
+                limit=limit,
+            )
+            cuts.append(results)
 
     if not dryrun:
         _updates = [f.result() for f in cuts]
@@ -469,6 +483,8 @@ def cutout_islands(
         logger.info("Updating database...")
         db_res = beams_col.bulk_write(updates, ordered=False)
         logger.info(pformat(db_res.bulk_api_result))
+
+    os.remove("comps.pkl")
 
     logger.info("Cutouts Done!")
 
