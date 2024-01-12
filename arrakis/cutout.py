@@ -41,6 +41,7 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
 
 logger.setLevel(logging.INFO)
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 T = TypeVar("T")
 
@@ -261,6 +262,7 @@ def worker(
     host: str,
     epoch: int,
     beam: Dict,
+    comps: List[Dict],
     datadir: str,
     image_name: str,
     data_in_mem: np.ndarray,
@@ -275,7 +277,6 @@ def worker(
     _, _, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
-    comps = list(comp_col.find({"Source_ID": beam["Source_ID"]}))
     cut_args = get_args(
         comps=comps,
         beam=beam,
@@ -309,6 +310,7 @@ def worker(
 @task(name="Cutout from big cube")
 def big_cutout(
     beams: List[Dict],
+    comps_dict: Dict[str, List[Dict]],
     beam_num: int,
     stoke: str,
     datadir: str,
@@ -344,7 +346,6 @@ def big_cutout(
         beams = beams[:limit]
 
     updates: List[pymongo.UpdateOne] = []
-    tqdm_out = TqdmToLogger(logger, level=logging.INFO)
     with ThreadPoolExecutor() as executor:
         futures = []
         for beam in beams:
@@ -354,6 +355,7 @@ def big_cutout(
                     host=host,
                     epoch=epoch,
                     beam=beam,
+                    comps=comps_dict[beam["Source_ID"]],
                     datadir=datadir,
                     image_name=image_name,
                     data_in_mem=data_in_mem,
@@ -366,7 +368,7 @@ def big_cutout(
                     password=password,
                 )
             )
-        for future in tqdm(futures, file=tqdm_out, desc=f"Cutting {image_name}"):
+        for future in tqdm(futures, file=TQDM_OUT, desc=f"Cutting {image_name}"):
             updates += future.result()
 
     return updates
@@ -420,17 +422,27 @@ def cutout_islands(
     unique_beams_nums: Set[int] = set(
         beams_col.distinct(f"beams.{field}.beam_list", query)
     )
+    source_ids = sorted(beams_col.distinct("Source_ID", query))
 
-    beams_dict: Dict[int, List[Dict]] = dict()
-    for beam_num in unique_beams_nums:
-        query = {
-            "$and": [
-                {f"beams.{field}": {"$exists": True}},
-                {f"beams.{field}.beam_list": beam_num},
-            ]
-        }
-        beams = list(beams_col.find(query).sort("Source_ID"))
-        beams_dict[beam_num] = beams
+    beams_dict: Dict[int, List[Dict]] = {b: [] for b in unique_beams_nums}
+
+    query = {
+        "$and": [
+            {f"beams.{field}": {"$exists": True}},
+            {f"beams.{field}.beam_list": {"$in": list(unique_beams_nums)}},
+        ]
+    }
+    all_beams = list(beams_col.find(query).sort("Source_ID"))
+    for beams in tqdm(all_beams, desc="Getting beams", file=TQDM_OUT):
+        for beam_num in beams[f"beams"][field]["beam_list"]:
+            beams_dict[beam_num].append(beams)
+
+    comps_dict: Dict[str, List[Dict]] = {s: [] for s in source_ids}
+    all_comps = list(
+        comp_col.find({"Source_ID": {"$in": source_ids}}).sort("Source_ID")
+    )
+    for comp in tqdm(all_comps, desc="Getting components", file=TQDM_OUT):
+        comps_dict[comp["Source_ID"]].append(comp)
 
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
