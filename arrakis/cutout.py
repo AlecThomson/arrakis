@@ -377,7 +377,7 @@ def big_cutout(
                     password=password,
                 )
             )
-        for future in tqdm(futures, file=tqdm_out):
+        for future in tqdm(futures, file=tqdm_out, desc=f"Cutting {image_name}"):
             updates += future.result()
 
     return updates
