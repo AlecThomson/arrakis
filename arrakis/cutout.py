@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
@@ -256,6 +257,49 @@ def get_args(
     )
 
 
+def worker(
+    comp_col: pymongo.collection.Collection,
+    beam: Dict,
+    datadir: str,
+    image_name: str,
+    data_in_mem: np.ndarray,
+    cube: SpectralCube,
+    field: str,
+    beam_num: int,
+    stoke: str,
+    pad: float = 3,
+):
+    comps = list(comp_col.find({"Source_ID": beam["Source_ID"]}))
+    cut_args = get_args(
+        comps=comps,
+        beam=beam,
+        island_id=beam["Source_ID"],
+        outdir=datadir,
+    )
+    image_update = cutout_image(
+        image_name=image_name,
+        data_in_mem=data_in_mem,
+        cube=cube,
+        source_id=beam["Source_ID"],
+        cutout_args=cut_args,
+        field=field,
+        beam_num=beam_num,
+        stoke=stoke,
+        pad=pad,
+        dryrun=False,
+    )
+    weight_update = cutout_weight(
+        image_name=image_name,
+        source_id=beam["Source_ID"],
+        cutout_args=cut_args,
+        field=field,
+        beam_num=beam_num,
+        stoke=stoke,
+        dryrun=False,
+    )
+    return [image_update, weight_update]
+
+
 @task(name="Cutout from big cube")
 def big_cutout(
     beam_num: int,
@@ -306,37 +350,28 @@ def big_cutout(
 
     updates: List[pymongo.UpdateOne] = []
     tqdm_out = TqdmToLogger(logger, level=logging.INFO)
-    for beam in tqdm(beams, file=tqdm_out):
-        comps = list(comp_col.find({"Source_ID": beam["Source_ID"]}))
-        cut_args = get_args(
-            comps=comps,
-            beam=beam,
-            island_id=beam["Source_ID"],
-            outdir=datadir,
-        )
-        image_update = cutout_image(
-            image_name=image_name,
-            data_in_mem=data_in_mem,
-            cube=cube,
-            source_id=beam["Source_ID"],
-            cutout_args=cut_args,
-            field=field,
-            beam_num=beam_num,
-            stoke=stoke,
-            pad=pad,
-            dryrun=False,
-        )
-        weight_update = cutout_weight(
-            image_name=image_name,
-            source_id=beam["Source_ID"],
-            cutout_args=cut_args,
-            field=field,
-            beam_num=beam_num,
-            stoke=stoke,
-            dryrun=False,
-        )
-        updates.append(image_update)
-        updates.append(weight_update)
+    # for beam in tqdm(beams, file=tqdm_out):
+    #     worker
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for beam in beams:
+            futures.append(
+                executor.submit(
+                    worker,
+                    comp_col=comp_col,
+                    beam=beam,
+                    datadir=datadir,
+                    image_name=image_name,
+                    data_in_mem=data_in_mem,
+                    cube=cube,
+                    field=field,
+                    beam_num=beam_num,
+                    stoke=stoke,
+                    pad=pad,
+                )
+            )
+        for future in tqdm(futures, file=tqdm_out):
+            updates += future.result()
 
     return updates
 
@@ -392,10 +427,6 @@ def cutout_islands(
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
     cuts: List[List[pymongo.UpdateOne]] = []
-    from IPython import embed
-
-    embed()
-    exit()
     for stoke in stokeslist:
         results = big_cutout.map(
             beam_num=unique_beams_nums,
