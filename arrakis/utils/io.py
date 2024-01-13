@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """I/O utilities"""
 
+import logging
 import os
 import stat
 import warnings
@@ -12,11 +13,13 @@ from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm.auto import tqdm
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.utils.exceptions import SameFileError, SpecialFileError
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 def rsync(src, tgt):
@@ -129,7 +132,11 @@ def copyfileobj(fsrc, fdst, length=16 * 1024, verbose=True):
     # copied = 0
     total = os.fstat(fsrc.fileno()).st_size
     with tqdm(
-        total=total, disable=(not verbose), unit_scale=True, desc="Copying file"
+        total=total,
+        disable=(not verbose),
+        unit_scale=True,
+        desc="Copying file",
+        file=TQDM_OUT,
     ) as pbar:
         while True:
             buf = fsrc.read(length)

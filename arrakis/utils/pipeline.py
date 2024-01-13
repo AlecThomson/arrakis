@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Pipeline and flow utility functions"""
 
+import logging
 import shlex
 import subprocess
 import time
@@ -22,11 +23,12 @@ from spectral_cube.utils import SpectralCubeWarning
 from tornado.ioloop import IOLoop
 from tqdm.auto import tqdm, trange
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 # Help string to be shown using the -h option
 logo_str = """
@@ -166,7 +168,7 @@ def chunk_dask(
             logger.debug("I sleep!")
             time.sleep(10)
             logger.debug("I awake!")
-        tqdm_dask(futures, desc=progress_text, disable=(not verbose))
+        tqdm_dask(futures, desc=progress_text, disable=(not verbose), file=TQDM_OUT)
         chunk_outputs.extend(futures)
     return chunk_outputs
 

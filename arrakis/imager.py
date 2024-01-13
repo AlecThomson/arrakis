@@ -26,7 +26,7 @@ from racs_tools import beamcon_2D
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.utils.msutils import (
     beam_from_ms,
     field_idx_from_ms,
@@ -34,6 +34,8 @@ from arrakis.utils.msutils import (
     wsclean,
 )
 from arrakis.utils.pipeline import logo_str
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 class ImageSet(Struct):
@@ -609,7 +611,7 @@ def main(
     # Do this in serial since CASA gets upset
     prefixs = {}
     field_idxs = {}
-    for ms in tqdm(mslist, "Getting metadata"):
+    for ms in tqdm(mslist, "Getting metadata", file=TQDM_OUT):
         prefix = get_prefix(ms, out_dir)
         prefixs[ms] = prefix
         field_idxs[ms] = field_idx_from_ms(ms.resolve(strict=True).as_posix())
