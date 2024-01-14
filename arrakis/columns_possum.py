@@ -55,7 +55,7 @@ columns = [
     ("rm", float, "synth", "phiPeakPIfit_rm2", u.rad / u.m**2),
     ("rm_err", float, "synth", "dPhiPeakPIfit_rm2", u.rad / u.m**2),
     ("polint", float, "synth", "ampPeakPIfitEff", u.Jy / u.beam),
-    ("polint_err", float, "synth", "dAmpPeakPIchan", u.Jy / u.beam),
+    ("polint_err", float, "synth", "dAmpPeakPIfit", u.Jy / u.beam),
     ("stokesQ", float, "synth", "peakFDFrealFit", u.Jy / u.beam),
     ("stokesU", float, "synth", "peakFDFimagFit", u.Jy / u.beam),
     ("polangle", float, "synth", "polAngleFit_deg", u.deg),
