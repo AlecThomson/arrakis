@@ -93,7 +93,7 @@ columns = [
     # Less important quantities from the RMsynthesis (can be removed or modified after prototype verification?)
     ("noise_chan", float, "synth", "dQU", u.Jy / u.beam),
     ("fdf_noise_mad", float, "synth", "dFDFcorMAD", u.Jy / u.beam),
-    ("fdf_noise_rms", float, "synth", "dFDFrms", u.Jy / u.beam),
+    ("fdf_noise_rms", float, "synth", "dFDFth", u.Jy / u.beam),
     # We need to figure out what to do with these metrics, to simplify them.
     ("sigma_add_Q", float, "synth", "sigmaAddQ", u.dimensionless_unscaled),
     (
