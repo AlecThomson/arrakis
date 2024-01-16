@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2024-01-16
+
+## What's Changed
+* [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/48
+* Create dependabot.yml by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/50
+* [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/51
+* [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/52
+* In-memory cutouts by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/53
+
+## New Contributors
+* @pre-commit-ci made their first contribution in https://github.com/AlecThomson/arrakis/pull/48
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.0...v2.1.1
+
 ## [2.1.0] - 2023-12-14
+
+### What's Changed
+* Fix weights by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/46
+* described the scalability of prefect/postgres by @tjgalvin in https://github.com/AlecThomson/arrakis/pull/44
+* Migrate the whole shebang to Prefect by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/49
+
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.0.0...v2.1.0
 
 ### Added
 - Full `prefect` flows and tasks
@@ -28,6 +50,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `prefect` backbone
 
 ## [1.0.0] - 2023-06-15
+Corresponds with DR1 paper.
+
+### What's Changed
+* Dev by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/1
+* Simplify readme by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/2
+* Don't need these by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/3
+* Clean up tests by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/4
+* Fix scripts and RM-synth by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/5
+* Merge dev by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/7
+* Dev by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/9
+* Remove RACS db by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/14
+* Arrakis by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/16
+* Fix RACS db pathing by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/15
+* Docs update by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/18
+* Dev by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/23
+* Dev by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/24
+* Dev by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/25
 
 ### Added
 
