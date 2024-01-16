@@ -9,14 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.1] - 2024-01-16
 
-## What's Changed
+### What's Changed
 * [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/48
 * Create dependabot.yml by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/50
 * [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/51
 * [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/52
 * In-memory cutouts by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/53
 
-## New Contributors
+### New Contributors
 * @pre-commit-ci made their first contribution in https://github.com/AlecThomson/arrakis/pull/48
 
 **Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.0...v2.1.1
