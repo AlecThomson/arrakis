@@ -22,17 +22,17 @@ from astropy.visualization import ImageNormalize, MinMaxInterval, SqrtStretch
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from dask import delayed
-from dask.distributed import Client, LocalCluster
-from dask_mpi import initialize
 from prefect_dask import get_dask_client
 from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.makecat import write_votable
 from arrakis.utils.io import try_mkdir, try_symlink
 from arrakis.utils.pipeline import chunk_dask
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 def make_thumbnail(cube_f: str, cube_dir: str):
@@ -212,7 +212,9 @@ def convert_spectra(
         )
         rmtables[name] = full_rm_data
 
-    for col, desc in tqdm(pol_df_cols.items(), desc="Adding spectrum columns"):
+    for col, desc in tqdm(
+        pol_df_cols.items(), desc="Adding spectrum columns", file=TQDM_OUT
+    ):
         keys = col.split("_")
         if keys[0] == "faraday":
             if keys[-1] == "long":
@@ -571,7 +573,7 @@ def main(
 
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
-        with tqdm(total=len(cubes), desc="Sorting cubes") as pbar:
+        with tqdm(total=len(cubes), desc="Sorting cubes", file=TQDM_OUT) as pbar:
 
             def my_sorter(x, lookup=lookup, pbar=pbar):
                 basename = x.split("/")[-1]
@@ -614,7 +616,7 @@ def main(
 
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
-        with tqdm(total=len(spectra), desc="Sorting spectra") as pbar:
+        with tqdm(total=len(spectra), desc="Sorting spectra", file=TQDM_OUT) as pbar:
 
             def my_sorter(x, lookup=lookup, pbar=pbar):
                 basename = x.split("/")[-1]
@@ -642,6 +644,7 @@ def main(
                 zip(sorted_spectra, gauss_ids, polcat),
                 total=len(sorted_spectra),
                 desc="Converting spectra",
+                file=TQDM_OUT,
             )
         ):
             assert gauss_id == row["cat_id"]
@@ -680,7 +683,7 @@ def main(
             len(plots) == len(polcat) * 3
         ), f"{len(plots)=} and {len(polcat)=}"  # Sanity check
 
-        with tqdm(total=len(plots), desc="Sorting plots") as pbar:
+        with tqdm(total=len(plots), desc="Sorting plots", file=TQDM_OUT) as pbar:
 
             def my_sorter(x, lookup=lookup, pbar=pbar):
                 fname = x.split("/")[-1]
@@ -718,7 +721,9 @@ def main(
             logger.info(f"Adding spectra to tarball {tarball}")
             with tarfile.open(tarball, "w") as tar:
                 for spectrum_table in tqdm(
-                    spectrum_tables, "Adding spectra to tarball"
+                    spectrum_tables,
+                    "Adding spectra to tarball",
+                    file=TQDM_OUT,
                 ):
                     tar.add(spectrum_table, arcname=os.path.basename(spectrum_table))
 

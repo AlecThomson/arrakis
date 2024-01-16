@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 
 import astropy
 import astropy.units as units
@@ -8,8 +9,10 @@ from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
 from tqdm.auto import tqdm, trange
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.utils.database import get_db
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 def makesurf(start, stop, field, datadir, save_plots=True, data=None):
@@ -24,7 +27,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     components = list(comp_col.find(query).sort("Source_ID"))
     ras, decs, freqs, stokeis, stokeqs, stokeus = [], [], [], [], [], []
     specs = []
-    for i, comp in enumerate(tqdm(components)):
+    for i, comp in enumerate(tqdm(components, file=TQDM_OUT)):
         iname = comp["Source_ID"]
         cname = comp["Gaussian_ID"]
         spectra = f"{datadir}/cutouts/{iname}/{cname}.dat"
@@ -120,7 +123,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     num_points_in_aperture_list = []  # Init collectors
 
     logger.info("\nDeriving robust leakage estimates for interpolation grid...")
-    for row_idx, row in enumerate(tqdm(pair_dist)):
+    for row_idx, row in enumerate(tqdm(pair_dist, file=TQDM_OUT)):
         # Guide to where we're at
         # if row_idx%100==0:
         # 	logger.info('Processing row %d of %d'%(row_idx,len(pair_dist)))

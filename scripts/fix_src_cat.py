@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Post process DR1 source catalog"""
+import logging
 import os
 from pathlib import Path
 
@@ -8,8 +9,10 @@ from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from tqdm.auto import tqdm
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.makecat import fix_blank_units, replace_nans, vot
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 logger.setLevel("DEBUG")
 
@@ -133,7 +136,7 @@ def main(
         source_cut["RA"], source_cut["Dec"], unit="deg", frame="icrs"
     )
     tile_ids = np.unique(source_cut["Tile_ID"].data.astype(str))
-    for tile_id in tqdm(tile_ids):
+    for tile_id in tqdm(tile_ids, file=TQDM_OUT):
         field_tile_idx = field["FIELD_NAME"] == tile_id
         source_tile_idx = source_cut["Tile_ID"] == tile_id
         tile_coords = field_coords[field_tile_idx]

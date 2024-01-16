@@ -18,8 +18,6 @@ from astropy import units as u
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
-from dask.distributed import Client, LocalCluster
-from dask_mpi import initialize
 from fitscube import combine_fits
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
@@ -28,7 +26,7 @@ from racs_tools import beamcon_2D
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.utils.msutils import (
     beam_from_ms,
     field_idx_from_ms,
@@ -36,6 +34,8 @@ from arrakis.utils.msutils import (
     wsclean,
 )
 from arrakis.utils.pipeline import logo_str
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 class ImageSet(Struct):
@@ -611,7 +611,7 @@ def main(
     # Do this in serial since CASA gets upset
     prefixs = {}
     field_idxs = {}
-    for ms in tqdm(mslist, "Getting metadata"):
+    for ms in tqdm(mslist, "Getting metadata", file=TQDM_OUT):
         prefix = get_prefix(ms, out_dir)
         prefixs[ms] = prefix
         field_idxs[ms] = field_idx_from_ms(ms.resolve(strict=True).as_posix())

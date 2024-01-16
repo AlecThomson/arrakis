@@ -260,12 +260,6 @@ def cli():
     options.add_argument(
         "--debugger", action="store_true", help="Debug output [False]."
     )
-    options.add_argument(
-        "-vw",
-        "--verbose_worker",
-        action="store_true",
-        help="Verbose worker output [False].",
-    )
 
     synth = parser.add_argument_group("RM-synth/CLEAN arguments")
 

@@ -24,13 +24,15 @@ from tqdm import tqdm
 from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
 from arrakis import columns_possum
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.utils.database import get_db, get_field_db, test_db
 from arrakis.utils.pipeline import logo_str
 from arrakis.utils.plotting import latexify
 from arrakis.utils.typing import ArrayLike, TableLike
 
 logger.setLevel(logging.INFO)
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
@@ -240,6 +242,7 @@ def sigma_add_fix(tab):
         enumerate(zip(s_Q, scale_Q, s_U, scale_U)),
         total=len(s_Q),
         desc="Calculating sigma_add",
+        file=TQDM_OUT,
     ):
         try:
             Q_dist = lognorm.rvs(s=_s_Q, scale=_scale_Q, size=(1000))
@@ -805,6 +808,7 @@ def main(
             total=len(columns_possum.output_cols),
             desc="Making table by column",
             disable=not verbose,
+            file=TQDM_OUT,
         ),
     ):
         data = []
@@ -829,7 +833,9 @@ def main(
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             rmtab.add_column(new_col)
 
-    for selcol in tqdm(columns_possum.sourcefinder_columns, desc="Adding BDSF data"):
+    for selcol in tqdm(
+        columns_possum.sourcefinder_columns, desc="Adding BDSF data", file=TQDM_OUT
+    ):
         data = []
         for comp in comps:
             data += [comp[selcol]]

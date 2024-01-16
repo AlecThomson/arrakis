@@ -70,11 +70,11 @@ def get_db(
     """
     dbclient = pymongo.MongoClient(
         host=host,
-        connect=False,
+        connect=True,
         username=username,
         password=password,
         authMechanism="SCRAM-SHA-256",
-    )  # type: pymongo.MongoClient
+    )
     mydb = dbclient[f"arrakis_epoch_{epoch}"]  # Create/open database
     comp_col = mydb["components"]  # Create/open collection
     island_col = mydb["islands"]  # Create/open collection

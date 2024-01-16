@@ -12,7 +12,6 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pymongo
-from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D

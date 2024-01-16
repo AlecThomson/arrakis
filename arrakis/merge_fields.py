@@ -6,7 +6,6 @@ from shutil import copyfile
 from typing import Dict, List, Optional
 
 import pymongo
-from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 
 from arrakis.linmos import get_yanda, linmos

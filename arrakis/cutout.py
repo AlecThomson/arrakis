@@ -3,13 +3,15 @@
 import argparse
 import logging
 import os
+import pickle
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from glob import glob
 from pprint import pformat
 from shutil import copyfile
 from typing import Dict, List
 from typing import NamedTuple as Struct
-from typing import Optional, TypeVar, Union
+from typing import Optional, Set, TypeVar, Union
 
 import astropy.units as u
 import numpy as np
@@ -19,12 +21,12 @@ from astropy.io import fits
 from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs.utils import skycoord_to_pixel
-from dask.distributed import Client, LocalCluster
 from prefect import flow, task, unmapped
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
+from tqdm.auto import tqdm
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import fix_header
 from arrakis.utils.io import try_mkdir
@@ -40,6 +42,7 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
 
 logger.setLevel(logging.INFO)
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 T = TypeVar("T")
 
@@ -47,9 +50,6 @@ T = TypeVar("T")
 class CutoutArgs(Struct):
     """Arguments for cutout function"""
 
-    image: str
-    """Name of the image file"""
-    source_id: str
     """Name of the source"""
     ra_high: float
     """Upper RA bound in degrees"""
@@ -61,35 +61,59 @@ class CutoutArgs(Struct):
     """Lower DEC bound in degrees"""
     outdir: str
     """Output directory"""
-    beam: int
-    """Beam number"""
-    stoke: str
-    """Stokes parameter"""
 
 
-@task(name="Cutout island")
-def cutout(
+def cutout_weight(
+    image_name: str,
+    source_id: str,
     cutout_args: CutoutArgs,
     field: str,
+    stoke: str,
+    beam_num: int,
+    dryrun=False,
+) -> pymongo.UpdateOne:
+    outdir = os.path.abspath(cutout_args.outdir)
+    basename = os.path.basename(image_name)
+    outname = f"{source_id}.cutout.{basename}"
+    outfile = os.path.join(outdir, outname)
+    image = image_name.replace("image.restored", "weights.restored").replace(
+        ".fits", ".txt"
+    )
+    outfile = outfile.replace("image.restored", "weights.restored").replace(
+        ".fits", ".txt"
+    )
+
+    if not dryrun:
+        copyfile(image, outfile)
+        logger.info(f"Written to {outfile}")
+
+    # Update database
+    myquery = {"Source_ID": source_id}
+
+    filename = os.path.join(
+        os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
+    )
+    newvalues = {
+        "$set": {f"beams.{field}.{stoke}_beam{beam_num}_weight_file": filename}
+    }
+
+    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
+
+
+def cutout_image(
+    image_name: str,
+    data_in_mem: np.ndarray,
+    old_header: fits.Header,
+    cube: SpectralCube,
+    source_id: str,
+    cutout_args: CutoutArgs,
+    field: str,
+    beam_num: int,
+    stoke: str,
     pad=3,
     dryrun=False,
-) -> List[pymongo.UpdateOne]:
+) -> pymongo.UpdateOne:
     """Perform a cutout.
-
-    Args:
-        image (str): Name of the image file
-        src_name (str): Name of the RACS source
-        beam (int): Beam number
-        ra_high (float): Upper RA bound
-        ra_low (float): Lower RA bound
-        dec_high (float): Upper DEC bound
-        dec_low (float): Lower DEC bound
-        outdir (str): Output directgory
-        stoke (str): Stokes parameter
-        field (str): RACS field name
-        pad (int, optional): Number of beamwidths to pad. Defaults to 3.
-        verbose (bool, optional): Verbose output. Defaults to False.
-        dryrun (bool, optional): Don't save FITS files. Defaults to False.
 
     Returns:
         pymongo.UpdateOne: Update query for MongoDB
@@ -99,111 +123,68 @@ def cutout(
     outdir = os.path.abspath(cutout_args.outdir)
 
     ret = []
-    for imtype in ["image", "weight"]:
-        basename = os.path.basename(cutout_args.image)
-        outname = f"{cutout_args.source_id}.cutout.{basename}"
-        outfile = os.path.join(outdir, outname)
+    basename = os.path.basename(image_name)
+    outname = f"{source_id}.cutout.{basename}"
+    outfile = os.path.join(outdir, outname)
 
-        if imtype == "weight":
-            image = cutout_args.image.replace(
-                "image.restored", "weights.restored"
-            ).replace(".fits", ".txt")
-            outfile = outfile.replace("image.restored", "weights.restored").replace(
-                ".fits", ".txt"
-            )
-            copyfile(image, outfile)
-            logger.info(f"Written to {outfile}")
+    padder = cube.header["BMAJ"] * u.deg * pad
 
-        if imtype == "image":
-            logger.info(f"Reading {cutout_args.image}")
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", AstropyWarning)
-                cube = SpectralCube.read(
-                    cutout_args.image, memmap=True, mode="denywrite"
-                )
-            padder = cube.header["BMAJ"] * u.deg * pad
+    xlo = Longitude(cutout_args.ra_low * u.deg) - Longitude(padder)
+    xhi = Longitude(cutout_args.ra_high * u.deg) + Longitude(padder)
+    ylo = Latitude(cutout_args.dec_low * u.deg) - Latitude(padder)
+    yhi = Latitude(cutout_args.dec_high * u.deg) + Latitude(padder)
 
-            xlo = Longitude(cutout_args.ra_low * u.deg) - Longitude(padder)
-            xhi = Longitude(cutout_args.ra_high * u.deg) + Longitude(padder)
-            ylo = Latitude(cutout_args.dec_low * u.deg) - Latitude(padder)
-            yhi = Latitude(cutout_args.dec_high * u.deg) + Latitude(padder)
+    xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
+    xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
 
-            xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
-            xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
+    # Round for cutout
+    yp_lo_idx = int(np.floor(yp_lo))
+    yp_hi_idx = int(np.ceil(yp_hi))
+    xp_lo_idx = int(np.floor(xp_hi))
+    xp_hi_idx = int(np.ceil(xp_lo))
 
-            # Round for cutout
-            yp_lo_idx = int(np.floor(yp_lo))
-            yp_hi_idx = int(np.ceil(yp_hi))
-            xp_lo_idx = int(np.floor(xp_hi))
-            xp_hi_idx = int(np.ceil(xp_lo))
-
-            # Use subcube for header transformation
-            cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
-            new_header = cutout_cube.header
-            del cube, cutout_cube
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", AstropyWarning)
-                with fits.open(
-                    cutout_args.image, memmap=True, mode="denywrite"
-                ) as hdulist:
-                    data = hdulist[0].data
-                    old_header = hdulist[0].header
-
-                    # Use numpy to force into memory
-                    sub_data = np.array(
-                        data[
-                            :,
-                            :,
-                            yp_lo_idx:yp_hi_idx,
-                            xp_lo_idx:xp_hi_idx,  # freq, Stokes, y, x
-                        ]
-                    )
-                fixed_header = fix_header(new_header, old_header)
-                # Add source name to header for CASDA
-                fixed_header["OBJECT"] = cutout_args.source_id
-                if not dryrun:
-                    fits.writeto(
-                        outfile,
-                        sub_data,
-                        header=fixed_header,
-                        overwrite=True,
-                        output_verify="fix",
-                    )
-                    logger.info(f"Written to {outfile}")
-
-        # Update database
-        myquery = {"Source_ID": cutout_args.source_id}
-
-        filename = os.path.join(
-            os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
+    # Use subcube for header transformation
+    cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
+    new_header = cutout_cube.header
+    sub_data = data_in_mem[
+        :,
+        :,
+        yp_lo_idx:yp_hi_idx,
+        xp_lo_idx:xp_hi_idx,  # freq, Stokes, y, x
+    ]
+    fixed_header = fix_header(new_header, old_header)
+    # Add source name to header for CASDA
+    fixed_header["OBJECT"] = source_id
+    if not dryrun:
+        fits.writeto(
+            outfile,
+            sub_data,
+            header=fixed_header,
+            overwrite=True,
+            output_verify="fix",
         )
-        newvalues = {
-            "$set": {
-                f"beams.{field}.{cutout_args.stoke}_beam{cutout_args.beam}_{imtype}_file": filename
-            }
-        }
+        logger.info(f"Written to {outfile}")
 
-        ret += [pymongo.UpdateOne(myquery, newvalues, upsert=True)]
+    # Update database
+    myquery = {"Source_ID": source_id}
 
-    return ret
+    filename = os.path.join(
+        os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
+    )
+    newvalues = {"$set": {f"beams.{field}.{stoke}_beam{beam_num}_image_file": filename}}
+
+    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
-@task(name="Get cutout arguments")
 def get_args(
-    island: Dict,
     comps: List[Dict],
     beam: Dict,
     island_id: str,
     outdir: str,
-    field: str,
-    datadir: str,
-    stokeslist: List[str],
-    verbose=True,
 ) -> Union[List[CutoutArgs], None]:
     """Get arguments for cutout function
 
     Args:
-        island (str): Mongo entry for RACS island
         comps (List[Dict]): List of mongo entries for RACS components in island
         beam (Dict): Mongo entry for the RACS beam
         island_id (str): RACS island ID
@@ -223,22 +204,19 @@ def get_args(
 
     logger.setLevel(logging.INFO)
 
-    assert island["Source_ID"] == island_id
     assert beam["Source_ID"] == island_id
 
     if len(comps) == 0:
         logger.warning(f"Skipping island {island_id} -- no components found")
         return None
 
-    beam_list = list(set(beam["beams"][field]["beam_list"]))
-
-    outdir = f"{outdir}/{island['Source_ID']}"
-    try_mkdir(outdir, verbose=verbose)
+    outdir = f"{outdir}/{island_id}"
+    try_mkdir(outdir)
 
     # Find image size
-    ras = []  # type: List[float]
-    decs = []  # type: List[float]
-    majs = []  # type: List[float]
+    ras: List[float] = []
+    decs: List[float] = []
+    majs: List[float] = []
     for comp in comps:
         ras = ras + [comp["RA"]]
         decs = decs + [comp["Dec"]]
@@ -273,73 +251,135 @@ def get_args(
         logger.debug(f"comps are {comps=}")
         raise e
 
-    args: List[CutoutArgs] = []
-    for beam_num in beam_list:
-        for stoke in stokeslist:
-            wild = f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
-            images = glob(wild)
-            if len(images) == 0:
-                raise Exception(f"No images found matching '{wild}'")
-            elif len(images) > 1:
-                raise Exception(
-                    f"More than one image found matching '{wild}'. Files {images=}"
+    return CutoutArgs(
+        ra_high=ra_high.deg,
+        ra_low=ra_low.deg,
+        dec_high=dec_high.deg,
+        dec_low=dec_low.deg,
+        outdir=outdir,
+    )
+
+
+def worker(
+    host: str,
+    epoch: int,
+    beam: Dict,
+    comps: List[Dict],
+    outdir: str,
+    image_name: str,
+    data_in_mem: np.ndarray,
+    old_header: fits.Header,
+    cube: SpectralCube,
+    field: str,
+    beam_num: int,
+    stoke: str,
+    pad: float = 3,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+):
+    _, _, comp_col = get_db(
+        host=host, epoch=epoch, username=username, password=password
+    )
+    cut_args = get_args(
+        comps=comps,
+        beam=beam,
+        island_id=beam["Source_ID"],
+        outdir=outdir,
+    )
+    image_update = cutout_image(
+        image_name=image_name,
+        data_in_mem=data_in_mem,
+        old_header=old_header,
+        cube=cube,
+        source_id=beam["Source_ID"],
+        cutout_args=cut_args,
+        field=field,
+        beam_num=beam_num,
+        stoke=stoke,
+        pad=pad,
+        dryrun=False,
+    )
+    weight_update = cutout_weight(
+        image_name=image_name,
+        source_id=beam["Source_ID"],
+        cutout_args=cut_args,
+        field=field,
+        beam_num=beam_num,
+        stoke=stoke,
+        dryrun=False,
+    )
+    return [image_update, weight_update]
+
+
+@task(name="Cutout from big cube")
+def big_cutout(
+    beams: List[Dict],
+    beam_num: int,
+    stoke: str,
+    datadir: str,
+    outdir: str,
+    host: str,
+    epoch: int,
+    field: str,
+    pad: float = 3,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> List[pymongo.UpdateOne]:
+    with open("comps.pkl", "rb") as f:
+        comps_dict = pickle.load(f)
+    wild = (
+        f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
+    )
+    images = glob(wild)
+    if len(images) == 0:
+        raise Exception(f"No images found matching '{wild}'")
+    elif len(images) > 1:
+        raise Exception(f"More than one image found matching '{wild}'. Files {images=}")
+
+    image_name = images[0]
+
+    # Read the whole lad into memory
+    logger.info(f"Reading {image_name}")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", AstropyWarning)
+        cube = SpectralCube.read(image_name, memmap=True, mode="denywrite")
+
+    data_in_mem = np.array(fits.getdata(image_name))
+    old_header = fits.getheader(image_name)
+
+    if limit is not None:
+        logger.critical(f"Limiting to {limit} islands")
+        beams = beams[:limit]
+
+    updates: List[pymongo.UpdateOne] = []
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for beam in beams:
+            futures.append(
+                executor.submit(
+                    worker,
+                    host=host,
+                    epoch=epoch,
+                    beam=beam,
+                    comps=comps_dict[beam["Source_ID"]],
+                    outdir=outdir,
+                    image_name=image_name,
+                    data_in_mem=data_in_mem,
+                    old_header=old_header,
+                    cube=cube,
+                    field=field,
+                    beam_num=beam_num,
+                    stoke=stoke,
+                    pad=pad,
+                    username=username,
+                    password=password,
                 )
+            )
+        for future in tqdm(futures, file=TQDM_OUT, desc=f"Cutting {image_name}"):
+            updates += future.result()
 
-            for image in images:
-                args.append(
-                    CutoutArgs(
-                        image=image,
-                        source_id=island["Source_ID"],
-                        ra_high=ra_high.deg,
-                        ra_low=ra_low.deg,
-                        dec_high=dec_high.deg,
-                        dec_low=dec_low.deg,
-                        outdir=outdir,
-                        beam=beam_num,
-                        stoke=stoke.lower(),
-                    )
-                )
-    return args
-
-
-@task(name="Find components")
-def find_comps(island_id: str, comp_col: pymongo.collection.Collection) -> List[Dict]:
-    """Find components for a given island
-
-    Args:
-        island_id (str): RACS island ID
-        comp_col (pymongo.collection.Collection): Component collection
-
-    Returns:
-        List[Dict]: List of mongo entries for RACS components in island
-    """
-    comps = list(comp_col.find({"Source_ID": island_id}))
-    return comps
-
-
-@task(name="Unpack list")
-def unpack(list_sq: List[Union[List[T], None, T]]) -> List[T]:
-    """Unpack list of lists of things into a list of things
-    Skips None entries
-
-    Args:
-        list_sq (List[List[T] | None]): List of lists of things or Nones
-
-    Returns:
-        List[T]: List of things
-    """
-    logger.debug(f"{list_sq=}")
-    list_fl: List[T] = []
-    for i in list_sq:
-        if i is None:
-            continue
-        elif isinstance(i, list):
-            list_fl.extend(i)
-            continue
-        else:
-            list_fl.append(i)
-    logger.debug(f"{list_fl=}")
-    return list_fl
+    return updates
 
 
 @flow(name="Cutout islands")
@@ -352,7 +392,6 @@ def cutout_islands(
     password: Optional[str] = None,
     pad: float = 3,
     stokeslist: Optional[List[str]] = None,
-    verbose_worker: bool = False,
     dryrun: bool = True,
     limit: Optional[int] = None,
 ) -> None:
@@ -367,7 +406,6 @@ def cutout_islands(
         verbose (bool, optional): Verbose output. Defaults to True.
         pad (int, optional): Number of beamwidths to pad cutouts. Defaults to 3.
         stokeslist (List[str], optional): Stokes parameters to cutout. Defaults to None.
-        verbose_worker (bool, optional): Worker function outout. Defaults to False.
         dryrun (bool, optional): Do everything except write FITS files. Defaults to True.
     """
     if stokeslist is None:
@@ -389,53 +427,55 @@ def cutout_islands(
 
     # Query the DB
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
-
-    beams = list(beams_col.find(query).sort("Source_ID"))
-
-    island_ids = sorted(beams_col.distinct("Source_ID", query))
-    islands = list(
-        island_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
+    unique_beams_nums: Set[int] = set(
+        beams_col.distinct(f"beams.{field}.beam_list", query)
     )
+    source_ids = sorted(beams_col.distinct("Source_ID", query))
 
-    big_comps = list(comp_col.find({"Source_ID": {"$in": island_ids}}))
-    comps = []
-    for island_id in island_ids:
-        _comps = []
-        for c in big_comps:
-            if c["Source_ID"] == island_id:
-                _comps.append(c)
-        comps.append(_comps)
+    beams_dict: Dict[int, List[Dict]] = {b: [] for b in unique_beams_nums}
+
+    query = {
+        "$and": [
+            {f"beams.{field}": {"$exists": True}},
+            {f"beams.{field}.beam_list": {"$in": list(unique_beams_nums)}},
+        ]
+    }
+    all_beams = list(beams_col.find(query).sort("Source_ID"))
+    for beams in tqdm(all_beams, desc="Getting beams", file=TQDM_OUT):
+        for beam_num in beams[f"beams"][field]["beam_list"]:
+            beams_dict[beam_num].append(beams)
+
+    comps_dict: Dict[str, List[Dict]] = {s: [] for s in source_ids}
+    all_comps = list(
+        comp_col.find({"Source_ID": {"$in": source_ids}}).sort("Source_ID")
+    )
+    for comp in tqdm(all_comps, desc="Getting components", file=TQDM_OUT):
+        comps_dict[comp["Source_ID"]].append(comp)
+
+    # Dump comps to file
+    with open("comps.pkl", "wb") as f:
+        pickle.dump(comps_dict, f)
 
     # Create output dir if it doesn't exist
     try_mkdir(outdir)
-
-    if limit is not None:
-        logger.critical(f"Limiting to {limit} islands")
-        islands = islands[:limit]
-        island_ids = island_ids[:limit]
-        comps = comps[:limit]
-        beams = beams[:limit]
-
-    args = get_args.map(
-        island=islands,
-        comps=comps,
-        beam=beams,
-        island_id=island_ids,
-        outdir=unmapped(outdir),
-        field=unmapped(field),
-        datadir=unmapped(directory),
-        stokeslist=unmapped(stokeslist),
-        verbose=unmapped(verbose_worker),
-    )
-    # args = [a.result() for a in args]
-    # flat_args = unpack.map(args)
-    flat_args = unpack.submit(args)
-    cuts = cutout.map(
-        cutout_args=flat_args,
-        field=unmapped(field),
-        pad=unmapped(pad),
-        dryrun=unmapped(dryrun),
-    )
+    cuts: List[pymongo.UpdateOne] = []
+    for stoke in stokeslist:
+        for beam_num in unique_beams_nums:
+            results = big_cutout.submit(
+                beams=beams_dict[beam_num],
+                beam_num=beam_num,
+                stoke=stoke,
+                datadir=directory,
+                outdir=outdir,
+                host=host,
+                epoch=epoch,
+                field=field,
+                pad=pad,
+                username=username,
+                password=password,
+                limit=limit,
+            )
+            cuts.append(results)
 
     if not dryrun:
         _updates = [f.result() for f in cuts]
@@ -443,6 +483,8 @@ def cutout_islands(
         logger.info("Updating database...")
         db_res = beams_col.bulk_write(updates, ordered=False)
         logger.info(pformat(db_res.bulk_api_result))
+
+    os.remove("comps.pkl")
 
     logger.info("Cutouts Done!")
 
@@ -463,7 +505,6 @@ def main(args: argparse.Namespace) -> None:
         password=args.password,
         pad=args.pad,
         stokeslist=args.stokeslist,
-        verbose_worker=args.verbose_worker,
         dryrun=args.dryrun,
         limit=args.limit,
     )
@@ -537,13 +578,6 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         default=3,
         help="Number of beamwidths to pad around source [3].",
     )
-
-    parser.add_argument(
-        "-vw",
-        dest="verbose_worker",
-        action="store_true",
-        help="Verbose worker output [False].",
-    )
     parser.add_argument(
         "-d", "--dryrun", action="store_true", help="Do a dry-run [False]."
     )
@@ -557,7 +591,7 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--limit",
-        type=Optional[int],
+        type=int,
         default=None,
         help="Limit number of islands to process [None]",
     )
@@ -581,7 +615,7 @@ def cli() -> None:
         password=args.password,
     )
 
-    main(args, verbose=verbose)
+    main(args)
 
 
 if __name__ == "__main__":

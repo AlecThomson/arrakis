@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import os
 import tarfile
 from glob import glob
@@ -8,7 +9,9 @@ import dask
 from dask import delayed
 from tqdm.auto import tqdm
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 @delayed
@@ -46,14 +49,17 @@ def main(casda_dir: str):
     cube_list = glob(os.path.join(casda_dir, "cubelets", "*.fits"))
     logger.info(f"{len(cube_list)} cublets to tar...")
     sources = set(
-        [os.path.basename(cube)[:13] for cube in tqdm(cube_list, desc="Sources")]
+        [
+            os.path.basename(cube)[:13]
+            for cube in tqdm(cube_list, desc="Sources", file=TQDM_OUT)
+        ]
     )
     logger.info(f"...into {len(sources)} sources")
     out_dir = os.path.join(casda_dir, "cubelets_tar")
     os.makedirs(out_dir, exist_ok=True)
     logger.info(f"Output directory: {out_dir}")
     outputs = []
-    for source in tqdm(sources, desc="Tarring"):
+    for source in tqdm(sources, desc="Tarring", file=TQDM_OUT):
         outputs.append(tar_cubelets(out_dir, casda_dir, source))
 
     dask.compute(*outputs)

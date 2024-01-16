@@ -13,13 +13,15 @@ from astropy.table import Table, vstack
 from pymongo.results import InsertManyResult
 from tqdm import tqdm
 
-from arrakis.logger import logger
+from arrakis.logger import TqdmToLogger, logger
 from arrakis.utils.database import get_beam_inf_db, get_db, get_field_db, test_db
 from arrakis.utils.json import MyEncoder
 from arrakis.utils.meta import yes_or_no
 from arrakis.utils.pipeline import logo_str
 
 logger.setLevel(logging.INFO)
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> Table:
@@ -244,7 +246,7 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
     racs_fields.add_column(SBID, name="SBID", index=0)
 
     # Add in all others
-    for row in tqdm(database[1:], desc="Reading RACS database"):
+    for row in tqdm(database[1:], desc="Reading RACS database", file=TQDM_OUT):
         beamfile = basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv"
         if not beamfile.exists():
             logger.error(f"{beamfile} not found!")
@@ -295,7 +297,7 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
 
     beam_list = []
     for i, (val, idx) in enumerate(
-        tqdm(zip(vals, ixs), total=len(vals), desc="Getting beams")
+        tqdm(zip(vals, ixs), total=len(vals), desc="Getting beams", file=TQDM_OUT)
     ):
         beam_dict = {}
         ra = mastercat[val]["RA"]
@@ -338,7 +340,7 @@ def beam_inf(
 ) -> InsertManyResult:
     """Get the beam information"""
     tabs: List[Table] = []
-    for row in tqdm(database, desc="Reading beam info"):
+    for row in tqdm(database, desc="Reading beam info", file=TQDM_OUT):
         fname = basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv"
         if not fname.exists():
             logger.error(f"{fname} not found!")
