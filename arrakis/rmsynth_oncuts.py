@@ -563,8 +563,11 @@ def rmsynthoncut1d(
         if noStokesI and stokes == "i":
             continue
         data.append(filtered_stokes_spectra.__getattribute__(stokes).data)
-        data.append(filtered_stokes_spectra.__getattribute__(stokes).rms)
         bkg_data.append(filtered_stokes_spectra.__getattribute__(stokes).bkg)
+    for stokes in "iqu":
+        if noStokesI and stokes == "i":
+            continue
+        data.append(filtered_stokes_spectra.__getattribute__(stokes).rms)
 
     # Run 1D RM-synthesis on the spectra
     np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
