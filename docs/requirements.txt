@@ -1,7 +1,6 @@
 sphinx_rtd_theme
 sphinx-book-theme
 sphinx-autoapi
-m2r2
 numpydoc
 myst_parser
 -e ./
