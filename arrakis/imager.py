@@ -195,6 +195,7 @@ def image_beam(
             multiscale_scale_bias=multiscale_scale_bias,
             multiscale=multiscale,
             data_column=data_column,
+            no_mf_weighting=True,
         )
         commands.append(command)
         pols = pols.replace("I", "")
@@ -246,6 +247,7 @@ def image_beam(
             multiscale=multiscale,
             multiscale_scale_bias=multiscale_scale_bias,
             data_column=data_column,
+            no_mf_weighting=True,
         )
         commands.append(command)
 
