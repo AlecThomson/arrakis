@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] - 2024-01-17
+
+Hotfix updates.
+
+## Fixed
+- Base Python version bumped to 3.10 for docs
+- Enable `-no-mf-weighting` in WSClean
+- Ensure FixMS skipped is used in pipeline
+- Pass data in correct order to RM-Tools
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.1...v2.1.2
+
 ## [2.1.1] - 2024-01-16
 
 ### What's Changed
