@@ -298,6 +298,7 @@ def main(args: configargparse.Namespace) -> None:
             absmem=args.absmem,
             ms_glob_pattern=args.ms_glob_pattern,
             data_column=args.data_column,
+            skip_fix_ms=args.skip_fix_ms,
         )
         client = dask_runner._client
         if client is not None:
