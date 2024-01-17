@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "arrakis"
-version = "2.1.1"
+version = "2.1.2"
 description = "Processing the SPICE."
 homepage = "https://research.csiro.au/racs/"
 repository = "https://github.com/AlecThomson/arrakis"
