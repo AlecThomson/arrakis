@@ -272,6 +272,22 @@ def main(
         beam = beams[beam_idx]
         beams_cor.append(beam)
 
+    # do one prediction to get the IONEX files
+    _ = predict_worker(
+        island=islands[0],
+        field=field,
+        beam=beams_cor[0],
+        start_time=start_time,
+        end_time=end_time,
+        freq=freq.to(u.Hz).value,
+        cutdir=cutdir,
+        plotdir=plotdir,
+        server=ionex_server,
+        prefix=ionex_prefix,
+        proxy_server=ionex_proxy_server,
+        formatter=ionex_formatter,
+        pre_download=ionex_predownload,
+    )
     predictions = predict_worker.map(
         island=islands,
         field=unmapped(field),
