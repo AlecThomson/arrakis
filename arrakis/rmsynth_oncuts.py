@@ -666,19 +666,27 @@ def rmsynthoncut1d(
             "rmsynth_summary": mDict,
             "spectra": {
                 "freq": np.array(freq).tolist(),
-                "I_model": stokes_i_fit_result.modStokesI.tolist()
-                if stokes_i_fit_result.modStokesI is not None
-                else None,
+                "I_model": (
+                    stokes_i_fit_result.modStokesI.tolist()
+                    if stokes_i_fit_result.modStokesI is not None
+                    else None
+                ),
                 "I_model_params": {
-                    "alpha": float(stokes_i_fit_result.alpha)
-                    if stokes_i_fit_result.alpha is not None
-                    else None,
-                    "amplitude": float(stokes_i_fit_result.amplitude)
-                    if stokes_i_fit_result.amplitude is not None
-                    else None,
-                    "x_0": float(stokes_i_fit_result.x_0)
-                    if stokes_i_fit_result.x_0 is not None
-                    else None,
+                    "alpha": (
+                        float(stokes_i_fit_result.alpha)
+                        if stokes_i_fit_result.alpha is not None
+                        else None
+                    ),
+                    "amplitude": (
+                        float(stokes_i_fit_result.amplitude)
+                        if stokes_i_fit_result.amplitude is not None
+                        else None
+                    ),
+                    "x_0": (
+                        float(stokes_i_fit_result.x_0)
+                        if stokes_i_fit_result.x_0 is not None
+                        else None
+                    ),
                     "model_repr": stokes_i_fit_result.model_repr,
                 },
                 "I": filtered_stokes_spectra.i.data.tolist(),

@@ -12,6 +12,7 @@ Take the offset and angle and turn them into pixel positions on the leakage map:
 x = sin(offset)*cos(angle)/incx + refx
 y = sin(offset)*sin(angle)/incy + refy
 """
+
 import os
 import warnings
 from glob import glob
