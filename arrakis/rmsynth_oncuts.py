@@ -33,7 +33,7 @@ from scipy.stats import norm
 from arrakis.logger import logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import getfreq
-from arrakis.utils.fitting import fit_pl
+from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
 from arrakis.utils.io import try_mkdir
 from arrakis.utils.pipeline import logo_str
 
@@ -248,7 +248,10 @@ def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
         plane = plane[np.isfinite(plane)]
         if len(plane) == 0:
             continue
-        background[chan], noise[chan] = norm.fit(plane)
+        clipped_plane = sigma_clip(
+            plane, sigma=3, cenfunc=fitted_mean, stdfunc=fitted_std, maxiters=None
+        )
+        background[chan], noise[chan] = norm.fit(clipped_plane.compressed())
 
     return background, noise
 
@@ -559,14 +562,10 @@ def rmsynthoncut1d(
 
     data = [np.array(freq)]
     bkg_data = [np.array(freq)]
-    for stokes in "iqu":
-        if noStokesI and stokes == "i":
-            continue
+    for stokes in "qu" if noStokesI else "iqu":
         data.append(filtered_stokes_spectra.__getattribute__(stokes).data)
         bkg_data.append(filtered_stokes_spectra.__getattribute__(stokes).bkg)
-    for stokes in "iqu":
-        if noStokesI and stokes == "i":
-            continue
+    for stokes in "qu" if noStokesI else "iqu":
         data.append(filtered_stokes_spectra.__getattribute__(stokes).rms)
 
     # Run 1D RM-synthesis on the spectra
@@ -606,6 +605,16 @@ def rmsynthoncut1d(
             dst = os.path.join(plotdir, base)
             copyfile(src, dst)
 
+    # Update I, Q, U noise from data
+    for stokes in "qu" if noStokesI else "iqu":
+        rms = filtered_stokes_spectra.__getattribute__(stokes).rms
+        bkg = filtered_stokes_spectra.__getattribute__(stokes).bkg
+        mean_rms = np.nanmean(rms)
+        mean_bkg = np.nanmean(bkg)
+        full_rms = mean_rms / np.sqrt(len(rms[np.isfinite(rms)]))
+        mDict[f"d{stokes.capitalize()}"] = mean_rms
+        mDict[f"d{stokes.capitalize()}FullBand"] = full_rms
+        mDict[f"b{stokes.capitalize()}FullBand"] = mean_bkg
     # Update model values if own fit was used
     if do_own_fit:
         mDict = update_rmtools_dict(mDict, stokes_i_fit_result.fit_dict)
@@ -622,6 +631,9 @@ def rmsynthoncut1d(
         mDict["fit_flag_is_close_to_zero"] = mDict["IfitStat"] >= 64
         mDict["fit_flag_is_not_finite"] = mDict["IfitStat"] >= 16
         mDict["fit_flag_is_not_normal"] = mDict["IfitStat"] >= 5
+
+    logger.info(f"RM-Synthesis for {cname} complete")
+    logger.info(f"RM-Synthesis results for {cname}: {pformat(mDict)}")
 
     # Ensure JSON serializable
     for k, v in mDict.items():
@@ -647,6 +659,7 @@ def rmsynthoncut1d(
     head_dict.pop("", None)
     if "COMMENT" in head_dict.keys():
         head_dict["COMMENT"] = str(head_dict["COMMENT"])
+    logger.debug(f"Heading for {cname} is {pformat(head_dict)}")
 
     outer_dir = os.path.basename(os.path.dirname(filtered_stokes_spectra.i.filename))
 

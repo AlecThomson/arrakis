@@ -3,19 +3,49 @@
 
 import warnings
 from functools import partial
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 from astropy.stats import akaike_info_criterion_lsq
 from astropy.utils.exceptions import AstropyWarning
 from scipy.optimize import curve_fit
-from scipy.stats import normaltest
+from scipy.stats import norm, normaltest
 from spectral_cube.utils import SpectralCubeWarning
 
 from arrakis.logger import logger
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
+
+
+def fitted_mean(data: np.ndarray, axis: Optional[int] = None) -> float:
+    """Calculate the mean of a distribution.
+
+    Args:
+        data (np.ndarray): Data array.
+
+    Returns:
+        float: Mean.
+    """
+    if axis is not None:
+        raise NotImplementedError("Axis not implemented")
+    mean, _ = norm.fit(data)
+    return mean
+
+
+def fitted_std(data: np.ndarray, axis: Optional[int] = None) -> float:
+    """Calculate the standard deviation of a distribution.
+
+    Args:
+        data (np.ndarray): Data array.
+
+    Returns:
+        float: Standard deviation.
+    """
+    if axis is not None:
+        raise NotImplementedError("Axis not implemented")
+    _, std = norm.fit(data)
+    return std
 
 
 def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float:
