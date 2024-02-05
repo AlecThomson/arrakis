@@ -249,7 +249,7 @@ def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
         if len(plane) == 0:
             continue
         clipped_plane = sigma_clip(
-            plane, sigma=5, cenfunc=fitted_mean, stdfunc=fitted_std, maxiters=None
+            plane, sigma=3, cenfunc=fitted_mean, stdfunc=fitted_std, maxiters=None
         )
         background[chan], noise[chan] = norm.fit(clipped_plane.compressed())
 
