@@ -290,9 +290,9 @@ def main(args: configargparse.Namespace) -> None:
             taper=args.taper,
             parallel_deconvolution=args.parallel,
             gridder=args.gridder,
-            wsclean_path=Path(args.local_wsclean)
-            if args.local_wsclean
-            else args.hosted_wsclean,
+            wsclean_path=(
+                Path(args.local_wsclean) if args.local_wsclean else args.hosted_wsclean
+            ),
             multiscale=args.multiscale,
             multiscale_scale_bias=args.multiscale_scale_bias,
             absmem=args.absmem,

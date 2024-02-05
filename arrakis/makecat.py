@@ -500,9 +500,9 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
     cat_out = RMTable.from_pandas(df_out.reset_index())
     cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
-    cat_out[
-        "local_rm_flag"
-    ].description = "RM is statistically different from nearby RMs"
+    cat_out["local_rm_flag"].description = (
+        "RM is statistically different from nearby RMs"
+    )
 
     # Bring back the units
     for col in cat_out.colnames:
