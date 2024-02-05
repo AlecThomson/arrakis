@@ -44,6 +44,9 @@ columns = [
     ("stokesI_err", float, "synth", "dIFullBand", u.Jy / u.beam),
     ("stokesQ_err", float, "synth", "dQFullBand", u.Jy / u.beam),
     ("stokesU_err", float, "synth", "dUFullBand", u.Jy / u.beam),
+    ("stokesI_bkg", float, "synth", "bIFullBand", u.Jy / u.beam),
+    ("stokesQ_bkg", float, "synth", "bQFullBand", u.Jy / u.beam),
+    ("stokesU_bkg", float, "synth", "bUFullBand", u.Jy / u.beam),
     ("beamdist", float, "cat", "Separation_Tile_Centre", u.deg),
     ("N_Gaus", int, "cat", "N_Gaus", u.dimensionless_unscaled),
     ("cat_id", str, "cat", "Gaussian_ID", None),
@@ -401,5 +404,17 @@ extra_column_descriptions = {
     "stokesI_model_coef_err": {
         "description": "Error in Stokes I model coefficients",
         "ucd": "stat.error;stat.fit.param;phys.polarization.stokes.I",
+    },
+    "stokesI_bkg": {
+        "description": "Background level of Stokes I",
+        "ucd": "phot.flux.density;phys.polarization.stokes.I",
+    },
+    "stokesQ_bkg": {
+        "description": "Background level of Stokes Q",
+        "ucd": "phot.flux.density;phys.polarization.stokes.Q",
+    },
+    "stokesU_bkg": {
+        "description": "Background level of Stokes U",
+        "ucd": "phot.flux.density;phys.polarization.stokes.U",
     },
 }

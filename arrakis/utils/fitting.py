@@ -3,7 +3,7 @@
 
 import warnings
 from functools import partial
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 from astropy.stats import akaike_info_criterion_lsq
@@ -18,7 +18,7 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 
-def fitted_mean(data: np.ndarray) -> float:
+def fitted_mean(data: np.ndarray, axis: Optional[int] = None) -> float:
     """Calculate the mean of a distribution.
 
     Args:
@@ -27,11 +27,13 @@ def fitted_mean(data: np.ndarray) -> float:
     Returns:
         float: Mean.
     """
+    if axis is not None:
+        raise NotImplementedError("Axis not implemented")
     mean, _ = norm.fit(data)
     return mean
 
 
-def fitted_std(data: np.ndarray) -> float:
+def fitted_std(data: np.ndarray, axis: Optional[int] = None) -> float:
     """Calculate the standard deviation of a distribution.
 
     Args:
@@ -40,6 +42,8 @@ def fitted_std(data: np.ndarray) -> float:
     Returns:
         float: Standard deviation.
     """
+    if axis is not None:
+        raise NotImplementedError("Axis not implemented")
     _, std = norm.fit(data)
     return std
 
