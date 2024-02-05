@@ -936,9 +936,9 @@ def cli():
         taper=args.taper,
         parallel_deconvolution=args.parallel,
         gridder=args.gridder,
-        wsclean_path=Path(args.local_wsclean)
-        if args.local_wsclean
-        else args.hosted_wsclean,
+        wsclean_path=(
+            Path(args.local_wsclean) if args.local_wsclean else args.hosted_wsclean
+        ),
         multiscale=args.multiscale,
         ms_glob_pattern=args.ms_glob_pattern,
         data_column=args.data_column,
