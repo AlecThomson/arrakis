@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.3] - 2024-02-05
+
+### What's Changed
+* [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/54
+* Noise fix by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/55
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.2...v2.1.3
+
 ## [2.1.2] - 2024-01-17
 
 Hotfix updates.
