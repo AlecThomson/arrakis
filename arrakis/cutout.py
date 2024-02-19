@@ -94,7 +94,7 @@ def cutout_weight(
         os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
     )
     newvalues = {
-        "$set": {f"beams.{field}.{stoke}_beam{beam_num}_weight_file": filename}
+        "$set": {f"beams.{field}.{stoke.lower()}_beam{beam_num}_weight_file": filename}
     }
 
     return pymongo.UpdateOne(myquery, newvalues, upsert=True)
