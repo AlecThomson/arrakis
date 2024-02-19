@@ -171,7 +171,9 @@ def cutout_image(
     filename = os.path.join(
         os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
     )
-    newvalues = {"$set": {f"beams.{field}.{stoke}_beam{beam_num}_image_file": filename}}
+    newvalues = {
+        "$set": {f"beams.{field}.{stoke.lower()}_beam{beam_num}_image_file": filename}
+    }
 
     return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
