@@ -62,10 +62,10 @@ bokeh = "<3"
 prefect = "^2"
 prefect-dask = "*"
 RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
-rm-tools = {git = "https://github.com/CIRADA-Tools/RM-Tools"}
+RM-Tools = { git = "https://github.com/CIRADA-Tools/RM-Tools"}
 PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git", branch="spiceracs"}
 setuptools = "*"
-fixms = "^0.1.2"
+fixms = "^0.2"
 fitscube = "^0.3"
 
 [tool.poetry.dev-dependencies]
