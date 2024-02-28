@@ -394,6 +394,8 @@ def field_database(
     basedir = survey_dir / "db" / f"epoch_{epoch}"
     data_file = basedir / "field_data.csv"
     database = Table.read(data_file)
+    if "COMMENT" in database.colnames:
+        database["COMMENT"] = database["COMMENT"].astype(str)
     # Remove rows with SBID < 0
     database = database[database["SBID"] >= 0]
     df = database.to_pandas()
