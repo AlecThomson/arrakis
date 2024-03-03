@@ -96,6 +96,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             password=args.password,
             database=args.database,
             ionex_server=args.ionex_server,
+            ionex_prefix=args.ionex_prefix,
             ionex_proxy_server=args.ionex_proxy_server,
             ionex_formatter=args.ionex_formatter,
             ionex_predownload=args.ionex_predownload,
