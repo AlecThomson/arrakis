@@ -1019,6 +1019,7 @@ def cli():
     main(
         field=args.field,
         host=host,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         verbose=verbose,
