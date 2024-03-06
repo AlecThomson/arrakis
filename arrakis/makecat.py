@@ -794,7 +794,18 @@ def main(
     logger.info(f"Finished component collection query - {tock-tick:.2f}s")
     logger.info(f"Found {len(comps)} to catalogue. ")
 
-    rmtab = RMTable()  # type: RMTable
+    logger.info("Starting island collection query")
+    tick = time.time()
+    islands = list(island_col.find({"Source_ID": {"$in": all_island_ids}}))
+    tock = time.time()
+    logger.info(f"Finished island collection query - {tock-tick:.2f}s")
+
+    comps_df = pd.DataFrame(comps)
+    comps_df.set_index("Source_ID", inplace=True)
+    islands_df = pd.DataFrame(islands)
+    islands_df.set_index("Source_ID", inplace=True)
+
+    rmtab = RMTable()
     # Add items to main cat using RMtable standard
     for j, [name, typ, src, col, unit] in enumerate(
         tqdm(
@@ -813,13 +824,29 @@ def main(
     ):
         data = []
         if src == "cat":
-            for comp in comps:
-                data += [comp[col]]
+            for src_id, comp in comps_df.iterrows():
+                # Catch the index columns
+                if col == "Source_ID":
+                    data += [src_id]
+                    continue
+                # First try the component
+                try:
+                    data += [comp[col]]
+                except KeyError as e:
+                    logger.warning(
+                        f"Component {src_id} does not have {col}, trying island DB..."
+                    )
+                    # Fallback to the island
+                    try:
+                        data += [islands_df.loc[src_id][col]]
+                    except KeyError as e:
+                        logger.error(f"Island {src_id} does not have {col}")
+                        raise e
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             rmtab.add_column(new_col)
 
         if src == "synth":
-            for comp in comps:
+            for src_id, comp in comps_df.iterrows():
                 try:
                     data += [comp["rmclean_summary"][col]]
                 except KeyError:
@@ -828,7 +855,7 @@ def main(
             rmtab.add_column(new_col)
 
         if src == "header":
-            for comp in comps:
+            for src_id, comp in comps_df.iterrows():
                 data += [comp["header"][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             rmtab.add_column(new_col)
@@ -837,7 +864,7 @@ def main(
         columns_possum.sourcefinder_columns, desc="Adding BDSF data", file=TQDM_OUT
     ):
         data = []
-        for comp in comps:
+        for src_id, comp in comps_df.iterrows():
             data += [comp[selcol]]
         new_col = Column(data=data, name=selcol)
         rmtab.add_column(new_col)
@@ -929,15 +956,15 @@ def main(
 
     if outfile is None:
         logger.info(pformat(rmtab))
+        return
 
-    if outfile is not None:
-        logger.info(f"Writing {outfile} to disk")
-        _, ext = os.path.splitext(outfile)
-        if ext == ".xml" or ext == ".vot":
-            write_votable(rmtab, outfile)
-        else:
-            rmtab.write(outfile, overwrite=True)
-        logger.info(f"{outfile} written to disk")
+    logger.info(f"Writing {outfile} to disk")
+    _, ext = os.path.splitext(outfile)
+    if ext == ".xml" or ext == ".vot":
+        write_votable(rmtab, outfile)
+    else:
+        rmtab.write(outfile, overwrite=True)
+    logger.info(f"{outfile} written to disk")
 
     logger.info("Done!")
 
