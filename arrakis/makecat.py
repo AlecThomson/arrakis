@@ -18,6 +18,7 @@ from astropy.stats import sigma_clip
 from astropy.table import Column, Table
 from dask.diagnostics import ProgressBar
 from prefect import flow, task
+from pymongo.collection import Collection
 from rmtable import RMTable
 from scipy.stats import lognorm, norm
 from tqdm import tqdm
@@ -602,32 +603,31 @@ def get_alpha(cat):
 
 
 @task(name="Get integration times")
-def get_integration_time(cat, field_col):
-    logger.warn("Will be stripping the trailing field character prefix. ")
-    field_names = [
-        name[:-1] if name[-1] in ("A", "B") else name for name in list(cat["tile_id"])
-    ]
+def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
+    if epoch == 0:
+        logger.warn("Will be stripping the trailing field character prefix. ")
+        field_names = [
+            name[:-1] if name[-1] in ("A", "B") else name
+            for name in list(cat["tile_id"])
+        ]
+    else:
+        field_names = list(cat["tile_id"])
 
     logger.debug(f"Searching integration times for {field_names=}")
 
-    query = {"$and": [{"FIELD_NAME": {"$in": field_names}}]}
-    tint_dicts = list(
+    query = {"$and": [{"FIELD_NAME": {"$in": field_names}, "SELECT": 1}]}
+    tint_df = pd.DataFrame(
         field_col.find(query, {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1})
     )
+    tint_df.set_index("FIELD_NAME", inplace=True)
 
-    logger.debug(f"Returned results: {tint_dicts=}")
+    logger.debug(f"Returned results: {tint_df=}")
 
-    tint_dict = {}
-    for d in tint_dicts:
-        tint_dict.update({d["FIELD_NAME"]: d["SCAN_TINT"]})
+    tints = tint_df.loc[field_names]["SCAN_TINT"].values * u.s
 
-    logger.debug(f"{tint_dict=}")
+    assert len(tints) == len(field_names), "Mismatch in number of integration times"
 
-    tints = []
-    for name in field_names:
-        tints.append(tint_dict[name])
-
-    return np.array(tints) * u.s
+    return tints
 
 
 def add_metadata(vo_table: vot.tree.Table, filename: str):
@@ -884,7 +884,7 @@ def main(
     field_col = get_field_db(
         host=host, epoch=epoch, username=username, password=password
     )
-    tints = get_integration_time(rmtab, field_col)
+    tints = get_integration_time(rmtab, field_col, epoch=epoch)
     rmtab.add_column(Column(data=tints, name="int_time"))
     # Add epoch
     rmtab.add_column(Column(data=rmtab["start_time"] + (tints / 2), name="epoch"))
