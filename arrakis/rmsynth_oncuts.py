@@ -281,6 +281,8 @@ def extract_single_spectrum(
     x, y = np.array(wcs.celestial.world_to_pixel(coord)).round().astype(int)
     spectrum_arr = np.array(data[:, y, x])
     spectrum_arr[spectrum_arr == 0] = np.nan
+    rms[~np.isfinite(spectrum_arr)] = np.nan
+    bkg[~np.isfinite(spectrum_arr)] = np.nan
     # Do background subtraction
     spectrum_arr -= bkg
     return Spectrum(
