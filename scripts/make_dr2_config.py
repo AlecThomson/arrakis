@@ -11,6 +11,7 @@ import pandas as pd
 from arrakis.logger import logger
 
 logger.setLevel(logging.INFO)
+# Public RACS database credentials
 RACSUSER = "anonymous"
 RACSPASS = "racs-db-letmein"
 RACSHOST = "146.118.68.63"
