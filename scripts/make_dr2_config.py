@@ -72,6 +72,7 @@ def get_holography_path(sbid: int) -> Path:
 
 def main(
     sbid: int,
+    sbid_dir: Path,
     processing_dir: Path,
 ):
     """Main script"""
@@ -87,7 +88,7 @@ def main(
         password=os.environ["SPICE_PASSWORD"],
         imager_only=False,
         epoch=7,
-        ms_glob_pattern="*beam[0-36]*.ms",
+        ms_glob_pattern=f"'SB{sbid}.{field_data.FIELD_NAME}.beam*.round4.ms'",
         imager_dask_config="/scratch3/projects/spiceracs/arrakis/arrakis/configs/petrichor.yaml",
         mgain=0.7,
         force_mask_rounds=8,
@@ -97,7 +98,7 @@ def main(
         auto_mask=3.5,
         local_rms_window=60,
         auto_threshold=1,
-        size=6144,
+        size=8192,
         scale=2.5,
         robust=-0.5,
         pols="IQU",
@@ -134,7 +135,7 @@ def main(
         noStokesI=False,
         not_RMSF=False,
         outfile=f"{field_data.FIELD_NAME}_SB{sbid}_polcat.fits",
-        pad=5.0,
+        pad=7.0,
         polyOrd=-2,
         rm_verbose=False,
         savePlots=True,
@@ -156,7 +157,7 @@ def main(
 
     # Now make a run script
     script_file = processing_dir / f"{sbid}_rm_run.sh"
-    script_string = f"""#!/bin/bash
+    script_string = rf"""#!/bin/bash
 #SBATCH --job-name=spice_master
 #SBATCH --export=NONE
 #SBATCH --ntasks-per-node=1
@@ -187,9 +188,9 @@ conda activate arrakis310
 
 echo "About to run spice_process"
 spice_process \
-	--config {config_file.absolute.as_posix()}  \
-	{processing_dir/sbid} \
-	{processing_dir} \
+	--config {config_file.absolute().as_posix()}  \
+	{sbid_dir.absolute().as_posix()} \
+	{processing_dir.absolute().as_posix()} \
 	{field_data.FIELD_NAME} \
 """
     with open(script_file, "w") as f:
@@ -207,12 +208,15 @@ def cli():
 
     parser.add_argument("sbid", type=int, help="SBID")
     parser.add_argument(
+        "-s", "--sbiddir", type=Path, help="Processing directory", default=Path(".")
+    )
+    parser.add_argument(
         "-p", "--procdir", type=Path, help="Processing directory", default=Path(".")
     )
 
     args = parser.parse_args()
 
-    _ = main(args.sbid, args.procdir)
+    _ = main(sbid=args.sbid, sbid_dir=args.sbiddir, processing_dir=args.procdir)
 
 
 if __name__ == "__main__":
