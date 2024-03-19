@@ -156,6 +156,7 @@ def image_beam(
     multiscale_scale_bias: Optional[float] = None,
     data_column: str = "CORRECTED_DATA",
     no_mf_weighting: bool = False,
+    no_update_model_required: bool = True,
 ) -> ImageSet:
     """Image a single beam"""
     logger = get_run_logger()
@@ -197,6 +198,7 @@ def image_beam(
             multiscale=multiscale,
             data_column=data_column,
             no_mf_weighting=no_mf_weighting,
+            no_update_model_required=no_update_model_required,
         )
         commands.append(command)
         pols = pols.replace("I", "")
@@ -249,6 +251,7 @@ def image_beam(
             multiscale_scale_bias=multiscale_scale_bias,
             data_column=data_column,
             no_mf_weighting=no_mf_weighting,
+            no_update_model_required=no_update_model_required,
         )
         commands.append(command)
 
