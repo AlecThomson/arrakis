@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.4] - 2024-03-20
+### What's Changed
+* DR2 preparation improvements by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/57
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.3...v2.1.4
+
 ## [2.1.3] - 2024-02-05
 
 ### What's Changed
