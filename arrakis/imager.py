@@ -132,7 +132,7 @@ def image_beam(
     simage: Path,
     pols: str = "IQU",
     nchan: int = 36,
-    scale: u.Quantity = 2.5 * u.arcsec,
+    scale: float = 2.5,
     npix: int = 4096,
     join_polarizations: bool = True,
     join_channels: bool = True,
@@ -172,7 +172,7 @@ def image_beam(
             pol="I",
             verbose=True,
             channels_out=nchan,
-            scale=f"{scale.to(u.arcsec).value}asec",
+            scale=f"{scale}asec",
             size=f"{npix} {npix}",
             join_polarizations=False,  # Only do I
             join_channels=join_channels,
@@ -225,7 +225,7 @@ def image_beam(
             pol=pols,
             verbose=True,
             channels_out=nchan,
-            scale=f"{scale.to(u.arcsec).value}asec",
+            scale=f"{scale}asec",
             size=f"{npix} {npix}",
             join_polarizations=join_polarizations,
             join_channels=join_channels,
@@ -605,8 +605,6 @@ def main(
 
     logger.info(f"Searching {msdir} for MS matching {ms_glob_pattern}.")
     mslist = sorted(msdir.glob(ms_glob_pattern))
-
-    scale = scale * u.arcsecond
 
     assert (len(mslist) > 0) & (
         len(mslist) == 36
