@@ -132,7 +132,7 @@ def image_beam(
     simage: Path,
     pols: str = "IQU",
     nchan: int = 36,
-    scale: u.Quantity = 2.5 * u.arcsec,
+    scale: float = 2.5,
     npix: int = 4096,
     join_polarizations: bool = True,
     join_channels: bool = True,
@@ -155,6 +155,8 @@ def image_beam(
     multiscale: bool = False,
     multiscale_scale_bias: Optional[float] = None,
     data_column: str = "CORRECTED_DATA",
+    no_mf_weighting: bool = False,
+    no_update_model_required: bool = True,
 ) -> ImageSet:
     """Image a single beam"""
     logger = get_run_logger()
@@ -170,7 +172,7 @@ def image_beam(
             pol="I",
             verbose=True,
             channels_out=nchan,
-            scale=f"{scale.to(u.arcsec).value}asec",
+            scale=f"{scale}asec",
             size=f"{npix} {npix}",
             join_polarizations=False,  # Only do I
             join_channels=join_channels,
@@ -195,7 +197,8 @@ def image_beam(
             multiscale_scale_bias=multiscale_scale_bias,
             multiscale=multiscale,
             data_column=data_column,
-            no_mf_weighting=True,
+            no_mf_weighting=no_mf_weighting,
+            no_update_model_required=no_update_model_required,
         )
         commands.append(command)
         pols = pols.replace("I", "")
@@ -222,7 +225,7 @@ def image_beam(
             pol=pols,
             verbose=True,
             channels_out=nchan,
-            scale=f"{scale.to(u.arcsec).value}asec",
+            scale=f"{scale}asec",
             size=f"{npix} {npix}",
             join_polarizations=join_polarizations,
             join_channels=join_channels,
@@ -247,7 +250,8 @@ def image_beam(
             multiscale=multiscale,
             multiscale_scale_bias=multiscale_scale_bias,
             data_column=data_column,
-            no_mf_weighting=True,
+            no_mf_weighting=no_mf_weighting,
+            no_update_model_required=no_update_model_required,
         )
         commands.append(command)
 
@@ -595,13 +599,12 @@ def main(
     ms_glob_pattern: str = "scienceData*_averaged_cal.leakage.ms",
     data_column: str = "CORRECTED_DATA",
     skip_fix_ms: bool = False,
+    no_mf_weighting: bool = False,
 ):
     simage = get_wsclean(wsclean=wsclean_path)
 
     logger.info(f"Searching {msdir} for MS matching {ms_glob_pattern}.")
     mslist = sorted(msdir.glob(ms_glob_pattern))
-
-    scale = scale * u.arcsecond
 
     assert (len(mslist) > 0) & (
         len(mslist) == 36
@@ -660,6 +663,7 @@ def main(
             multiscale_scale_bias=multiscale_scale_bias,
             absmem=absmem,
             data_column=data_column,
+            no_mf_weighting=no_mf_weighting,
         )
 
         # Compute the smallest beam that all images can be convolved to.
@@ -890,6 +894,11 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Which column in the measurement set to image. ",
     )
     parser.add_argument(
+        "--no_mf_weighting",
+        action="store_true",
+        help="Do not use multi-frequency weighting. ",
+    )
+    parser.add_argument(
         "--skip_fix_ms",
         action="store_true",
         default=False,
@@ -943,6 +952,7 @@ def cli():
         ms_glob_pattern=args.ms_glob_pattern,
         data_column=args.data_column,
         skip_fix_ms=args.skip_fix_ms,
+        no_mf_weighting=args.no_mf_weighting,
     )
 
 

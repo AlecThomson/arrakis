@@ -239,10 +239,11 @@ def main(
     field_col = get_field_db(
         host=host, epoch=epoch, username=username, password=password
     )
-    query_3 = {"FIELD_NAME": f"{field}"}
+    # SELECT '1' is best field according to the database
+    query_3 = {"$and": [{"FIELD_NAME": f"{field}"}, {"SELECT": 1}]}
     logger.info(f"{query_3}")
 
-    # Get most recent SBID
+    # Get most recent SBID if more than one is 'SELECT'ed
     if field_col.count_documents(query_3) > 1:
         field_datas = list(field_col.find({"FIELD_NAME": f"{field}"}))
         sbids = [f["CAL_SBID"] for f in field_datas]

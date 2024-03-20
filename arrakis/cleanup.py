@@ -26,11 +26,9 @@ def cleanup(workdir: str, stokeslist: List[str]) -> None:
         return
     for stoke in stokeslist:
         # Clean up beam images
-        # old_files = glob(f"{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits")
-        # for old in old_files:
-        #     os.remove(old)
-
-        ...
+        old_files = glob(f"{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits")
+        for old in old_files:
+            os.remove(old)
 
 
 @flow(name="Cleanup")
