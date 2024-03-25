@@ -616,9 +616,31 @@ def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
     logger.debug(f"Searching integration times for {field_names=}")
 
     query = {"$and": [{"FIELD_NAME": {"$in": field_names}, "SELECT": 1}]}
-    tint_df = pd.DataFrame(
-        field_col.find(query, {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1})
-    )
+    reutrn_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1}
+    # Get most recent SBID if more than one is 'SELECT'ed
+    if field_col.count_documents(query) > 1:
+        logger.info(f"More than one SELECT=1 for {field_names}, getting most recent.")
+        field_datas = list(
+            field_col.find({"FIELD_NAME": {"$in": field_names}}, reutrn_vals)
+        )
+        sbids = [f["CAL_SBID"] for f in field_datas]
+        max_idx = np.argmax(sbids)
+        logger.info(f"Using CAL_SBID {sbids[max_idx]}")
+        field_data = field_datas[max_idx]
+    elif field_col.count_documents(query) == 0:
+        logger.error(
+            f"No data for {field_names} with {query}, trying without SELECT=1."
+        )
+        field_data = field_col.find_one(
+            {"FIELD_NAME": {"$in": field_names}}, reutrn_vals
+        )
+    else:
+        logger.info(f"Using {query}")
+        field_data = field_col.find_one(
+            {"FIELD_NAME": {"$in": field_names}}, reutrn_vals
+        )
+
+    tint_df = pd.DataFrame(field_data)
     tint_df.set_index("FIELD_NAME", inplace=True)
 
     logger.debug(f"Returned results: {tint_df=}")
