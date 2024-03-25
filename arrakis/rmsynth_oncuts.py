@@ -86,7 +86,7 @@ class StokesIFitResult(Struct):
 @task(name="3D RM-synthesis")
 def rmsynthoncut3d(
     island_id: str,
-    beams: pd.DataFrame,
+    beam_tuple: Tuple[str, pd.Series],
     outdir: str,
     freq: np.ndarray,
     field: str,
@@ -115,7 +115,7 @@ def rmsynthoncut3d(
         not_RMSF (bool, optional): Skip calculation of RMSF. Defaults to False.
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
-    beam = dict(beams.loc[island_id])
+    beam = dict(beam_tuple[1])
     iname = island_id
     ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
 
@@ -285,6 +285,7 @@ def extract_single_spectrum(
     bkg[~np.isfinite(spectrum_arr)] = np.nan
     # Do background subtraction
     spectrum_arr -= bkg
+    del data
     return Spectrum(
         data=spectrum_arr,
         rms=rms,
@@ -462,7 +463,7 @@ def update_rmtools_dict(
 @task(name="1D RM-synthesis")
 def rmsynthoncut1d(
     comp_tuple: Tuple[str, pd.Series],
-    beams: pd.DataFrame,
+    beam_tuple: Tuple[str, pd.Series],
     outdir: str,
     freq: np.ndarray,
     field: str,
@@ -506,7 +507,7 @@ def rmsynthoncut1d(
     """
     logger.setLevel(logging.INFO)
     comp = comp_tuple[1]
-    beam = dict(beams.loc[comp["Source_ID"]])
+    beam = dict(beam_tuple[1])
 
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
@@ -573,6 +574,7 @@ def rmsynthoncut1d(
     # Run 1D RM-synthesis on the spectra
     np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
     np.savetxt(f"{prefix}_bkg.dat", np.vstack(bkg_data).T, delimiter=" ")
+
     try:
         logger.info(f"Using {fit_function} to fit Stokes I")
         mDict, aDict = do_RMsynth_1D.run_rmsynth(
@@ -635,7 +637,6 @@ def rmsynthoncut1d(
         mDict["fit_flag_is_not_normal"] = mDict["IfitStat"] >= 5
 
     logger.info(f"RM-Synthesis for {cname} complete")
-    logger.info(f"RM-Synthesis results for {cname}: {pformat(mDict)}")
 
     # Ensure JSON serializable
     for k, v in mDict.items():
@@ -950,6 +951,8 @@ def main(
     )
     freq = np.array(freq)
 
+    _batch_size = 100
+
     if do_validate:
         logger.info(f"Running RMsynth on {n_comp} components")
         # We don't run this in parallel!
@@ -973,7 +976,7 @@ def main(
         logger.info(f"Running RMsynth on {n_comp} components")
         outputs = rmsynthoncut1d.map(
             comp_tuple=components.iterrows(),
-            beams=unmapped(beams),
+            beam_tuple=beams.loc[components.Source_ID].iterrows(),
             outdir=unmapped(outdir),
             freq=unmapped(freq),
             field=unmapped(field),
@@ -999,7 +1002,7 @@ def main(
         logger.info(f"Running RMsynth on {n_island} islands")
         outputs = rmsynthoncut3d.map(
             island_id=island_ids,
-            beams=unmapped(beams),
+            beam_tuple=beams.loc[island_ids].iterrows(),
             outdir=unmapped(outdir),
             freq=unmapped(freq),
             field=unmapped(field),
