@@ -24,12 +24,11 @@ def cleanup(workdir: str, stokeslist: List[str]) -> None:
     """
     if os.path.basename(workdir) == "slurmFiles":
         return
-    for stoke in stokeslist:
-        # Clean up beam images
-        old_files = glob(f"{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits")
-        for old in old_files:
-            logger.critical(f"Removing {old}")
-            os.remove(old)
+    # Clean up beam images
+    old_files = glob(f"{workdir}/*beam[00-36]*.fits")
+    for old in old_files:
+        logger.critical(f"Removing {old}")
+        os.remove(old)
 
 
 @flow(name="Cleanup")
