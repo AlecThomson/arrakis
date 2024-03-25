@@ -604,40 +604,34 @@ def get_alpha(cat):
 
 @task(name="Get integration times")
 def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
-    if epoch == 0:
-        logger.warn("Will be stripping the trailing field character prefix. ")
-        field_names = [
-            name[:-1] if name[-1] in ("A", "B") else name
-            for name in list(cat["tile_id"])
-        ]
-    else:
-        field_names = list(cat["tile_id"])
+    logger.warn("Will be stripping the trailing field character prefix. ")
+    field_names = [
+        name[:-1] if name[-1] in ("A", "B") else name for name in list(cat["tile_id"])
+    ]
+    unique_field_names = list(set(field_names))
 
-    logger.debug(f"Searching integration times for {field_names=}")
+    logger.debug(f"Searching integration times for {unique_field_names=}")
 
-    query = {"$and": [{"FIELD_NAME": {"$in": field_names}, "SELECT": 1}]}
+    query = {"$and": [{"FIELD_NAME": {"$in": unique_field_names}, "SELECT": 1}]}
     reutrn_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1}
     # Get most recent SBID if more than one is 'SELECT'ed
     if field_col.count_documents(query) > 1:
-        logger.info(f"More than one SELECT=1 for {field_names}, getting most recent.")
+        logger.info(f"More than one SELECT=1 for field_names, getting most recent.")
         field_datas = list(
-            field_col.find({"FIELD_NAME": {"$in": field_names}}, reutrn_vals)
+            field_col.find({"FIELD_NAME": {"$in": unique_field_names}}, reutrn_vals)
         )
         sbids = [f["CAL_SBID"] for f in field_datas]
         max_idx = np.argmax(sbids)
         logger.info(f"Using CAL_SBID {sbids[max_idx]}")
         field_data = field_datas[max_idx]
     elif field_col.count_documents(query) == 0:
-        logger.error(
-            f"No data for {field_names} with {query}, trying without SELECT=1."
-        )
-        field_data = field_col.find_one(
-            {"FIELD_NAME": {"$in": field_names}}, reutrn_vals
+        logger.error(f"No data for field_names, trying without SELECT=1.")
+        field_data = list(
+            field_col.find({"FIELD_NAME": {"$in": unique_field_names}}, reutrn_vals)
         )
     else:
-        logger.info(f"Using {query}")
-        field_data = field_col.find_one(
-            {"FIELD_NAME": {"$in": field_names}}, reutrn_vals
+        field_data = list(
+            field_col.find({"FIELD_NAME": {"$in": unique_field_names}}, reutrn_vals)
         )
 
     tint_df = pd.DataFrame(field_data)
@@ -648,6 +642,7 @@ def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
     tints = tint_df.loc[field_names]["SCAN_TINT"].values * u.s
 
     assert len(tints) == len(field_names), "Mismatch in number of integration times"
+    assert len(tints) == len(cat), "Mismatch in number of integration times and sources"
 
     return tints
 
