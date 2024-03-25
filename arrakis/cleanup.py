@@ -28,6 +28,7 @@ def cleanup(workdir: str, stokeslist: List[str]) -> None:
         # Clean up beam images
         old_files = glob(f"{workdir}/*.cutout.*.{stoke.lower()}.*beam[00-36]*.fits")
         for old in old_files:
+            logger.critical(f"Removing {old}")
             os.remove(old)
 
 
