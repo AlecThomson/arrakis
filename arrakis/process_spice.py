@@ -320,7 +320,7 @@ def main(args: configargparse.Namespace) -> None:
 
     # Define flow
     process_spice.with_options(
-        name=f"Arrakis Synthesis -- {args.field}", task_runner=dask_runner_2
+        name=f"Arrakis Synthesis -- {args.field}",
     )(args, host, dask_runner_2)
 
 
