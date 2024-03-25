@@ -245,12 +245,17 @@ def main(
 
     # Get most recent SBID if more than one is 'SELECT'ed
     if field_col.count_documents(query_3) > 1:
+        logger.info(f"More than one SELECT=1 for {field}, getting most recent.")
         field_datas = list(field_col.find({"FIELD_NAME": f"{field}"}))
         sbids = [f["CAL_SBID"] for f in field_datas]
         max_idx = np.argmax(sbids)
         logger.info(f"Using CAL_SBID {sbids[max_idx]}")
         field_data = field_datas[max_idx]
+    elif field_col.count_documents(query_3) == 0:
+        logger.error(f"No data for {field} with {query_3}, trying without SELECT=1.")
+        field_data = field_col.find_one({"FIELD_NAME": f"{field}"})
     else:
+        logger.info(f"Using {query_3}")
         field_data = field_col.find_one({"FIELD_NAME": f"{field}"})
 
     logger.info(f"{field_data=}")
