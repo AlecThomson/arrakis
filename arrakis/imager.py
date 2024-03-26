@@ -5,6 +5,7 @@ import hashlib
 import logging
 import os
 import pickle
+import shutil
 from glob import glob
 from pathlib import Path
 from subprocess import CalledProcessError
@@ -27,6 +28,7 @@ from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, logger
+from arrakis.utils.io import parse_env_path
 from arrakis.utils.msutils import (
     beam_from_ms,
     field_idx_from_ms,
@@ -128,7 +130,8 @@ def image_beam(
     ms: Path,
     field_idx: int,
     out_dir: Path,
-    prefix: str,
+    temp_dir: Path,
+    prefix: Path,
     simage: Path,
     pols: str = "IQU",
     nchan: int = 36,
@@ -160,6 +163,17 @@ def image_beam(
 ) -> ImageSet:
     """Image a single beam"""
     logger = get_run_logger()
+    # Evaluate the temp directory if a ENV variable is used
+    temp_dir = parse_env_path(temp_dir)
+    if out_dir != temp_dir:
+        # Copy the MS to the temp directory
+        ms_temp = temp_dir / ms.name
+        logger.info(f"Copying {ms} to {ms_temp}")
+        ms_temp = ms_temp.resolve(strict=False)
+        shutil.copytree(ms, ms_temp)
+        ms = ms_temp
+        # Update the prefix
+        prefix = temp_dir / prefix.name
 
     commands = []
     # Do any I cleaning separately
@@ -167,8 +181,9 @@ def image_beam(
     if do_stokes_I:
         command = wsclean(
             mslist=[ms.resolve(strict=True).as_posix()],
+            temp_dir=temp_dir.resolve(strict=True).as_posix(),
             use_mpi=False,
-            name=prefix,
+            name=prefix.resolve().as_posix(),
             pol="I",
             verbose=True,
             channels_out=nchan,
@@ -220,8 +235,9 @@ def image_beam(
 
         command = wsclean(
             mslist=[ms.resolve(strict=True).as_posix()],
+            temp_dir=temp_dir.resolve(strict=True).as_posix(),
             use_mpi=False,
-            name=prefix,
+            name=prefix.resolve().as_posix(),
             pol=pols,
             verbose=True,
             channels_out=nchan,
@@ -282,14 +298,26 @@ def image_beam(
             logger.error(f"{e=}")
             raise e
 
+    if out_dir != temp_dir:
+        # Copy the images to the output directory
+        logger.info(f"Copying images to {out_dir}")
+        all_fits_files = list(temp_dir.glob(f"{prefix.name}*.fits"))
+        for fits_file in tqdm(all_fits_files, desc="Copying images", file=TQDM_OUT):
+            shutil.copy(fits_file, out_dir)
+
+        # Update the prefix
+        prefix = out_dir / prefix.name
+
+    prefix_str = prefix.resolve().as_posix()
+
     # Check rms of image to check for divergence
     if do_stokes_I:
         pols += "I"
     for pol in pols:
         mfs_image = (
-            f"{prefix}-MFS-image.fits"
+            f"{prefix_str}-MFS-image.fits"
             if pol == "I"
-            else f"{prefix}-MFS-{pol}-image.fits"
+            else f"{prefix_str}-MFS-{pol}-image.fits"
         )
         rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
         if rms > 1:
@@ -303,9 +331,9 @@ def image_beam(
     aux_lists = {}
     for pol in pols:
         imglob = (
-            f"{prefix}-*[0-9]-image.fits"
+            f"{prefix_str}-*[0-9]-image.fits"
             if pol == "I"
-            else f"{prefix}-*[0-9]-{pol}-image.fits"
+            else f"{prefix_str}-*[0-9]-{pol}-image.fits"
         )
         image_list = sorted(glob(imglob))
         image_lists[pol] = image_list
@@ -314,9 +342,9 @@ def image_beam(
 
         for aux in ["model", "psf", "residual", "dirty"]:
             aux_list = (
-                sorted(glob(f"{prefix}-*[0-9]-{aux}.fits"))
+                sorted(glob(f"{prefix_str}-*[0-9]-{aux}.fits"))
                 if pol == "I" or aux == "psf"
-                else sorted(glob(f"{prefix}-*[0-9]-{pol}-{aux}.fits"))
+                else sorted(glob(f"{prefix_str}-*[0-9]-{pol}-{aux}.fits"))
             )
             aux_lists[(pol, aux)] = aux_list
 
@@ -324,7 +352,7 @@ def image_beam(
 
     logger.info("Constructing ImageSet")
     image_set = ImageSet(
-        ms=ms, prefix=prefix, image_lists=image_lists, aux_lists=aux_lists
+        ms=ms, prefix=prefix_str, image_lists=image_lists, aux_lists=aux_lists
     )
 
     logger.debug(f"{image_set=}")
@@ -572,6 +600,7 @@ def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
 def main(
     msdir: Path,
     out_dir: Path,
+    temp_dir: Optional[Path] = None,
     cutoff: Optional[float] = None,
     robust: float = -0.5,
     pols: str = "IQU",
@@ -612,6 +641,9 @@ def main(
 
     logger.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []
+    if temp_dir is None:
+        temp_dir = out_dir
+    logger.info(f"Using {temp_dir} as temp directory")
 
     # Do this in serial since CASA gets upset
     prefixs = {}
@@ -640,7 +672,8 @@ def main(
             ms=ms_fix,
             field_idx=field_idxs[ms],
             out_dir=out_dir,
-            prefix=prefixs[ms].resolve(strict=False).as_posix(),
+            temp_dir=temp_dir,
+            prefix=prefixs[ms],
             simage=simage.resolve(strict=True),
             robust=robust,
             pols=pols,
@@ -758,6 +791,11 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         "outdir",
         type=Path,
         help="Directory to output images",
+    )
+    parser.add_argument(
+        "--temp_dir",
+        type=Path,
+        help="Temporary directory to store intermediate files",
     )
     parser.add_argument(
         "--psf_cutoff",
@@ -929,6 +967,7 @@ def cli():
     main(
         msdir=args.msdir,
         out_dir=args.outdir,
+        temp_dir=args.temp_dir,
         cutoff=args.psf_cutoff,
         robust=args.robust,
         pols=args.pols,
