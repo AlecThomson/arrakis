@@ -5,6 +5,8 @@ import tarfile
 from pathlib import Path
 from typing import List, Union
 
+import astropy.units as u
+import numpy as np
 from prefect import flow, get_run_logger, task, unmapped
 from tqdm.auto import tqdm
 
@@ -16,7 +18,7 @@ logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
-@task(name="Purge cublets")
+# @task(name="Purge cublets")
 def purge_cubelet_beams(filepath: Path) -> Path:
     """Clean up beam images
 
@@ -24,10 +26,9 @@ def purge_cubelet_beams(filepath: Path) -> Path:
         workdir (str): Directory containing images
         stoke (str): Stokes parameter
     """
-    logger = get_run_logger()
     # Clean up beam images
     logger.critical(f"Removing {filepath}")
-    filepath.unlink()
+    filepath.unlink(missing_ok=True)
     logger.info(f"Beam image purged from {filepath}")
     return filepath
 
@@ -72,17 +73,31 @@ def main(
     tarball = make_cutout_tarball.submit(cutdir=cutdir, overwrite=overwrite)
     logger.info(f"Tarball created: {tarball.result()}")
 
-    # Purge the beam images from cutouts
-    to_purge_cutouts = list(cutdir.glob("*/*.beam[00-36]*.fits"))
-    logger.info(f"Purging beam images from {cutdir}")
-    purged = purge_cubelet_beams.map(to_purge_cutouts)
-    logger.info(f"Beam images purged: {len([p.result() for p in purged])}")
-
     # Purge the big beams
     to_purge_bigbeams = list(datadir.glob("*.beam[00-36]*.fits"))
-    logger.info(f"Purging big beams from {datadir}")
-    purged_bigbeams = purge_cubelet_beams.map(to_purge_bigbeams)
-    logger.info(f"Big beams purged: {len([p.result() for p in purged_bigbeams])}")
+    logger.warning(f"Will purge {len(to_purge_bigbeams)} big beams")
+    to_purge_pickles = list(datadir.glob("*.pkl"))
+    logger.warning(f"Will purge {len(to_purge_pickles)} beam pickles")
+    to_purge_weights = list(datadir.glob("weights*.txt"))
+    logger.warning(f"Will purge {len(to_purge_weights)} weight files")
+
+    # Purge the cublet beams
+    to_purge_cublets = list(cutdir.glob("*/*.beam[00-36]*.fits"))
+    logger.warning(f"Will purge {len(to_purge_cublets)} cublet beams")
+
+    to_purge_all = (
+        to_purge_bigbeams + to_purge_cublets + to_purge_pickles + to_purge_weights
+    )
+
+    total_file_size = np.sum([p.stat().st_size for p in to_purge_all]) * u.byte
+    logger.warning(f"Purging {len(to_purge_all)} files from {datadir}")
+    logger.warning(f"Will free {total_file_size.to(u.GB)}")
+    purged: List[Path] = []
+    for to_purge in tqdm(to_purge_all, file=TQDM_OUT, desc="Purging big beams"):
+        purged.append(purge_cubelet_beams(to_purge))
+    logger.info(f"Files purged: {len(purged)}")
+    total_purge_size = np.sum([p.stat().st_size for p in purged]) * u.byte
+    logger.info(f"Total space freed: {total_purge_size.to(u.GB)}")
 
     logger.info("Cleanup done!")
 
