@@ -171,7 +171,6 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     previous_future = (
         cleanup.main.with_options(task_runner=task_runner)(
             datadir=args.outdir,
-            stokeslist=["I", "Q", "U"],
         )
         if not args.skip_cleanup
         else previous_future
