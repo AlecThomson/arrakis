@@ -19,8 +19,8 @@ cluster_kwargs:
     local_directory: $LOCALDIR
     silence_logs: 'info'
 adapt_kwargs:
-    minimum: 1
-    maximum: 36
+    minimum_jobs: 36
+    maximum_jobs: 36
     wait_count: 20
     target_duration: "300s"
     interval: "30s"
