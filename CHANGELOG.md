@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.5] - 2024-03-27
+### What's Changed
+* [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/56
+* Tempdir by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/58
+* Clean by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/59
+
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.4...v2.1.5
+
 ## [2.1.4] - 2024-03-20
 ### What's Changed
 * DR2 preparation improvements by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/57
