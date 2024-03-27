@@ -715,7 +715,7 @@ def wsclean(
 
     # Check for square channels and multiscale
     if arguments["squared_channel_joining"] and arguments["multiscale"]:
-        logger.info("CAUTION - square channel joining and multiscale is unstable!")
+        logger.warning("CAUTION - square channel joining and multiscale is unstable!")
 
     for key, value in arguments.items():
         if type(value) is bool:

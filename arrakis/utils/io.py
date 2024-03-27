@@ -6,6 +6,7 @@ import os
 import stat
 import warnings
 from glob import glob
+from pathlib import Path
 from typing import Tuple
 
 from astropy.table import Table
@@ -15,11 +16,26 @@ from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, logger
 from arrakis.utils.exceptions import SameFileError, SpecialFileError
+from arrakis.utils.typing import PathLike
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
+
+
+def parse_env_path(env_path: PathLike) -> Path:
+    """Parse an environment path.
+
+    Args:
+        env_path (str): Environment path.
+
+    Returns:
+        Path: Parsed path.
+    """
+    if isinstance(env_path, Path):
+        env_path = env_path.as_posix()
+    return Path(os.path.expandvars(env_path))
 
 
 def rsync(src, tgt):

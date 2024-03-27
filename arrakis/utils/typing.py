@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Typing utilities"""
 
+from pathlib import Path
 from typing import TypeVar
 
 import numpy as np
@@ -14,3 +15,4 @@ ArrayLike = TypeVar(
     "ArrayLike", np.ndarray, pd.Series, pd.DataFrame, SkyCoord, Quantity
 )
 TableLike = TypeVar("TableLike", RMTable, Table)
+PathLike = TypeVar("PathLike", str, Path)
