@@ -250,12 +250,13 @@ def main(args: configargparse.Namespace) -> None:
     output_args_path = save_args(args)
     logger.info(f"Saved arguments to {output_args_path}.")
 
-    # Test the mongoDB
-    test_db(
-        host=host,
-        username=args.username,
-        password=args.password,
-    )
+    if not args.imager_only:
+        # Test the mongoDB
+        test_db(
+            host=host,
+            username=args.username,
+            password=args.password,
+        )
 
     if not args.skip_imager:
         # This is the client for the imager component of the arrakis

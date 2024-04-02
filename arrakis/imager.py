@@ -157,6 +157,7 @@ def image_beam(
     local_rms_window: Optional[float] = None,
     multiscale: bool = False,
     multiscale_scale_bias: Optional[float] = None,
+    multiscale_scales: Optional[str] = "0,2,4,8,16,32,64,128",
     data_column: str = "CORRECTED_DATA",
     no_mf_weighting: bool = False,
     no_update_model_required: bool = True,
@@ -212,6 +213,7 @@ def image_beam(
             local_rms_window=local_rms_window,
             multiscale_scale_bias=multiscale_scale_bias,
             multiscale=multiscale,
+            multiscale_scales=multiscale_scales,
             data_column=data_column,
             no_mf_weighting=no_mf_weighting,
             no_update_model_required=no_update_model_required,
@@ -267,6 +269,7 @@ def image_beam(
             local_rms_window=local_rms_window,
             multiscale=multiscale if not squared_channel_joining else False,
             multiscale_scale_bias=multiscale_scale_bias,
+            multiscale_scales=multiscale_scales,
             data_column=data_column,
             no_mf_weighting=no_mf_weighting,
             no_update_model_required=no_update_model_required,
@@ -626,6 +629,7 @@ def main(
     wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest",
     multiscale: Optional[bool] = None,
     multiscale_scale_bias: Optional[float] = None,
+    multiscale_scales: Optional[str] = "0,2,4,8,16,32,64,128",
     absmem: Optional[float] = None,
     make_residual_cubes: Optional[bool] = False,
     ms_glob_pattern: str = "scienceData*_averaged_cal.leakage.ms",
@@ -697,6 +701,7 @@ def main(
             local_rms_window=local_rms_window,
             multiscale=multiscale,
             multiscale_scale_bias=multiscale_scale_bias,
+            multiscale_scales=multiscale_scales,
             absmem=absmem,
             data_column=data_column,
             no_mf_weighting=no_mf_weighting,
@@ -912,6 +917,12 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="The multiscale scale bias term provided to wsclean. ",
     )
     parser.add_argument(
+        "--multiscale_scales",
+        type=str,
+        default="0,2,4,8,16,32,64,128",
+        help="The scales used in the multiscale clean. ",
+    )
+    parser.add_argument(
         "--absmem",
         type=float,
         default=None,
@@ -991,6 +1002,8 @@ def cli():
             Path(args.local_wsclean) if args.local_wsclean else args.hosted_wsclean
         ),
         multiscale=args.multiscale,
+        multiscale_scale_bias=args.multiscale_scale_bias,
+        multiscale_scales=args.multiscale_scales,
         ms_glob_pattern=args.ms_glob_pattern,
         data_column=args.data_column,
         skip_fix_ms=args.skip_fix_ms,
