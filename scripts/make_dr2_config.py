@@ -90,22 +90,25 @@ def main(
         epoch=7,
         ms_glob_pattern=f"'SB{sbid}.{field_data.FIELD_NAME}.beam*.round4.ms'",
         imager_dask_config="/scratch3/projects/spiceracs/arrakis/arrakis/configs/petrichor.yaml",
+        temp_dir="'$LOCALDIR'",
         mgain=0.7,
         force_mask_rounds=8,
         nmiter=15,
         niter=500_000,
         local_rms=True,
-        auto_mask=3.5,
+        auto_mask=4,
         local_rms_window=60,
         auto_threshold=1,
-        size=8192,
+        size=6144,
         scale=2.5,
         robust=-0.5,
         pols="IQU",
         gridder="wgridder",
         minuv=200,
         local_wsclean="/datasets/work/sa-mhongoose/work/containers/wsclean_force_mask.sif",
-        multiscale=False,
+        multiscale=True,
+        multiscale_scale_bias=0.6,
+        multiscale_scales="0,2,4,8,16,32,64,128",
         purge=True,
         absmem=100,
         nchan=nchan,
@@ -172,7 +175,7 @@ def main(
 # I trust nothing
 export OMP_NUM_THREADS=1
 
-export APIURL=http://stokes.it.csiro.au:4200/api
+export APIURL=http://jones.it.csiro.au:4200/api
 export PREFECT_API_URL="${{APIURL}}"
 export WORKDIR=$(pwd)
 export PREFECT_HOME="${{WORKDIR}}/prefect"
