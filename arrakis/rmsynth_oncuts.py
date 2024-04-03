@@ -30,7 +30,7 @@ from RMtools_3D import do_RMsynth_3D
 from RMutils.util_misc import create_frac_spectra
 from scipy.stats import norm
 
-from arrakis.logger import logger
+from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
@@ -1054,7 +1054,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."

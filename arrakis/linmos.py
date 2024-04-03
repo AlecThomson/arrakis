@@ -18,7 +18,7 @@ from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
 
-from arrakis.logger import logger
+from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
@@ -383,7 +383,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
 
     parser.add_argument(

@@ -25,7 +25,7 @@ from tqdm import tqdm
 from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
 from arrakis import columns_possum
-from arrakis.logger import TqdmToLogger, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, get_field_db, test_db
 from arrakis.utils.pipeline import logo_str
 from arrakis.utils.plotting import latexify
@@ -1008,7 +1008,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."

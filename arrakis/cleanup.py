@@ -10,7 +10,7 @@ import numpy as np
 from prefect import flow, get_run_logger, task, unmapped
 from tqdm.auto import tqdm
 
-from arrakis.logger import TqdmToLogger, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.pipeline import logo_str
 
 logger.setLevel(logging.INFO)
@@ -117,7 +117,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
     parser.add_argument(
         "outdir",

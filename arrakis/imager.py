@@ -27,7 +27,7 @@ from racs_tools import beamcon_2D
 from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
-from arrakis.logger import TqdmToLogger, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.io import parse_env_path
 from arrakis.utils.msutils import (
     beam_from_ms,
@@ -785,7 +785,7 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     img_parser = argparse.ArgumentParser(
         add_help=not parent_parser,
         description=descStr,
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=UltimateHelpFormatter,
     )
 
     parser = img_parser.add_argument_group("imaging arguments")

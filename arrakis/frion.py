@@ -17,7 +17,7 @@ from astropy.time import Time, TimeDelta
 from FRion import correct, predict
 from prefect import flow, task, unmapped
 
-from arrakis.logger import logger
+from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, get_field_db, test_db
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.io import try_mkdir
@@ -352,7 +352,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
