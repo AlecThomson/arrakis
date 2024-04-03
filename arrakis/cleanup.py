@@ -10,7 +10,7 @@ import numpy as np
 from prefect import flow, get_run_logger, task, unmapped
 from tqdm.auto import tqdm
 
-from arrakis.logger import TqdmToLogger, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.pipeline import logo_str
 
 logger.setLevel(logging.INFO)
@@ -61,10 +61,11 @@ def main(
     datadir: Path,
     overwrite: bool = False,
 ) -> None:
-    """Clean up beam images
+    """Clean up beam images flow
 
     Args:
         datadir (Path): Directory with sub dir 'cutouts'
+        overwrite (bool): Overwrite existing tarball
     """
 
     cutdir = datadir / "cutouts"
@@ -117,7 +118,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
     parser.add_argument(
         "outdir",

@@ -9,7 +9,7 @@ import pymongo
 from prefect import flow, task, unmapped
 
 from arrakis.linmos import get_yanda, linmos
-from arrakis.logger import logger
+from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.io import try_mkdir
 
@@ -345,7 +345,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
 
     parser.add_argument(

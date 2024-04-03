@@ -2,10 +2,17 @@
 # -*- coding: utf-8 -*-
 """Logging module for arrakis"""
 
+import argparse
 import io
 import logging
 
 from tqdm import tqdm
+
+
+# https://stackoverflow.com/questions/61324536/python-argparse-with-argumentdefaultshelpformatter-and-rawtexthelpformatter
+class UltimateHelpFormatter(
+    argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatter
+): ...
 
 
 class TqdmToLogger(io.StringIO):
