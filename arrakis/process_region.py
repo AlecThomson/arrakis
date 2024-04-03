@@ -9,7 +9,7 @@ from astropy.time import Time
 from prefect import flow
 
 from arrakis import makecat, merge_fields, process_spice, rmclean_oncuts, rmsynth_oncuts
-from arrakis.logger import logger
+from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str
 
@@ -164,7 +164,7 @@ def cli():
     parser = configargparse.ArgParser(
         default_config_files=[".default_field_config.txt"],
         description=descStr,
-        formatter_class=configargparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=UltimateHelpFormatter,
     )
     parser.add("--config", required=False, is_config_file=True, help="Config file path")
 
