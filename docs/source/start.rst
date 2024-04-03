@@ -226,7 +226,7 @@ To set up a Prefect Server, fist install Prefect with `pip`. You will also need 
 
 
 Tips on adaptive scaling:
-========================
+=========================
 
 There can be strange failure modes when a prefect based workflow is being executed on a Dask task runner on a `dask_jobqueue.SLURMCluster` object with adaptive scaling enabled. Commonly, this presents as a previously completed taskrun restarting. Depending on the actual workflow, this may outright fail (e.g. if a data product that is expected has been removed), or may run perfectly fine (e.g. wsclean clobbering existing files and reimaging). Naturally, this is not behaviour that should be encouraged.
 
@@ -235,6 +235,7 @@ It appears as those the issue is related job stealing among a dask workers estab
 The dask environment variables below are intended to try to limit these failure modes. These should be exported in the `sbatch` launch script before the python prefect / dask entry point.
 
 .. code-block:: bash
+
     # See https://docs.dask.org/en/latest/configuration.html#distributed-scheduler
     # For more information on these variables
     export DASK_DISTRIBUTED__SCHEDULER__WORKER_SATURATION=0.01
