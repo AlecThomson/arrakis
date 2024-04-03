@@ -397,7 +397,7 @@ def cutout_islands(
     dryrun: bool = True,
     limit: Optional[int] = None,
 ) -> None:
-    """Perform cutouts of RACS islands in parallel.
+    """Flow to cutout islands in parallel.
 
     Args:
         field (str): RACS field name.

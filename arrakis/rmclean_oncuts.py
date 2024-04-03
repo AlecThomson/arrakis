@@ -220,11 +220,11 @@ def main(
     showPlots=False,
     rm_verbose=False,
 ):
-    """Main script
+    """Run RM-CLEAN on cutouts flow
 
     Args:
         field (str): RACS field name.
-        outdir (str): Output directory.
+        outdir (Path): Output directory.
         host (str): MongoDB host IP.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.

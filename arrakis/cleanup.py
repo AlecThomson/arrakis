@@ -61,10 +61,11 @@ def main(
     datadir: Path,
     overwrite: bool = False,
 ) -> None:
-    """Clean up beam images
+    """Clean up beam images flow
 
     Args:
         datadir (Path): Directory with sub dir 'cutouts'
+        overwrite (bool): Overwrite existing tarball
     """
 
     cutdir = datadir / "cutouts"

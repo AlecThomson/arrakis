@@ -284,7 +284,7 @@ def main(
     stokeslist: Optional[List[str]] = None,
     limit: Optional[int] = None,
 ) -> None:
-    """Main script
+    """LINMOS flow
 
     Args:
         field (str): RACS field name.
@@ -296,7 +296,7 @@ def main(
         yanda (str, optional): Yandasoft version. Defaults to "1.3.0".
         yanda_img (Path, optional): Path to a yandasoft singularirt image. If `None`, the container version `yanda` will be downloaded. Defaults to None.
         stokeslist (List[str], optional): Stokes parameters to process. Defaults to None.
-        verbose (bool, optional): Verbose output. Defaults to True.
+        limit (int, optional): Limit the number of islands to process. Defaults to None.
     """
     # Setup singularity image
     image = get_yanda(version=yanda) if yanda_img is None else yanda_img

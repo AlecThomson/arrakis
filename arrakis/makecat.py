@@ -765,7 +765,7 @@ def main(
     verbose: bool = True,
     outfile: Union[str, None] = None,
 ) -> None:
-    """Main
+    """Make a catalogue from the Arrakis database flow
 
     Args:
         field (str): RACS field name

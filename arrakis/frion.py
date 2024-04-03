@@ -202,19 +202,21 @@ def main(
     ionex_predownload: bool = False,
     limit: Optional[int] = None,
 ):
-    """Main script
+    """FRion flow
 
     Args:
         field (str): RACS field name
-        outdir (str): Output directory
+        outdir (Path): Output directory
         host (str): MongoDB host IP address
+        epoch (int): Epoch of observation
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo passwrod. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
-        verbose (bool, optional): Verbose output. Defaults to True.
         ionex_server (str, optional): IONEX server. Defaults to "ftp://ftp.aiub.unibe.ch/CODE/".
         ionex_proxy_server (str, optional): Proxy server. Defaults to None.
         ionex_formatter (Union[str, Callable], optional): IONEX formatter. Defaults to "ftp.aiub.unibe.ch".
+        ionex_predownload (bool, optional): Pre-download IONEX files. Defaults to False.
+        limit (int, optional): Limit to number of islands. Defaults to None.
     """
     # Query database for data
     outdir = os.path.abspath(outdir)
