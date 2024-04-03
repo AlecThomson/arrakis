@@ -637,6 +637,43 @@ def main(
     skip_fix_ms: bool = False,
     no_mf_weighting: bool = False,
 ):
+    """Arrakis imager flow
+
+    Args:
+        msdir (Path): Path to the directory containing the MS files.
+        out_dir (Path): Path to the directory where the images will be written.
+        temp_dir (Optional[Path], optional): Path for temporary files to be written. Defaults to None.
+        cutoff (Optional[float], optional): WSClean cutoff. Defaults to None.
+        robust (float, optional): WSClean Briggs robust parameter. Defaults to -0.5.
+        pols (str, optional): WSClean polarisations. Defaults to "IQU".
+        nchan (int, optional): WSClean number of output channels. Defaults to 36.
+        size (int, optional): WSClean image size. Defaults to 6074.
+        scale (float, optional): WSClean pixel size (arcseconds). Defaults to 2.5.
+        mgain (float, optional): WSClean mgain. Defaults to 0.8.
+        niter (int, optional): WSClean niter. Defaults to 100_000.
+        auto_mask (float, optional): WSClean automatic masking (in SNR). Defaults to 3.
+        force_mask_rounds (Union[int, None], optional): WSClean force mask rounds (requires modified WSClean). Defaults to None.
+        auto_threshold (float, optional): WSClean auto threshold (in SNR). Defaults to 1.
+        taper (Union[float, None], optional): WSClean taper (in arcsec). Defaults to None.
+        purge (bool, optional): Purge auxillary files after imaging. Defaults to False.
+        minuv (float, optional): WSClean minuv-l. Defaults to 0.0.
+        parallel_deconvolution (Optional[int], optional): WSClean parallel deconvolution. Defaults to None.
+        gridder (Optional[str], optional): WSClean gridder. Defaults to None.
+        nmiter (Optional[int], optional): WSClean nmiter. Defaults to None.
+        local_rms (bool, optional): WSClean local_rms. Defaults to False.
+        local_rms_window (Optional[float], optional): WSClean local_rms_window. Defaults to None.
+        wsclean_path (Path | str, optional): Path or URL for WSClean container. Defaults to "docker://alecthomson/wsclean:latest".
+        multiscale (Optional[bool], optional): WSClean multiscale. Defaults to None.
+        multiscale_scale_bias (Optional[float], optional): WSClean multiscale bias. Defaults to None.
+        multiscale_scales (Optional[str], optional): WSClean scales. Defaults to "0,2,4,8,16,32,64,128".
+        absmem (Optional[float], optional): WSClean absmem usage. Defaults to None.
+        make_residual_cubes (Optional[bool], optional): Make resiudal image cubes. Defaults to False.
+        ms_glob_pattern (str, optional): Globe pattern for MS files. Defaults to "scienceData*_averaged_cal.leakage.ms".
+        data_column (str, optional): Data column to image. Defaults to "CORRECTED_DATA".
+        skip_fix_ms (bool, optional): Apply FixMS. Defaults to False.
+        no_mf_weighting (bool, optional): WSClean no_mf_weighting. Defaults to False.
+    """
+
     simage = get_wsclean(wsclean=wsclean_path)
 
     logger.info(f"Searching {msdir} for MS matching {ms_glob_pattern}.")
