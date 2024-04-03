@@ -3,7 +3,7 @@ Imaging
 
 .. attention::
 
-    MeasurementSets produced by the ASKAPsoft pipeline need modification before using tools like WSClean. This can be done using `FixMS <https://fixms.readthedocs.io/>`, which is called internally by *Arrakis*.
+    MeasurementSets produced by the ASKAPsoft pipeline need modification before using tools like WSClean. This can be done using `FixMS <https://fixms.readthedocs.io/>`_, which is called internally by *Arrakis*.
 
 *Arrakis* provides an interface to the `WSClean <https://wsclean.readthedocs.io/en/latest/>`_ imaging software, with convencince functions for imaging mutliple ASKAP beams simultaneously. There are two main interaces for running the imaging pipeline:
 
