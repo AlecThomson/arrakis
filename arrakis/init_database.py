@@ -300,8 +300,6 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
         tqdm(zip(vals, ixs), total=len(vals), desc="Getting beams", file=TQDM_OUT)
     ):
         beam_dict = {}
-        ra = mastercat[val]["RA"]
-        dec = mastercat[val]["Dec"]
         name = mastercat[val]["Source_Name"]
         isl_id = mastercat[val]["Source_ID"]
         beams = database[seps[0][idx.astype(int)]]

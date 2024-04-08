@@ -122,7 +122,7 @@ def interpolate(field, comp, beams, cutdir, septab, holofile, verbose=True):
             data[bm].update({"freq": freq})
 
     try:
-        outname = make_plot(data, comp, imfile)
+        _ = make_plot(data, comp, imfile)
         # plotdir = os.path.join(os.path.join(cutdir, 'plots'), os.path.basename(outname))
         # copyfile(outname, plotdir)
     except Exception as e:
@@ -141,7 +141,7 @@ def main(
     verbose=True,
     snr_cut=None,
 ):
-    scriptdir = os.path.dirname(os.path.realpath(__file__))
+    _ = os.path.dirname(os.path.realpath(__file__))
     beamseps = gen_seps(field)
 
     if datadir is not None:
@@ -177,7 +177,7 @@ def main(
         )
     )
     components.set_index("Source_ID", drop=False, inplace=True)
-    component_ids = list(components["Gaussian_ID"])
+    _ = list(components["Gaussian_ID"])
     assert len(set(beams.index)) == len(set(components.index))
 
     outputs = []
@@ -197,7 +197,7 @@ def main(
             holofile=holofile,
         )
         outputs.append(out)
-    futures = chunk_dask(
+    _ = chunk_dask(
         outputs=outputs,
         task_name="leakage plots",
         progress_text="Making leakage plots",

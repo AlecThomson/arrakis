@@ -122,7 +122,6 @@ def cutout_image(
 
     outdir = os.path.abspath(cutout_args.outdir)
 
-    ret = []
     basename = os.path.basename(image_name)
     outname = f"{source_id}.cutout.{basename}"
     outfile = os.path.join(outdir, outname)

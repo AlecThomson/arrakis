@@ -37,7 +37,7 @@ TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 def make_thumbnail(cube_f: str, cube_dir: str):
     cube = fits.getdata(cube_f)
-    icube = cube[:, 0, :, :]
+    _ = cube[:, 0, :, :]
     qcube = cube[:, 1, :, :]
     ucube = cube[:, 2, :, :]
     pcube = np.hypot(qcube, ucube)
@@ -398,7 +398,7 @@ def write_polspec(table: Table, filename: str, overwrite: bool = False):
                 np.array(tabcol[0])
             )  # get the type of each element in 2D array
             col_format = "Q" + fits.column._convert_record2fits(subtype) + "()"
-        if tabcol.unit != None:
+        if tabcol.unit is not None:
             unit = tabcol.unit.to_string()
         else:
             unit = ""
@@ -494,8 +494,6 @@ def main(
     df = df.sort_values(["stokesI_fit_flag", "snr_polint"], ascending=[True, False])
     polcat = polcat[df.index.values]
     polcat.add_index("cat_id")
-
-    test = prep_type == "test"
 
     logger.info(f"Preparing data for {prep_type} CASDA upload")
 

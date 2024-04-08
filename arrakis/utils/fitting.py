@@ -206,7 +206,6 @@ def fit_pl(
             model_arr = model_func(freq, *best)
             model_high = model_func(freq, *(best + np.sqrt(np.diag(covar))))
             model_low = model_func(freq, *(best - np.sqrt(np.diag(covar))))
-            model_err = model_high - model_low
             ssr = np.sum((flux[goodchan] - model_arr[goodchan]) ** 2)
             aic = akaike_info_criterion_lsq(ssr, len(p0), goodchan.sum())
 

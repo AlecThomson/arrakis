@@ -253,7 +253,6 @@ def main(
 
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
-    beams = list(beams_col.find(query).sort("Source_ID"))
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
 
     if dimension == "3d":
@@ -269,7 +268,6 @@ def main(
                 },
             ).sort("Source_ID")
         )
-        island_ids = [doc["Source_ID"] for doc in islands]
         n_island = island_col.count_documents(query)
         island_col.update(query, {"$set": {"rmclean3d": False}})
 

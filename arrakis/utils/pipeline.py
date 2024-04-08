@@ -331,7 +331,7 @@ def port_forward(port: int, target: str) -> None:
     logger.info(f"Forwarding {port} from localhost to {target}")
     cmd = f"ssh -N -f -R {port}:localhost:{port} {target}"
     command = shlex.split(cmd)
-    output = subprocess.Popen(command)
+    _ = subprocess.Popen(command)
 
 
 def cpu_to_use(max_cpu: int, count: int) -> int:

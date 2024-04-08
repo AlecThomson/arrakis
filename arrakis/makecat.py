@@ -345,7 +345,6 @@ def get_fit_func(
         idx = (hi_i_tab["beamdist"].to(u.deg).value < bins[i + 1]) & (
             hi_i_tab["beamdist"].to(u.deg).value >= bins[i]
         )
-        res = np.nanpercentile(frac_P[idx], [2.3, 16, 50, 84, 97.6])
         s2_los[i], s1_los[i], meds[i], s1_ups[i], s2_ups[i] = np.nanpercentile(
             frac_P[idx], [2.3, 16, 50, 84, 97.6]
         )
