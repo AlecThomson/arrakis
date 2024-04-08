@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
+import argparse
 import os
 from pprint import pformat
 from shutil import copyfile
@@ -8,10 +9,11 @@ from typing import Dict, List, Optional
 import pymongo
 from prefect import flow, task, unmapped
 
-from arrakis.linmos import get_yanda, linmos
+from arrakis.linmos import get_yanda, linmos, linmos_parser
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.io import try_mkdir
+from arrakis.utils.pipeline import generic_parser
 
 
 def make_short_name(name: str) -> str:
@@ -333,21 +335,19 @@ def main(
     return inter_dir
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
-
+def merge_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = """
     Mosaic RACS beam fields with linmos.
 
     """
-
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    merge_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
     )
-
+    parser = merge_parser.add_argument_group("merge arguments")
     parser.add_argument(
         "--merge_name",
         type=str,
@@ -355,7 +355,10 @@ def cli():
     )
 
     parser.add_argument(
-        "--fields", type=str, nargs="+", help="RACS fields to mosaic - e.g. 2132-50A."
+        "--fields",
+        type=str,
+        nargs="+",
+        help="RACS fields to mosaic - e.g. RACS_2132-50A.",
     )
 
     parser.add_argument(
@@ -370,20 +373,6 @@ def cli():
         type=str,
         help="Path to save merged data (in output_dir/merge_name/cutouts)",
     )
-
-    parser.add_argument(
-        "--yanda",
-        type=str,
-        default="1.3.0",
-        help="Yandasoft version to pull from DockerHub [1.3.0].",
-    )
-
-    parser.add_argument(
-        "--host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
     parser.add_argument(
         "-e",
         "--epoch",
@@ -393,14 +382,35 @@ def cli():
     )
 
     parser.add_argument(
+        "--host",
+        metavar="host",
+        type=str,
+        default=None,
+        help="Host of mongodb (probably $hostname -i).",
+    )
+    parser.add_argument(
         "--username", type=str, default=None, help="Username of mongodb."
     )
 
     parser.add_argument(
         "--password", type=str, default=None, help="Password of mongodb."
     )
+    return merge_parser
 
+
+def cli():
+    """Command-line interface"""
+
+    m_parser = merge_parser(parent_parser=True)
+    lin_parser = linmos_parser(parent_parser=True)
+
+    parser = argparse.ArgumentParser(
+        parents=[m_parser, lin_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=m_parser.description,
+    )
     args = parser.parse_args()
+
     verbose = args.verbose
     test_db(
         host=args.host, username=args.username, password=args.password, verbose=verbose

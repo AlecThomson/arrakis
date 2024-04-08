@@ -88,7 +88,7 @@ def generic_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         nargs="+",
         type=str,
         default=["I", "Q", "U"],
-        help="List of Stokes parameters to image [ALL]",
+        help="List of Stokes parameters to image",
     )
 
     parser.add_argument(
@@ -100,7 +100,7 @@ def generic_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="Verbose output [False]."
+        "-v", dest="verbose", action="store_true", help="Verbose output."
     )
     parser.add_argument(
         "--host",

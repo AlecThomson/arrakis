@@ -370,9 +370,6 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         "--skip_linmos", action="store_true", help="Skip LINMOS stage [False]."
     )
     parser.add_argument(
-        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
-    )
-    parser.add_argument(
         "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
     )
     parser.add_argument(
@@ -383,6 +380,9 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
+    )
+    parser.add_argument(
+        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
     )
 
     return pipeline_parser
