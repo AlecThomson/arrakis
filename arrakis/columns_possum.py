@@ -70,7 +70,7 @@ columns = [
     ("fracpol", float, "synth", "fracPol", u.dimensionless_unscaled),
     ("reffreq_pol", float, "synth", "freq0_Hz", u.Hz),
     ("reffreq_beam", float, "synth", "freq0_Hz", u.Hz),
-    ("reffreq_I", float, "synth", "poly_reffreq", u.Hz),
+    ("reffreq_I", float, "synth", "freq0_Hz", u.Hz),
     ("fdf_noise_th", float, "synth", "dFDFth", u.Jy / u.beam),
     ("rmsf_fwhm", float, "synth", "fwhmRMSF", u.rad / u.m**2),
     ("refwave_sq_pol", float, "synth", "lam0Sq_m2", u.m**2),
