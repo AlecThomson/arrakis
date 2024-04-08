@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Make an Arrakis catalogue"""
+import argparse
 import logging
 import os
 import time
@@ -27,7 +28,7 @@ from vorbin.voronoi_2d_binning import voronoi_2d_binning
 from arrakis import columns_possum
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, get_field_db, test_db
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str
 from arrakis.utils.plotting import latexify
 from arrakis.utils.typing import ArrayLike, TableLike
 
@@ -1012,18 +1013,7 @@ def main(
     logger.info("Done!")
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
-
-    from astropy.utils.exceptions import AstropyWarning
-
-    warnings.simplefilter("ignore", category=AstropyWarning)
-    from astropy.io.fits.verify import VerifyWarning
-
-    warnings.simplefilter("ignore", category=VerifyWarning)
-    # Help string to be shown using the -h option
-
+def cat_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -1033,28 +1023,12 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    cat_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
     )
-    parser.add_argument(
-        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
-    )
-
-    parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
-    )
-
+    parser = cat_parser.add_argument_group("catalogue arguments")
     parser.add_argument(
         "--leakage_degree",
         type=int,
@@ -1077,26 +1051,35 @@ def cli():
     )
 
     parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="verbose output [False]."
-    )
-
-    parser.add_argument(
-        "-w",
         "--write",
         dest="outfile",
         default=None,
         type=str,
-        help="File to save table to [None].",
+        help="File to save table to.",
     )
 
+    return cat_parser
+
+
+def cli():
+    """Command-line interface"""
+    import argparse
+
+    from astropy.utils.exceptions import AstropyWarning
+
+    warnings.simplefilter("ignore", category=AstropyWarning)
+    from astropy.io.fits.verify import VerifyWarning
+
+    warnings.simplefilter("ignore", category=VerifyWarning)
+    # Help string to be shown using the -h option
+
+    gen_parser = generic_parser(parent_parser=True)
+    catalogue_parser = cat_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        parents=[gen_parser, catalogue_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=catalogue_parser.description,
+    )
     args = parser.parse_args()
 
     verbose = args.verbose

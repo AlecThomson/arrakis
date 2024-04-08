@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
+import argparse
 import logging
 import os
 import traceback
@@ -35,7 +36,7 @@ from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str
 
 logger.setLevel(logging.INFO)
 
@@ -1081,17 +1082,7 @@ def main(
     logger.info("RMsynth done!")
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
-
-    from astropy.utils.exceptions import AstropyWarning
-
-    warnings.simplefilter("ignore", category=AstropyWarning)
-    from astropy.io.fits.verify import VerifyWarning
-
-    warnings.simplefilter("ignore", category=VerifyWarning)
-    warnings.simplefilter("ignore", category=RuntimeWarning)
+def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -1103,66 +1094,26 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    rmsynth_parser = argparse.ArgumentParser(
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
+        add_help=not parent_parser,
     )
-    parser.add_argument(
-        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
-    )
-    parser.add_argument(
-        "outdir",
-        metavar="outdir",
-        type=Path,
-        help="Directory containing cutouts (in subdir outdir/cutouts).",
-    )
-
-    parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
-    )
-
-    parser.add_argument(
-        "--sbid",
-        type=int,
-        default=None,
-        help="SBID of observation.",
-    )
-
-    parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
+    parser = rmsynth_parser.add_argument_group("rm-synth arguments")
 
     parser.add_argument(
         "--dimension",
         dest="dimension",
         default="1d",
-        help="How many dimensions for RMsynth [1d] or '3d'.",
+        help="How many dimensions for RMsynth '1d' or '3d'.",
     )
 
     parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="verbose output [False]."
+        "--ion", action="store_true", help="Use ionospheric-corrected data."
     )
 
     parser.add_argument(
-        "--ion", action="store_true", help="Use ionospheric-corrected data [False]."
-    )
-
-    parser.add_argument(
-        "-m", dest="database", action="store_true", help="Add data to MongoDB [False]."
+        "-m", dest="database", action="store_true", help="Add data to MongoDB."
     )
 
     parser.add_argument(
@@ -1183,99 +1134,95 @@ def cli():
         "--validate",
         dest="validate",
         action="store_true",
-        help="Run on Stokes I [False].",
-    )
-
-    parser.add_argument(
-        "--limit",
-        dest="limit",
-        default=None,
-        type=int,
-        help="Limit number of sources [All].",
+        help="Run on Stokes I.",
     )
     parser.add_argument(
         "--own_fit",
         dest="do_own_fit",
         action="store_true",
-        help="Use own Stokes I fit function [False].",
+        help="Use own Stokes I fit function.",
     )
-
     # RM-tools args
+    parser.add_argument("--savePlots", action="store_true", help="save the plots.")
     parser.add_argument(
-        "-sp", "--savePlots", action="store_true", help="save the plots [False]."
-    )
-    parser.add_argument(
-        "-w",
-        dest="weightType",
+        "--weightType",
         default="variance",
-        help="weighting [variance] (all 1s) or 'uniform'.",
+        help="weighting (inverse) 'variance' or 'uniform' (all 1s).",
     )
     parser.add_argument(
-        "-f",
-        dest="fit_function",
+        "--fit_function",
         type=str,
         default="log",
-        help="Stokes I fitting function: 'linear' or ['log'] polynomials.",
+        help="Stokes I fitting function: 'linear' or 'log' polynomials.",
     )
     parser.add_argument(
-        "-t",
-        dest="fitRMSF",
+        "--fitRMSF",
         action="store_true",
-        help="Fit a Gaussian to the RMSF [False]",
+        help="Fit a Gaussian to the RMSF",
     )
     parser.add_argument(
-        "-l",
-        dest="phiMax_radm2",
+        "--phiMax_radm2",
         type=float,
         default=None,
-        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].",
+        help="Absolute max Faraday depth sampled (overrides NSAMPLES).",
     )
     parser.add_argument(
-        "-d",
-        dest="dPhi_radm2",
+        dest="--dPhi_radm2",
         type=float,
         default=None,
-        help="Width of Faraday depth channel [Auto].",
+        help="Width of Faraday depth channel.",
     )
     parser.add_argument(
-        "-s",
-        dest="nSamples",
+        dest="--nSamples",
         type=float,
         default=5,
         help="Number of samples across the FWHM RMSF.",
     )
     parser.add_argument(
-        "-o",
-        dest="polyOrd",
+        dest="--polyOrd",
         type=int,
         default=3,
-        help="polynomial order to fit to I spectrum [3].",
+        help="polynomial order to fit to I spectrum.",
     )
     parser.add_argument(
-        "-i",
-        dest="noStokesI",
+        dest="--noStokesI",
         action="store_true",
-        help="ignore the Stokes I spectrum [False].",
+        help="ignore the Stokes I spectrum.",
     )
+    parser.add_argument("--showPlots", action="store_true", help="show the plots.")
     parser.add_argument(
-        "-p", dest="showPlots", action="store_true", help="show the plots [False]."
-    )
-    parser.add_argument(
-        "-R",
-        dest="not_RMSF",
+        "--not_RMSF",
         action="store_true",
-        help="Skip calculation of RMSF? [False]",
+        help="Skip calculation of RMSF?",
     )
+    parser.add_argument("--rm_verbose", action="store_true", help="Verbose RMsynth.")
     parser.add_argument(
-        "-rmv", dest="rm_verbose", action="store_true", help="Verbose RMsynth [False]."
-    )
-    parser.add_argument(
-        "-D",
-        dest="debug",
+        "--debug",
         action="store_true",
-        help="turn on debugging messages & plots [False].",
+        help="turn on debugging messages & plots.",
     )
 
+    return rmsynth_parser
+
+
+def cli():
+    """Command-line interface"""
+
+    from astropy.utils.exceptions import AstropyWarning
+
+    warnings.simplefilter("ignore", category=AstropyWarning)
+    from astropy.io.fits.verify import VerifyWarning
+
+    warnings.simplefilter("ignore", category=VerifyWarning)
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+
+    gen_parser = generic_parser(parent_parser=True)
+    synth_parser = rmsynth_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        parents=[gen_parser, synth_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=synth_parser.description,
+    )
     args = parser.parse_args()
 
     if args.tt0 and not args.tt1:
@@ -1298,7 +1245,7 @@ def cli():
 
     main(
         field=args.field,
-        outdir=Path(args.outdir),
+        outdir=Path(args.datadir),
         host=args.host,
         epoch=args.epoch,
         sbid=args.sbid,

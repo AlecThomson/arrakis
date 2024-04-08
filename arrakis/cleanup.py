@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """DANGER ZONE: Purge directories of un-needed FITS files."""
+import argparse
 import logging
 import tarfile
 from pathlib import Path
@@ -11,7 +12,7 @@ from prefect import flow, get_run_logger, task, unmapped
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str
 
 logger.setLevel(logging.INFO)
 
@@ -103,10 +104,7 @@ def main(
     logger.info("Cleanup done!")
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
-
+def cleanup_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -117,27 +115,33 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    cleanup_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
     )
+    parser = cleanup_parser.add_argument_group("cleanup arguments")
     parser.add_argument(
-        "outdir",
-        metavar="outdir",
-        type=Path,
-        help="Directory containing cutouts (in subdir outdir/cutouts).",
-    )
-    parser.add_argument(
-        "-o",
         "--overwrite",
         dest="overwrite",
         action="store_true",
         help="Overwrite existing tarball",
     )
-    parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="Verbose output"
-    )
 
+    return cleanup_parser
+
+
+def cli():
+    """Command-line interface"""
+    gen_parser = generic_parser(parent_parser=True)
+    clean_parser = cleanup_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        parents=[gen_parser, clean_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=clean_parser.description,
+    )
     args = parser.parse_args()
+
     verbose = args.verbose
 
     if verbose:

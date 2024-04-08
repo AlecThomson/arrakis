@@ -30,7 +30,7 @@ from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import fix_header
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str
 
 iers.conf.auto_download = False
 warnings.filterwarnings(
@@ -545,50 +545,6 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     parser = cut_parser.add_argument_group("cutout arguments")
 
     parser.add_argument(
-        "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
-    )
-
-    parser.add_argument(
-        "datadir",
-        metavar="datadir",
-        type=str,
-        help="Directory containing data cubes in FITS format.",
-    )
-
-    parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
-    )
-
-    parser.add_argument(
-        "--sbid",
-        type=int,
-        default=None,
-        help="SBID of observation.",
-    )
-
-    parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Verbose output [False]."
-    )
-    parser.add_argument(
         "-p",
         "--pad",
         dest="pad",
@@ -599,28 +555,19 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     parser.add_argument(
         "-d", "--dryrun", action="store_true", help="Do a dry-run [False]."
     )
-    parser.add_argument(
-        "-s",
-        "--stokes",
-        dest="stokeslist",
-        nargs="+",
-        type=str,
-        help="List of Stokes parameters to image [ALL]",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=None,
-        help="Limit number of islands to process [None]",
-    )
 
     return cut_parser
 
 
 def cli() -> None:
     """Command-line interface"""
-    parser = cutout_parser()
-
+    gen_parser = generic_parser(parent_parser=True)
+    cut_parser = cutout_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        formatter_class=UltimateHelpFormatter,
+        parents=[gen_parser, cut_parser],
+        description=cut_parser.description,
+    )
     args = parser.parse_args()
 
     verbose = args.verbose

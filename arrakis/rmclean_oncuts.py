@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
+import argparse
+import logging
 import os
 import sys
 import warnings
@@ -16,9 +18,10 @@ from prefect import flow, task, unmapped
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D
 
+from arrakis import rmsynth_oncuts
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str
 
 
 @task(name="1D RM-CLEAN")
@@ -333,16 +336,7 @@ def main(
     logger.info("RM-CLEAN done!")
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
-
-    from astropy.utils.exceptions import AstropyWarning
-
-    warnings.simplefilter("ignore", category=AstropyWarning)
-    from astropy.io.fits.verify import VerifyWarning
-
-    warnings.simplefilter("ignore", category=VerifyWarning)
+def clean_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -354,98 +348,55 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    clean_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
     )
-    parser.add_argument(
-        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
-    )
-    parser.add_argument(
-        "outdir",
-        metavar="outdir",
-        type=Path,
-        help="Directory containing cutouts (in subdir outdir/cutouts).",
-    )
-
-    parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
-    )
-
-    parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    parser.add_argument(
-        "--dimension",
-        dest="dimension",
-        default="1d",
-        help="How many dimensions for RMsynth [1d] or '3d'.",
-    )
-
-    parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="verbose output [False]."
-    )
-
-    parser.add_argument(
-        "-m", dest="database", action="store_true", help="Add data to MongoDB [False]."
-    )
-    parser.add_argument(
-        "-sp", "--savePlots", action="store_true", help="save the plots [False]."
-    )
-
-    parser.add_argument(
-        "--limit",
-        dest="limit",
-        default=None,
-        type=int,
-        help="Limit number of sources [All].",
-    )
+    parser = clean_parser.add_argument_group("rm-clean arguments")
 
     # RM-tools args
     parser.add_argument(
-        "-c",
-        dest="cutoff",
+        "--cutoff",
         type=float,
         default=-3,
-        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].",
+        help="CLEAN cutoff (+ve = absolute, -ve = sigma).",
     )
     parser.add_argument(
-        "-n",
-        dest="maxIter",
+        "--maxIter",
         type=int,
         default=10000,
-        help="maximum number of CLEAN iterations [10000].",
+        help="maximum number of CLEAN iterations.",
     )
+    parser.add_argument("--gain", type=float, default=0.1, help="CLEAN loop gain.")
     parser.add_argument(
-        "-g", dest="gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
-    )
-    parser.add_argument(
-        "-w",
-        dest="window",
+        "--window",
         type=float,
         default=None,
-        help="Further CLEAN in mask to this threshold [False].",
+        help="Further CLEAN in mask to this threshold.",
     )
-    parser.add_argument(
-        "-p", dest="showPlots", action="store_true", help="show the plots [False]."
-    )
-    parser.add_argument(
-        "-rmv", dest="rm_verbose", action="store_true", help="Verbose RM-CLEAN [False]."
+
+    return clean_parser
+
+
+def cli():
+    """Command-line interface"""
+
+    from astropy.utils.exceptions import AstropyWarning
+
+    warnings.simplefilter("ignore", category=AstropyWarning)
+    from astropy.io.fits.verify import VerifyWarning
+
+    warnings.simplefilter("ignore", category=VerifyWarning)
+
+    gen_parser = generic_parser(parent_parser=True)
+    synth_parser = rmsynth_oncuts.rmsynth_parser(parent_parser=True)
+    rmclean_parser = clean_parser(parent_parser=True)
+
+    parser = argparse.ArgumentParser(
+        parents=[gen_parser, synth_parser, rmclean_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=rmclean_parser.description,
     )
 
     args = parser.parse_args()
@@ -453,22 +404,21 @@ def cli():
     verbose = args.verbose
     rmv = args.rm_verbose
     host = args.host
-    test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
-    )
+    test_db(host=args.host, username=args.username, password=args.password)
 
     if rmv:
         logger.setLevel(
-            level=logger.DEBUG,
+            level=logging.DEBUG,
         )
     elif verbose:
         logger.setLevel(
-            level=logger.INFO,
+            level=logging.INFO,
         )
     main(
         field=args.field,
         outdir=Path(args.outdir),
         host=host,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         dimension=args.dimension,

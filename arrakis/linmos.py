@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
+import argparse
 import logging
 import os
 import shlex
@@ -20,6 +21,7 @@ from spython.main import Client as sclient
 
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
+from arrakis.utils.pipeline import generic_parser, logo_str
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -371,35 +373,26 @@ def main(
     logger.info("LINMOS Done!")
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
-
+def linmos_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
-    descStr = """
+    descStr = f"""
+    {logo_str}
     Mosaic RACS beam cubes with linmos.
 
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    linmos_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
     )
 
-    parser.add_argument(
-        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
-    )
+    parser = linmos_parser.add_argument_group("linmos arguments")
 
-    parser.add_argument(
-        "datadir",
-        metavar="datadir",
-        type=str,
-        help="Directory containing cutouts (in subdir outdir/cutouts)..",
-    )
     parser.add_argument(
         "--holofile", type=str, default=None, help="Path to holography image"
     )
-
     parser.add_argument(
         "--yanda",
         type=str,
@@ -412,49 +405,19 @@ def cli():
         type=Path,
         help="Path to an existing yandasoft singularity container image. ",
     )
+    return linmos_parser
 
-    parser.add_argument(
-        "-s",
-        "--stokes",
-        dest="stokeslist",
-        nargs="+",
-        type=str,
-        help="List of Stokes parameters to image [ALL]",
-    )
 
-    parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
+def cli():
+    """Command-line interface"""
 
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
+    gen_parser = generic_parser(parent_parser=True)
+    lin_parser = linmos_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        parents=[gen_parser, lin_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=lin_parser.description,
     )
-
-    parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="Verbose output [False]."
-    )
-
-    parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-    parser.add_argument(
-        "--limit",
-        type=Optional[int],
-        default=None,
-        help="Limit the number of islands to process.",
-    )
-
     args = parser.parse_args()
 
     verbose = args.verbose
