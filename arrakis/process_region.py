@@ -3,6 +3,7 @@
 import argparse
 import logging
 import os
+from pathlib import Path
 
 import configargparse
 import pkg_resources
@@ -52,10 +53,11 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
 
     previous_future = (
         rmsynth_oncuts.main.with_options(task_runner=task_runner)(
-            field=args.merge_name,
-            outdir=inter_dir,
-            host=host,
+            field=args.field,
+            outdir=Path(args.datadir),
+            host=args.host,
             epoch=args.epoch,
+            sbid=args.sbid,
             username=args.username,
             password=args.password,
             dimension=args.dimension,
@@ -63,16 +65,16 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             database=args.database,
             do_validate=args.validate,
             limit=args.limit,
-            savePlots=args.savePlots,
-            weightType=args.weightType,
-            fitRMSF=args.fitRMSF,
-            phiMax_radm2=args.phiMax_radm2,
-            dPhi_radm2=args.dPhi_radm2,
-            nSamples=args.nSamples,
-            polyOrd=args.polyOrd,
-            noStokesI=args.noStokesI,
-            showPlots=args.showPlots,
-            not_RMSF=args.not_RMSF,
+            savePlots=args.save_plots,
+            weightType=args.weight_type,
+            fitRMSF=args.fit_rmsf,
+            phiMax_radm2=args.phi_max,
+            dPhi_radm2=args.dphi,
+            nSamples=args.n_samples,
+            polyOrd=args.poly_ord,
+            noStokesI=args.no_stokes_i,
+            showPlots=args.show_plots,
+            not_RMSF=args.not_rmsf,
             rm_verbose=args.rm_verbose,
             debug=args.debug,
             fit_function=args.fit_function,
@@ -100,7 +102,7 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             maxIter=args.maxIter,
             gain=args.gain,
             window=args.window,
-            showPlots=args.showPlots,
+            showPlots=args.show_plots,
             rm_verbose=args.rm_verbose,
         )
         if not args.skip_rmclean

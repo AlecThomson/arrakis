@@ -1095,7 +1095,7 @@ def rm_common_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         default="1d",
         help="How many dimensions for RMsynth '1d' or '3d'.",
     )
-    parser.add_argument("--savePlots", action="store_true", help="save the plots.")
+    parser.add_argument("--save_plots", action="store_true", help="save the plots.")
     parser.add_argument(
         "--rm_verbose", action="store_true", help="Verbose RMsynth/RMClean."
     )
@@ -1154,7 +1154,7 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
     # RM-tools args
     parser.add_argument(
-        "--weightType",
+        "--weight_type",
         default="variance",
         help="weighting (inverse) 'variance' or 'uniform' (all 1s).",
     )
@@ -1165,42 +1165,42 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Stokes I fitting function: 'linear' or 'log' polynomials.",
     )
     parser.add_argument(
-        "--fitRMSF",
+        "--fit_rmsf",
         action="store_true",
         help="Fit a Gaussian to the RMSF",
     )
     parser.add_argument(
-        "--phiMax_radm2",
+        "--phi_max",
         type=float,
         default=None,
-        help="Absolute max Faraday depth sampled (overrides NSAMPLES).",
+        help="Absolute max Faraday depth sampled (in rad/m^2) (overrides NSAMPLES).",
     )
     parser.add_argument(
-        dest="--dPhi_radm2",
+        dest="--dphi",
         type=float,
         default=None,
         help="Width of Faraday depth channel.",
     )
     parser.add_argument(
-        dest="--nSamples",
+        dest="--n_samples",
         type=float,
         default=5,
         help="Number of samples across the FWHM RMSF.",
     )
     parser.add_argument(
-        dest="--polyOrd",
+        dest="--poly_ord",
         type=int,
         default=3,
         help="polynomial order to fit to I spectrum.",
     )
     parser.add_argument(
-        dest="--noStokesI",
+        dest="--no_stokes_i",
         action="store_true",
         help="ignore the Stokes I spectrum.",
     )
-    parser.add_argument("--showPlots", action="store_true", help="show the plots.")
+    parser.add_argument("--show_plots", action="store_true", help="show the plots.")
     parser.add_argument(
-        "--not_RMSF",
+        "--not_rmsf",
         action="store_true",
         help="Skip calculation of RMSF?",
     )
@@ -1264,16 +1264,16 @@ def cli():
         database=args.database,
         do_validate=args.validate,
         limit=args.limit,
-        savePlots=args.savePlots,
-        weightType=args.weightType,
-        fitRMSF=args.fitRMSF,
-        phiMax_radm2=args.phiMax_radm2,
-        dPhi_radm2=args.dPhi_radm2,
-        nSamples=args.nSamples,
-        polyOrd=args.polyOrd,
-        noStokesI=args.noStokesI,
-        showPlots=args.showPlots,
-        not_RMSF=args.not_RMSF,
+        savePlots=args.save_plots,
+        weightType=args.weight_type,
+        fitRMSF=args.fit_rmsf,
+        phiMax_radm2=args.phi_max,
+        dPhi_radm2=args.dphi,
+        nSamples=args.n_samples,
+        polyOrd=args.poly_ord,
+        noStokesI=args.no_stokes_i,
+        showPlots=args.show_plots,
+        not_RMSF=args.not_rmsf,
         rm_verbose=args.rm_verbose,
         debug=args.debug,
         fit_function=args.fit_function,

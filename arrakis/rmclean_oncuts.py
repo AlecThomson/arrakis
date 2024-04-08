@@ -363,7 +363,7 @@ def clean_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="CLEAN cutoff (+ve = absolute, -ve = sigma).",
     )
     parser.add_argument(
-        "--maxIter",
+        "--max_iter",
         type=int,
         default=10000,
         help="maximum number of CLEAN iterations.",
@@ -423,13 +423,13 @@ def cli():
         password=args.password,
         dimension=args.dimension,
         database=args.database,
-        savePlots=args.savePlots,
+        savePlots=args.save_plots,
         limit=args.limit,
         cutoff=args.cutoff,
-        maxIter=args.maxIter,
+        maxIter=args.max_iter,
         gain=args.gain,
         window=args.window,
-        showPlots=args.showPlots,
+        showPlots=args.show_plots,
         rm_verbose=args.rm_verbose,
     )
 
