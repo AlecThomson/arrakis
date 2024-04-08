@@ -3,7 +3,8 @@
 
 import warnings
 from glob import glob
-from typing import Any, Dict, Union
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple, Union
 
 import astropy.units as u
 import numpy as np
@@ -66,8 +67,10 @@ def fix_header(cutout_header: fits.Header, original_header: fits.Header) -> fits
 
 
 def getfreq(
-    cube: str, outdir: Union[str, None] = None, filename: Union[str, None] = None
-):
+    cube: Union[str, Path],
+    outdir: Optional[Path] = None,
+    filename: Union[str, Path, None] = None,
+) -> Union[u.Quantity, Tuple[u.Quantity, Path]]:
     """Get list of frequencies from FITS data.
 
     Gets the frequency list from a given cube. Can optionally save
@@ -104,21 +107,16 @@ def getfreq(
             del hdr[k]
 
     wcs = WCS(hdr)
-    freq = wcs.spectral.pixel_to_world(np.arange(data.shape[0]))  # Type: u.Quantity
+    freq: u.Quantity = wcs.spectral.pixel_to_world(np.arange(data.shape[0]))
 
     # Write to file if outdir is specified
     if outdir is None:
-        return freq  # Type: u.Quantity
-    else:
-        if outdir[-1] == "/":
-            outdir = outdir[:-1]
-        if filename is None:
-            outfile = f"{outdir}/frequencies.txt"
-        else:
-            outfile = f"{outdir}/{filename}"
-        logger.info(f"Saving to {outfile}")
-        np.savetxt(outfile, np.array(freq))
-        return freq, outfile  # Type: Tuple[u.Quantity, str]
+        return freq
+
+    outfile = outdir / filename if filename is not None else outdir / "frequencies.txt"
+    logger.info(f"Saving to {outfile}")
+    np.savetxt(outfile, np.array(freq))
+    return freq, outfile
 
 
 def getdata(cubedir="./", tabledir="./", mapdata=None, verbose=True):

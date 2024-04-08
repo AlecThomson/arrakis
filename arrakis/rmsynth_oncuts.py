@@ -8,7 +8,7 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List
+from typing import Any, List
 from typing import NamedTuple as Struct
 from typing import Optional, Tuple, Union
 
@@ -49,7 +49,7 @@ class Spectrum(Struct):
     """The RMS of the spectrum"""
     bkg: np.ndarray
     """The background of the spectrum"""
-    filename: str
+    filename: Path
     """The filename associated with the spectrum"""
     header: fits.Header
     """The header associated with the spectrum"""
@@ -87,9 +87,10 @@ class StokesIFitResult(Struct):
 def rmsynthoncut3d(
     island_id: str,
     beam_tuple: Tuple[str, pd.Series],
-    outdir: str,
+    outdir: Path,
     freq: np.ndarray,
     field: str,
+    sbid: Optional[int] = None,
     phiMax_radm2: Optional[float] = None,
     dPhi_radm2: Optional[float] = None,
     nSamples: int = 5,
@@ -127,6 +128,9 @@ def rmsynthoncut3d(
         ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
     # vfile = beam['beams'][field]['v_file']
 
+    header: fits.Header
+    dataQ: np.ndarray
+    dataI: np.ndarray
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
     header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
@@ -194,20 +198,27 @@ def rmsynthoncut3d(
 
     outer_dir = os.path.basename(os.path.dirname(ifile))
 
+    save_name = field if sbid is None else f"{field}_{sbid}"
     newvalues = {
         "$set": {
-            "rm3dfiles": {
-                "FDF_real_dirty": os.path.join(
-                    outer_dir, f"{prefix}FDF_real_dirty.fits"
-                ),
-                "FDF_im_dirty": os.path.join(outer_dir, f"{prefix}FDF_im_dirty.fits"),
-                "FDF_tot_dirty": os.path.join(outer_dir, f"{prefix}FDF_tot_dirty.fits"),
-                "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
-                "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
-                "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
-            },
-            "rmsynth3d": True,
-            "header": dict(header),
+            save_name: {
+                "rm3dfiles": {
+                    "FDF_real_dirty": os.path.join(
+                        outer_dir, f"{prefix}FDF_real_dirty.fits"
+                    ),
+                    "FDF_im_dirty": os.path.join(
+                        outer_dir, f"{prefix}FDF_im_dirty.fits"
+                    ),
+                    "FDF_tot_dirty": os.path.join(
+                        outer_dir, f"{prefix}FDF_tot_dirty.fits"
+                    ),
+                    "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
+                    "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
+                    "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
+                },
+                "rmsynth3d": True,
+                "header": dict(header),
+            }
         }
     }
     return pymongo.UpdateOne(myquery, newvalues)
@@ -262,14 +273,14 @@ def extract_single_spectrum(
     stokes: str,
     ion: bool,
     field_dict: dict,
-    outdir: str,
+    outdir: Path,
 ) -> Spectrum:
     """Extract a single spectrum from a cubelet"""
     if ion and (stokes == "q" or stokes == "u"):
         key = f"{stokes}_file_ion"
     else:
         key = f"{stokes}_file"
-    filename = os.path.join(outdir, field_dict[key])
+    filename = outdir / field_dict[key]
     with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
         hdu = hdulist[0]
         data = np.squeeze(hdu.data)
@@ -299,7 +310,7 @@ def extract_all_spectra(
     coord: SkyCoord,
     ion: bool,
     field_dict: dict,
-    outdir: str,
+    outdir: Path,
 ) -> StokesSpectra:
     """Extract spectra from cubelets"""
     return StokesSpectra(
@@ -464,9 +475,10 @@ def update_rmtools_dict(
 def rmsynthoncut1d(
     comp_tuple: Tuple[str, pd.Series],
     beam_tuple: Tuple[str, pd.Series],
-    outdir: str,
+    outdir: Path,
     freq: np.ndarray,
     field: str,
+    sbid: Optional[int] = None,
     polyOrd: int = 3,
     phiMax_radm2: Optional[float] = None,
     dPhi_radm2: Optional[float] = None,
@@ -492,6 +504,7 @@ def rmsynthoncut1d(
         freq (list): Frequencies in Hz
         host (str): MongoDB host
         field (str): RACS field
+        sbid (int, optional): SBID. Defaults to None.
         database (bool, optional): Update MongoDB. Defaults to False.
         polyOrd (int, optional): Order of fit to I. Defaults to 3.
         phiMax_radm2 (float, optional): Max FD. Defaults to None.
@@ -598,16 +611,13 @@ def rmsynthoncut1d(
     except Exception as err:
         traceback.print_tb(err.__traceback__)
         raise err
+
     if savePlots:
         plt.close("all")
-        plotdir = os.path.join(outdir, "plots")
-        plot_files = glob(
-            os.path.join(os.path.dirname(filtered_stokes_spectra.i.filename), "*.pdf")
-        )
-        for src in plot_files:
-            base = os.path.basename(src)
-            dst = os.path.join(plotdir, base)
-            copyfile(src, dst)
+        plotdir = outdir / "plots"
+        plot_files = list(filtered_stokes_spectra.i.filename.parent.glob("*.pdf"))
+        for plot_file in plot_files:
+            copyfile(plot_file, plotdir / plot_file.name)
 
     # Update I, Q, U noise from data
     for stokes in "qu" if noStokesI else "iqu":
@@ -666,55 +676,56 @@ def rmsynthoncut1d(
 
     outer_dir = os.path.basename(os.path.dirname(filtered_stokes_spectra.i.filename))
 
-    # Fix for json encoding
-
+    save_name = field if sbid is None else f"{field}_{sbid}"
     newvalues = {
         "$set": {
-            "rm1dfiles": {
-                "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
-                "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
-                "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
-                "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
-                "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
-            },
-            "rmsynth1d": True,
-            "header": head_dict,
-            "rmsynth_summary": mDict,
-            "spectra": {
-                "freq": np.array(freq).tolist(),
-                "I_model": (
-                    stokes_i_fit_result.modStokesI.tolist()
-                    if stokes_i_fit_result.modStokesI is not None
-                    else None
-                ),
-                "I_model_params": {
-                    "alpha": (
-                        float(stokes_i_fit_result.alpha)
-                        if stokes_i_fit_result.alpha is not None
-                        else None
-                    ),
-                    "amplitude": (
-                        float(stokes_i_fit_result.amplitude)
-                        if stokes_i_fit_result.amplitude is not None
-                        else None
-                    ),
-                    "x_0": (
-                        float(stokes_i_fit_result.x_0)
-                        if stokes_i_fit_result.x_0 is not None
-                        else None
-                    ),
-                    "model_repr": stokes_i_fit_result.model_repr,
+            save_name: {
+                "rm1dfiles": {
+                    "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
+                    "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
+                    "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
+                    "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
+                    "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
                 },
-                "I": filtered_stokes_spectra.i.data.tolist(),
-                "Q": filtered_stokes_spectra.q.data.tolist(),
-                "U": filtered_stokes_spectra.u.data.tolist(),
-                "I_err": filtered_stokes_spectra.i.rms.tolist(),
-                "Q_err": filtered_stokes_spectra.q.rms.tolist(),
-                "U_err": filtered_stokes_spectra.u.rms.tolist(),
-                "I_bkg": filtered_stokes_spectra.i.bkg.tolist(),
-                "Q_bkg": filtered_stokes_spectra.q.bkg.tolist(),
-                "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
-            },
+                "rmsynth1d": True,
+                "header": head_dict,
+                "rmsynth_summary": mDict,
+                "spectra": {
+                    "freq": np.array(freq).tolist(),
+                    "I_model": (
+                        stokes_i_fit_result.modStokesI.tolist()
+                        if stokes_i_fit_result.modStokesI is not None
+                        else None
+                    ),
+                    "I_model_params": {
+                        "alpha": (
+                            float(stokes_i_fit_result.alpha)
+                            if stokes_i_fit_result.alpha is not None
+                            else None
+                        ),
+                        "amplitude": (
+                            float(stokes_i_fit_result.amplitude)
+                            if stokes_i_fit_result.amplitude is not None
+                            else None
+                        ),
+                        "x_0": (
+                            float(stokes_i_fit_result.x_0)
+                            if stokes_i_fit_result.x_0 is not None
+                            else None
+                        ),
+                        "model_repr": stokes_i_fit_result.model_repr,
+                    },
+                    "I": filtered_stokes_spectra.i.data.tolist(),
+                    "Q": filtered_stokes_spectra.q.data.tolist(),
+                    "U": filtered_stokes_spectra.u.data.tolist(),
+                    "I_err": filtered_stokes_spectra.i.rms.tolist(),
+                    "Q_err": filtered_stokes_spectra.q.rms.tolist(),
+                    "U_err": filtered_stokes_spectra.u.rms.tolist(),
+                    "I_bkg": filtered_stokes_spectra.i.bkg.tolist(),
+                    "Q_bkg": filtered_stokes_spectra.q.bkg.tolist(),
+                    "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
+                },
+            }
         }
     }
     return pymongo.UpdateOne(myquery, newvalues)
@@ -722,7 +733,7 @@ def rmsynthoncut1d(
 
 def rmsynthoncut_i(
     comp_id: str,
-    outdir: str,
+    outdir: Path,
     freq: np.ndarray,
     host: str,
     field: str,
@@ -766,8 +777,8 @@ def rmsynthoncut_i(
     if beams is None:
         raise ValueError(f"Beams for {iname} not found")
 
-    ifile = os.path.join(outdir, beams["beams"][field]["i_file"])
-    outdir = os.path.dirname(ifile)
+    ifile = outdir / beams["beams"][field]["i_file"]
+    outdir = ifile.parent
 
     header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
 
@@ -862,8 +873,9 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    sbid: Optional[int] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     dimension: str = "1d",
     verbose: bool = True,
     database: bool = False,
@@ -882,8 +894,8 @@ def main(
     rm_verbose: bool = False,
     debug: bool = False,
     fit_function: str = "log",
-    tt0: Union[str, None] = None,
-    tt1: Union[str, None] = None,
+    tt0: Optional[str] = None,
+    tt1: Optional[str] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> None:
@@ -894,6 +906,7 @@ def main(
         outdir (Path): Output directory
         host (str): MongoDB host
         epoch (int): Epoch
+        sbid (Union[int, None], optional): SBID. Defaults to None.
         username (Union[str, None], optional): MongoDB username. Defaults to None.
         password (Union[str, None], optional): MongoDB password. Defaults to None.
         dimension (str, optional): RMsynth dimension. Defaults to "1d".
@@ -920,18 +933,20 @@ def main(
         do_own_fit (bool, optional): Do own fit. Defaults to False.
     """
 
-    outdir = os.path.abspath(outdir)
-    outdir = os.path.join(outdir, "cutouts")
+    outdir = outdir.absolute() / "cutouts"
 
     if savePlots:
-        plotdir = os.path.join(outdir, "plots")
-        try_mkdir(plotdir)
+        plotdir = outdir / "plots"
+        plotdir.mkdir(parents=True, exist_ok=True)
 
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
 
     beam_query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+
+    if sbid is not None:
+        beam_query["$and"].append({f"beams.{field}.SBIDs": sbid})
 
     beams = pd.DataFrame(list(beams_col.find(beam_query).sort("Source_ID")))
     beams.set_index("Source_ID", drop=False, inplace=True)
@@ -978,7 +993,7 @@ def main(
 
     # Make frequency file
     freq, freqfile = getfreq(
-        os.path.join(outdir, f"{beams.iloc[0]['beams'][f'{field}']['q_file']}"),
+        outdir / f"{beams.iloc[0]['beams'][f'{field}']['q_file']}",
         outdir=outdir,
         filename="frequencies.txt",
     )
@@ -1013,6 +1028,7 @@ def main(
             outdir=unmapped(outdir),
             freq=unmapped(freq),
             field=unmapped(field),
+            sbid=unmapped(sbid),
             polyOrd=unmapped(polyOrd),
             phiMax_radm2=unmapped(phiMax_radm2),
             dPhi_radm2=unmapped(dPhi_radm2),
@@ -1039,6 +1055,7 @@ def main(
             outdir=unmapped(outdir),
             freq=unmapped(freq),
             field=unmapped(field),
+            sbid=unmapped(sbid),
             phiMax_radm2=unmapped(phiMax_radm2),
             dPhi_radm2=unmapped(dPhi_radm2),
             nSamples=unmapped(nSamples),
@@ -1112,6 +1129,13 @@ def cli():
         type=int,
         default=0,
         help="Epoch of observation.",
+    )
+
+    parser.add_argument(
+        "--sbid",
+        type=int,
+        default=None,
+        help="SBID of observation.",
     )
 
     parser.add_argument(
@@ -1262,18 +1286,22 @@ def cli():
     verbose = args.verbose
     rmv = args.rm_verbose
     if rmv:
-        logger.setLevel(logger.DEBUG)
+        logger.setLevel(logging.DEBUG)
     elif verbose:
-        logger.setLevel(logger.INFO)
+        logger.setLevel(logging.INFO)
 
     test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
+        host=args.host,
+        username=args.username,
+        password=args.password,
     )
 
     main(
         field=args.field,
         outdir=Path(args.outdir),
         host=args.host,
+        epoch=args.epoch,
+        sbid=args.sbid,
         username=args.username,
         password=args.password,
         dimension=args.dimension,
