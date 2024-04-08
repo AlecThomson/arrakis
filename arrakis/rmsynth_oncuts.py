@@ -5,11 +5,10 @@ import logging
 import os
 import traceback
 import warnings
-from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Any, List
+from typing import List
 from typing import NamedTuple as Struct
 from typing import Optional, Tuple, Union
 
@@ -35,7 +34,6 @@ from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
-from arrakis.utils.io import try_mkdir
 from arrakis.utils.pipeline import generic_parser, logo_str
 
 logger.setLevel(logging.INFO)
@@ -999,8 +997,6 @@ def main(
         filename="frequencies.txt",
     )
     freq = np.array(freq)
-
-    _batch_size = 100
 
     if do_validate:
         logger.info(f"Running RMsynth on {n_comp} components")

@@ -13,9 +13,7 @@ from typing import Any, Dict, List
 from typing import NamedTuple as Struct
 from typing import Optional, Tuple, Union
 
-import astropy.units as u
 import numpy as np
-from astropy import units as u
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table

@@ -13,7 +13,6 @@ from arrakis.linmos import get_yanda, linmos, linmos_parser
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import generic_parser
 
 
 def make_short_name(name: str) -> str:

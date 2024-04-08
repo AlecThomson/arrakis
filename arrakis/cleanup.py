@@ -4,11 +4,11 @@ import argparse
 import logging
 import tarfile
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
 import astropy.units as u
 import numpy as np
-from prefect import flow, get_run_logger, task, unmapped
+from prefect import flow, get_run_logger, task
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger

@@ -628,7 +628,7 @@ def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
     reutrn_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1, "SBID": 1}
     # Get most recent SBID if more than one is 'SELECT'ed
     if field_col.count_documents(query) > 1:
-        logger.info(f"More than one SELECT=1 for field_names, getting most recent.")
+        logger.info("More than one SELECT=1 for field_names, getting most recent.")
         field_datas = list(
             field_col.find({"FIELD_NAME": {"$in": unique_field_names}}, reutrn_vals)
         )
@@ -637,7 +637,7 @@ def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
         logger.info(f"Using CAL_SBID {sbids[max_idx]}")
         field_data = field_datas[max_idx]
     elif field_col.count_documents(query) == 0:
-        logger.error(f"No data for field_names, trying without SELECT=1.")
+        logger.error("No data for field_names, trying without SELECT=1.")
         field_data = list(
             field_col.find({"FIELD_NAME": {"$in": unique_field_names}}, reutrn_vals)
         )
@@ -871,7 +871,7 @@ def main(
                 # First try the component
                 try:
                     data += [comp[col]]
-                except KeyError as e:
+                except KeyError:
                     logger.warning(
                         f"Component {src_id} does not have {col}, trying island DB..."
                     )

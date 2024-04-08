@@ -21,7 +21,7 @@ from astropy.io import fits
 from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs.utils import skycoord_to_pixel
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm.auto import tqdm
@@ -452,7 +452,7 @@ def cutout_islands(
 
     all_beams = list(beams_col.find(query).sort("Source_ID"))
     for beams in tqdm(all_beams, desc="Getting beams", file=TQDM_OUT):
-        for beam_num in beams[f"beams"][field]["beam_list"]:
+        for beam_num in beams["beams"][field]["beam_list"]:
             beams_dict[beam_num].append(beams)
 
     comps_dict: Dict[str, List[Dict]] = {s: [] for s in source_ids}
