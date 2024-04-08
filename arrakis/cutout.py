@@ -390,6 +390,7 @@ def cutout_islands(
     directory: str,
     host: str,
     epoch: int,
+    sbid: Optional[int] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
     pad: float = 3,
@@ -428,7 +429,11 @@ def cutout_islands(
     )
 
     # Query the DB
+
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+    if sbid is not None:
+        query["$and"].append({f"beams.{field}.SBIDs": sbid})
+
     unique_beams_nums: Set[int] = set(
         beams_col.distinct(f"beams.{field}.beam_list", query)
     )
@@ -442,6 +447,9 @@ def cutout_islands(
             {f"beams.{field}.beam_list": {"$in": list(unique_beams_nums)}},
         ]
     }
+    if sbid is not None:
+        query["$and"].append({f"beams.{field}.SBIDs": sbid})
+
     all_beams = list(beams_col.find(query).sort("Source_ID"))
     for beams in tqdm(all_beams, desc="Getting beams", file=TQDM_OUT):
         for beam_num in beams[f"beams"][field]["beam_list"]:
@@ -503,6 +511,7 @@ def main(args: argparse.Namespace) -> None:
         directory=args.datadir,
         host=args.host,
         epoch=args.epoch,
+        sbid=args.sbid,
         username=args.username,
         password=args.password,
         pad=args.pad,
@@ -559,6 +568,13 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         type=int,
         default=0,
         help="Epoch of observation.",
+    )
+
+    parser.add_argument(
+        "--sbid",
+        type=int,
+        default=None,
+        help="SBID of observation.",
     )
 
     parser.add_argument(
