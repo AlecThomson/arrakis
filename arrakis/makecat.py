@@ -516,7 +516,12 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
 
 
 @task(name="Add cuts and flags")
-def cuts_and_flags(cat: RMTable) -> RMTable:
+def cuts_and_flags(
+    cat: RMTable,
+    leakage_degree: int = 4,
+    leakage_bins: int = 16,
+    leakage_snr: float = 30.0,
+) -> RMTable:
     """Cut out bad sources, and add flag columns
 
     A flag of 'True' means the source is bad.
@@ -528,7 +533,13 @@ def cuts_and_flags(cat: RMTable) -> RMTable:
     snr_flag = cat["snr_polint"] < 8
     cat.add_column(Column(data=snr_flag, name="snr_flag"))
     # Leakage flag
-    fit, fig = get_fit_func(cat, do_plot=True, nbins=16, degree=4)
+    fit, fig = get_fit_func(
+        cat,
+        do_plot=True,
+        nbins=leakage_bins,
+        degree=leakage_degree,
+        high_snr_cut=leakage_snr,
+    )
     fig.savefig("leakage_fit.pdf")
     leakage_flag = is_leakage(
         cat["fracpol"].value, cat["beamdist"].to(u.deg).value, fit
@@ -613,7 +624,7 @@ def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
     logger.debug(f"Searching integration times for {unique_field_names=}")
 
     query = {"$and": [{"FIELD_NAME": {"$in": unique_field_names}, "SELECT": 1}]}
-    reutrn_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1}
+    reutrn_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1, "SBID": 1}
     # Get most recent SBID if more than one is 'SELECT'ed
     if field_col.count_documents(query) > 1:
         logger.info(f"More than one SELECT=1 for field_names, getting most recent.")
@@ -635,7 +646,14 @@ def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
         )
 
     tint_df = pd.DataFrame(field_data)
-    tint_df.set_index("FIELD_NAME", inplace=True)
+    tint_df.set_index("FIELD_NAME", inplace=True, drop=False)
+
+    # Check for duplicates
+    if len(tint_df.index) != len(set(tint_df.index)):
+        # Drop duplicates keeping highest SBID
+        tint_df = tint_df.sort_values("SBID", ascending=False).drop_duplicates(
+            subset=["FIELD_NAME"]
+        )
 
     logger.debug(f"Returned results: {tint_df=}")
 
@@ -760,6 +778,9 @@ def main(
     field: str,
     host: str,
     epoch: str,
+    leakage_degree: int = 4,
+    leakage_bins: int = 16,
+    leakage_snr: float = 30.0,
     username: Union[str, None] = None,
     password: Union[str, None] = None,
     verbose: bool = True,
@@ -890,7 +911,12 @@ def main(
     rmtab = sigma_add_fix(rmtab)
 
     # Add flags
-    rmtab, fit = cuts_and_flags(rmtab)
+    rmtab, fit = cuts_and_flags(
+        rmtab,
+        leakage_degree=leakage_degree,
+        leakage_bins=leakage_bins,
+        leakage_snr=leakage_snr,
+    )
 
     # Add spectral index from fitted model
     alpha_dict = get_alpha(rmtab)
@@ -1030,6 +1056,27 @@ def cli():
     )
 
     parser.add_argument(
+        "--leakage_degree",
+        type=int,
+        default=4,
+        help="Degree of leakage polynomial fit.",
+    )
+
+    parser.add_argument(
+        "--leakage_bins",
+        type=int,
+        default=16,
+        help="Number of bins for leakage fit.",
+    )
+
+    parser.add_argument(
+        "--leakage_snr",
+        type=float,
+        default=30.0,
+        help="SNR cut for leakage fit.",
+    )
+
+    parser.add_argument(
         "--username", type=str, default=None, help="Username of mongodb."
     )
 
@@ -1064,6 +1111,9 @@ def cli():
         field=args.field,
         host=host,
         epoch=args.epoch,
+        leakage_degree=args.leakage_degree,
+        leakage_bins=args.leakage_bins,
+        leakage_snr=args.leakage_snr,
         username=args.username,
         password=args.password,
         verbose=verbose,
