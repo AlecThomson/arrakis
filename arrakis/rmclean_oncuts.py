@@ -16,7 +16,7 @@ from prefect import flow, task, unmapped
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D
 
-from arrakis.logger import logger
+from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.pipeline import logo_str
 
@@ -220,11 +220,11 @@ def main(
     showPlots=False,
     rm_verbose=False,
 ):
-    """Main script
+    """Run RM-CLEAN on cutouts flow
 
     Args:
         field (str): RACS field name.
-        outdir (str): Output directory.
+        outdir (Path): Output directory.
         host (str): MongoDB host IP.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
@@ -355,7 +355,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."

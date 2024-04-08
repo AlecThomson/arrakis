@@ -19,6 +19,7 @@ Scripts for processing polarized RACS data products.
    parallel
    start
    pipeline
+   imaging
    acknowledge
    changelog
    autoapi/index

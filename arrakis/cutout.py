@@ -26,7 +26,7 @@ from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm.auto import tqdm
 
-from arrakis.logger import TqdmToLogger, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import fix_header
 from arrakis.utils.io import try_mkdir
@@ -397,7 +397,7 @@ def cutout_islands(
     dryrun: bool = True,
     limit: Optional[int] = None,
 ) -> None:
-    """Perform cutouts of RACS islands in parallel.
+    """Flow to cutout islands in parallel.
 
     Args:
         field (str): RACS field name.
@@ -531,7 +531,7 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     cut_parser = argparse.ArgumentParser(
         add_help=not parent_parser,
         description=descStr,
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=UltimateHelpFormatter,
     )
     parser = cut_parser.add_argument_group("cutout arguments")
 

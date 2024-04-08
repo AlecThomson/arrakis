@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.7] - 2024-04-03
+### What's Changed
+
+Updated documentation.
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.6...v2.1.7
+
+## [2.1.6] - 2024-04-01
+### What's Changed
+* Image docs by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/60
+
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.5...v2.1.6
+
 ## [2.1.5] - 2024-03-27
 ### What's Changed
 * [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/56

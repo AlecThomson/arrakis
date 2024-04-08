@@ -13,7 +13,7 @@ from astropy.table import Table, vstack
 from pymongo.results import InsertManyResult
 from tqdm import tqdm
 
-from arrakis.logger import TqdmToLogger, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import get_beam_inf_db, get_db, get_field_db, test_db
 from arrakis.utils.json import MyEncoder
 from arrakis.utils.meta import yes_or_no
@@ -553,7 +553,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
 
     parser.add_argument(

@@ -22,7 +22,7 @@ from arrakis import (
     rmclean_oncuts,
     rmsynth_oncuts,
 )
-from arrakis.logger import logger
+from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str
 
@@ -343,9 +343,9 @@ def cli():
 
     # Parse the command line options
     parser = configargparse.ArgParser(
-        default_config_files=[".default_config.txt"],
+        default_config_files=[".default_config.cfg"],
         description=descStr,
-        formatter_class=configargparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=UltimateHelpFormatter,
         parents=[imager_parser],
     )
     parser.add("--config", required=False, is_config_file=True, help="Config file path")
@@ -631,6 +631,7 @@ def cli():
         "--outfile", default=None, type=str, help="File to save table to [None]."
     )
     args = parser.parse_args()
+
     parser.print_values()
 
     verbose = args.verbose

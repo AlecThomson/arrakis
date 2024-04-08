@@ -30,7 +30,7 @@ from RMtools_3D import do_RMsynth_3D
 from RMutils.util_misc import create_frac_spectra
 from scipy.stats import norm
 
-from arrakis.logger import logger
+from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
@@ -887,6 +887,39 @@ def main(
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> None:
+    """Run RMsynth on cutouts flow
+
+    Args:
+        field (str): RACS field
+        outdir (Path): Output directory
+        host (str): MongoDB host
+        epoch (int): Epoch
+        username (Union[str, None], optional): MongoDB username. Defaults to None.
+        password (Union[str, None], optional): MongoDB password. Defaults to None.
+        dimension (str, optional): RMsynth dimension. Defaults to "1d".
+        verbose (bool, optional): Verbose output. Defaults to True.
+        database (bool, optional): Update MongoDB. Defaults to False.
+        do_validate (bool, optional): Validate RMsynth. Defaults to False.
+        limit (Union[int, None], optional): Limit number of components. Defaults to None.
+        savePlots (bool, optional): Save plots. Defaults to False.
+        weightType (str, optional): Weight type. Defaults to "variance".
+        fitRMSF (bool, optional): Fit RMSF. Defaults to True.
+        phiMax_radm2 (Union[float, None], optional): Max FD. Defaults to None.
+        dPhi_radm2 (Union[float, None], optional): Delta FD. Defaults to None.
+        nSamples (int, optional): Samples across RMSF. Defaults to 5.
+        polyOrd (int, optional): Order of fit to I. Defaults to 3.
+        noStokesI (bool, optional): Ignore Stokes I. Defaults to False.
+        showPlots (bool, optional): Show plots. Defaults to False.
+        not_RMSF (bool, optional): Not RMSF. Defaults to False.
+        rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
+        debug (bool, optional): Debug plots. Defaults to False.
+        fit_function (str, optional): Fit function. Defaults to "log".
+        tt0 (Union[str, None], optional): Total intensity T0 image. Defaults to None.
+        tt1 (Union[str, None], optional): Total intensity T1 image. Defaults to None.
+        ion (bool, optional): Ion. Defaults to False.
+        do_own_fit (bool, optional): Do own fit. Defaults to False.
+    """
+
     outdir = os.path.abspath(outdir)
     outdir = os.path.join(outdir, "cutouts")
 
@@ -1054,7 +1087,7 @@ def cli():
 
     # Parse the command line options
     parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=descStr, formatter_class=UltimateHelpFormatter
     )
     parser.add_argument(
         "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
