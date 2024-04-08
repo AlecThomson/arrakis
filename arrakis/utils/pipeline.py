@@ -122,6 +122,9 @@ def generic_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         default=None,
         help="Limit the number of islands to process.",
     )
+    parser.add_argument(
+        "--database", dest="database", action="store_true", help="Add data to MongoDB."
+    )
 
     return gen_parser
 

@@ -994,14 +994,15 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Do not apply the ASKAP MS corrections from the package fixms. ",
     )
 
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
+    group = parser.add_argument_group("wsclean container options")
+    mxg = group.add_mutually_exclusive_group()
+    mxg.add_argument(
         "--hosted-wsclean",
         type=str,
         default="docker://alecthomson/wsclean:latest",
-        help="Docker or Singularity image for wsclean [docker://alecthomson/wsclean:latest]",
+        help="Docker or Singularity image for wsclean",
     )
-    group.add_argument(
+    mxg.add_argument(
         "--local_wsclean",
         type=Path,
         default=None,

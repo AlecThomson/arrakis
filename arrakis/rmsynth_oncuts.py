@@ -1082,6 +1082,27 @@ def main(
     logger.info("RMsynth done!")
 
 
+def rm_common_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    common_parser = argparse.ArgumentParser(
+        formatter_class=UltimateHelpFormatter,
+        add_help=not parent_parser,
+    )
+    parser = common_parser.add_argument_group("common rm arguments")
+
+    parser.add_argument(
+        "--dimension",
+        dest="dimension",
+        default="1d",
+        help="How many dimensions for RMsynth '1d' or '3d'.",
+    )
+    parser.add_argument("--savePlots", action="store_true", help="save the plots.")
+    parser.add_argument(
+        "--rm_verbose", action="store_true", help="Verbose RMsynth/RMClean."
+    )
+
+    return common_parser
+
+
 def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = f"""
@@ -1102,18 +1123,7 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     parser = rmsynth_parser.add_argument_group("rm-synth arguments")
 
     parser.add_argument(
-        "--dimension",
-        dest="dimension",
-        default="1d",
-        help="How many dimensions for RMsynth '1d' or '3d'.",
-    )
-
-    parser.add_argument(
         "--ion", action="store_true", help="Use ionospheric-corrected data."
-    )
-
-    parser.add_argument(
-        "-m", dest="database", action="store_true", help="Add data to MongoDB."
     )
 
     parser.add_argument(
@@ -1143,7 +1153,6 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Use own Stokes I fit function.",
     )
     # RM-tools args
-    parser.add_argument("--savePlots", action="store_true", help="save the plots.")
     parser.add_argument(
         "--weightType",
         default="variance",
@@ -1195,7 +1204,6 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         action="store_true",
         help="Skip calculation of RMSF?",
     )
-    parser.add_argument("--rm_verbose", action="store_true", help="Verbose RMsynth.")
     parser.add_argument(
         "--debug",
         action="store_true",

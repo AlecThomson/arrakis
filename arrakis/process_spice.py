@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Arrakis single-field pipeline"""
+import argparse
 import logging
 import os
 from pathlib import Path
@@ -325,10 +326,7 @@ def main(args: configargparse.Namespace) -> None:
     )(args, host, dask_runner_2)
 
 
-def cli():
-    """Command-line interface"""
-    # Help string to be shown using the -h option
-
+def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
     {logo_str}
 
@@ -338,10 +336,68 @@ def cli():
         $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
 
     """
+    # Parse the command line options
+    pipeline_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
+    )
+    parser = pipeline_parser.add_argument_group("pipeline arguments")
+    parser.add_argument(
+        "--dask_config",
+        type=str,
+        default=None,
+        help="Config file for Dask SlurmCLUSTER.",
+    )
+    parser.add_argument(
+        "--imager_dask_config",
+        type=str,
+        default=None,
+        help="Config file for Dask SlurmCLUSTER.",
+    )
+    parser.add_argument(
+        "--imager_only",
+        action="store_true",
+        help="Only run the imager component of the pipeline. ",
+    )
+    parser.add_argument(
+        "--skip_imager", action="store_true", help="Skip imaging stage [False]."
+    )
+    parser.add_argument(
+        "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
+    )
+    parser.add_argument(
+        "--skip_linmos", action="store_true", help="Skip LINMOS stage [False]."
+    )
+    parser.add_argument(
+        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
+    )
+    parser.add_argument(
+        "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
+    )
+    parser.add_argument(
+        "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage [False]."
+    )
+    parser.add_argument(
+        "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage [False]."
+    )
+    parser.add_argument(
+        "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
+    )
+
+    return pipeline_parser
+
+
+def cli():
+    """Command-line interface"""
+    # Help string to be shown using the -h option
+
+    pipe_parser = pipeline_parser(parent_parser=True)
     gen_parser = generic_parser(parent_parser=True)
     imager_parser = imager.imager_parser(parent_parser=True)
     cutout_parser = cutout.cutout_parser(parent_parser=True)
     linmos_parser = linmos.linmos_parser(parent_parser=True)
+    common_parser = rmsynth_oncuts.rm_common_parser(parent_parser=True)
     synth_parser = rmsynth_oncuts.rmsynth_parser(parent_parser=True)
     rmclean_parser = rmclean_oncuts.clean_parser(parent_parser=True)
     catalogue_parser = makecat.cat_parser(parent_parser=True)
@@ -349,314 +405,37 @@ def cli():
     # Parse the command line options
     parser = configargparse.ArgParser(
         default_config_files=[".default_config.cfg"],
-        description=descStr,
+        description=pipe_parser.description,
         formatter_class=UltimateHelpFormatter,
         parents=[
+            pipe_parser,
             gen_parser,
             imager_parser,
             cutout_parser,
             linmos_parser,
+            common_parser,
             synth_parser,
             rmclean_parser,
             catalogue_parser,
             clean_parser,
         ],
     )
-    # parser.add("--config", required=False, is_config_file=True, help="Config file path")
 
-    # parser.add_argument(
-    #     "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
-    # )
-    # parser.add_argument(
-    #     "--epoch",
-    #     type=int,
-    #     default=0,
-    #     help="Epoch to read field data from",
-    # )
+    parser.add("--config", required=False, is_config_file=True, help="Config file path")
 
-    # parser.add_argument(
-    #     "--host",
-    #     default=None,
-    #     type=str,
-    #     help="Host of mongodb (probably $hostname -i).",
-    # )
-
-    # parser.add_argument(
-    #     "--username", type=str, default=None, help="Username of mongodb."
-    # )
-
-    # parser.add_argument(
-    #     "--password", type=str, default=None, help="Password of mongodb."
-    # )
-
-    # parser.add_argument(
-    #     "--dask_config",
-    #     type=str,
-    #     default=None,
-    #     help="Config file for Dask SlurmCLUSTER.",
-    # )
-    # parser.add_argument(
-    #     "--imager_dask_config",
-    #     type=str,
-    #     default=None,
-    #     help="Config file for Dask SlurmCLUSTER.",
-    # )
-    # parser.add_argument(
-    #     "--holofile", type=str, default=None, help="Path to holography image"
-    # )
-
-    # parser.add_argument(
-    #     "--yanda",
-    #     type=str,
-    #     default="1.3.0",
-    #     help="Yandasoft version to pull from DockerHub [1.3.0].",
-    # )
-
-    # parser.add_argument(
-    #     "--yanda_image",
-    #     default=None,
-    #     type=Path,
-    #     help="Path to an existing yandasoft singularity container image. ",
-    # )
-
-    # flowargs = parser.add_argument_group("pipeline flow options")
-    # flowargs.add_argument(
-    #     "--imager_only",
-    #     action="store_true",
-    #     help="Only run the imager component of the pipeline. ",
-    # )
-    # flowargs.add_argument(
-    #     "--skip_imager", action="store_true", help="Skip imaging stage [False]."
-    # )
-    # flowargs.add_argument(
-    #     "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
-    # )
-    # flowargs.add_argument(
-    #     "--skip_linmos", action="store_true", help="Skip LINMOS stage [False]."
-    # )
-    # flowargs.add_argument(
-    #     "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
-    # )
-    # flowargs.add_argument(
-    #     "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
-    # )
-    # flowargs.add_argument(
-    #     "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage [False]."
-    # )
-    # flowargs.add_argument(
-    #     "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage [False]."
-    # )
-    # flowargs.add_argument(
-    #     "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
-    # )
-
-    # options = parser.add_argument_group("output options")
-    # options.add_argument(
-    #     "-v", "--verbose", action="store_true", help="Verbose output [False]."
-    # )
-
-    # cutargs = parser.add_argument_group("cutout arguments")
-    # cutargs.add_argument(
-    #     "-p",
-    #     "--pad",
-    #     type=float,
-    #     default=5,
-    #     help="Number of beamwidths to pad around source [5].",
-    # )
-
-    # cutargs.add_argument("--dryrun", action="store_true", help="Do a dry-run [False].")
-
-    # synth = parser.add_argument_group("RM-synth/CLEAN arguments")
-
-    # synth.add_argument(
-    #     "--dimension",
-    #     default="1d",
-    #     help="How many dimensions for RMsynth [1d] or '3d'.",
-    # )
-
-    # synth.add_argument(
-    #     "-m",
-    #     "--database",
-    #     action="store_true",
-    #     help="Add RMsynth data to MongoDB [False].",
-    # )
-
-    # synth.add_argument(
-    #     "--tt0",
-    #     default=None,
-    #     type=str,
-    #     help="TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1.",
-    # )
-
-    # synth.add_argument(
-    #     "--tt1",
-    #     default=None,
-    #     type=str,
-    #     help="TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.",
-    # )
-
-    # synth.add_argument(
-    #     "--validate", action="store_true", help="Run on RMsynth Stokes I [False]."
-    # )
-
-    # synth.add_argument(
-    #     "--limit", default=None, type=int, help="Limit number of sources [All]."
-    # )
-    # synth.add_argument(
-    #     "--own_fit",
-    #     dest="do_own_fit",
-    #     action="store_true",
-    #     help="Use own Stokes I fit function [False].",
-    # )
-    # tools = parser.add_argument_group("RM-tools arguments")
-    # # RM-tools args
-    # tools.add_argument(
-    #     "-sp", "--savePlots", action="store_true", help="save the plots [False]."
-    # )
-    # tools.add_argument(
-    #     "-w",
-    #     "--weightType",
-    #     default="variance",
-    #     help="weighting [variance] (all 1s) or 'uniform'.",
-    # )
-    # tools.add_argument(
-    #     "--fit_function",
-    #     type=str,
-    #     default="log",
-    #     help="Stokes I fitting function: 'linear' or ['log'] polynomials.",
-    # )
-    # tools.add_argument(
-    #     "-t",
-    #     "--fitRMSF",
-    #     action="store_true",
-    #     help="Fit a Gaussian to the RMSF [False]",
-    # )
-    # tools.add_argument(
-    #     "-l",
-    #     "--phiMax_radm2",
-    #     type=float,
-    #     default=None,
-    #     help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].",
-    # )
-    # tools.add_argument(
-    #     "-d",
-    #     "--dPhi_radm2",
-    #     type=float,
-    #     default=None,
-    #     help="Width of Faraday depth channel [Auto].",
-    # )
-    # tools.add_argument(
-    #     "-s",
-    #     "--nSamples",
-    #     type=float,
-    #     default=5,
-    #     help="Number of samples across the FWHM RMSF.",
-    # )
-    # tools.add_argument(
-    #     "-o",
-    #     "--polyOrd",
-    #     type=int,
-    #     default=3,
-    #     help="polynomial order to fit to I spectrum [3].",
-    # )
-    # tools.add_argument(
-    #     "-i",
-    #     "--noStokesI",
-    #     action="store_true",
-    #     help="ignore the Stokes I spectrum [False].",
-    # )
-    # tools.add_argument(
-    #     "--showPlots", action="store_true", help="show the plots [False]."
-    # )
-    # tools.add_argument(
-    #     "-R",
-    #     "--not_RMSF",
-    #     action="store_true",
-    #     help="Skip calculation of RMSF? [False]",
-    # )
-    # tools.add_argument(
-    #     "-rmv",
-    #     "--rm_verbose",
-    #     action="store_true",
-    #     help="Verbose RMsynth/CLEAN [False].",
-    # )
-    # tools.add_argument(
-    #     "-D",
-    #     "--debug",
-    #     action="store_true",
-    #     help="turn on debugging messages & plots [False].",
-    # )
-    # # RM-tools args
-    # tools.add_argument(
-    #     "-c",
-    #     "--cutoff",
-    #     type=float,
-    #     default=-3,
-    #     help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].",
-    # )
-    # tools.add_argument(
-    #     "-n",
-    #     "--maxIter",
-    #     type=int,
-    #     default=10000,
-    #     help="maximum number of CLEAN iterations [10000].",
-    # )
-    # tools.add_argument(
-    #     "-g", "--gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
-    # )
-    # tools.add_argument(
-    #     "--window",
-    #     type=float,
-    #     default=None,
-    #     help="Further CLEAN in mask to this threshold [False].",
-    # )
-    # tools.add_argument(
-    #     "--ionex_server",
-    #     type=str,
-    #     default="ftp://ftp.aiub.unibe.ch/CODE/",
-    #     help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
-    # )
-    # tools.add_argument(
-    #     "--ionex_prefix",
-    #     type=str,
-    #     default="codg",
-    #     help="IONEX prefix.",
-    # )
-    # tools.add_argument(
-    #     "--ionex_proxy_server",
-    #     type=str,
-    #     default=None,
-    #     help="Proxy server [None].",
-    # )
-    # tools.add_argument(
-    #     "--ionex_formatter",
-    #     type=str,
-    #     default=None,
-    #     help="IONEX formatter [None].",
-    # )
-    # tools.add_argument(
-    #     "--ionex_predownload",
-    #     action="store_true",
-    #     help="Pre-download IONEX files [False].",
-    # )
-    # cat = parser.add_argument_group("catalogue arguments")
-    # # Cat args
-    # cat.add_argument(
-    #     "--outfile", default=None, type=str, help="File to save table to [None]."
-    # )
     args = parser.parse_args()
 
     parser.print_values()
 
-    # verbose = args.verbose
-    # if verbose:
-    #     logger.setLevel(logging.INFO)
+    verbose = args.verbose
+    if verbose:
+        logger.setLevel(logging.INFO)
 
-    # logger.info(logo_str)
-    # logger.info("\n\nArguments: ")
-    # logger.info(args)
+    logger.info(logo_str)
+    logger.info("\n\nArguments: ")
+    logger.info(args)
 
-    # main(args)
+    main(args)
 
 
 if __name__ == "__main__":

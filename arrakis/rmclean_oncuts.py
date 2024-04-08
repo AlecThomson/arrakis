@@ -390,11 +390,11 @@ def cli():
     warnings.simplefilter("ignore", category=VerifyWarning)
 
     gen_parser = generic_parser(parent_parser=True)
-    synth_parser = rmsynth_oncuts.rmsynth_parser(parent_parser=True)
+    common_parser = rmsynth_oncuts.rm_common_parser(parent_parser=True)
     rmclean_parser = clean_parser(parent_parser=True)
 
     parser = argparse.ArgumentParser(
-        parents=[gen_parser, synth_parser, rmclean_parser],
+        parents=[gen_parser, common_parser, rmclean_parser],
         formatter_class=UltimateHelpFormatter,
         description=rmclean_parser.description,
     )
