@@ -241,8 +241,7 @@ def main(
         showPlots (bool, optional): Show interactive plots. Defaults to False.
         rm_verbose (bool, optional): Verbose output from RM-CLEAN. Defaults to False.
     """
-    outdir = outdir.absolute()
-    outdir = outdir / "cutouts"
+    outdir = outdir.absolute() / "cutouts"
 
     # default connection (ie, local)
     beams_col, island_col, comp_col = get_db(
