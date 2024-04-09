@@ -274,7 +274,8 @@ def main(args: configargparse.Namespace) -> None:
         )(
             msdir=args.msdir,
             out_dir=args.datadir,
-            temp_dir=args.temp_dir,
+            temp_dir_wsclean=args.temp_dir_wsclean,
+            temp_dir_images=args.temp_dir_images,
             cutoff=args.psf_cutoff,
             robust=args.robust,
             pols=args.pols,

@@ -128,9 +128,10 @@ def image_beam(
     ms: Path,
     field_idx: int,
     out_dir: Path,
-    temp_dir: Path,
     prefix: Path,
     simage: Path,
+    temp_dir_wsclean: Path,
+    temp_dir_images: Path,
     pols: str = "IQU",
     nchan: int = 36,
     scale: float = 2.5,
@@ -164,16 +165,18 @@ def image_beam(
     """Image a single beam"""
     logger = get_run_logger()
     # Evaluate the temp directory if a ENV variable is used
-    temp_dir = parse_env_path(temp_dir)
-    if out_dir != temp_dir:
+    temp_dir_images = parse_env_path(temp_dir_images)
+    if temp_dir_images != out_dir:
         # Copy the MS to the temp directory
-        ms_temp = temp_dir / ms.name
+        ms_temp = temp_dir_images / ms.name
         logger.info(f"Copying {ms} to {ms_temp}")
         ms_temp = ms_temp.resolve(strict=False)
         shutil.copytree(ms, ms_temp)
         ms = ms_temp
         # Update the prefix
-        prefix = temp_dir / prefix.name
+        prefix = temp_dir_images / prefix.name
+
+    temp_dir_wsclean = parse_env_path(temp_dir_wsclean)
 
     commands = []
     # Do any I cleaning separately
@@ -181,7 +184,11 @@ def image_beam(
     if do_stokes_I:
         command = wsclean(
             mslist=[ms.resolve(strict=True).as_posix()],
-            temp_dir=temp_dir.resolve(strict=True).as_posix(),
+            temp_dir=(
+                temp_dir_wsclean.resolve(strict=True).as_posix()
+                if temp_dir_wsclean is not None
+                else None
+            ),
             use_mpi=False,
             name=prefix.resolve().as_posix(),
             pol="I",
@@ -237,7 +244,11 @@ def image_beam(
 
         command = wsclean(
             mslist=[ms.resolve(strict=True).as_posix()],
-            temp_dir=temp_dir.resolve(strict=True).as_posix(),
+            temp_dir=(
+                temp_dir_wsclean.resolve(strict=True).as_posix()
+                if temp_dir_wsclean is not None
+                else None
+            ),
             use_mpi=False,
             name=prefix.resolve().as_posix(),
             pol=pols,
@@ -302,10 +313,10 @@ def image_beam(
             logger.error(f"{e=}")
             raise e
 
-    if out_dir != temp_dir:
+    if temp_dir_images != out_dir:
         # Copy the images to the output directory
         logger.info(f"Copying images to {out_dir}")
-        all_fits_files = list(temp_dir.glob(f"{prefix.name}*.fits"))
+        all_fits_files = list(temp_dir_images.glob(f"{prefix.name}*.fits"))
         for fits_file in tqdm(all_fits_files, desc="Copying images", file=TQDM_OUT):
             shutil.copy(fits_file, out_dir)
 
@@ -604,7 +615,8 @@ def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
 def main(
     msdir: Path,
     out_dir: Path,
-    temp_dir: Optional[Path] = None,
+    temp_dir_images: Optional[Path] = None,
+    temp_dir_wsclean: Optional[Path] = None,
     cutoff: Optional[float] = None,
     robust: float = -0.5,
     pols: str = "IQU",
@@ -640,7 +652,8 @@ def main(
     Args:
         msdir (Path): Path to the directory containing the MS files.
         out_dir (Path): Path to the directory where the images will be written.
-        temp_dir (Optional[Path], optional): Path for temporary files to be written. Defaults to None.
+        temp_dir_images (Optional[Path], optional): Path for temporary files to be written. Defaults to None.
+        temp_dir_wsclean (Optional[Path], optional): Path for temporary files to be written by WSClean. Defaults to None.
         cutoff (Optional[float], optional): WSClean cutoff. Defaults to None.
         robust (float, optional): WSClean Briggs robust parameter. Defaults to -0.5.
         pols (str, optional): WSClean polarisations. Defaults to "IQU".
@@ -683,9 +696,13 @@ def main(
 
     logger.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []
-    if temp_dir is None:
-        temp_dir = out_dir
-    logger.info(f"Using {temp_dir} as temp directory")
+    if temp_dir_wsclean is None:
+        temp_dir_wsclean = out_dir
+    logger.info(f"Using {temp_dir_wsclean} as temp directory for WSClean")
+
+    if temp_dir_images is None:
+        temp_dir_images = out_dir
+    logger.info(f"Using {temp_dir_images} as temp directory for images")
 
     # Do this in serial since CASA gets upset
     prefixs = {}
@@ -714,7 +731,8 @@ def main(
             ms=ms_fix,
             field_idx=field_idxs[ms],
             out_dir=out_dir,
-            temp_dir=temp_dir,
+            temp_dir_wsclean=temp_dir_wsclean,
+            temp_dir_images=temp_dir_images,
             prefix=prefixs[ms],
             simage=simage.resolve(strict=True),
             robust=robust,
@@ -831,9 +849,14 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Directory containing MS files",
     )
     parser.add_argument(
-        "--temp_dir",
+        "--temp_dir_wsclean",
         type=Path,
-        help="Temporary directory to store intermediate files",
+        help="Temporary directory for WSClean to store intermediate files",
+    )
+    parser.add_argument(
+        "--temp_dir_images",
+        type=Path,
+        help="Temporary directory for to store intermediate image files",
     )
     parser.add_argument(
         "--psf_cutoff",
@@ -1020,7 +1043,8 @@ def cli():
     main(
         msdir=args.msdir,
         out_dir=args.datadir,
-        temp_dir=args.temp_dir,
+        temp_dir_wsclean=args.temp_dir_wsclean,
+        temp_dir_images=args.temp_dir_images,
         cutoff=args.psf_cutoff,
         robust=args.robust,
         pols=args.pols,
