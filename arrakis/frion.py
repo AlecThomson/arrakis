@@ -421,7 +421,9 @@ def cli():
     main(
         field=args.field,
         sbid=args.sbid,
-        outdir=Path(args.outdir),
+        outdir=Path(
+            args.datadir,
+        ),
         host=args.host,
         epoch=args.epoch,
         username=args.username,

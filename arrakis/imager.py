@@ -33,7 +33,7 @@ from arrakis.utils.msutils import (
     field_name_from_ms,
     wsclean,
 )
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import logo_str, workdir_arg_parser
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -831,11 +831,6 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Directory containing MS files",
     )
     parser.add_argument(
-        "outdir",
-        type=Path,
-        help="Directory to output images",
-    )
-    parser.add_argument(
         "--temp_dir",
         type=Path,
         help="Temporary directory to store intermediate files",
@@ -1012,11 +1007,19 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
 def cli():
     """Command-line interface"""
-    parser = imager_parser()
+    im_parser = imager_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
+
+    parser = argparse.ArgumentParser(
+        parents=[im_parser, work_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=im_parser.description,
+    )
+
     args = parser.parse_args()
     main(
         msdir=args.msdir,
-        out_dir=args.outdir,
+        out_dir=args.datadir,
         temp_dir=args.temp_dir,
         cutoff=args.psf_cutoff,
         robust=args.robust,

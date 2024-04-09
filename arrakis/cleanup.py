@@ -147,7 +147,7 @@ def cli():
     if verbose:
         logger.setLevel(logging.DEBUG)
 
-    main(datadir=Path(args.outdir), overwrite=args.overwrite)
+    main(datadir=Path(args.datadir), overwrite=args.overwrite)
 
 
 if __name__ == "__main__":

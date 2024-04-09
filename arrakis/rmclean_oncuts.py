@@ -460,7 +460,7 @@ def cli():
         )
     main(
         field=args.field,
-        outdir=Path(args.outdir),
+        outdir=Path(args.datadir),
         host=host,
         epoch=args.epoch,
         username=args.username,

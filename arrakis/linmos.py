@@ -21,7 +21,7 @@ from spython.main import Client as sclient
 
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
-from arrakis.utils.pipeline import generic_parser, logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -412,9 +412,10 @@ def cli():
     """Command-line interface"""
 
     gen_parser = generic_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
     lin_parser = linmos_parser(parent_parser=True)
     parser = argparse.ArgumentParser(
-        parents=[gen_parser, lin_parser],
+        parents=[gen_parser, work_parser, lin_parser],
         formatter_class=UltimateHelpFormatter,
         description=lin_parser.description,
     )
@@ -427,7 +428,9 @@ def cli():
 
     main(
         field=args.field,
-        datadir=Path(args.datadir),
+        datadir=Path(
+            args.datadir,
+        ),
         host=args.host,
         epoch=args.epoch,
         holofile=Path(args.holofile),

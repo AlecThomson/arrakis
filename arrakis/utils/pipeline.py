@@ -48,6 +48,22 @@ logo_str = """
 """
 
 
+def workdir_arg_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    # Parse the command line options
+    work_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        formatter_class=UltimateHelpFormatter,
+    )
+    parser = work_parser.add_argument_group("workdir arguments")
+    parser.add_argument(
+        "datadir",
+        type=Path,
+        help="Directory to create/find full-size images and 'cutout' directory",
+    )
+
+    return work_parser
+
+
 def generic_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
     {logo_str}
@@ -65,13 +81,6 @@ def generic_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
     parser.add_argument(
         "field", metavar="field", type=str, help="Name of field (e.g. RACS_2132-50)."
-    )
-
-    parser.add_argument(
-        "datadir",
-        metavar="datadir",
-        type=Path,
-        help="Directory containing full-size data cubes in FITS format, and cutout directory.",
     )
 
     parser.add_argument(

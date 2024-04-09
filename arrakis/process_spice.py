@@ -25,7 +25,7 @@ from arrakis import (
 )
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
-from arrakis.utils.pipeline import generic_parser, logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 
 @flow(name="Combining+Synthesis on Arrakis")
@@ -44,7 +44,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             task_runner=task_runner,
         )(
             field=args.field,
-            directory=str(args.outdir),
+            directory=str(args.datadir),
             host=host,
             epoch=args.epoch,
             username=args.username,
@@ -63,7 +63,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             task_runner=task_runner,
         )(
             field=args.field,
-            datadir=Path(args.outdir),
+            datadir=Path(args.datadir),
             host=host,
             epoch=args.epoch,
             holofile=Path(args.holofile),
@@ -81,7 +81,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     previous_future = (
         frion.main.with_options(task_runner=task_runner)(
             field=args.field,
-            outdir=args.outdir,
+            outdir=args.datadir,
             host=host,
             epoch=args.epoch,
             username=args.username,
@@ -137,7 +137,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     previous_future = (
         rmclean_oncuts.main.with_options(task_runner=task_runner)(
             field=args.field,
-            outdir=args.outdir,
+            outdir=args.datadir,
             host=host,
             epoch=args.epoch,
             username=args.username,
@@ -172,7 +172,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
 
     previous_future = (
         cleanup.main.with_options(task_runner=task_runner)(
-            datadir=args.outdir,
+            datadir=args.datadir,
         )
         if not args.skip_cleanup
         else previous_future
@@ -273,7 +273,7 @@ def main(args: configargparse.Namespace) -> None:
             name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
         )(
             msdir=args.msdir,
-            out_dir=args.outdir,
+            out_dir=args.datadir,
             temp_dir=args.temp_dir,
             cutoff=args.psf_cutoff,
             robust=args.robust,
@@ -394,6 +394,7 @@ def cli():
     # Help string to be shown using the -h option
 
     pipe_parser = pipeline_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
     gen_parser = generic_parser(parent_parser=True)
     imager_parser = imager.imager_parser(parent_parser=True)
     cutout_parser = cutout.cutout_parser(parent_parser=True)
@@ -410,6 +411,7 @@ def cli():
         formatter_class=UltimateHelpFormatter,
         parents=[
             pipe_parser,
+            work_parser,
             gen_parser,
             imager_parser,
             cutout_parser,

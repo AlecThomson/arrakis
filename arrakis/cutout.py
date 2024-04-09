@@ -30,7 +30,7 @@ from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import fix_header
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import generic_parser, logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 iers.conf.auto_download = False
 warnings.filterwarnings(
@@ -561,10 +561,11 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 def cli() -> None:
     """Command-line interface"""
     gen_parser = generic_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
     cut_parser = cutout_parser(parent_parser=True)
     parser = argparse.ArgumentParser(
         formatter_class=UltimateHelpFormatter,
-        parents=[gen_parser, cut_parser],
+        parents=[gen_parser, work_parser, cut_parser],
         description=cut_parser.description,
     )
     args = parser.parse_args()

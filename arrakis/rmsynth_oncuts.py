@@ -34,7 +34,7 @@ from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
-from arrakis.utils.pipeline import generic_parser, logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 logger.setLevel(logging.INFO)
 
@@ -1218,25 +1218,25 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Absolute max Faraday depth sampled (in rad/m^2) (overrides NSAMPLES).",
     )
     parser.add_argument(
-        dest="--dphi",
+        "--dphi",
         type=float,
         default=None,
         help="Width of Faraday depth channel.",
     )
     parser.add_argument(
-        dest="--n_samples",
+        "--n_samples",
         type=float,
         default=5,
         help="Number of samples across the FWHM RMSF.",
     )
     parser.add_argument(
-        dest="--poly_ord",
+        "--poly_ord",
         type=int,
         default=3,
         help="polynomial order to fit to I spectrum.",
     )
     parser.add_argument(
-        dest="--no_stokes_i",
+        "--no_stokes_i",
         action="store_true",
         help="ignore the Stokes I spectrum.",
     )
@@ -1267,9 +1267,10 @@ def cli():
     warnings.simplefilter("ignore", category=RuntimeWarning)
 
     gen_parser = generic_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
     synth_parser = rmsynth_parser(parent_parser=True)
     parser = argparse.ArgumentParser(
-        parents=[gen_parser, synth_parser],
+        parents=[gen_parser, work_parser, synth_parser],
         formatter_class=UltimateHelpFormatter,
         description=synth_parser.description,
     )

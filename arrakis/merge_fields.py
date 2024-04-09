@@ -412,7 +412,9 @@ def cli():
 
     verbose = args.verbose
     test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
+        host=args.host,
+        username=args.username,
+        password=args.password,
     )
 
     main(
