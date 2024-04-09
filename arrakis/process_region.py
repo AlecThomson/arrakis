@@ -232,8 +232,6 @@ def cli():
     )
     parser.add("--config", required=False, is_config_file=True, help="Config file path")
     args = parser.parse_args()
-    if not args.use_mpi:
-        parser.print_values()
 
     verbose = args.verbose
     if verbose:
