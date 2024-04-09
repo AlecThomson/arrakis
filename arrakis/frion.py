@@ -19,7 +19,12 @@ from FRion import correct, predict
 from prefect import flow, task, unmapped
 
 from arrakis.logger import UltimateHelpFormatter, logger
-from arrakis.utils.database import get_db, get_field_db, test_db
+from arrakis.utils.database import (
+    get_db,
+    get_field_db,
+    test_db,
+    validate_sbid_field_pair,
+)
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.io import try_mkdir
 from arrakis.utils.pipeline import generic_parser, logo_str
@@ -231,6 +236,21 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
+    # Check for SBID match
+    if sbid is not None:
+        field_col = get_field_db(
+            host=host,
+            epoch=epoch,
+            username=username,
+            password=password,
+        )
+        sbid_check = validate_sbid_field_pair(
+            field_name=field,
+            sbid=sbid,
+            field_col=field_col,
+        )
+        if not sbid_check:
+            raise ValueError(f"SBID {sbid} does not match field {field}")
 
     query_1 = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
@@ -389,6 +409,8 @@ def frion_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         action="store_true",
         help="Pre-download IONEX files.",
     )
+
+    return frion_parser
 
 
 def cli():

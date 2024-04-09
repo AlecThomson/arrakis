@@ -27,7 +27,12 @@ from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
 from arrakis import columns_possum
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
-from arrakis.utils.database import get_db, get_field_db, test_db
+from arrakis.utils.database import (
+    get_db,
+    get_field_db,
+    test_db,
+    validate_sbid_field_pair,
+)
 from arrakis.utils.pipeline import generic_parser, logo_str
 from arrakis.utils.plotting import latexify
 from arrakis.utils.typing import ArrayLike, TableLike
@@ -792,7 +797,7 @@ def write_votable(rmtab: TableLike, outfile: str) -> None:
 def main(
     field: str,
     host: str,
-    epoch: str,
+    epoch: int,
     sbid: Optional[int] = None,
     leakage_degree: int = 4,
     leakage_bins: int = 16,
@@ -817,6 +822,21 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
+    # Check for SBID match
+    if sbid is not None:
+        field_col = get_field_db(
+            host=host,
+            epoch=epoch,
+            username=username,
+            password=password,
+        )
+        sbid_check = validate_sbid_field_pair(
+            field_name=field,
+            sbid=sbid,
+            field_col=field_col,
+        )
+        if not sbid_check:
+            raise ValueError(f"SBID {sbid} does not match field {field}")
     logger.info("Starting beams collection query")
     tick = time.time()
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}

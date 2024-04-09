@@ -26,6 +26,7 @@ def validate_sbid_field_pair(field_name: str, sbid: int, field_col: Collection) 
     Raises:
         bool: If field name and sbid pair is valid.
     """
+    logger.info(f"Validating field name and SBID pair: {field_name}, {sbid}")
     field_data: Optional[dict] = field_col.find_one({"SBID": sbid})
     if field_data is None:
         raise ValueError(f"SBID {sbid} not found in database")

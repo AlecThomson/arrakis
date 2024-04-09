@@ -433,15 +433,14 @@ def cutout_islands(
         host=host, epoch=epoch, username=username, password=password
     )
 
-    field_col = get_field_db(
-        host=host,
-        epoch=epoch,
-        username=username,
-        password=password,
-    )
-
     # Check for SBID match
     if sbid is not None:
+        field_col = get_field_db(
+            host=host,
+            epoch=epoch,
+            username=username,
+            password=password,
+        )
         sbid_check = validate_sbid_field_pair(
             field_name=field,
             sbid=sbid,

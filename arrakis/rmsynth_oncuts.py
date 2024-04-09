@@ -31,7 +31,12 @@ from RMutils.util_misc import create_frac_spectra
 from scipy.stats import norm
 
 from arrakis.logger import UltimateHelpFormatter, logger
-from arrakis.utils.database import get_db, test_db
+from arrakis.utils.database import (
+    get_db,
+    get_field_db,
+    test_db,
+    validate_sbid_field_pair,
+)
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
@@ -943,6 +948,22 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
+
+    # Check for SBID match
+    if sbid is not None:
+        field_col = get_field_db(
+            host=host,
+            epoch=epoch,
+            username=username,
+            password=password,
+        )
+        sbid_check = validate_sbid_field_pair(
+            field_name=field,
+            sbid=sbid,
+            field_col=field_col,
+        )
+        if not sbid_check:
+            raise ValueError(f"SBID {sbid} does not match field {field}")
 
     beam_query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 

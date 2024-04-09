@@ -399,6 +399,7 @@ def cli():
     imager_parser = imager.imager_parser(parent_parser=True)
     cutout_parser = cutout.cutout_parser(parent_parser=True)
     linmos_parser = linmos.linmos_parser(parent_parser=True)
+    fr_parser = frion.frion_parser(parent_parser=True)
     common_parser = rmsynth_oncuts.rm_common_parser(parent_parser=True)
     synth_parser = rmsynth_oncuts.rmsynth_parser(parent_parser=True)
     rmclean_parser = rmclean_oncuts.clean_parser(parent_parser=True)
@@ -416,6 +417,7 @@ def cli():
             imager_parser,
             cutout_parser,
             linmos_parser,
+            fr_parser,
             common_parser,
             synth_parser,
             rmclean_parser,
