@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 from arrakis.logger import logger
 
@@ -76,6 +77,10 @@ def main(
     processing_dir: Path,
 ):
     """Main script"""
+
+    if not processing_dir.exists():
+        processing_dir.mkdir(parents=True, exist_ok=True)
+
     field_data = get_field_data(sbid)
     holo_file = get_holography_path(sbid)
 
@@ -152,11 +157,10 @@ def main(
         ionex_prefix="codg",
     )
 
-    config_file = processing_dir / f"{sbid}_rm.cfg"
+    config_file = processing_dir / f"{sbid}_rm.yaml"
 
     with open(config_file, "w") as f:
-        for key, value in config_base.items():
-            f.write(f"{key} = {value}\n")
+        yaml.safe_dump(config_base, f)
 
     # Now make a run script
     script_file = processing_dir / f"{sbid}_rm_run.sh"
@@ -191,10 +195,11 @@ conda activate arrakis310
 
 echo "About to run spice_process"
 spice_process \
-	--config {config_file.absolute().as_posix()}  \
-	{sbid_dir.absolute().as_posix()} \
 	{processing_dir.absolute().as_posix()} \
 	{field_data.FIELD_NAME} \
+	{sbid_dir.absolute().as_posix()} \
+    --sbid {sbid} \
+	--config {config_file.absolute().as_posix()}  \
 """
     with open(script_file, "w") as f:
         f.write(script_string)
