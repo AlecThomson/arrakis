@@ -3,10 +3,10 @@
 import argparse
 import logging
 import os
+from importlib import resources
 from pathlib import Path
 
 import configargparse
-import pkg_resources
 import yaml
 from astropy.time import Time
 from prefect import flow
@@ -214,8 +214,8 @@ def create_dask_runner(
     logger.setLevel(logging.INFO)
     logger.info("Creating a Dask Task Runner.")
     if dask_config is None:
-        config_dir = pkg_resources.resource_filename("arrakis", "configs")
-        dask_config = f"{config_dir}/default.yaml"
+        config_dir = resources.files("arrakis.configs")
+        dask_config = config_dir / "default.yaml"
 
     with open(dask_config) as f:
         logger.info(f"Loading {dask_config}")
@@ -408,7 +408,9 @@ def cli():
     clean_parser = cleanup.cleanup_parser(parent_parser=True)
     # Parse the command line options
     parser = configargparse.ArgParser(
-        default_config_files=[".default_config.cfg"],
+        default_config_files=[
+            (resources.files("arrakis") / ".default_config.yaml").as_posix()
+        ],
         description=pipe_parser.description,
         formatter_class=UltimateHelpFormatter,
         parents=[
