@@ -26,8 +26,8 @@ include = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8"
-astropy = "^5"
+python = ">=3.8"
+astropy = ">=5"
 bilby = "*"
 ConfigArgParse = "*"
 dask = "*"
@@ -37,7 +37,7 @@ dask_mpi = "*"
 FRion = {git = "https://github.com/CIRADA-Tools/FRion.git" }
 h5py = "*"
 ipython = "*"
-matplotlib = "^3.8"
+matplotlib = ">=3.8"
 numba = "*"
 numba_progress = "*"
 #mpi4py = "*"
@@ -48,32 +48,32 @@ pymongo = "*"
 pymultinest = "*"
 pytest = "*"
 python_casacore = "*"
-RACS-tools = "^3"
+RACS-tools = ">=3"
 radio_beam = "*"
 RMextract = {git = "https://github.com/AlecThomson/RMextract@race"}
 schwimmbad = "*"
 scipy = "*"
-spectral_cube = "^0.6.3"
+spectral_cube = ">=0.6.3"
 spython = "*"
 tqdm = "*"
 vorbin = "*"
 graphviz = "*"
 bokeh = "<3"
-prefect = "^2"
+prefect = ">=2"
 prefect-dask = "*"
 RMTable = { git = "https://github.com/CIRADA-Tools/RMTable" }
 RM-Tools = { git = "https://github.com/CIRADA-Tools/RM-Tools"}
 PolSpectra = { git = "https://github.com/AlecThomson/PolSpectra.git", branch="spiceracs"}
 setuptools = "*"
-fixms = "^0.2"
-fitscube = "^0.3"
+fixms = ">=0.2"
+fitscube = ">=0.3"
 
 [tool.poetry.dev-dependencies]
-black = "^23"
-flake8 = "^5"
-isort = "^5"
-mypy = "^1"
-pre-commit = "^3.2"
+black = ">=23"
+flake8 = ">=5"
+isort = ">=5"
+mypy = ">=1"
+pre-commit = ">=3.2"
 
 [tool.poetry.extras]
 docs = [
@@ -95,8 +95,9 @@ spice_process = "arrakis.process_spice:cli"
 spice_region = "arrakis.process_region:cli"
 spice_cat = "arrakis.makecat:cli"
 spice_image = "arrakis.imager:cli"
-fix_ms_corrs = "arrakis.fix_ms_corrs:cli"
-# Unified script script
+
+# Misc scripts
+make_dr2_config = { reference="scripts/make_dr2_config.py", type="file"}
 casda_prepare = { reference="scripts/casda_prepare.py", type="file"}
 check_cutout = { reference="scripts/check_cutout.py", type="file"}
 compare_leakage = { reference="scripts/compare_leakage.py", type="file"}
