@@ -193,6 +193,7 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
+    sbid: Optional[int] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
     database=False,
@@ -210,6 +211,7 @@ def main(
         outdir (Path): Output directory
         host (str): MongoDB host IP address
         epoch (int): Epoch of observation
+        sbid (int, optional): SBID of observation. Defaults to None.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo passwrod. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
@@ -220,17 +222,20 @@ def main(
         limit (int, optional): Limit to number of islands. Defaults to None.
     """
     # Query database for data
-    outdir = os.path.abspath(outdir)
-    cutdir = os.path.join(outdir, "cutouts")
+    outdir = outdir.absolute()
+    cutdir = outdir / "cutouts"
 
-    plotdir = os.path.join(cutdir, "plots")
-    try_mkdir(plotdir)
+    plotdir = cutdir / "plots"
+    plotdir.mkdir(parents=True, exist_ok=True)
 
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
 
     query_1 = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+
+    if sbid is not None:
+        query_1["$and"].append({f"beams.{field}.SBIDs": sbid})
 
     beams = list(beams_col.find(query_1).sort("Source_ID"))
     island_ids = sorted(beams_col.distinct("Source_ID", query_1))
@@ -244,18 +249,20 @@ def main(
     )
     # SELECT '1' is best field according to the database
     query_3 = {"$and": [{"FIELD_NAME": f"{field}"}, {"SELECT": 1}]}
+    if sbid is not None:
+        query_3["$and"].append({"SBID": sbid})
     logger.info(f"{query_3}")
 
-    # Get most recent SBID if more than one is 'SELECT'ed
+    # Raise error if too much or too little data
     if field_col.count_documents(query_3) > 1:
-        logger.info(f"More than one SELECT=1 for {field}, getting most recent.")
-        field_datas = list(field_col.find({"FIELD_NAME": f"{field}"}))
-        sbids = [f["CAL_SBID"] for f in field_datas]
-        max_idx = np.argmax(sbids)
-        logger.info(f"Using CAL_SBID {sbids[max_idx]}")
-        field_data = field_datas[max_idx]
+        logger.error(f"More than one SELECT=1 for {field} - try supplying SBID.")
+        raise ValueError(f"More than one SELECT=1 for {field} - try supplying SBID.")
+
     elif field_col.count_documents(query_3) == 0:
         logger.error(f"No data for {field} with {query_3}, trying without SELECT=1.")
+        query_3 = query_3 = {"$and": [{"FIELD_NAME": f"{field}"}]}
+        if sbid is not None:
+            query_3["$and"].append({"SBID": sbid})
         field_data = field_col.find_one({"FIELD_NAME": f"{field}"})
     else:
         logger.info(f"Using {query_3}")
@@ -413,6 +420,7 @@ def cli():
 
     main(
         field=args.field,
+        sbid=args.sbid,
         outdir=Path(args.outdir),
         host=args.host,
         epoch=args.epoch,

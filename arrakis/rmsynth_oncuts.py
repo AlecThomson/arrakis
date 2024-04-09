@@ -138,12 +138,15 @@ def rmsynthoncut3d(
     dataU = np.squeeze(dataU)
     dataI = np.squeeze(dataI)
 
+    save_name = field if sbid is None else f"{field}_{sbid}"
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         logger.critical(f"Cubelet {iname} is entirely NaN")
         myquery = {"Source_ID": iname}
         badvalues = {
             "$set": {
-                "rmsynth3d": False,
+                save_name: {
+                    "rmsynth3d": False,
+                }
             }
         }
         return pymongo.UpdateOne(myquery, badvalues)
@@ -197,7 +200,6 @@ def rmsynthoncut3d(
 
     outer_dir = os.path.basename(os.path.dirname(ifile))
 
-    save_name = field if sbid is None else f"{field}_{sbid}"
     newvalues = {
         "$set": {
             save_name: {
@@ -974,14 +976,58 @@ def main(
 
     # Unset rmsynth in db
     if dimension == "1d":
-        query_1d = {"$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth1d": True}]}
+        query_1d = {
+            "$and": [
+                {"Source_ID": {"$in": island_ids}},
+                {
+                    (
+                        f"{field}.rmsynth1d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmsynth1d"
+                    ): True
+                },
+            ]
+        }
 
-        comp_col.update_many(query_1d, {"$set": {"rmsynth1d": False}})
+        comp_col.update_many(
+            query_1d,
+            {
+                "$set": {
+                    (
+                        f"{field}.rmsynth1d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmsynth1d"
+                    ): False
+                }
+            },
+        )
 
     elif dimension == "3d":
-        query_3d = {"$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth3d": True}]}
+        query_3d = {
+            "$and": [
+                {"Source_ID": {"$in": island_ids}},
+                {
+                    (
+                        f"{field}.rmsynth3d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmsynth3d"
+                    ): True
+                },
+            ]
+        }
 
-        island_col.update(query_3d, {"$set": {"rmsynth3d": False}})
+        island_col.update(
+            query_3d,
+            {
+                "$set": {
+                    (
+                        f"{field}.rmsynth3d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmsynth3d"
+                    ): False
+                }
+            },
+        )
 
     if limit is not None:
         n_comp = limit

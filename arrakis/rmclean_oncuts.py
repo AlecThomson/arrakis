@@ -26,11 +26,13 @@ from arrakis.utils.pipeline import generic_parser, logo_str
 
 @task(name="1D RM-CLEAN")
 def rmclean1d(
+    field: str,
     comp: dict,
-    outdir: str,
+    outdir: Path,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
+    sbid: Optional[int] = None,
     showPlots=False,
     savePlots=False,
     rm_verbose=True,
@@ -39,6 +41,7 @@ def rmclean1d(
     """1D RM-CLEAN
 
     Args:
+        field (str): RACS field name.
         comp (dict): Mongo entry for component.
         outdir (str): Output directory.
         cutoff (float, optional): CLEAN cutouff (in sigma). Defaults to -3.
@@ -55,21 +58,23 @@ def rmclean1d(
     cname = comp["Gaussian_ID"]
 
     logger.debug(f"Working on {comp}")
+    save_name = field if sbid is None else f"{field}_{sbid}"
     try:
         rm1dfiles = comp["rm1dfiles"]
-        fdfFile = os.path.join(outdir, f"{rm1dfiles['FDF_dirty']}")
-        rmsfFile = os.path.join(outdir, f"{rm1dfiles['RMSF']}")
-        weightFile = os.path.join(outdir, f"{rm1dfiles['weights']}")
-        rmSynthFile = os.path.join(outdir, f"{rm1dfiles['summary_json']}")
+        fdfFile = outdir / f"{rm1dfiles['FDF_dirty']}"
+        rmsfFile = outdir / f"{rm1dfiles['RMSF']}"
+        weightFile = outdir / f"{rm1dfiles['weights']}"
+        rmSynthFile = outdir / f"{rm1dfiles['summary_json']}"
 
         prefix = os.path.join(os.path.abspath(os.path.dirname(fdfFile)), cname)
 
         # Sanity checks
         for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
-            logger.debug(f"Checking {os.path.abspath(f)}")
-            if not os.path.exists(f):
-                logger.fatal("File does not exist: '{:}'.".format(f))
-                sys.exit()
+            logger.debug(f"Checking {f.absolute()}")
+            if not f.exists():
+                logger.fatal(f"File does not exist: '{f}'.")
+                raise FileNotFoundError(f"File does not exist: '{f}'")
+
         nBits = 32
         mDict, aDict = do_RMclean_1D.readFiles(
             fdfFile, rmsfFile, weightFile, rmSynthFile, nBits
@@ -106,22 +111,21 @@ def rmclean1d(
         do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
         if savePlots:
             plt.close("all")
-            plotdir = os.path.join(outdir, "plots")
-            plot_files = glob(
-                os.path.join(os.path.abspath(os.path.dirname(fdfFile)), "*.pdf")
-            )
-            for src in plot_files:
-                base = os.path.basename(src)
-                dst = os.path.join(plotdir, base)
-                copyfile(src, dst)
+            plotdir = outdir / "plots"
+            plot_files = list(fdfFile.parent.glob("*.pdf"))
+            for plot_file in plot_files:
+                copyfile(plot_file, plotdir / plot_file.name)
+
         # Load into Mongo
         myquery = {"Gaussian_ID": cname}
 
         newvalues = {
             "$set": {
-                "rmclean1d": True,
-                "rmclean_summary": outdict,
-            },
+                save_name: {
+                    "rmclean1d": True,
+                    "rmclean_summary": outdict,
+                },
+            }
         }
     except KeyError:
         logger.critical("Failed to load data! RM-CLEAN not applied to component!")
@@ -130,16 +134,20 @@ def rmclean1d(
 
         newvalues = {
             "$set": {
-                "rmclean1d": False,
-            },
+                save_name: {
+                    "rmclean1d": False,
+                },
+            }
         }
     return pymongo.UpdateOne(myquery, newvalues)
 
 
 @task(name="3D RM-CLEAN")
 def rmclean3d(
+    field: str,
     island: dict,
-    outdir: str,
+    outdir: Path,
+    sbid: Optional[int] = None,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
@@ -149,7 +157,7 @@ def rmclean3d(
 
     Args:
         island (dict): MongoDB island entry.
-        outdir (str): Output directory.
+        outdir (Path): Output directory.
         cutoff (float, optional): CLEAN cutoff (in sigma). Defaults to -3.
         maxIter (int, optional): Max CLEAN iterations. Defaults to 10000.
         gain (float, optional): CLEAN gain. Defaults to 0.1.
@@ -158,24 +166,14 @@ def rmclean3d(
     Returns:
         pymongo.UpdateOne: MongoDB update query.
     """
-    """3D RM-CLEAN
 
-    Args:
-        island_id (str): RACS Island ID
-        host (str): MongoDB host
-        field (str): RACS field
-        cutoff (int, optional): CLEAN cutoff. Defaults to -3.
-        maxIter (int, optional): CLEAN max iterations. Defaults to 10000.
-        gain (float, optional): CLEAN gain. Defaults to 0.1.
-        rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to False.
-    """
     iname = island["Source_ID"]
     prefix = f"{iname}_"
     rm3dfiles = island["rm3dfiles"]
 
     cleanFDF, ccArr, iterCountArr, residFDF, headtemp = do_RMclean_3D.run_rmclean(
-        fitsFDF=os.path.join(outdir, rm3dfiles["FDF_real_dirty"]),
-        fitsRMSF=os.path.join(outdir, rm3dfiles["RMSF_tot"]),
+        fitsFDF=(outdir / rm3dfiles["FDF_real_dirty"]).as_posix(),
+        fitsRMSF=(outdir / rm3dfiles["RMSF_tot"]).as_posix(),
         cutoff=cutoff,
         maxIter=maxIter,
         gain=gain,
@@ -192,15 +190,14 @@ def rmclean3d(
         residFDF,
         headtemp,
         prefixOut=prefix,
-        outDir=os.path.abspath(
-            os.path.dirname(os.path.join(outdir, rm3dfiles["FDF_real_dirty"]))
-        ),
+        outDir=(outdir / rm3dfiles["FDF_real_dirty"]).parent.absolute().as_posix(),
         write_separate_FDF=True,
         verbose=rm_verbose,
     )
     # Load into Mongo
+    save_name = field if sbid is None else f"{field}_{sbid}"
     myquery = {"Source_ID": iname}
-    newvalues = {"$set": {"rmclean3d": True}}
+    newvalues = {"$set": {save_name: {"rmclean3d": True}}}
     return pymongo.UpdateOne(myquery, newvalues)
 
 
@@ -210,6 +207,7 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
+    sbid: Optional[int] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
     dimension="1d",
@@ -243,8 +241,8 @@ def main(
         showPlots (bool, optional): Show interactive plots. Defaults to False.
         rm_verbose (bool, optional): Verbose output from RM-CLEAN. Defaults to False.
     """
-    outdir = os.path.abspath(outdir)
-    outdir = os.path.join(outdir, "cutouts")
+    outdir = outdir.absolute()
+    outdir = outdir / "cutouts"
 
     # default connection (ie, local)
     beams_col, island_col, comp_col = get_db(
@@ -252,11 +250,24 @@ def main(
     )
 
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+    if sbid is not None:
+        query["$and"].append({f"beams.{field}.SBIDs": sbid})
 
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
 
     if dimension == "3d":
-        query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]}
+        query = {
+            "$and": [
+                {"Source_ID": {"$in": all_island_ids}},
+                {
+                    (
+                        f"{field}.rmsynth3d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmsynth3d"
+                    ): True
+                },
+            ]
+        }
 
         islands = list(
             island_col.find(
@@ -269,10 +280,32 @@ def main(
             ).sort("Source_ID")
         )
         n_island = island_col.count_documents(query)
-        island_col.update(query, {"$set": {"rmclean3d": False}})
+        island_col.update(
+            query,
+            {
+                "$set": {
+                    (
+                        f"{field}.rmclean3d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmclean3d"
+                    ): False
+                }
+            },
+        )
 
     elif dimension == "1d":
-        query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
+        query = {
+            "$and": [
+                {"Source_ID": {"$in": all_island_ids}},
+                {
+                    (
+                        f"{field}.rmsynth1d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmsynth1d"
+                    ): True
+                },
+            ]
+        }
 
         components = list(
             comp_col.find(
@@ -286,18 +319,30 @@ def main(
             ).sort("Source_ID")
         )
         n_comp = comp_col.count_documents(query)
-        comp_col.update_many(query, {"$set": {"rmclean1d": False}})
+        comp_col.update_many(
+            query,
+            {
+                "$set": {
+                    (
+                        f"{field}.rmclean1d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmclean1d"
+                    ): True
+                }
+            },
+        )
 
     if limit is not None:
         count = limit
         n_comp = count
         n_island = count
-        # component_ids = component_ids[:count]
 
     if dimension == "1d":
         logger.info(f"Running RM-CLEAN on {n_comp} components")
         outputs = rmclean1d.map(
             comp=components,
+            field=unmapped(field),
+            sbid=unmapped(sbid),
             outdir=unmapped(outdir),
             cutoff=unmapped(cutoff),
             maxIter=unmapped(maxIter),
@@ -311,7 +356,9 @@ def main(
         logger.info(f"Running RM-CLEAN on {n_island} islands")
 
         outputs = rmclean3d.map(
+            field=unmapped(field),
             island=islands,
+            sbid=unmapped(sbid),
             outdir=unmapped(outdir),
             cutoff=unmapped(cutoff),
             maxIter=unmapped(maxIter),
