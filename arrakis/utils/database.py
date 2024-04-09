@@ -2,7 +2,7 @@
 """Database utilities"""
 
 import warnings
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
@@ -13,6 +13,24 @@ from arrakis.logger import logger
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
+
+
+def validate_sbid_field_pair(field_name: str, sbid: int, field_col: Collection) -> bool:
+    """Validate field and sbid pair
+
+    Args:
+        field_name (str): Field name.
+        sbid (int): SBID.
+        field_col (Collection): Field collection.
+
+    Raises:
+        bool: If field name and sbid pair is valid.
+    """
+    field_data: Optional[dict] = field_col.find_one({"SBID": sbid})
+    if field_data is None:
+        raise ValueError(f"SBID {sbid} not found in database")
+
+    return field_data["FIELD_NAME"] == field_name
 
 
 def test_db(

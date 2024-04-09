@@ -16,6 +16,7 @@ from typing import Optional, Set, TypeVar, Union
 
 import astropy.units as u
 import numpy as np
+import pandas as pd
 import pymongo
 from astropy.coordinates import Latitude, Longitude, SkyCoord
 from astropy.io import fits
@@ -28,7 +29,12 @@ from spectral_cube.utils import SpectralCubeWarning
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
-from arrakis.utils.database import get_db, test_db
+from arrakis.utils.database import (
+    get_db,
+    get_field_db,
+    test_db,
+    validate_sbid_field_pair,
+)
 from arrakis.utils.fitsutils import fix_header
 from arrakis.utils.io import try_mkdir
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
@@ -115,12 +121,12 @@ def cutout_image(
     old_header: fits.Header,
     cube: SpectralCube,
     source_id: str,
-    cutout_args: CutoutArgs,
+    cutout_args: Optional[CutoutArgs],
     field: str,
     beam_num: int,
     stoke: str,
-    pad=3,
-    dryrun=False,
+    pad: float = 3,
+    dryrun: bool = False,
 ) -> pymongo.UpdateOne:
     """Perform a cutout.
 
@@ -192,15 +198,14 @@ def cutout_image(
 
 
 def get_args(
-    comps: List[Dict],
-    beam: Dict,
-    island_id: str,
+    comps: pd.DataFrame,
+    source: pd.Series,
     outdir: Path,
 ) -> Optional[CutoutArgs]:
     """Get arguments for cutout function
 
     Args:
-        comps (List[Dict]): List of mongo entries for RACS components in island
+        comps (pd.DataFrame): List of mongo entries for RACS components in island
         beam (Dict): Mongo entry for the RACS beam
         island_id (str): RACS island ID
         outdir (Path): Input directory
@@ -215,7 +220,7 @@ def get_args(
 
     logger.setLevel(logging.INFO)
 
-    assert beam["Source_ID"] == island_id
+    island_id = source.Source_ID
 
     if len(comps) == 0:
         logger.warning(f"Skipping island {island_id} -- no components found")
@@ -225,17 +230,10 @@ def get_args(
     outdir.mkdir(parents=True, exist_ok=True)
 
     # Find image size
-    ras: List[float] = []
-    decs: List[float] = []
-    majs: List[float] = []
-    for comp in comps:
-        ras = ras + [comp["RA"]]
-        decs = decs + [comp["Dec"]]
-        majs = majs + [comp["Maj"]]
+    ras: u.Quantity = comps.RA.values * u.deg
+    decs: u.Quantity = comps.Dec.values * u.deg
+    majs: List[float] = comps.Maj.values * u.arcsec
 
-    ras: u.Quantity = ras * u.deg
-    decs: u.Quantity = decs * u.deg
-    majs: u.Quantity = majs * u.arcsec
     coords = SkyCoord(ras, decs)
 
     try:
@@ -275,8 +273,8 @@ def get_args(
 def worker(
     host: str,
     epoch: int,
-    beam: Dict,
-    comps: List[Dict],
+    source: pd.Series,
+    comps: pd.DataFrame,
     outdir: Path,
     image_name: Path,
     data_in_mem: np.ndarray,
@@ -294,8 +292,7 @@ def worker(
     )
     cut_args = get_args(
         comps=comps,
-        beam=beam,
-        island_id=beam["Source_ID"],
+        source=source,
         outdir=outdir,
     )
     image_update = cutout_image(
@@ -303,7 +300,7 @@ def worker(
         data_in_mem=data_in_mem,
         old_header=old_header,
         cube=cube,
-        source_id=beam["Source_ID"],
+        source_id=source.Source_ID,
         cutout_args=cut_args,
         field=field,
         beam_num=beam_num,
@@ -313,7 +310,7 @@ def worker(
     )
     weight_update = cutout_weight(
         image_name=image_name,
-        source_id=beam["Source_ID"],
+        source_id=source.Source_ID,
         cutout_args=cut_args,
         field=field,
         beam_num=beam_num,
@@ -325,7 +322,8 @@ def worker(
 
 @task(name="Cutout from big cube")
 def big_cutout(
-    beams: List[Dict],
+    sources: pd.DataFrame,
+    comps: pd.DataFrame,
     beam_num: int,
     stoke: str,
     datadir: Path,
@@ -338,8 +336,7 @@ def big_cutout(
     password: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> List[pymongo.UpdateOne]:
-    with open("comps.pkl", "rb") as f:
-        comps_dict = pickle.load(f)
+
     wild = f"image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
     images = list(datadir.glob(wild))
     if len(images) == 0:
@@ -360,19 +357,19 @@ def big_cutout(
 
     if limit is not None:
         logger.critical(f"Limiting to {limit} islands")
-        beams = beams[:limit]
+        sources = sources[:limit]
 
     updates: List[pymongo.UpdateOne] = []
     with ThreadPoolExecutor() as executor:
         futures = []
-        for beam in beams:
+        for _, source in sources.iterrows():
             futures.append(
                 executor.submit(
                     worker,
                     host=host,
                     epoch=epoch,
-                    beam=beam,
-                    comps=comps_dict[beam["Source_ID"]],
+                    source=source,
+                    comps=comps.loc[source],
                     outdir=outdir,
                     image_name=image_name,
                     data_in_mem=data_in_mem,
@@ -436,7 +433,22 @@ def cutout_islands(
         host=host, epoch=epoch, username=username, password=password
     )
 
-    # Query the DB
+    field_col = get_field_db(
+        host=host,
+        epoch=epoch,
+        username=username,
+        password=password,
+    )
+
+    # Check for SBID match
+    if sbid is not None:
+        sbid_check = validate_sbid_field_pair(
+            field_name=field,
+            sbid=sbid,
+            field_col=field_col,
+        )
+        if not sbid_check:
+            raise ValueError(f"SBID {sbid} does not match field {field}")
 
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
     if sbid is not None:
@@ -447,7 +459,7 @@ def cutout_islands(
     )
     source_ids = sorted(beams_col.distinct("Source_ID", query))
 
-    beams_dict: Dict[int, List[Dict]] = {b: [] for b in unique_beams_nums}
+    # beams_dict: Dict[int, List[Dict]] = {b: [] for b in unique_beams_nums}
 
     query = {
         "$and": [
@@ -458,21 +470,24 @@ def cutout_islands(
     if sbid is not None:
         query["$and"].append({f"beams.{field}.SBIDs": sbid})
 
-    all_beams = list(beams_col.find(query).sort("Source_ID"))
-    for beams in tqdm(all_beams, desc="Getting beams", file=TQDM_OUT):
-        for beam_num in beams["beams"][field]["beam_list"]:
-            beams_dict[beam_num].append(beams)
+    beams_df = pd.DataFrame(
+        beams_col.find(query, {"Source_ID": 1, f"beams.{field}.beam_list": 1}).sort(
+            "Source_ID"
+        )
+    )
 
-    comps_dict: Dict[str, List[Dict]] = {s: [] for s in source_ids}
-    all_comps = list(
+    beam_source_list = []
+    for i, row in tqdm(beams_df.iterrows()):
+        beam_list = row.beams[field]["beam_list"]
+        for b in beam_list:
+            beam_source_list.append({"Source_ID": row.Source_ID, "beam": b})
+    beam_source_df = pd.DataFrame(beam_source_list)
+    beam_source_df.set_index("beam", inplace=True)
+
+    comps_df = pd.DataFrame(
         comp_col.find({"Source_ID": {"$in": source_ids}}).sort("Source_ID")
     )
-    for comp in tqdm(all_comps, desc="Getting components", file=TQDM_OUT):
-        comps_dict[comp["Source_ID"]].append(comp)
-
-    # Dump comps to file
-    with open("comps.pkl", "wb") as f:
-        pickle.dump(comps_dict, f)
+    comps_df.set_index("Source_ID", inplace=True)
 
     # Create output dir if it doesn't exist
     outdir.mkdir(parents=True, exist_ok=True)
@@ -480,7 +495,8 @@ def cutout_islands(
     for stoke in stokeslist:
         for beam_num in unique_beams_nums:
             results = big_cutout.submit(
-                beams=beams_dict[beam_num],
+                sources=beam_source_df.loc[beam_num],
+                comps=comps_df.loc[beam_source_df.loc[beam_num].Source_ID],
                 beam_num=beam_num,
                 stoke=stoke,
                 datadir=directory,
@@ -501,8 +517,6 @@ def cutout_islands(
         logger.info("Updating database...")
         db_res = beams_col.bulk_write(updates, ordered=False)
         logger.info(pformat(db_res.bulk_api_result))
-
-    os.remove("comps.pkl")
 
     logger.info("Cutouts Done!")
 
