@@ -938,7 +938,7 @@ def main(
         ion (bool, optional): Ion. Defaults to False.
         do_own_fit (bool, optional): Do own fit. Defaults to False.
     """
-
+    logger.info(f"Running RMsynth on {field} field")
     outdir = outdir.absolute() / "cutouts"
 
     if savePlots:
@@ -969,6 +969,8 @@ def main(
 
     if sbid is not None:
         beam_query["$and"].append({f"beams.{field}.SBIDs": sbid})
+
+    logger.info(f"Querying beams with {beam_query}")
 
     beams = pd.DataFrame(list(beams_col.find(beam_query).sort("Source_ID")))
     beams.set_index("Source_ID", drop=False, inplace=True)
@@ -1010,7 +1012,7 @@ def main(
             ]
         }
 
-        comp_col.update_many(
+        result = comp_col.update_many(
             query_1d,
             {
                 "$set": {
@@ -1021,7 +1023,9 @@ def main(
                     ): False
                 }
             },
+            upsert=True,
         )
+        logger.info(f"{result}")
 
     elif dimension == "3d":
         query_3d = {
@@ -1037,7 +1041,7 @@ def main(
             ]
         }
 
-        island_col.update(
+        result = island_col.update(
             query_3d,
             {
                 "$set": {
@@ -1048,7 +1052,10 @@ def main(
                     ): False
                 }
             },
+            upsert=True,
         )
+
+        logger.info(f"{result}")
 
     if limit is not None:
         n_comp = limit
