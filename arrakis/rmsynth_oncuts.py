@@ -999,18 +999,7 @@ def main(
 
     # Unset rmsynth in db
     if dimension == "1d":
-        query_1d = {
-            "$and": [
-                {"Source_ID": {"$in": island_ids}},
-                {
-                    (
-                        f"{field}.rmsynth1d"
-                        if sbid is None
-                        else f"{field}_{sbid}.rmsynth1d"
-                    ): True
-                },
-            ]
-        }
+        query_1d = {"Source_ID": {"$in": island_ids}}
 
         result = comp_col.update_many(
             query_1d,
@@ -1025,21 +1014,10 @@ def main(
             },
             upsert=True,
         )
-        logger.info(f"{result}")
+        logger.info(pformat(result.raw_result))
 
     elif dimension == "3d":
-        query_3d = {
-            "$and": [
-                {"Source_ID": {"$in": island_ids}},
-                {
-                    (
-                        f"{field}.rmsynth3d"
-                        if sbid is None
-                        else f"{field}_{sbid}.rmsynth3d"
-                    ): True
-                },
-            ]
-        }
+        query_3d = {"Source_ID": {"$in": island_ids}}
 
         result = island_col.update(
             query_3d,
@@ -1055,7 +1033,7 @@ def main(
             upsert=True,
         )
 
-        logger.info(f"{result}")
+        logger.info(pformat(result.raw_result))
 
     if limit is not None:
         n_comp = limit

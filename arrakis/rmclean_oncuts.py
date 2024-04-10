@@ -300,7 +300,7 @@ def main(
             ).sort("Source_ID")
         )
         n_island = island_col.count_documents(query)
-        island_col.update(
+        result = island_col.update(
             query,
             {
                 "$set": {
@@ -311,7 +311,9 @@ def main(
                     ): False
                 }
             },
+            upsert=True,
         )
+        logger.info(pformat(result.raw_result))
 
     elif dimension == "1d":
         query = {
@@ -339,7 +341,7 @@ def main(
             ).sort("Source_ID")
         )
         n_comp = comp_col.count_documents(query)
-        comp_col.update_many(
+        result = comp_col.update_many(
             query,
             {
                 "$set": {
@@ -350,7 +352,9 @@ def main(
                     ): True
                 }
             },
+            upsert=True,
         )
+        logger.info(pformat(result.raw_result))
 
     if limit is not None:
         count = limit
