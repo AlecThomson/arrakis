@@ -94,11 +94,12 @@ def cutout_weight(
     basename = image_name.name
     outname = f"{source_id}.cutout.{basename}"
     outfile = outdir / outname
-    image = Path(
-        image_name.name.replace("image.restored", "weights.restored")
+    image = (
+        image_name.parent
+        / image_name.name.replace("image.restored", "weights.restored")
     ).with_suffix(".txt")
-    outfile = Path(
-        outfile.name.replace("image.restored", "weights.restored")
+    outfile = (
+        outfile.parent / outfile.name.replace("image.restored", "weights.restored")
     ).with_suffix(".txt")
 
     if not dryrun:
@@ -108,7 +109,7 @@ def cutout_weight(
     filename = outfile.parent / outfile.name
     newvalues = {
         "$set": {
-            f"beams.{field}.{stoke.lower()}_beam{beam_num}_weight_file": filename.as_posix()
+            f"beams.{field}.{stoke.lower()}_beam{beam_num}_weight_file": filename.absolute().as_posix()
         }
     }
 
@@ -190,7 +191,7 @@ def cutout_image(
     filename = outfile.parent / outfile.name
     newvalues = {
         "$set": {
-            f"beams.{field}.{stoke.lower()}_beam{beam_num}_image_file": filename.as_posix()
+            f"beams.{field}.{stoke.lower()}_beam{beam_num}_image_file": filename.absolute().as_posix()
         }
     }
 
