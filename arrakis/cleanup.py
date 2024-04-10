@@ -54,6 +54,10 @@ def make_cutout_tarball(cutdir: Path, overwrite: bool = False) -> Path:
     with tarfile.open(tarball, "w") as tar:
         for cutout in tqdm(all_things, file=TQDM_OUT, desc="Tarballing cutouts"):
             tar.add(cutout, arcname=cutout.name)
+
+    logger.info(f"Tarball created: {tarball}")
+    logger.critical(f"Removing {cutdir}")
+    cutdir.rmdir()
     return tarball
 
 
