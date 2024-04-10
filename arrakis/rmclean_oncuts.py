@@ -61,89 +61,73 @@ def rmclean1d(
     """
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
-
     logger.debug(f"Working on {comp}")
     save_name = field if sbid is None else f"{field}_{sbid}"
-    try:
-        rm1dfiles = comp["rm1dfiles"]
-        fdfFile = outdir / f"{rm1dfiles['FDF_dirty']}"
-        rmsfFile = outdir / f"{rm1dfiles['RMSF']}"
-        weightFile = outdir / f"{rm1dfiles['weights']}"
-        rmSynthFile = outdir / f"{rm1dfiles['summary_json']}"
 
-        prefix = os.path.join(os.path.abspath(os.path.dirname(fdfFile)), cname)
+    rm1dfiles = comp[save_name]["rm1dfiles"]
+    fdfFile = outdir / f"{rm1dfiles['FDF_dirty']}"
+    rmsfFile = outdir / f"{rm1dfiles['RMSF']}"
+    weightFile = outdir / f"{rm1dfiles['weights']}"
+    rmSynthFile = outdir / f"{rm1dfiles['summary_json']}"
 
-        # Sanity checks
-        for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
-            logger.debug(f"Checking {f.absolute()}")
-            if not f.exists():
-                logger.fatal(f"File does not exist: '{f}'.")
-                raise FileNotFoundError(f"File does not exist: '{f}'")
+    prefix = os.path.join(os.path.abspath(os.path.dirname(fdfFile)), cname)
 
-        nBits = 32
-        mDict, aDict = do_RMclean_1D.readFiles(
-            fdfFile, rmsfFile, weightFile, rmSynthFile, nBits
-        )
+    # Sanity checks
+    for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
+        logger.debug(f"Checking {f.absolute()}")
+        if not f.exists():
+            logger.fatal(f"File does not exist: '{f}'.")
+            raise FileNotFoundError(f"File does not exist: '{f}'")
 
-        # Run RM-CLEAN on the spectrum
-        outdict, arrdict = do_RMclean_1D.run_rmclean(
-            mDict=mDict,
-            aDict=aDict,
-            cutoff=cutoff,
-            maxIter=maxIter,
-            gain=gain,
-            nBits=nBits,
-            showPlots=showPlots,
-            verbose=rm_verbose,
-            prefixOut=prefix,
-            saveFigures=savePlots,
-            window=window,
-        )
-        # Ensure JSON serializable
-        for k, v in outdict.items():
-            if isinstance(v, np.float_):
-                outdict[k] = float(v)
-            elif isinstance(v, np.float32):
-                outdict[k] = float(v)
-            elif isinstance(v, np.int_):
-                outdict[k] = int(v)
-            elif isinstance(v, np.int32):
-                outdict[k] = int(v)
-            elif isinstance(v, np.ndarray):
-                outdict[k] = v.tolist()
+    nBits = 32
+    mDict, aDict = do_RMclean_1D.readFiles(
+        fdfFile, rmsfFile, weightFile, rmSynthFile, nBits
+    )
 
-        # Save output
-        do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
-        if savePlots:
-            plt.close("all")
-            plotdir = outdir / "plots"
-            plot_files = list(fdfFile.parent.glob("*.pdf"))
-            for plot_file in plot_files:
-                copyfile(plot_file, plotdir / plot_file.name)
+    # Run RM-CLEAN on the spectrum
+    outdict, arrdict = do_RMclean_1D.run_rmclean(
+        mDict=mDict,
+        aDict=aDict,
+        cutoff=cutoff,
+        maxIter=maxIter,
+        gain=gain,
+        nBits=nBits,
+        showPlots=showPlots,
+        verbose=rm_verbose,
+        prefixOut=prefix,
+        saveFigures=savePlots,
+        window=window,
+    )
+    # Ensure JSON serializable
+    for k, v in outdict.items():
+        if isinstance(v, np.float_):
+            outdict[k] = float(v)
+        elif isinstance(v, np.float32):
+            outdict[k] = float(v)
+        elif isinstance(v, np.int_):
+            outdict[k] = int(v)
+        elif isinstance(v, np.int32):
+            outdict[k] = int(v)
+        elif isinstance(v, np.ndarray):
+            outdict[k] = v.tolist()
 
-        # Load into Mongo
-        myquery = {"Gaussian_ID": cname}
+    # Save output
+    do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
+    if savePlots:
+        plt.close("all")
+        plotdir = outdir / "plots"
+        plot_files = list(fdfFile.parent.glob("*.pdf"))
+        for plot_file in plot_files:
+            copyfile(plot_file, plotdir / plot_file.name)
 
-        newvalues = {
-            "$set": {
-                save_name: {
-                    "rmclean1d": True,
-                    "rmclean_summary": outdict,
-                },
-            }
-        }
-    except KeyError:
-        logger.critical("Failed to load data! RM-CLEAN not applied to component!")
-        logger.critical(f"Island is {iname}, component is {cname}")
-        myquery = {"Gaussian_ID": cname}
+    # Load into Mongo
+    myquery = {"Gaussian_ID": cname}
 
-        newvalues = {
-            "$set": {
-                save_name: {
-                    "rmclean1d": False,
-                },
-            }
-        }
+    to_update = comp[save_name]
+    to_update["rmclean1d"] = True
+    to_update["rmclean_summary"] = outdict
+
+    newvalues = {"$set": {save_name: to_update}}
     return pymongo.UpdateOne(myquery, newvalues)
 
 
@@ -201,8 +185,10 @@ def rmclean3d(
     )
     # Load into Mongo
     save_name = field if sbid is None else f"{field}_{sbid}"
+    to_update = island[save_name]
+    to_update["rmclean3d"] = True
     myquery = {"Source_ID": iname}
-    newvalues = {"$set": {save_name: {"rmclean3d": True}}}
+    newvalues = {"$set": {save_name: to_update}}
     return pymongo.UpdateOne(myquery, newvalues)
 
 
@@ -295,7 +281,7 @@ def main(
                 # Only get required values
                 {
                     "Source_ID": 1,
-                    "rm3dfiles": 1,
+                    f"{field}" if sbid is None else f"{field}_{sbid}": 1,
                 },
             ).sort("Source_ID")
         )
@@ -311,7 +297,6 @@ def main(
                     ): False
                 }
             },
-            upsert=True,
         )
         logger.info(pformat(result.raw_result))
 
@@ -336,7 +321,7 @@ def main(
                 {
                     "Source_ID": 1,
                     "Gaussian_ID": 1,
-                    "rm1dfiles": 1,
+                    f"{field}" if sbid is None else f"{field}_{sbid}": 1,
                 },
             ).sort("Source_ID")
         )
@@ -352,7 +337,6 @@ def main(
                     ): True
                 }
             },
-            upsert=True,
         )
         logger.info(pformat(result.raw_result))
 

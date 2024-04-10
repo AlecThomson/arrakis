@@ -154,7 +154,7 @@ def rmsynthoncut3d(
                 }
             }
         }
-        return pymongo.UpdateOne(myquery, badvalues)
+        return pymongo.UpdateOne(myquery, badvalues, upsert=True)
 
     bkgq, rmsq = cubelet_bane(dataQ, header)
     rmsq[rmsq == 0] = np.nan
@@ -227,7 +227,7 @@ def rmsynthoncut3d(
             }
         }
     }
-    return pymongo.UpdateOne(myquery, newvalues)
+    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
 def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
@@ -476,6 +476,8 @@ def update_rmtools_dict(
     for key, val in fit_dict["fit_flag"].items():
         mDict[f"fit_flag_{key}"] = val
 
+    return mDict
+
 
 @task(name="1D RM-synthesis")
 def rmsynthoncut1d(
@@ -525,6 +527,7 @@ def rmsynthoncut1d(
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
     logger.setLevel(logging.INFO)
+    save_name = field if sbid is None else f"{field}_{sbid}"
     comp = comp_tuple[1]
     beam = dict(beam_tuple[1])
 
@@ -547,8 +550,8 @@ def rmsynthoncut1d(
         if np.isnan(spectrum.data).all():
             logger.critical(f"Entire data is NaN for {iname} in {spectrum.filename}")
             myquery = {"Gaussian_ID": cname}
-            badvalues = {"$set": {"rmsynth1d": False}}
-            return pymongo.UpdateOne(myquery, badvalues)
+            badvalues = {"$set": {save_name: {"rmsynth1d": False}}}
+            return pymongo.UpdateOne(myquery, badvalues, upsert=True)
 
     prefix = f"{os.path.dirname(stokes_spectra.i.filename)}/{cname}"
 
@@ -573,14 +576,14 @@ def rmsynthoncut1d(
     ):
         logger.critical(f"{cname} QU data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
-        badvalues = {"$set": {"rmsynth1d": False}}
-        return pymongo.UpdateOne(myquery, badvalues)
+        badvalues = {"$set": {save_name: {"rmsynth1d": False}}}
+        return pymongo.UpdateOne(myquery, badvalues, upsert=True)
     # And I
     if np.isnan(filtered_stokes_spectra.i.data).all():
         logger.critical(f"{cname} I data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
-        badvalues = {"$set": {"rmsynth1d": False}}
-        return pymongo.UpdateOne(myquery, badvalues)
+        badvalues = {"$set": {save_name: {"rmsynth1d": False}}}
+        return pymongo.UpdateOne(myquery, badvalues, upsert=True)
 
     data = [np.array(freq)]
     bkg_data = [np.array(freq)]
@@ -681,8 +684,6 @@ def rmsynthoncut1d(
     logger.debug(f"Heading for {cname} is {pformat(head_dict)}")
 
     outer_dir = os.path.basename(os.path.dirname(filtered_stokes_spectra.i.filename))
-
-    save_name = field if sbid is None else f"{field}_{sbid}"
     newvalues = {
         "$set": {
             save_name: {
@@ -734,7 +735,7 @@ def rmsynthoncut1d(
             }
         }
     }
-    return pymongo.UpdateOne(myquery, newvalues)
+    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
 def rmsynthoncut_i(
@@ -999,37 +1000,42 @@ def main(
 
     # Unset rmsynth in db
     if dimension == "1d":
+        logger.info(f"Unsetting rmsynth1d for {n_comp} components")
         query_1d = {"Source_ID": {"$in": island_ids}}
+        update_1d = {
+            "$set": {
+                (
+                    f"{field}.rmsynth1d"
+                    if sbid is None
+                    else f"{field}_{sbid}.rmsynth1d"
+                ): False
+            }
+        }
+        logger.info(pformat(update_1d))
 
         result = comp_col.update_many(
             query_1d,
-            {
-                "$set": {
-                    (
-                        f"{field}.rmsynth1d"
-                        if sbid is None
-                        else f"{field}_{sbid}.rmsynth1d"
-                    ): False
-                }
-            },
+            update_1d,
             upsert=True,
         )
         logger.info(pformat(result.raw_result))
 
     elif dimension == "3d":
+        logger.info(f"Unsetting rmsynth3d for {n_island} islands")
         query_3d = {"Source_ID": {"$in": island_ids}}
-
+        update_3d = {
+            "$set": {
+                (
+                    f"{field}.rmsynth3d"
+                    if sbid is None
+                    else f"{field}_{sbid}.rmsynth3d"
+                ): False
+            }
+        }
+        logger.info(pformat(update_3d))
         result = island_col.update(
             query_3d,
-            {
-                "$set": {
-                    (
-                        f"{field}.rmsynth3d"
-                        if sbid is None
-                        else f"{field}_{sbid}.rmsynth3d"
-                    ): False
-                }
-            },
+            update_3d,
             upsert=True,
         )
 
@@ -1275,8 +1281,9 @@ def cli():
     gen_parser = generic_parser(parent_parser=True)
     work_parser = workdir_arg_parser(parent_parser=True)
     synth_parser = rmsynth_parser(parent_parser=True)
+    common_parser = rm_common_parser(parent_parser=True)
     parser = argparse.ArgumentParser(
-        parents=[gen_parser, work_parser, synth_parser],
+        parents=[gen_parser, work_parser, common_parser, synth_parser],
         formatter_class=UltimateHelpFormatter,
         description=synth_parser.description,
     )

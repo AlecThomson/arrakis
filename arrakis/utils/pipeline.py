@@ -127,7 +127,7 @@ def generic_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--limit",
-        type=Optional[int],
+        type=int,
         default=None,
         help="Limit the number of islands to process.",
     )
