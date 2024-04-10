@@ -283,7 +283,7 @@ def main(
     datadir: Path,
     host: str,
     epoch: int,
-    sbid: Optional[int],
+    sbid: Optional[int] = None,
     holofile: Optional[Path] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
