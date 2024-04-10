@@ -871,9 +871,25 @@ def main(
         fields.update({n: 1})
     for n in columns_possum.sourcefinder_columns:
         fields.update({n: 1})
-    fields.update({"rmsynth_summary": 1})
-    fields.update({"rmclean_summary": 1})
-    fields.update({"header": 1})
+    fields.update(
+        {
+            (
+                f"{field}.rmsynth_summary"
+                if sbid is None
+                else f"{field}_{sbid}.rmsynth_summary"
+            ): 1
+        }
+    )
+    fields.update(
+        {
+            (
+                f"{field}.rmclean_summary"
+                if sbid is None
+                else f"{field}_{sbid}.rmclean_summary"
+            ): 1
+        }
+    )
+    fields.update({f"{field}.header" if sbid is None else f"{field}_{sbid}.header": 1})
 
     comps = list(comp_col.find(query, fields))
     tock = time.time()
@@ -938,15 +954,25 @@ def main(
         if src == "synth":
             for src_id, comp in comps_df.iterrows():
                 try:
-                    data += [comp["rmclean_summary"][col]]
+                    data += [
+                        comp[field if sbid is None else f"{field}_{sbid}"][
+                            "rmclean_summary"
+                        ][col]
+                    ]
                 except KeyError:
-                    data += [comp["rmsynth_summary"][col]]
+                    data += [
+                        comp[field if sbid is None else f"{field}_{sbid}"][
+                            "rmsynth_summary"
+                        ][col]
+                    ]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             rmtab.add_column(new_col)
 
         if src == "header":
             for src_id, comp in comps_df.iterrows():
-                data += [comp["header"][col]]
+                data += [
+                    comp[field if sbid is None else f"{field}_{sbid}"]["header"][col]
+                ]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             rmtab.add_column(new_col)
 
