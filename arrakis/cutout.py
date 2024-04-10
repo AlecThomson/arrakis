@@ -90,7 +90,7 @@ def cutout_weight(
         }
         return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
-    outdir = cutout_args.outdir
+    outdir = cutout_args.outdir.absolute()
     basename = image_name.name
     outname = f"{source_id}.cutout.{basename}"
     outfile = outdir / outname
