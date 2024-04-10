@@ -1,10 +1,10 @@
 # options:
-hosted-wsclean: docker://alecthomson/wsclean:latest # Docker or Singularity image for wsclean (default: docker://alecthomson/wsclean:latest)
-local_wsclean: null # Path to local wsclean Singularity image (default: None)
+# hosted-wsclean: docker://alecthomson/wsclean:latest # Docker or Singularity image for wsclean (default: docker://alecthomson/wsclean:latest)
+# local_wsclean: null # Path to local wsclean Singularity image (default: None)
 
 # pipeline arguments:
-dask_config: null # Config file for Dask SlurmCLUSTER. (default: None)
-imager_dask_config: null #Config  file for Dask SlurmCLUSTER. (default: None)
+# dask_config: null # Config file for Dask SlurmCLUSTER. (default: None)
+# imager_dask_config: null #Config  file for Dask SlurmCLUSTER. (default: None)
 imager_only: false #Only run the imager component of the pipeline.  (default: False)
 skip_imager: false #Skip imaging stage [False]. (default: False)
 skip_cutout: false #Skip cutout stage [False]. (default: False)
@@ -15,23 +15,20 @@ skip_rmclean: false #Skip RM-CLEAN stage [False]. (default: False)
 skip_cat: false #Skip catalogue stage [False]. (default: False)
 skip_cleanup: false #Skip cleanup stage [False]. (default: False)
 
-# generic null arguments:
-sbid: null #SBID of observation. (default: None)
-stokes: # List of Stokes parameters to image (default: ['I', 'Q', 'U'])
-  - I
-  - Q
-  - U
+# # generic null arguments:
+# sbid: null #SBID of observation. (default: None)
+stokes: [I,Q,U] # List of Stokes parameters to image (default: ['I', 'Q', 'U'])
 epoch: 0 # Epoch of observation. (default: 0)
-host: null # Host of mongodb (probably $hostname -i). (default: None)
-username: null # Username of mongodb. (default: None)
+# host: null # Host of mongodb (probably $hostname -i). (default: None)
+# username: null # Username of mongodb. (default: None)
 password: # Password of mongodb. (default: None)
-limit: null # Limit the number of islands to process. (default: None)
+# limit: null # Limit the number of islands to process. (default: None)
 database: false # Add data to MongoDB. (default: False)
 
 # imaging arguments:
-temp_dir_wsclean: null # Temporary directory for WSClean to store intermediate files (default: None)
-temp_dir_images: null # Temporary directory for to store intermediate image files (default: None)
-psf_cutoff: null # Cutoff for smoothing in units of arcseconds.  (default: None)
+# temp_dir_wsclean: null # Temporary directory for WSClean to store intermediate files (default: None)
+# temp_dir_images: null # Temporary directory for to store intermediate image files (default: None)
+# psf_cutoff: null # Cutoff for smoothing in units of arcseconds.  (default: None)
 robust: -0.5 # ROBUST
 nchan: 36 # NCHAN
 pols: IQU # POLS
@@ -46,15 +43,15 @@ local_rms: true #
 local_rms_window: 60 # LOCAL_RMS_WINDOW
 force_mask_rounds: 8 # FORCE_MASK_ROUNDS
 gridder: wgridder # {direct-ft,idg,wgridder,tuned-wgridder,wstacking}
-taper: null # TAPER
+# taper: null # TAPER
 minuv: 200 # MINUV
-parallel: null # PARALLEL
+# parallel: null # PARALLEL
 mpi: false #                 Use MPI (default: False)
 purge: false # Purge intermediate files (default: False)
 multiscale: false # Use multiscale clean (default: False)
-multiscale_scale_bias: null # The multiscale scale bias term provided to wsclean.  (default: None)
+# multiscale_scale_bias: null # The multiscale scale bias term provided to wsclean.  (default: None)
 multiscale_scales: 0,2,4,8,16,32,64,12 # The scales used in the multiscale clean.  (default: 0,2,4,8,16,32,64,128)
-absmem: null # ABSMEM       Absolute memory limit in GB (default: None)
+# absmem: null # ABSMEM       Absolute memory limit in GB (default: None)
 make_residual_cubes: false # Create residual cubes as well as cubes from restored images.  (default: False)
 ms_glob_pattern: scienceData*_averaged_cal.leakage.ms # The pattern used to search for measurement sets.  (default: scienceData*_averaged_cal.leakage.ms)
 data_column: CORRECTED_DATA # Which column in the measurement set to image.  (default: CORRECTED_DATA)
@@ -65,16 +62,16 @@ skip_fix_ms: false # Do not apply the ASKAP MS corrections from the package fixm
 pad: 3 # Number of beamwidths to pad around source [3]. (default: 3)
 dryrun: false # Do a dry-run [False]. (default: False)
 
-# linmos null arguments:
-holofile: null #Path to holography image (default: None)
+# # linmos null arguments:
+# holofile: null #Path to holography image (default: None)
 yanda: 1.3.0 # Yandasoft version to pull from DockerHub [1.3.0]. (default: 1.3.0)
-yanda_image: null #Path to an existing yandasoft singularity container image.  (default: None)
+# yanda_image: null #Path to an existing yandasoft singularity container image.  (default: None)
 
 # frion arguments:
 ionex_server: ftp://ftp.aiub.unibe.ch/CODE/ # IONEX server (default: ftp://ftp.aiub.unibe.ch/CODE/)
 ionex_prefix: codg # IONEX_PREFIX
-ionex_formatter: null # IONEX formatter. (default: ftp.aiub.unibe.ch)
-ionex_proxy_server: null # Proxy server. (default: None)
+# ionex_formatter: null # IONEX formatter. (default: ftp.aiub.unibe.ch)
+# ionex_proxy_server: null # Proxy server. (default: None)
 ionex_predownload: false # Pre-download IONEX files. (default: False)
 
 # common rm arguments:
@@ -84,15 +81,15 @@ rm_verbose: false #          Verbose RMsynth/RMClean. (default: False)
 
 # rm-synth arguments:
 ion: false # Use ionospheric-corrected data. (default: False)
-tt0: null # TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1. (default: None)
-tt1: null # TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0. (default: None)
+# tt0: null # TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1. (default: None)
+# tt1: null # TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0. (default: None)
 validate: false # Run on Stokes I. (default: False)
 own_fit: false # Use own Stokes I fit function. (default: False)
 weight_type: # weighting (inverse) 'variance' or 'uniform' (all 1s). (default: variance)
 fit_function: # Stokes I fitting function: 'linear' or 'log' polynomials. (default: log)
 fit_rmsf: false # Fit a Gaussian to the RMSF (default: False)
-phi_max: null # Absolute max Faraday depth sampled (in rad/m^2) (overrides NSAMPLES). (default: None)
-dphi: null # Width of Faraday depth channel. (default: None)
+# phi_max: null # Absolute max Faraday depth sampled (in rad/m^2) (overrides NSAMPLES). (default: None)
+# dphi: null # Width of Faraday depth channel. (default: None)
 n_samples: # Number of samples across the FWHM RMSF. (default: 5)
 poly_ord: # polynomial order to fit to I spectrum. (default: 3)
 no_stokes_i: false # ignore the Stokes I spectrum. (default: False)
@@ -104,13 +101,13 @@ debug: false # turn on debugging messages & plots. (default: False)
 cutoff: -8 # CLEAN cutoff (+ve = absolute, -ve = sigma). (default: -3)
 max_iter: 10000 # maximum number of CLEAN iterations. (default: 10000)
 gain: 0.1 # CLEAN loop gain. (default: 0.1)
-window: null # Further CLEAN in mask to this threshold. (default: None)
+# window: null # Further CLEAN in mask to this threshold. (default: None)
 
 # catalogue arguments:
 leakage_degree: 4 # Degree of leakage polynomial fit. (default: 4)
 leakage_bins: 16 # Number of bins for leakage fit. (default: 16)
 leakage_snr: 30 # SNR cut for leakage fit. (default: 30.0)
-write: null # File to save table to. (default: None)
+# write: null # File to save table to. (default: None)
 
 # cleanup arguments:
 overwrite: false # Overwrite existing tarball (default: False)
