@@ -98,8 +98,6 @@ def main(
     for to_purge in tqdm(to_purge_all, file=TQDM_OUT, desc="Purging big beams"):
         purged.append(purge_cubelet_beams(to_purge))
     logger.info(f"Files purged: {len(purged)}")
-    total_purge_size = np.sum([p.stat().st_size for p in purged]) * u.byte
-    logger.info(f"Total space freed: {total_purge_size.to(u.GB)}")
 
     logger.info("Cleanup done!")
 
