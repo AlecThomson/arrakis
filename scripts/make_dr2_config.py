@@ -17,7 +17,6 @@ RACSUSER = "anonymous"
 RACSPASS = "racs-db-letmein"
 RACSHOST = "146.118.68.63"
 RACSPORT = "5433"
-RACSDB = "epoch_7"
 
 
 def get_field_data(sbid: int) -> pd.Series:
@@ -30,9 +29,15 @@ def get_field_data(sbid: int) -> pd.Series:
         pd.Series: Field data row
     """
     table = "field_data"
+
+    if 55538 <= sbid <= 59072:
+        racsdb = "epoch_9"
+    elif 38307 <= sbid <= 41829:
+        racsdb = "epoch_7"
+
     df = pd.read_sql(
         f"SELECT * from {table}",
-        f"postgresql://{RACSUSER}:{RACSPASS}@{RACSHOST}:{RACSPORT}/{RACSDB}",
+        f"postgresql://{RACSUSER}:{RACSPASS}@{RACSHOST}:{RACSPORT}/{racsdb}",
     )
     df.set_index("SBID", inplace=True)
     return df.loc[sbid]
@@ -50,12 +55,24 @@ def get_holography_path(sbid: int) -> Path:
     Returns:
         Path: Path to the holography file
     """
+
+    # RACS-low3 min SBID 55538
+    # SBID 55538-59072 : associated holography is SBID 55219
+
+    # RACS-low2 38307 - 41829
     # From Uncle Timmy:
     # SBID 38307-38528 : associated holography is SBID 38585
     # SBID 38545-39385 : associated holography is SBID 38709
     # SBID 39400-40878 : associated holography is SBID 39549
     # SBID 40989-41829 : associated holography is SBID 41055
-    holo_dir = Path("/scratch3/projects/spiceracs/RACS_Low2_Holography")
+
+    if 55538 <= sbid <= 59072:
+        holo_dir = Path("/scratch3/projects/spiceracs/RACS_Low3_Holography")
+    elif 38307 <= sbid <= 41829:
+        holo_dir = Path("/scratch3/projects/spiceracs/RACS_Low2_Holography")
+    else:
+        raise ValueError(f"SBID {sbid} not in range")
+
     if 38307 <= sbid <= 38528:
         holo_sbid = 38585
     elif 38545 <= sbid <= 39385:
@@ -64,9 +81,19 @@ def get_holography_path(sbid: int) -> Path:
         holo_sbid = 39549
     elif 40989 <= sbid <= 41829:
         holo_sbid = 41055
+    elif 55538 <= sbid <= 59072:
+        holo_sbid = 55219
     else:
         raise ValueError(f"SBID {sbid} not in range")
-    holo_file = holo_dir / f"akpb.iquv.square_6x6.63.887MHz.SB{holo_sbid}.cube.fits"
+
+    if 38307 <= sbid <= 41829:
+        holo_file = holo_dir / f"akpb.iquv.square_6x6.63.887MHz.SB{holo_sbid}.cube.fits"
+
+    elif 55538 <= sbid <= 59072:
+        holo_file = (
+            holo_dir / f"akpb.iquv.closepack36.54.943MHz.SB{holo_sbid}.cube.fits"
+        )
+
     assert holo_file.exists(), f"{holo_file} does not exist"
     return holo_file
 
