@@ -2,6 +2,7 @@
 """DANGER ZONE: Purge directories of un-needed FITS files."""
 import argparse
 import logging
+import shutil
 import tarfile
 from pathlib import Path
 from typing import List
@@ -57,7 +58,7 @@ def make_cutout_tarball(cutdir: Path, overwrite: bool = False) -> Path:
 
     logger.info(f"Tarball created: {tarball}")
     logger.critical(f"Removing {cutdir}")
-    cutdir.rmdir()
+    shutil.rmtree(cutdir)
     return tarball
 
 
