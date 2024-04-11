@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 """Pipeline and flow utility functions"""
 
+import argparse
 import logging
 import shlex
 import subprocess
 import time
 import warnings
-from typing import List, Tuple, Union
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 import astropy.units as u
 import dask.array as da
@@ -23,7 +25,7 @@ from spectral_cube.utils import SpectralCubeWarning
 from tornado.ioloop import IOLoop
 from tqdm.auto import tqdm, trange
 
-from arrakis.logger import TqdmToLogger, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
@@ -44,6 +46,96 @@ logo_str = """
    |___|   |___|   |___|   |___|
 
 """
+
+
+def workdir_arg_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    # Parse the command line options
+    work_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        formatter_class=UltimateHelpFormatter,
+    )
+    parser = work_parser.add_argument_group("workdir arguments")
+    parser.add_argument(
+        "datadir",
+        type=Path,
+        help="Directory to create/find full-size images and 'cutout' directory",
+    )
+
+    return work_parser
+
+
+def generic_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    descStr = f"""
+    {logo_str}
+    Generic pipeline options
+
+    """
+
+    # Parse the command line options
+    gen_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
+    )
+    parser = gen_parser.add_argument_group("generic arguments")
+
+    parser.add_argument(
+        "field", metavar="field", type=str, help="Name of field (e.g. RACS_2132-50)."
+    )
+
+    parser.add_argument(
+        "--sbid",
+        type=int,
+        default=None,
+        help="SBID of observation.",
+    )
+
+    parser.add_argument(
+        "-s",
+        "--stokes",
+        dest="stokeslist",
+        nargs="+",
+        type=str,
+        default=["I", "Q", "U"],
+        help="List of Stokes parameters to image",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--epoch",
+        type=int,
+        default=0,
+        help="Epoch of observation.",
+    )
+
+    parser.add_argument(
+        "-v", dest="verbose", action="store_true", help="Verbose output."
+    )
+    parser.add_argument(
+        "--host",
+        metavar="host",
+        type=str,
+        default=None,
+        help="Host of mongodb (probably $hostname -i).",
+    )
+    parser.add_argument(
+        "--username", type=str, default=None, help="Username of mongodb."
+    )
+
+    parser.add_argument(
+        "--password", type=str, default=None, help="Password of mongodb."
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit the number of islands to process.",
+    )
+    parser.add_argument(
+        "--database", dest="database", action="store_true", help="Add data to MongoDB."
+    )
+
+    return gen_parser
 
 
 class performance_report_prefect:
@@ -248,7 +340,7 @@ def port_forward(port: int, target: str) -> None:
     logger.info(f"Forwarding {port} from localhost to {target}")
     cmd = f"ssh -N -f -R {port}:localhost:{port} {target}"
     command = shlex.split(cmd)
-    output = subprocess.Popen(command)
+    _ = subprocess.Popen(command)
 
 
 def cpu_to_use(max_cpu: int, count: int) -> int:

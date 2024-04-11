@@ -7,7 +7,7 @@ cluster_kwargs:
     memory: "128GiB"
     account: 'OD-217087'
     #queue: 'workq'
-    walltime: '1-00:00:00'
+    walltime: '0-06:00:00'
     job_extra_directives: ['--qos express']
     # interface for the workers
     interface: "ib0"

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Arrakis multi-field pipeline"""
+import argparse
+import logging
 import os
+from pathlib import Path
 
 import configargparse
 import pkg_resources
@@ -8,7 +11,15 @@ import yaml
 from astropy.time import Time
 from prefect import flow
 
-from arrakis import makecat, merge_fields, process_spice, rmclean_oncuts, rmsynth_oncuts
+from arrakis import (
+    cleanup,
+    linmos,
+    makecat,
+    merge_fields,
+    process_spice,
+    rmclean_oncuts,
+    rmsynth_oncuts,
+)
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str
@@ -42,10 +53,11 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
 
     previous_future = (
         rmsynth_oncuts.main.with_options(task_runner=task_runner)(
-            field=args.merge_name,
-            outdir=inter_dir,
-            host=host,
+            field=args.field,
+            outdir=Path(args.datadir),
+            host=args.host,
             epoch=args.epoch,
+            sbid=args.sbid,
             username=args.username,
             password=args.password,
             dimension=args.dimension,
@@ -53,16 +65,16 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             database=args.database,
             do_validate=args.validate,
             limit=args.limit,
-            savePlots=args.savePlots,
-            weightType=args.weightType,
-            fitRMSF=args.fitRMSF,
-            phiMax_radm2=args.phiMax_radm2,
-            dPhi_radm2=args.dPhi_radm2,
-            nSamples=args.nSamples,
-            polyOrd=args.polyOrd,
-            noStokesI=args.noStokesI,
-            showPlots=args.showPlots,
-            not_RMSF=args.not_RMSF,
+            savePlots=args.save_plots,
+            weightType=args.weight_type,
+            fitRMSF=args.fit_rmsf,
+            phiMax_radm2=args.phi_max,
+            dPhi_radm2=args.dphi,
+            nSamples=args.n_samples,
+            polyOrd=args.poly_ord,
+            noStokesI=args.no_stokes_i,
+            showPlots=args.show_plots,
+            not_RMSF=args.not_rmsf,
             rm_verbose=args.rm_verbose,
             debug=args.debug,
             fit_function=args.fit_function,
@@ -90,7 +102,7 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             maxIter=args.maxIter,
             gain=args.gain,
             window=args.window,
-            showPlots=args.showPlots,
+            showPlots=args.show_plots,
             rm_verbose=args.rm_verbose,
         )
         if not args.skip_rmclean
@@ -148,9 +160,7 @@ def main(args: configargparse.Namespace) -> None:
     )(args, args.host, inter_dir, dask_runner)
 
 
-def cli():
-    """Command-line interface"""
-    # Help string to be shown using the -h option
+def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
     {logo_str}
     Arrakis regional pipeline.
@@ -159,72 +169,13 @@ def cli():
         $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
 
     """
-
     # Parse the command line options
-    parser = configargparse.ArgParser(
-        default_config_files=[".default_field_config.txt"],
+    pipeline_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
         description=descStr,
         formatter_class=UltimateHelpFormatter,
     )
-    parser.add("--config", required=False, is_config_file=True, help="Config file path")
-
-    parser.add_argument(
-        "--merge_name",
-        type=str,
-        help="Name of the merged region",
-    )
-
-    parser.add_argument(
-        "--fields", type=str, nargs="+", help="RACS fields to mosaic - e.g. 2132-50A."
-    )
-
-    parser.add_argument(
-        "--datadirs",
-        type=str,
-        nargs="+",
-        help="Directories containing cutouts (in subdir outdir/cutouts)..",
-    )
-
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        help="Path to save merged data (in output_dir/merge_name/cutouts)",
-    )
-
-    parser.add_argument(
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch to read field data from",
-    )
-
-    parser.add_argument(
-        "--host",
-        default=None,
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    parser.add_argument(
-        "--use_mpi",
-        action="store_true",
-        help="Use Dask-mpi to parallelise -- must use srun/mpirun to assign resources.",
-    )
-    parser.add_argument(
-        "--port_forward",
-        default=None,
-        help="Platform to fowards dask port [None].",
-        nargs="+",
-    )
-
+    parser = pipeline_parser.add_argument_group("pipeline arguments")
     parser.add_argument(
         "--dask_config",
         type=str,
@@ -233,195 +184,60 @@ def cli():
     )
 
     parser.add_argument(
-        "--yanda",
-        type=str,
-        default="1.3.0",
-        help="Yandasoft version to pull from DockerHub [1.3.0].",
+        "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
     )
-
-    flowargs = parser.add_argument_group("pipeline flow options")
-    flowargs.add_argument(
-        "--skip_merge", action="store_true", help="Skip merge stage [False]."
-    )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage [False]."
     )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage [False]."
     )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
     )
+    parser.add_argument(
+        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
+    )
+    return pipeline_parser
 
-    options = parser.add_argument_group("output options")
-    options.add_argument(
-        "-v", "--verbose", action="store_true", help="Verbose output [False]."
-    )
-    options.add_argument(
-        "--debugger", action="store_true", help="Debug output [False]."
-    )
 
-    synth = parser.add_argument_group("RM-synth/CLEAN arguments")
+def cli():
+    """Command-line interface"""
+    # Help string to be shown using the -h option
 
-    synth.add_argument(
-        "--dimension",
-        default="1d",
-        help="How many dimensions for RMsynth [1d] or '3d'.",
+    # Parse the command line options
+    pipe_parser = pipeline_parser(parent_parser=True)
+    merge_parser = merge_fields.merge_parser(parent_parser=True)
+    linmos_parser = linmos.linmos_parser(parent_parser=True)
+    common_parser = rmsynth_oncuts.rm_common_parser(parent_parser=True)
+    synth_parser = rmsynth_oncuts.rmsynth_parser(parent_parser=True)
+    rmclean_parser = rmclean_oncuts.clean_parser(parent_parser=True)
+    catalogue_parser = makecat.cat_parser(parent_parser=True)
+    clean_parser = cleanup.cleanup_parser(parent_parser=True)
+    # Parse the command line options
+    parser = configargparse.ArgParser(
+        default_config_files=[".default_config.cfg"],
+        description=pipe_parser.description,
+        formatter_class=UltimateHelpFormatter,
+        parents=[
+            pipe_parser,
+            merge_parser,
+            linmos_parser,
+            common_parser,
+            synth_parser,
+            rmclean_parser,
+            catalogue_parser,
+            clean_parser,
+        ],
     )
-
-    synth.add_argument(
-        "-m",
-        "--database",
-        action="store_true",
-        help="Add RMsynth data to MongoDB [False].",
-    )
-
-    synth.add_argument(
-        "--tt0",
-        default=None,
-        type=str,
-        help="TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1.",
-    )
-
-    synth.add_argument(
-        "--tt1",
-        default=None,
-        type=str,
-        help="TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.",
-    )
-
-    synth.add_argument(
-        "--validate", action="store_true", help="Run on RMsynth Stokes I [False]."
-    )
-
-    synth.add_argument(
-        "--limit", default=None, type=int, help="Limit number of sources [All]."
-    )
-    synth.add_argument(
-        "--own_fit",
-        dest="do_own_fit",
-        action="store_true",
-        help="Use own Stokes I fit function [False].",
-    )
-
-    tools = parser.add_argument_group("RM-tools arguments")
-    # RM-tools args
-    tools.add_argument(
-        "-sp", "--savePlots", action="store_true", help="save the plots [False]."
-    )
-    tools.add_argument(
-        "-w",
-        "--weightType",
-        default="variance",
-        help="weighting [variance] (all 1s) or 'uniform'.",
-    )
-    tools.add_argument(
-        "--fit_function",
-        type=str,
-        default="log",
-        help="Stokes I fitting function: 'linear' or ['log'] polynomials.",
-    )
-    tools.add_argument(
-        "-t",
-        "--fitRMSF",
-        action="store_true",
-        help="Fit a Gaussian to the RMSF [False]",
-    )
-    tools.add_argument(
-        "-l",
-        "--phiMax_radm2",
-        type=float,
-        default=None,
-        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].",
-    )
-    tools.add_argument(
-        "-d",
-        "--dPhi_radm2",
-        type=float,
-        default=None,
-        help="Width of Faraday depth channel [Auto].",
-    )
-    tools.add_argument(
-        "-s",
-        "--nSamples",
-        type=float,
-        default=5,
-        help="Number of samples across the FWHM RMSF.",
-    )
-    tools.add_argument(
-        "-o",
-        "--polyOrd",
-        type=int,
-        default=3,
-        help="polynomial order to fit to I spectrum [3].",
-    )
-    tools.add_argument(
-        "-i",
-        "--noStokesI",
-        action="store_true",
-        help="ignore the Stokes I spectrum [False].",
-    )
-    tools.add_argument(
-        "--showPlots", action="store_true", help="show the plots [False]."
-    )
-    tools.add_argument(
-        "-R",
-        "--not_RMSF",
-        action="store_true",
-        help="Skip calculation of RMSF? [False]",
-    )
-    tools.add_argument(
-        "-rmv",
-        "--rm_verbose",
-        action="store_true",
-        help="Verbose RMsynth/CLEAN [False].",
-    )
-    tools.add_argument(
-        "-D",
-        "--debug",
-        action="store_true",
-        help="turn on debugging messages & plots [False].",
-    )
-    # RM-tools args
-    tools.add_argument(
-        "-c",
-        "--cutoff",
-        type=float,
-        default=-3,
-        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].",
-    )
-    tools.add_argument(
-        "-n",
-        "--maxIter",
-        type=int,
-        default=10000,
-        help="maximum number of CLEAN iterations [10000].",
-    )
-    tools.add_argument(
-        "-g", "--gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
-    )
-    tools.add_argument(
-        "--window",
-        type=float,
-        default=None,
-        help="Further CLEAN in mask to this threshold [False].",
-    )
-
-    cat = parser.add_argument_group("catalogue arguments")
-    # Cat args
-    cat.add_argument(
-        "--outfile", default=None, type=str, help="File to save table to [None]."
-    )
-
+    parser.add("--config", required=False, is_config_file=True, help="Config file path")
     args = parser.parse_args()
-    if not args.use_mpi:
-        parser.print_values()
 
     verbose = args.verbose
     if verbose:
-        logger.setLevel(logger.INFO)
+        logger.setLevel(logging.INFO)
     if args.debugger:
-        logger.setLevel(logger.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
     main(args)
 

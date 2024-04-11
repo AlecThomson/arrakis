@@ -19,7 +19,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     # myquery = {'rmsynth1d': True}
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
 
-    beams = list(beams_col.find(query).sort("Source_ID"))
+    _ = list(beams_col.find(query).sort("Source_ID"))
     island_ids = sorted(beams_col.distinct("Source_ID", query))
 
     query = {"Source_ID": {"$in": island_ids}}
@@ -154,7 +154,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
 
     q_estimates_arr = np.array(q_estimates)
     u_estimates_arr = np.array(u_estimates)
-    p_estimates_arr = np.array(p_estimates)
+    _ = np.array(p_estimates)
 
     logger.info(
         "\nThe mean number of points in each aperture of %.2f degs was %d\n"

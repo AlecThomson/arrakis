@@ -22,7 +22,7 @@ def cli():
     import argparse
 
     parser = argparse.ArgumentParser(description="Run a parallel hello world")
-    args = parser.parse_args()
+    _ = parser.parse_args()
     main()
 
 

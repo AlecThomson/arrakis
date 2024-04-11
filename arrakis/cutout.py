@@ -7,6 +7,7 @@ import pickle
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from glob import glob
+from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
 from typing import Dict, List
@@ -15,22 +16,28 @@ from typing import Optional, Set, TypeVar, Union
 
 import astropy.units as u
 import numpy as np
+import pandas as pd
 import pymongo
 from astropy.coordinates import Latitude, Longitude, SkyCoord
 from astropy.io import fits
 from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs.utils import skycoord_to_pixel
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
-from arrakis.utils.database import get_db, test_db
+from arrakis.utils.database import (
+    get_db,
+    get_field_db,
+    test_db,
+    validate_sbid_field_pair,
+)
 from arrakis.utils.fitsutils import fix_header
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 iers.conf.auto_download = False
 warnings.filterwarnings(
@@ -59,59 +66,68 @@ class CutoutArgs(Struct):
     """Upper DEC bound in degrees"""
     dec_low: float
     """Lower DEC bound in degrees"""
-    outdir: str
+    outdir: Path
     """Output directory"""
 
 
 def cutout_weight(
-    image_name: str,
+    image_name: Path,
     source_id: str,
-    cutout_args: CutoutArgs,
+    cutout_args: Optional[CutoutArgs],
     field: str,
     stoke: str,
     beam_num: int,
     dryrun=False,
 ) -> pymongo.UpdateOne:
-    outdir = os.path.abspath(cutout_args.outdir)
-    basename = os.path.basename(image_name)
+
+    # Update database
+    myquery = {"Source_ID": source_id}
+
+    if cutout_args is None:
+        logger.error(f"Skipping {source_id} -- no components found")
+        newvalues = {
+            "$set": {f"beams.{field}.{stoke.lower()}_beam{beam_num}_weight_file": ""}
+        }
+        return pymongo.UpdateOne(myquery, newvalues, upsert=True)
+
+    outdir = cutout_args.outdir.absolute()
+    basename = image_name.name
     outname = f"{source_id}.cutout.{basename}"
-    outfile = os.path.join(outdir, outname)
-    image = image_name.replace("image.restored", "weights.restored").replace(
-        ".fits", ".txt"
-    )
-    outfile = outfile.replace("image.restored", "weights.restored").replace(
-        ".fits", ".txt"
-    )
+    outfile = outdir / outname
+    image = (
+        image_name.parent
+        / image_name.name.replace("image.restored", "weights.restored")
+    ).with_suffix(".txt")
+    outfile = (
+        outfile.parent / outfile.name.replace("image.restored", "weights.restored")
+    ).with_suffix(".txt")
 
     if not dryrun:
         copyfile(image, outfile)
         logger.info(f"Written to {outfile}")
 
-    # Update database
-    myquery = {"Source_ID": source_id}
-
-    filename = os.path.join(
-        os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
-    )
+    filename = outfile.parent / outfile.name
     newvalues = {
-        "$set": {f"beams.{field}.{stoke.lower()}_beam{beam_num}_weight_file": filename}
+        "$set": {
+            f"beams.{field}.{stoke.lower()}_beam{beam_num}_weight_file": filename.absolute().as_posix()
+        }
     }
 
     return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
 def cutout_image(
-    image_name: str,
+    image_name: Path,
     data_in_mem: np.ndarray,
     old_header: fits.Header,
     cube: SpectralCube,
     source_id: str,
-    cutout_args: CutoutArgs,
+    cutout_args: Optional[CutoutArgs],
     field: str,
     beam_num: int,
     stoke: str,
-    pad=3,
-    dryrun=False,
+    pad: float = 3,
+    dryrun: bool = False,
 ) -> pymongo.UpdateOne:
     """Perform a cutout.
 
@@ -119,15 +135,22 @@ def cutout_image(
         pymongo.UpdateOne: Update query for MongoDB
     """
     logger.setLevel(logging.INFO)
+    # Update database
+    myquery = {"Source_ID": source_id}
+    if cutout_args is None:
+        logger.error(f"Skipping {source_id} -- no components found")
+        newvalues = {
+            "$set": {f"beams.{field}.{stoke.lower()}_beam{beam_num}_weight_file": ""}
+        }
+        return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
-    outdir = os.path.abspath(cutout_args.outdir)
+    outdir = cutout_args.outdir.absolute()
 
-    ret = []
-    basename = os.path.basename(image_name)
+    basename = image_name.name
     outname = f"{source_id}.cutout.{basename}"
-    outfile = os.path.join(outdir, outname)
+    outfile = outdir / outname
 
-    padder = cube.header["BMAJ"] * u.deg * pad
+    padder: float = cube.header["BMAJ"] * u.deg * pad
 
     xlo = Longitude(cutout_args.ra_low * u.deg) - Longitude(padder)
     xhi = Longitude(cutout_args.ra_high * u.deg) + Longitude(padder)
@@ -165,36 +188,28 @@ def cutout_image(
         )
         logger.info(f"Written to {outfile}")
 
-    # Update database
-    myquery = {"Source_ID": source_id}
-
-    filename = os.path.join(
-        os.path.basename(os.path.dirname(outfile)), os.path.basename(outfile)
-    )
+    filename = outfile.parent / outfile.name
     newvalues = {
-        "$set": {f"beams.{field}.{stoke.lower()}_beam{beam_num}_image_file": filename}
+        "$set": {
+            f"beams.{field}.{stoke.lower()}_beam{beam_num}_image_file": filename.absolute().as_posix()
+        }
     }
 
     return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
 def get_args(
-    comps: List[Dict],
-    beam: Dict,
-    island_id: str,
-    outdir: str,
-) -> Union[List[CutoutArgs], None]:
+    comps: pd.DataFrame,
+    source: pd.Series,
+    outdir: Path,
+) -> Optional[CutoutArgs]:
     """Get arguments for cutout function
 
     Args:
-        comps (List[Dict]): List of mongo entries for RACS components in island
+        comps (pd.DataFrame): List of mongo entries for RACS components in island
         beam (Dict): Mongo entry for the RACS beam
         island_id (str): RACS island ID
-        outdir (str): Output directory
-        field (str): RACS field name
-        datadir (str): Input directory
-        stokeslist (List[str]): List of Stokes parameters to process
-        verbose (bool, optional): Verbose output. Defaults to True.
+        outdir (Path): Input directory
 
     Raises:
         e: Exception
@@ -206,26 +221,20 @@ def get_args(
 
     logger.setLevel(logging.INFO)
 
-    assert beam["Source_ID"] == island_id
+    island_id = source.Source_ID
 
     if len(comps) == 0:
         logger.warning(f"Skipping island {island_id} -- no components found")
         return None
 
-    outdir = f"{outdir}/{island_id}"
-    try_mkdir(outdir)
+    outdir = outdir / island_id
+    outdir.mkdir(parents=True, exist_ok=True)
 
     # Find image size
-    ras: List[float] = []
-    decs: List[float] = []
-    majs: List[float] = []
-    for comp in comps:
-        ras = ras + [comp["RA"]]
-        decs = decs + [comp["Dec"]]
-        majs = majs + [comp["Maj"]]
-    ras = ras * u.deg
-    decs = decs * u.deg
-    majs = majs * u.arcsec
+    ras: u.Quantity = comps.RA.values * u.deg
+    decs: u.Quantity = comps.Dec.values * u.deg
+    majs: List[float] = comps.Maj.values * u.arcsec
+
     coords = SkyCoord(ras, decs)
 
     try:
@@ -265,10 +274,10 @@ def get_args(
 def worker(
     host: str,
     epoch: int,
-    beam: Dict,
-    comps: List[Dict],
-    outdir: str,
-    image_name: str,
+    source: pd.Series,
+    comps: pd.DataFrame,
+    outdir: Path,
+    image_name: Path,
     data_in_mem: np.ndarray,
     old_header: fits.Header,
     cube: SpectralCube,
@@ -284,8 +293,7 @@ def worker(
     )
     cut_args = get_args(
         comps=comps,
-        beam=beam,
-        island_id=beam["Source_ID"],
+        source=source,
         outdir=outdir,
     )
     image_update = cutout_image(
@@ -293,7 +301,7 @@ def worker(
         data_in_mem=data_in_mem,
         old_header=old_header,
         cube=cube,
-        source_id=beam["Source_ID"],
+        source_id=source.Source_ID,
         cutout_args=cut_args,
         field=field,
         beam_num=beam_num,
@@ -303,7 +311,7 @@ def worker(
     )
     weight_update = cutout_weight(
         image_name=image_name,
-        source_id=beam["Source_ID"],
+        source_id=source.Source_ID,
         cutout_args=cut_args,
         field=field,
         beam_num=beam_num,
@@ -315,11 +323,12 @@ def worker(
 
 @task(name="Cutout from big cube")
 def big_cutout(
-    beams: List[Dict],
+    sources: pd.DataFrame,
+    comps: pd.DataFrame,
     beam_num: int,
     stoke: str,
-    datadir: str,
-    outdir: str,
+    datadir: Path,
+    outdir: Path,
     host: str,
     epoch: int,
     field: str,
@@ -328,12 +337,9 @@ def big_cutout(
     password: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> List[pymongo.UpdateOne]:
-    with open("comps.pkl", "rb") as f:
-        comps_dict = pickle.load(f)
-    wild = (
-        f"{datadir}/image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
-    )
-    images = glob(wild)
+
+    wild = f"image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
+    images = list(datadir.glob(wild))
     if len(images) == 0:
         raise Exception(f"No images found matching '{wild}'")
     elif len(images) > 1:
@@ -352,19 +358,19 @@ def big_cutout(
 
     if limit is not None:
         logger.critical(f"Limiting to {limit} islands")
-        beams = beams[:limit]
+        sources = sources[:limit]
 
     updates: List[pymongo.UpdateOne] = []
     with ThreadPoolExecutor() as executor:
         futures = []
-        for beam in beams:
+        for _, source in sources.iterrows():
             futures.append(
                 executor.submit(
                     worker,
                     host=host,
                     epoch=epoch,
-                    beam=beam,
-                    comps=comps_dict[beam["Source_ID"]],
+                    source=source,
+                    comps=comps.loc[source],
                     outdir=outdir,
                     image_name=image_name,
                     data_in_mem=data_in_mem,
@@ -387,9 +393,10 @@ def big_cutout(
 @flow(name="Cutout islands")
 def cutout_islands(
     field: str,
-    directory: str,
+    directory: Path,
     host: str,
     epoch: int,
+    sbid: Optional[int] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
     pad: float = 3,
@@ -401,7 +408,7 @@ def cutout_islands(
 
     Args:
         field (str): RACS field name.
-        directory (str): Directory to store cutouts.
+        directory (Path): Directory to store cutouts.
         host (str): MongoDB host.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
@@ -413,8 +420,8 @@ def cutout_islands(
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
 
-    directory = os.path.abspath(directory)
-    outdir = os.path.join(directory, "cutouts")
+    directory = directory.absolute()
+    outdir = directory / "cutouts"
 
     logger.info("Testing database. ")
     test_db(
@@ -427,14 +434,32 @@ def cutout_islands(
         host=host, epoch=epoch, username=username, password=password
     )
 
-    # Query the DB
+    # Check for SBID match
+    if sbid is not None:
+        field_col = get_field_db(
+            host=host,
+            epoch=epoch,
+            username=username,
+            password=password,
+        )
+        sbid_check = validate_sbid_field_pair(
+            field_name=field,
+            sbid=sbid,
+            field_col=field_col,
+        )
+        if not sbid_check:
+            raise ValueError(f"SBID {sbid} does not match field {field}")
+
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+    if sbid is not None:
+        query["$and"].append({f"beams.{field}.SBIDs": sbid})
+
     unique_beams_nums: Set[int] = set(
         beams_col.distinct(f"beams.{field}.beam_list", query)
     )
     source_ids = sorted(beams_col.distinct("Source_ID", query))
 
-    beams_dict: Dict[int, List[Dict]] = {b: [] for b in unique_beams_nums}
+    # beams_dict: Dict[int, List[Dict]] = {b: [] for b in unique_beams_nums}
 
     query = {
         "$and": [
@@ -442,29 +467,36 @@ def cutout_islands(
             {f"beams.{field}.beam_list": {"$in": list(unique_beams_nums)}},
         ]
     }
-    all_beams = list(beams_col.find(query).sort("Source_ID"))
-    for beams in tqdm(all_beams, desc="Getting beams", file=TQDM_OUT):
-        for beam_num in beams[f"beams"][field]["beam_list"]:
-            beams_dict[beam_num].append(beams)
+    if sbid is not None:
+        query["$and"].append({f"beams.{field}.SBIDs": sbid})
 
-    comps_dict: Dict[str, List[Dict]] = {s: [] for s in source_ids}
-    all_comps = list(
+    beams_df = pd.DataFrame(
+        beams_col.find(query, {"Source_ID": 1, f"beams.{field}.beam_list": 1}).sort(
+            "Source_ID"
+        )
+    )
+
+    beam_source_list = []
+    for i, row in tqdm(beams_df.iterrows()):
+        beam_list = row.beams[field]["beam_list"]
+        for b in beam_list:
+            beam_source_list.append({"Source_ID": row.Source_ID, "beam": b})
+    beam_source_df = pd.DataFrame(beam_source_list)
+    beam_source_df.set_index("beam", inplace=True)
+
+    comps_df = pd.DataFrame(
         comp_col.find({"Source_ID": {"$in": source_ids}}).sort("Source_ID")
     )
-    for comp in tqdm(all_comps, desc="Getting components", file=TQDM_OUT):
-        comps_dict[comp["Source_ID"]].append(comp)
-
-    # Dump comps to file
-    with open("comps.pkl", "wb") as f:
-        pickle.dump(comps_dict, f)
+    comps_df.set_index("Source_ID", inplace=True)
 
     # Create output dir if it doesn't exist
-    try_mkdir(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
     cuts: List[pymongo.UpdateOne] = []
     for stoke in stokeslist:
         for beam_num in unique_beams_nums:
             results = big_cutout.submit(
-                beams=beams_dict[beam_num],
+                sources=beam_source_df.loc[beam_num],
+                comps=comps_df.loc[beam_source_df.loc[beam_num].Source_ID],
                 beam_num=beam_num,
                 stoke=stoke,
                 datadir=directory,
@@ -486,8 +518,6 @@ def cutout_islands(
         db_res = beams_col.bulk_write(updates, ordered=False)
         logger.info(pformat(db_res.bulk_api_result))
 
-    os.remove("comps.pkl")
-
     logger.info("Cutouts Done!")
 
 
@@ -503,6 +533,7 @@ def main(args: argparse.Namespace) -> None:
         directory=args.datadir,
         host=args.host,
         epoch=args.epoch,
+        sbid=args.sbid,
         username=args.username,
         password=args.password,
         pad=args.pad,
@@ -536,43 +567,6 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     parser = cut_parser.add_argument_group("cutout arguments")
 
     parser.add_argument(
-        "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
-    )
-
-    parser.add_argument(
-        "datadir",
-        metavar="datadir",
-        type=str,
-        help="Directory containing data cubes in FITS format.",
-    )
-
-    parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
-    )
-
-    parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Verbose output [False]."
-    )
-    parser.add_argument(
         "-p",
         "--pad",
         dest="pad",
@@ -583,28 +577,20 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     parser.add_argument(
         "-d", "--dryrun", action="store_true", help="Do a dry-run [False]."
     )
-    parser.add_argument(
-        "-s",
-        "--stokes",
-        dest="stokeslist",
-        nargs="+",
-        type=str,
-        help="List of Stokes parameters to image [ALL]",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=None,
-        help="Limit number of islands to process [None]",
-    )
 
     return cut_parser
 
 
 def cli() -> None:
     """Command-line interface"""
-    parser = cutout_parser()
-
+    gen_parser = generic_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
+    cut_parser = cutout_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        formatter_class=UltimateHelpFormatter,
+        parents=[gen_parser, work_parser, cut_parser],
+        description=cut_parser.description,
+    )
     args = parser.parse_args()
 
     verbose = args.verbose

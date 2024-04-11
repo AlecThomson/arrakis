@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Correct for the ionosphere in parallel"""
+import argparse
 import logging
 import os
 from glob import glob
@@ -18,10 +19,15 @@ from FRion import correct, predict
 from prefect import flow, task, unmapped
 
 from arrakis.logger import UltimateHelpFormatter, logger
-from arrakis.utils.database import get_db, get_field_db, test_db
+from arrakis.utils.database import (
+    get_db,
+    get_field_db,
+    test_db,
+    validate_sbid_field_pair,
+)
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str
 
 logger.setLevel(logging.INFO)
 
@@ -192,6 +198,7 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
+    sbid: Optional[int] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
     database=False,
@@ -209,6 +216,7 @@ def main(
         outdir (Path): Output directory
         host (str): MongoDB host IP address
         epoch (int): Epoch of observation
+        sbid (int, optional): SBID of observation. Defaults to None.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo passwrod. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
@@ -219,17 +227,35 @@ def main(
         limit (int, optional): Limit to number of islands. Defaults to None.
     """
     # Query database for data
-    outdir = os.path.abspath(outdir)
-    cutdir = os.path.join(outdir, "cutouts")
+    outdir = outdir.absolute()
+    cutdir = outdir / "cutouts"
 
-    plotdir = os.path.join(cutdir, "plots")
-    try_mkdir(plotdir)
+    plotdir = cutdir / "plots"
+    plotdir.mkdir(parents=True, exist_ok=True)
 
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
+    # Check for SBID match
+    if sbid is not None:
+        field_col = get_field_db(
+            host=host,
+            epoch=epoch,
+            username=username,
+            password=password,
+        )
+        sbid_check = validate_sbid_field_pair(
+            field_name=field,
+            sbid=sbid,
+            field_col=field_col,
+        )
+        if not sbid_check:
+            raise ValueError(f"SBID {sbid} does not match field {field}")
 
     query_1 = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+
+    if sbid is not None:
+        query_1["$and"].append({f"beams.{field}.SBIDs": sbid})
 
     beams = list(beams_col.find(query_1).sort("Source_ID"))
     island_ids = sorted(beams_col.distinct("Source_ID", query_1))
@@ -243,18 +269,20 @@ def main(
     )
     # SELECT '1' is best field according to the database
     query_3 = {"$and": [{"FIELD_NAME": f"{field}"}, {"SELECT": 1}]}
+    if sbid is not None:
+        query_3["$and"].append({"SBID": sbid})
     logger.info(f"{query_3}")
 
-    # Get most recent SBID if more than one is 'SELECT'ed
+    # Raise error if too much or too little data
     if field_col.count_documents(query_3) > 1:
-        logger.info(f"More than one SELECT=1 for {field}, getting most recent.")
-        field_datas = list(field_col.find({"FIELD_NAME": f"{field}"}))
-        sbids = [f["CAL_SBID"] for f in field_datas]
-        max_idx = np.argmax(sbids)
-        logger.info(f"Using CAL_SBID {sbids[max_idx]}")
-        field_data = field_datas[max_idx]
+        logger.error(f"More than one SELECT=1 for {field} - try supplying SBID.")
+        raise ValueError(f"More than one SELECT=1 for {field} - try supplying SBID.")
+
     elif field_col.count_documents(query_3) == 0:
         logger.error(f"No data for {field} with {query_3}, trying without SELECT=1.")
+        query_3 = query_3 = {"$and": [{"FIELD_NAME": f"{field}"}]}
+        if sbid is not None:
+            query_3["$and"].append({"SBID": sbid})
         field_data = field_col.find_one({"FIELD_NAME": f"{field}"})
     else:
         logger.info(f"Using {query_3}")
@@ -332,18 +360,7 @@ def main(
         logger.info(pformat(db_res.bulk_api_result))
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
-    import warnings
-
-    from astropy.utils.exceptions import AstropyWarning
-
-    warnings.simplefilter("ignore", category=AstropyWarning)
-    from astropy.io.fits.verify import VerifyWarning
-
-    warnings.simplefilter("ignore", category=VerifyWarning)
-    warnings.simplefilter("ignore", category=RuntimeWarning)
+def frion_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -353,63 +370,27 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    frion_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
     )
-    parser.add_argument(
-        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
-    )
-    parser.add_argument(
-        "outdir",
-        metavar="outdir",
-        type=Path,
-        help="Directory containing cutouts (in subdir outdir/cutouts).",
-    )
+    parser = frion_parser.add_argument_group("frion arguments")
 
     parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
-    )
-
-    parser.add_argument(
-        "--username", type=str, default="admin", help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    parser.add_argument(
-        "-m", "--database", action="store_true", help="Add data to MongoDB [False]."
-    )
-
-    parser.add_argument(
-        "-s",
         "--ionex_server",
         type=str,
         default="ftp://ftp.aiub.unibe.ch/CODE/",
-        help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
+        help="IONEX server",
     )
 
     parser.add_argument(
-        "-x",
         "--ionex_prefix",
         type=str,
         default="codg",
     )
 
     parser.add_argument(
-        "-f",
         "--ionex_formatter",
         type=str,
         default="ftp.aiub.unibe.ch",
@@ -417,24 +398,40 @@ def cli():
     )
 
     parser.add_argument(
-        "-p",
         "--ionex_proxy_server",
         type=str,
         default=None,
-        help="Proxy server [None].",
+        help="Proxy server.",
     )
 
     parser.add_argument(
-        "-d",
         "--ionex_predownload",
         action="store_true",
-        help="Pre-download IONEX files [False].",
+        help="Pre-download IONEX files.",
     )
 
-    parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="verbose output [False]."
-    )
+    return frion_parser
 
+
+def cli():
+    """Command-line interface"""
+    import warnings
+
+    from astropy.utils.exceptions import AstropyWarning
+
+    warnings.simplefilter("ignore", category=AstropyWarning)
+    from astropy.io.fits.verify import VerifyWarning
+
+    warnings.simplefilter("ignore", category=VerifyWarning)
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+
+    gen_parser = generic_parser(parent_parser=True)
+    f_parser = frion_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        parents=[gen_parser, f_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=f_parser.description,
+    )
     args = parser.parse_args()
 
     verbose = args.verbose
@@ -445,13 +442,15 @@ def cli():
 
     main(
         field=args.field,
-        outdir=Path(args.outdir),
+        sbid=args.sbid,
+        outdir=Path(
+            args.datadir,
+        ),
         host=args.host,
         epoch=args.epoch,
         username=args.username,
         password=args.password,
         database=args.database,
-        verbose=verbose,
         ionex_server=args.ionex_server,
         ionex_proxy_server=args.ionex_proxy_server,
         ionex_formatter=args.ionex_formatter,

@@ -13,8 +13,6 @@ Details of each module can be found in the API documentation. But broadly the st
 
     * LINMOS - Applies the primary beam and leakage correction to the cutout beam cubes, and then mosaics each into a single cube for each source per field.
 
-    * Clean up - Remove the cutout beam cubes from the cutouts directory.
-
     * FRion - Applies time-independent ionospheric Faraday rotation to the mosaicked cubes using `FRion <https://frion.readthedocs.io/en/latest/index.html/>`_.
 
     * RM synthesis - Extracts 1D spectra for each component of each source and runs RM synthesis using `RM-tools <https://github.com/CIRADA-Tools/RM-Tools>`_.
@@ -23,30 +21,31 @@ Details of each module can be found in the API documentation. But broadly the st
 
     * Catalogue - Queries the database for a given field and constructs a polarisation catalogue for each component.
 
+    * Clean up - Create a tarball of the the cutouts, and remove beam cubes.
+
 .. rst-class::  clear-both
 
 ----
 
 With an initalised database you can call the pipeline on a single field: ::
 
-    (spice) $ spice_process -h
-    usage: spice_process [-h] [--temp_dir TEMP_DIR] [--psf_cutoff PSF_CUTOFF] [--robust ROBUST] [--nchan NCHAN] [--pols POLS] [--size SIZE]
-                        [--scale SCALE] [--mgain MGAIN] [--niter NITER] [--nmiter NMITER] [--auto_mask AUTO_MASK]
-                        [--auto_threshold AUTO_THRESHOLD] [--local_rms] [--local_rms_window LOCAL_RMS_WINDOW]
-                        [--force_mask_rounds FORCE_MASK_ROUNDS] [--gridder {direct-ft,idg,wgridder,tuned-wgridder,wstacking}] [--taper TAPER]
-                        [--minuv MINUV] [--parallel PARALLEL] [--purge] [--mpi] [--multiscale] [--multiscale_scale_bias MULTISCALE_SCALE_BIAS]
-                        [--multiscale_scales MULTISCALE_SCALES] [--absmem ABSMEM] [--make_residual_cubes] [--ms_glob_pattern MS_GLOB_PATTERN]
-                        [--data_column DATA_COLUMN] [--no_mf_weighting] [--skip_fix_ms]
-                        [--hosted-wsclean HOSTED_WSCLEAN | --local_wsclean LOCAL_WSCLEAN] [--config CONFIG] [--epoch EPOCH] [--host HOST]
-                        [--username USERNAME] [--password PASSWORD] [--dask_config DASK_CONFIG] [--imager_dask_config IMAGER_DASK_CONFIG]
-                        [--holofile HOLOFILE] [--yanda YANDA] [--yanda_image YANDA_IMAGE] [--imager_only] [--skip_imager] [--skip_cutout]
-                        [--skip_linmos] [--skip_cleanup] [--skip_frion] [--skip_rmsynth] [--skip_rmclean] [--skip_cat] [-v] [-p PAD]
-                        [--dryrun] [--dimension DIMENSION] [-m] [--tt0 TT0] [--tt1 TT1] [--validate] [--limit LIMIT] [--own_fit] [-sp]
-                        [-w WEIGHTTYPE] [--fit_function FIT_FUNCTION] [-t] [-l PHIMAX_RADM2] [-d DPHI_RADM2] [-s NSAMPLES] [-o POLYORD] [-i]
-                        [--showPlots] [-R] [-rmv] [-D] [-c CUTOFF] [-n MAXITER] [-g GAIN] [--window WINDOW] [--ionex_server IONEX_SERVER]
-                        [--ionex_prefix IONEX_PREFIX] [--ionex_proxy_server IONEX_PROXY_SERVER] [--ionex_formatter IONEX_FORMATTER]
-                        [--ionex_predownload] [--outfile OUTFILE]
-                        msdir outdir field
+    (arrakis310) $ spice_process -h
+    usage: spice_process [-h] [--dask_config DASK_CONFIG] [--imager_dask_config IMAGER_DASK_CONFIG] [--imager_only] [--skip_imager] [--skip_cutout] [--skip_linmos]
+                         [--skip_frion] [--skip_rmsynth] [--skip_rmclean] [--skip_cat] [--skip_cleanup] [--sbid SBID] [-s STOKESLIST [STOKESLIST ...]] [-e EPOCH] [-v]
+                         [--host host] [--username USERNAME] [--password PASSWORD] [--limit LIMIT] [--database] [--temp_dir_wsclean TEMP_DIR_WSCLEAN]
+                         [--temp_dir_images TEMP_DIR_IMAGES] [--psf_cutoff PSF_CUTOFF] [--robust ROBUST] [--nchan NCHAN] [--pols POLS] [--size SIZE] [--scale SCALE]
+                         [--mgain MGAIN] [--niter NITER] [--nmiter NMITER] [--auto_mask AUTO_MASK] [--auto_threshold AUTO_THRESHOLD] [--local_rms]
+                         [--local_rms_window LOCAL_RMS_WINDOW] [--force_mask_rounds FORCE_MASK_ROUNDS] [--gridder {direct-ft,idg,wgridder,tuned-wgridder,wstacking}]
+                         [--taper TAPER] [--minuv MINUV] [--parallel PARALLEL] [--purge] [--mpi] [--multiscale] [--multiscale_scale_bias MULTISCALE_SCALE_BIAS]
+                         [--multiscale_scales MULTISCALE_SCALES] [--absmem ABSMEM] [--make_residual_cubes] [--ms_glob_pattern MS_GLOB_PATTERN] [--data_column DATA_COLUMN]
+                         [--no_mf_weighting] [--skip_fix_ms] [--hosted-wsclean HOSTED_WSCLEAN | --local_wsclean LOCAL_WSCLEAN] [-p PAD] [-d] [--holofile HOLOFILE]
+                         [--yanda YANDA] [--yanda_image YANDA_IMAGE] [--ionex_server IONEX_SERVER] [--ionex_prefix IONEX_PREFIX] [--ionex_formatter IONEX_FORMATTER]
+                         [--ionex_proxy_server IONEX_PROXY_SERVER] [--ionex_predownload] [--dimension DIMENSION] [--save_plots] [--rm_verbose] [--ion] [--tt0 TT0]
+                         [--tt1 TT1] [--validate] [--own_fit] [--weight_type WEIGHT_TYPE] [--fit_function FIT_FUNCTION] [--fit_rmsf] [--phi_max PHI_MAX] [--dphi DPHI]
+                         [--n_samples N_SAMPLES] [--poly_ord POLY_ORD] [--no_stokes_i] [--show_plots] [--not_rmsf] [--debug] [--cutoff CUTOFF] [--max_iter MAX_ITER]
+                         [--gain GAIN] [--window WINDOW] [--leakage_degree LEAKAGE_DEGREE] [--leakage_bins LEAKAGE_BINS] [--leakage_snr LEAKAGE_SNR] [--write OUTFILE]
+                         [--overwrite] [--config CONFIG]
+                         datadir field msdir
 
 
         mmm   mmm   mmm   mmm   mmm
@@ -67,247 +66,279 @@ With an initalised database you can call the pipeline on a single field: ::
 
 
 
-    positional arguments:
-    field                 Name of field (e.g. 2132-50A).
-
     options:
-    -h, --help            show this help message and exit
-    --hosted-wsclean HOSTED_WSCLEAN
-                            Docker or Singularity image for wsclean [docker://alecthomson/wsclean:latest] (default: docker://alecthomson/wsclean:latest)
-    --local_wsclean LOCAL_WSCLEAN
+      -h, --help            show this help message and exit
+      --hosted-wsclean HOSTED_WSCLEAN
+                            Docker or Singularity image for wsclean (default: docker://alecthomson/wsclean:latest)
+      --local_wsclean LOCAL_WSCLEAN
                             Path to local wsclean Singularity image (default: None)
-    --config CONFIG       Config file path (default: None)
-    --epoch EPOCH         Epoch to read field data from (default: 0)
-    --host HOST           Host of mongodb (probably $hostname -i). (default: None)
-    --username USERNAME   Username of mongodb. (default: None)
-    --password PASSWORD   Password of mongodb. (default: None)
-    --dask_config DASK_CONFIG
+      --config CONFIG       Config file path (default: None)
+
+    pipeline arguments:
+      --dask_config DASK_CONFIG
                             Config file for Dask SlurmCLUSTER. (default: None)
-    --imager_dask_config IMAGER_DASK_CONFIG
+      --imager_dask_config IMAGER_DASK_CONFIG
                             Config file for Dask SlurmCLUSTER. (default: None)
-    --holofile HOLOFILE   Path to holography image (default: None)
-    --yanda YANDA         Yandasoft version to pull from DockerHub [1.3.0]. (default: 1.3.0)
-    --yanda_image YANDA_IMAGE
-                            Path to an existing yandasoft singularity container image.  (default: None)
+      --imager_only         Only run the imager component of the pipeline.  (default: False)
+      --skip_imager         Skip imaging stage [False]. (default: False)
+      --skip_cutout         Skip cutout stage [False]. (default: False)
+      --skip_linmos         Skip LINMOS stage [False]. (default: False)
+      --skip_frion          Skip cleanup stage [False]. (default: False)
+      --skip_rmsynth        Skip RM Synthesis stage [False]. (default: False)
+      --skip_rmclean        Skip RM-CLEAN stage [False]. (default: False)
+      --skip_cat            Skip catalogue stage [False]. (default: False)
+      --skip_cleanup        Skip cleanup stage [False]. (default: False)
+
+    workdir arguments:
+      datadir               Directory to create/find full-size images and 'cutout' directory
+
+    generic arguments:
+      field                 Name of field (e.g. RACS_2132-50).
+      --sbid SBID           SBID of observation. (default: None)
+      -s STOKESLIST [STOKESLIST ...], --stokes STOKESLIST [STOKESLIST ...]
+                            List of Stokes parameters to image (default: ['I', 'Q', 'U'])
+      -e EPOCH, --epoch EPOCH
+                            Epoch of observation. (default: 0)
+      -v                    Verbose output. (default: False)
+      --host host           Host of mongodb (probably $hostname -i). (default: None)
+      --username USERNAME   Username of mongodb. (default: None)
+      --password PASSWORD   Password of mongodb. (default: None)
+      --limit LIMIT         Limit the number of islands to process. (default: None)
+      --database            Add data to MongoDB. (default: False)
 
     imaging arguments:
-    msdir                 Directory containing MS files
-    outdir                Directory to output images
-    --temp_dir TEMP_DIR   Temporary directory to store intermediate files (default: None)
-    --psf_cutoff PSF_CUTOFF
+      msdir                 Directory containing MS files
+      --temp_dir_wsclean TEMP_DIR_WSCLEAN
+                            Temporary directory for WSClean to store intermediate files (default: None)
+      --temp_dir_images TEMP_DIR_IMAGES
+                            Temporary directory for to store intermediate image files (default: None)
+      --psf_cutoff PSF_CUTOFF
                             Cutoff for smoothing in units of arcseconds.  (default: None)
-    --robust ROBUST
-    --nchan NCHAN
-    --pols POLS
-    --size SIZE
-    --scale SCALE
-    --mgain MGAIN
-    --niter NITER
-    --nmiter NMITER
-    --auto_mask AUTO_MASK
-    --auto_threshold AUTO_THRESHOLD
-    --local_rms
-    --local_rms_window LOCAL_RMS_WINDOW
-    --force_mask_rounds FORCE_MASK_ROUNDS
-    --gridder {direct-ft,idg,wgridder,tuned-wgridder,wstacking}
-    --taper TAPER
-    --minuv MINUV
-    --parallel PARALLEL
-    --purge               Purge intermediate files (default: False)
-    --mpi                 Use MPI (default: False)
-    --multiscale          Use multiscale clean (default: False)
-    --multiscale_scale_bias MULTISCALE_SCALE_BIAS
+      --robust ROBUST
+      --nchan NCHAN
+      --pols POLS
+      --size SIZE
+      --scale SCALE
+      --mgain MGAIN
+      --niter NITER
+      --nmiter NMITER
+      --auto_mask AUTO_MASK
+      --auto_threshold AUTO_THRESHOLD
+      --local_rms
+      --local_rms_window LOCAL_RMS_WINDOW
+      --force_mask_rounds FORCE_MASK_ROUNDS
+      --gridder {direct-ft,idg,wgridder,tuned-wgridder,wstacking}
+      --taper TAPER
+      --minuv MINUV
+      --parallel PARALLEL
+      --purge               Purge intermediate files (default: False)
+      --mpi                 Use MPI (default: False)
+      --multiscale          Use multiscale clean (default: False)
+      --multiscale_scale_bias MULTISCALE_SCALE_BIAS
                             The multiscale scale bias term provided to wsclean.  (default: None)
-    --multiscale_scales MULTISCALE_SCALES
+      --multiscale_scales MULTISCALE_SCALES
                             The scales used in the multiscale clean.  (default: 0,2,4,8,16,32,64,128)
-    --absmem ABSMEM       Absolute memory limit in GB (default: None)
-    --make_residual_cubes
+      --absmem ABSMEM       Absolute memory limit in GB (default: None)
+      --make_residual_cubes
                             Create residual cubes as well as cubes from restored images.  (default: False)
-    --ms_glob_pattern MS_GLOB_PATTERN
+      --ms_glob_pattern MS_GLOB_PATTERN
                             The pattern used to search for measurement sets.  (default: scienceData*_averaged_cal.leakage.ms)
-    --data_column DATA_COLUMN
+      --data_column DATA_COLUMN
                             Which column in the measurement set to image.  (default: CORRECTED_DATA)
-    --no_mf_weighting     Do not use multi-frequency weighting.  (default: False)
-    --skip_fix_ms         Do not apply the ASKAP MS corrections from the package fixms.  (default: False)
-
-    pipeline flow options:
-    --imager_only         Only run the imager component of the pipeline.  (default: False)
-    --skip_imager         Skip imaging stage [False]. (default: False)
-    --skip_cutout         Skip cutout stage [False]. (default: False)
-    --skip_linmos         Skip LINMOS stage [False]. (default: False)
-    --skip_cleanup        Skip cleanup stage [False]. (default: False)
-    --skip_frion          Skip cleanup stage [False]. (default: False)
-    --skip_rmsynth        Skip RM Synthesis stage [False]. (default: False)
-    --skip_rmclean        Skip RM-CLEAN stage [False]. (default: False)
-    --skip_cat            Skip catalogue stage [False]. (default: False)
-
-    output options:
-    -v, --verbose         Verbose output [False]. (default: False)
+      --no_mf_weighting     Do not use multi-frequency weighting.  (default: False)
+      --skip_fix_ms         Do not apply the ASKAP MS corrections from the package fixms.  (default: False)
 
     cutout arguments:
-    -p PAD, --pad PAD     Number of beamwidths to pad around source [5]. (default: 5)
-    --dryrun              Do a dry-run [False]. (default: False)
+      -p PAD, --pad PAD     Number of beamwidths to pad around source [3]. (default: 3)
+      -d, --dryrun          Do a dry-run [False]. (default: False)
 
-    RM-synth/CLEAN arguments:
-    --dimension DIMENSION
-                            How many dimensions for RMsynth [1d] or '3d'. (default: 1d)
-    -m, --database        Add RMsynth data to MongoDB [False]. (default: False)
-    --tt0 TT0             TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1. (default: None)
-    --tt1 TT1             TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0. (default: None)
-    --validate            Run on RMsynth Stokes I [False]. (default: False)
-    --limit LIMIT         Limit number of sources [All]. (default: None)
-    --own_fit             Use own Stokes I fit function [False]. (default: False)
+    linmos arguments:
+      --holofile HOLOFILE   Path to holography image (default: None)
+      --yanda YANDA         Yandasoft version to pull from DockerHub [1.3.0]. (default: 1.3.0)
+      --yanda_image YANDA_IMAGE
+                            Path to an existing yandasoft singularity container image.  (default: None)
 
-    RM-tools arguments:
-    -sp, --savePlots      save the plots [False]. (default: False)
-    -w WEIGHTTYPE, --weightType WEIGHTTYPE
-                            weighting [variance] (all 1s) or 'uniform'. (default: variance)
-    --fit_function FIT_FUNCTION
-                            Stokes I fitting function: 'linear' or ['log'] polynomials. (default: log)
-    -t, --fitRMSF         Fit a Gaussian to the RMSF [False] (default: False)
-    -l PHIMAX_RADM2, --phiMax_radm2 PHIMAX_RADM2
-                            Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto]. (default: None)
-    -d DPHI_RADM2, --dPhi_radm2 DPHI_RADM2
-                            Width of Faraday depth channel [Auto]. (default: None)
-    -s NSAMPLES, --nSamples NSAMPLES
+    frion arguments:
+      --ionex_server IONEX_SERVER
+                            IONEX server (default: ftp://ftp.aiub.unibe.ch/CODE/)
+      --ionex_prefix IONEX_PREFIX
+      --ionex_formatter IONEX_FORMATTER
+                            IONEX formatter. (default: ftp.aiub.unibe.ch)
+      --ionex_proxy_server IONEX_PROXY_SERVER
+                            Proxy server. (default: None)
+      --ionex_predownload   Pre-download IONEX files. (default: False)
+
+    common rm arguments:
+      --dimension DIMENSION
+                            How many dimensions for RMsynth '1d' or '3d'. (default: 1d)
+      --save_plots          save the plots. (default: False)
+      --rm_verbose          Verbose RMsynth/RMClean. (default: False)
+
+    rm-synth arguments:
+      --ion                 Use ionospheric-corrected data. (default: False)
+      --tt0 TT0             TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1. (default: None)
+      --tt1 TT1             TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0. (default: None)
+      --validate            Run on Stokes I. (default: False)
+      --own_fit             Use own Stokes I fit function. (default: False)
+      --weight_type WEIGHT_TYPE
+                            weighting (inverse) 'variance' or 'uniform' (all 1s). (default: variance)
+      --fit_function FIT_FUNCTION
+                            Stokes I fitting function: 'linear' or 'log' polynomials. (default: log)
+      --fit_rmsf            Fit a Gaussian to the RMSF (default: False)
+      --phi_max PHI_MAX     Absolute max Faraday depth sampled (in rad/m^2) (overrides NSAMPLES). (default: None)
+      --dphi DPHI           Width of Faraday depth channel. (default: None)
+      --n_samples N_SAMPLES
                             Number of samples across the FWHM RMSF. (default: 5)
-    -o POLYORD, --polyOrd POLYORD
-                            polynomial order to fit to I spectrum [3]. (default: 3)
-    -i, --noStokesI       ignore the Stokes I spectrum [False]. (default: False)
-    --showPlots           show the plots [False]. (default: False)
-    -R, --not_RMSF        Skip calculation of RMSF? [False] (default: False)
-    -rmv, --rm_verbose    Verbose RMsynth/CLEAN [False]. (default: False)
-    -D, --debug           turn on debugging messages & plots [False]. (default: False)
-    -c CUTOFF, --cutoff CUTOFF
-                            CLEAN cutoff (+ve = absolute, -ve = sigma) [-3]. (default: -3)
-    -n MAXITER, --maxIter MAXITER
-                            maximum number of CLEAN iterations [10000]. (default: 10000)
-    -g GAIN, --gain GAIN  CLEAN loop gain [0.1]. (default: 0.1)
-    --window WINDOW       Further CLEAN in mask to this threshold [False]. (default: None)
-    --ionex_server IONEX_SERVER
-                            IONEX server [ftp://ftp.aiub.unibe.ch/CODE/]. (default: ftp://ftp.aiub.unibe.ch/CODE/)
-    --ionex_prefix IONEX_PREFIX
-                            IONEX prefix. (default: codg)
-    --ionex_proxy_server IONEX_PROXY_SERVER
-                            Proxy server [None]. (default: None)
-    --ionex_formatter IONEX_FORMATTER
-                            IONEX formatter [None]. (default: None)
-    --ionex_predownload   Pre-download IONEX files [False]. (default: False)
+      --poly_ord POLY_ORD   polynomial order to fit to I spectrum. (default: 3)
+      --no_stokes_i         ignore the Stokes I spectrum. (default: False)
+      --show_plots          show the plots. (default: False)
+      --not_rmsf            Skip calculation of RMSF? (default: False)
+      --debug               turn on debugging messages & plots. (default: False)
+
+    rm-clean arguments:
+      --cutoff CUTOFF       CLEAN cutoff (+ve = absolute, -ve = sigma). (default: -3)
+      --max_iter MAX_ITER   maximum number of CLEAN iterations. (default: 10000)
+      --gain GAIN           CLEAN loop gain. (default: 0.1)
+      --window WINDOW       Further CLEAN in mask to this threshold. (default: None)
 
     catalogue arguments:
-    --outfile OUTFILE     File to save table to [None]. (default: None)
+      --leakage_degree LEAKAGE_DEGREE
+                            Degree of leakage polynomial fit. (default: 4)
+      --leakage_bins LEAKAGE_BINS
+                            Number of bins for leakage fit. (default: 16)
+      --leakage_snr LEAKAGE_SNR
+                            SNR cut for leakage fit. (default: 30.0)
+      --write OUTFILE       File to save table to. (default: None)
 
-    Args that start with '--' can also be set in a config file (.default_config.cfg or specified via --config). Config file syntax allows:
-    key=value, flag=true, stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi). In general, command-line values override config
-    file values which override defaults.
+    cleanup arguments:
+      --overwrite           Overwrite existing tarball (default: False)
+
+    Args that start with '--' can also be set in a config file (/scratch3/projects/spiceracs/arrakis/arrakis/.default_config.yaml or specified via --config). Config file
+    syntax allows: key=value, flag=true, stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi). In general, command-line values override config file values which
+    override defaults.
 
 
-You can optionally pass a configuration file (with the :code:`--config` argument) to set the options you prefer. An example file in contained in :file:`arrakis/.default_config.cfg`:
+You can optionally pass a configuration file (with the :code:`--config` argument) to set the options you prefer. An example file in contained in :file:`arrakis/.default_config.yaml`:
 
-.. code-block:: cfg
+.. code-block:: yaml
 
-    # Arrakis default config
+  # options:
+  hosted-wsclean: docker://alecthomson/wsclean:latest # Docker or Singularity image for wsclean (default: docker://alecthomson/wsclean:latest)
+  local_wsclean: null # Path to local wsclean Singularity image (default: None)
 
-    ## Note 'None' will be interpreated as a string, not a NoneType
-    ## If you want to use the default value, just leave the line blank
+  # pipeline arguments:
+  dask_config: null # Config file for Dask SlurmCLUSTER. (default: None)
+  imager_dask_config: null #Config  file for Dask SlurmCLUSTER. (default: None)
+  imager_only: false # Only run the imager component of the pipeline.  (default: False)
+  skip_imager: false #Skip imaging stage [False]. (default: False)
+  skip_cutout: false #Skip cutout stage [False]. (default: False)
+  skip_linmos: false #Skip LINMOS stage [False]. (default: False)
+  skip_frion: false #Skip cleanup stage [False]. (default: False)
+  skip_rmsynth: false #Skip RM Synthesis stage [False]. (default: False)
+  skip_rmclean: false #Skip RM-CLEAN stage [False]. (default: False)
+  skip_cat: false #Skip catalogue stage [False]. (default: False)
+  skip_cleanup: false #Skip cleanup stage [False]. (default: False)
 
-    [Imaging options]
-    # temp_dir: None
-    # psf_cutoff: None
-    robust: -0.5
-    nchan: 36
-    pols: 'IQU'
-    size: 4096
-    scale: 2.5
-    mgain: 0.8
-    niter: 100000
-    # nmiter: None
-    auto_mask: 3.0
-    auto_threshold: 1.0
-    local_rms: False
-    # local_rms_window: None
-    # force_mask_rounds: None
-    # gridder: None
-    # taper: None
-    minuv: 0.0
-    # parallel: None
-    purge: False
-    mpi: False
-    multiscale: False
-    # multiscale_scale_bias: None
-    multiscale_scales: '0,2,4,8,16,32,64,128'
-    # absmem: None
-    make_residual_cubes: False
-    ms_glob_pattern: 'scienceData*_averaged_cal.leakage.ms'
-    data_column: 'CORRECTED_DATA'
-    no_mf_weighting: False
-    skip_fix_ms: False
-    hosted-wsclean: 'docker://alecthomson/wsclean:latest'
-    # local_wsclean: None
+  # generic null arguments:
+  sbid: null #SBID of observation. (default: None)
+  stokes: # List of Stokes parameters to image (default: ['I', 'Q', 'U'])
+    - I
+    - Q
+    - U
+  epoch: 0 # Epoch of observation. (default: 0)
+  host: null # Host of mongodb (probably $hostname -i). (default: None)
+  username: null # Username of mongodb. (default: None)
+  password: # Password of mongodb. (default: None)
+  limit: null # Limit the number of islands to process. (default: None)
+  database: false # Add data to MongoDB. (default: False)
 
-    [Pipeline options]
-    # config: None
-    epoch: 0
-    # host: None
-    # username: None
-    # password: None
-    # dask_config: None
-    # imager_dask_config: None
-    # holofile: None
-    yanda: '1.3.0'
-    # yanda_image: None
-    imager_only: False
-    skip_imager: False
-    skip_cutout: False
-    skip_linmos: False
-    skip_cleanup: False
-    skip_frion: False
-    skip_rmsynth: False
-    skip_rmclean: False
-    skip_cat: False
-    verbose: False
+  # imaging arguments:
+  temp_dir_wsclean: null # Temporary directory for WSClean to store intermediate files (default: None)
+  temp_dir_images: null # Temporary directory for to store intermediate image files (default: None)
+  psf_cutoff: null # Cutoff for smoothing in units of arcseconds.  (default: None)
+  robust: -0.5 # ROBUST
+  nchan: 36 # NCHAN
+  pols: IQU # POLS
+  size: 6144 # SIZE
+  scale: 2.5 # SCALE
+  mgain: 0.7 # MGAIN
+  niter: 500_000 # NITER
+  nmiter: 15 # NMITER
+  auto_mask: 4 # AUTO_MASK
+  auto_threshold: 1 # AUTO_THRESHOLD
+  local_rms: true #
+  local_rms_window: 60 # LOCAL_RMS_WINDOW
+  force_mask_rounds: 8 # FORCE_MASK_ROUNDS
+  gridder: wgridder # {direct-ft,idg,wgridder,tuned-wgridder,wstacking}
+  taper: null # TAPER
+  minuv: 200 # MINUV
+  parallel: null # PARALLEL
+  mpi: false #                 Use MPI (default: False)
+  purge: false # Purge intermediate files (default: False)
+  multiscale: false # Use multiscale clean (default: False)
+  multiscale_scale_bias: null # The multiscale scale bias term provided to wsclean.  (default: None)
+  multiscale_scales: 0,2,4,8,16,32,64,12 # The scales used in the multiscale clean.  (default: 0,2,4,8,16,32,64,128)
+  absmem: null # ABSMEM       Absolute memory limit in GB (default: None)
+  make_residual_cubes: false # Create residual cubes as well as cubes from restored images.  (default: False)
+  ms_glob_pattern: scienceData*_averaged_cal.leakage.ms # The pattern used to search for measurement sets.  (default: scienceData*_averaged_cal.leakage.ms)
+  data_column: CORRECTED_DATA # Which column in the measurement set to image.  (default: CORRECTED_DATA)
+  no_mf_weighting: false # Do not use multi-frequency weighting.  (default: False)
+  skip_fix_ms: false # Do not apply the ASKAP MS corrections from the package fixms.  (default: False)
 
-    [Cutout options]
-    pad: 5
-    dryrun: False
+  # cutout arguments:
+  pad: 3 # Number of beamwidths to pad around source [3]. (default: 3)
+  dryrun: false # Do a dry-run [False]. (default: False)
 
-    [RMsynth options]
-    dimension: '1d'
-    database: False
-    # tt0: None
-    # tt1: None
-    validate: False
-    # limit: None
-    own_fit: False
-    savePlots: False
-    weightType: 'variance'
-    fit_function: 'log'
-    fitRMSF: False
-    # phiMax_radm2: None
-    # dPhi_radm2: None
-    nSamples: 5
-    polyOrd: 3
-    noStokesI: False
-    showPlots: False
-    not_RMSF: False
-    rm_verbose: False
-    debug: False
+  # linmos null arguments:
+  holofile: null #Path to holography image (default: None)
+  yanda: 1.3.0 # Yandasoft version to pull from DockerHub [1.3.0]. (default: 1.3.0)
+  yanda_image: null #Path to an existing yandasoft singularity container image.  (default: None)
 
-    [RMclean options]
-    cutoff: -3
-    maxIter: 10000
-    gain: 0.1
-    # window: None
+  # frion arguments:
+  ionex_server: ftp://ftp.aiub.unibe.ch/CODE/ # IONEX server (default: ftp://ftp.aiub.unibe.ch/CODE/)
+  ionex_prefix: codg # IONEX_PREFIX
+  ionex_formatter: null # IONEX formatter. (default: ftp.aiub.unibe.ch)
+  ionex_proxy_server: null # Proxy server. (default: None)
+  ionex_predownload: false # Pre-download IONEX files. (default: False)
 
-    [FRion options]
-    ionex_server: 'ftp://ftp.aiub.unibe.ch/CODE/'
-    ionex_prefix: 'codg'
-    # ionex_proxy_server: None
-    # ionex_formatter: None
-    ionex_predownload: False
+  # common rm arguments:
+  dimension: 1d # How many dimensions for RMsynth '1d' or '3d'. (default: 1d)
+  save_plots: false #          save the plots. (default: False)
+  rm_verbose: false #          Verbose RMsynth/RMClean. (default: False)
 
-    [Catalog options]
-    # outfile: None
+  # rm-synth arguments:
+  ion: false # Use ionospheric-corrected data. (default: False)
+  tt0: null # TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1. (default: None)
+  tt1: null # TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0. (default: None)
+  validate: false # Run on Stokes I. (default: False)
+  own_fit: false # Use own Stokes I fit function. (default: False)
+  weight_type: # weighting (inverse) 'variance' or 'uniform' (all 1s). (default: variance)
+  fit_function: # Stokes I fitting function: 'linear' or 'log' polynomials. (default: log)
+  fit_rmsf: false # Fit a Gaussian to the RMSF (default: False)
+  phi_max: null # Absolute max Faraday depth sampled (in rad/m^2) (overrides NSAMPLES). (default: None)
+  dphi: null # Width of Faraday depth channel. (default: None)
+  n_samples: # Number of samples across the FWHM RMSF. (default: 5)
+  poly_ord: # polynomial order to fit to I spectrum. (default: 3)
+  no_stokes_i: false # ignore the Stokes I spectrum. (default: False)
+  show_plots: false # show the plots. (default: False)
+  not_rmsf: false # Skip calculation of RMSF? (default: False)
+  debug: false # turn on debugging messages & plots. (default: False)
+
+  # rm-clean arguments:
+  cutoff: -8 # CLEAN cutoff (+ve = absolute, -ve = sigma). (default: -3)
+  max_iter: 10000 # maximum number of CLEAN iterations. (default: 10000)
+  gain: 0.1 # CLEAN loop gain. (default: 0.1)
+  window: null # Further CLEAN in mask to this threshold. (default: None)
+
+  # catalogue arguments:
+  leakage_degree: 4 # Degree of leakage polynomial fit. (default: 4)
+  leakage_bins: 16 # Number of bins for leakage fit. (default: 16)
+  leakage_snr: 30 # SNR cut for leakage fit. (default: 30.0)
+  write: null # File to save table to. (default: None)
+
+  # cleanup arguments:
+  overwrite: false # Overwrite existing tarball (default: False)
+
 
 
 For extra information you can refer to the API:
@@ -316,14 +347,14 @@ For extra information you can refer to the API:
 
 Similarly, you can merge multiple fields togther using: ::
 
-    (spice) $ spice_region -h
-    usage: spice_region [-h] [--config CONFIG] [--merge_name MERGE_NAME] [--fields FIELDS [FIELDS ...]] [--datadirs DATADIRS [DATADIRS ...]]
-                        [--output_dir OUTPUT_DIR] [--epoch EPOCH] [--host HOST] [--username USERNAME] [--password PASSWORD] [--use_mpi]
-                        [--port_forward PORT_FORWARD [PORT_FORWARD ...]] [--dask_config DASK_CONFIG] [--yanda YANDA] [--skip_merge]
-                        [--skip_rmsynth] [--skip_rmclean] [--skip_cat] [-v] [--debugger] [--dimension DIMENSION] [-m] [--tt0 TT0] [--tt1 TT1]
-                        [--validate] [--limit LIMIT] [--own_fit] [-sp] [-w WEIGHTTYPE] [--fit_function FIT_FUNCTION] [-t] [-l PHIMAX_RADM2]
-                        [-d DPHI_RADM2] [-s NSAMPLES] [-o POLYORD] [-i] [--showPlots] [-R] [-rmv] [-D] [-c CUTOFF] [-n MAXITER] [-g GAIN]
-                        [--window WINDOW] [--outfile OUTFILE]
+    (arrakis310) $ spice_region -h
+    usage: spice_region [-h] [--dask_config DASK_CONFIG] [--skip_frion] [--skip_rmsynth] [--skip_rmclean] [--skip_cat] [--skip_cleanup] [--merge_name MERGE_NAME]
+                        [--fields FIELDS [FIELDS ...]] [--datadirs DATADIRS [DATADIRS ...]] [--output_dir OUTPUT_DIR] [-e EPOCH] [--host host] [--username USERNAME]
+                        [--password PASSWORD] [--holofile HOLOFILE] [--yanda YANDA] [--yanda_image YANDA_IMAGE] [--dimension DIMENSION] [--save_plots] [--rm_verbose]
+                        [--ion] [--tt0 TT0] [--tt1 TT1] [--validate] [--own_fit] [--weight_type WEIGHT_TYPE] [--fit_function FIT_FUNCTION] [--fit_rmsf] [--phi_max PHI_MAX]
+                        [--dphi DPHI] [--n_samples N_SAMPLES] [--poly_ord POLY_ORD] [--no_stokes_i] [--show_plots] [--not_rmsf] [--debug] [--cutoff CUTOFF]
+                        [--max_iter MAX_ITER] [--gain GAIN] [--window WINDOW] [--leakage_degree LEAKAGE_DEGREE] [--leakage_bins LEAKAGE_BINS] [--leakage_snr LEAKAGE_SNR]
+                        [--write OUTFILE] [--overwrite] [--config CONFIG]
 
 
         mmm   mmm   mmm   mmm   mmm
@@ -347,78 +378,84 @@ Similarly, you can merge multiple fields togther using: ::
     options:
       -h, --help            show this help message and exit
       --config CONFIG       Config file path (default: None)
+
+    pipeline arguments:
+      --dask_config DASK_CONFIG
+                            Config file for Dask SlurmCLUSTER. (default: None)
+      --skip_frion          Skip cleanup stage [False]. (default: False)
+      --skip_rmsynth        Skip RM Synthesis stage [False]. (default: False)
+      --skip_rmclean        Skip RM-CLEAN stage [False]. (default: False)
+      --skip_cat            Skip catalogue stage [False]. (default: False)
+      --skip_cleanup        Skip cleanup stage [False]. (default: False)
+
+    merge arguments:
       --merge_name MERGE_NAME
                             Name of the merged region (default: None)
       --fields FIELDS [FIELDS ...]
-                            RACS fields to mosaic - e.g. 2132-50A. (default: None)
+                            RACS fields to mosaic - e.g. RACS_2132-50A. (default: None)
       --datadirs DATADIRS [DATADIRS ...]
                             Directories containing cutouts (in subdir outdir/cutouts).. (default: None)
       --output_dir OUTPUT_DIR
                             Path to save merged data (in output_dir/merge_name/cutouts) (default: None)
-      --epoch EPOCH         Epoch to read field data from (default: 0)
-      --host HOST           Host of mongodb (probably $hostname -i). (default: None)
+      -e EPOCH, --epoch EPOCH
+                            Epoch of observation. (default: 0)
+      --host host           Host of mongodb (probably $hostname -i). (default: None)
       --username USERNAME   Username of mongodb. (default: None)
       --password PASSWORD   Password of mongodb. (default: None)
-      --use_mpi             Use Dask-mpi to parallelise -- must use srun/mpirun to assign resources. (default: False)
-      --port_forward PORT_FORWARD [PORT_FORWARD ...]
-                            Platform to fowards dask port [None]. (default: None)
-      --dask_config DASK_CONFIG
-                            Config file for Dask SlurmCLUSTER. (default: None)
+
+    linmos arguments:
+      --holofile HOLOFILE   Path to holography image (default: None)
       --yanda YANDA         Yandasoft version to pull from DockerHub [1.3.0]. (default: 1.3.0)
+      --yanda_image YANDA_IMAGE
+                            Path to an existing yandasoft singularity container image.  (default: None)
 
-    pipeline flow options:
-      --skip_merge          Skip merge stage [False]. (default: False)
-      --skip_rmsynth        Skip RM Synthesis stage [False]. (default: False)
-      --skip_rmclean        Skip RM-CLEAN stage [False]. (default: False)
-      --skip_cat            Skip catalogue stage [False]. (default: False)
-
-    output options:
-      -v, --verbose         Verbose output [False]. (default: False)
-      --debugger            Debug output [False]. (default: False)
-
-    RM-synth/CLEAN arguments:
+    common rm arguments:
       --dimension DIMENSION
-                            How many dimensions for RMsynth [1d] or '3d'. (default: 1d)
-      -m, --database        Add RMsynth data to MongoDB [False]. (default: False)
+                            How many dimensions for RMsynth '1d' or '3d'. (default: 1d)
+      --save_plots          save the plots. (default: False)
+      --rm_verbose          Verbose RMsynth/RMClean. (default: False)
+
+    rm-synth arguments:
+      --ion                 Use ionospheric-corrected data. (default: False)
       --tt0 TT0             TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1. (default: None)
       --tt1 TT1             TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0. (default: None)
-      --validate            Run on RMsynth Stokes I [False]. (default: False)
-      --limit LIMIT         Limit number of sources [All]. (default: None)
-      --own_fit             Use own Stokes I fit function [False]. (default: False)
-
-    RM-tools arguments:
-      -sp, --savePlots      save the plots [False]. (default: False)
-      -w WEIGHTTYPE, --weightType WEIGHTTYPE
-                            weighting [variance] (all 1s) or 'uniform'. (default: variance)
+      --validate            Run on Stokes I. (default: False)
+      --own_fit             Use own Stokes I fit function. (default: False)
+      --weight_type WEIGHT_TYPE
+                            weighting (inverse) 'variance' or 'uniform' (all 1s). (default: variance)
       --fit_function FIT_FUNCTION
-                            Stokes I fitting function: 'linear' or ['log'] polynomials. (default: log)
-      -t, --fitRMSF         Fit a Gaussian to the RMSF [False] (default: False)
-      -l PHIMAX_RADM2, --phiMax_radm2 PHIMAX_RADM2
-                            Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto]. (default: None)
-      -d DPHI_RADM2, --dPhi_radm2 DPHI_RADM2
-                            Width of Faraday depth channel [Auto]. (default: None)
-      -s NSAMPLES, --nSamples NSAMPLES
+                            Stokes I fitting function: 'linear' or 'log' polynomials. (default: log)
+      --fit_rmsf            Fit a Gaussian to the RMSF (default: False)
+      --phi_max PHI_MAX     Absolute max Faraday depth sampled (in rad/m^2) (overrides NSAMPLES). (default: None)
+      --dphi DPHI           Width of Faraday depth channel. (default: None)
+      --n_samples N_SAMPLES
                             Number of samples across the FWHM RMSF. (default: 5)
-      -o POLYORD, --polyOrd POLYORD
-                            polynomial order to fit to I spectrum [3]. (default: 3)
-      -i, --noStokesI       ignore the Stokes I spectrum [False]. (default: False)
-      --showPlots           show the plots [False]. (default: False)
-      -R, --not_RMSF        Skip calculation of RMSF? [False] (default: False)
-      -rmv, --rm_verbose    Verbose RMsynth/CLEAN [False]. (default: False)
-      -D, --debug           turn on debugging messages & plots [False]. (default: False)
-      -c CUTOFF, --cutoff CUTOFF
-                            CLEAN cutoff (+ve = absolute, -ve = sigma) [-3]. (default: -3)
-      -n MAXITER, --maxIter MAXITER
-                            maximum number of CLEAN iterations [10000]. (default: 10000)
-      -g GAIN, --gain GAIN  CLEAN loop gain [0.1]. (default: 0.1)
-      --window WINDOW       Further CLEAN in mask to this threshold [False]. (default: None)
+      --poly_ord POLY_ORD   polynomial order to fit to I spectrum. (default: 3)
+      --no_stokes_i         ignore the Stokes I spectrum. (default: False)
+      --show_plots          show the plots. (default: False)
+      --not_rmsf            Skip calculation of RMSF? (default: False)
+      --debug               turn on debugging messages & plots. (default: False)
+
+    rm-clean arguments:
+      --cutoff CUTOFF       CLEAN cutoff (+ve = absolute, -ve = sigma). (default: -3)
+      --max_iter MAX_ITER   maximum number of CLEAN iterations. (default: 10000)
+      --gain GAIN           CLEAN loop gain. (default: 0.1)
+      --window WINDOW       Further CLEAN in mask to this threshold. (default: None)
 
     catalogue arguments:
-      --outfile OUTFILE     File to save table to [None]. (default: None)
+      --leakage_degree LEAKAGE_DEGREE
+                            Degree of leakage polynomial fit. (default: 4)
+      --leakage_bins LEAKAGE_BINS
+                            Number of bins for leakage fit. (default: 16)
+      --leakage_snr LEAKAGE_SNR
+                            SNR cut for leakage fit. (default: 30.0)
+      --write OUTFILE       File to save table to. (default: None)
 
-    Args that start with '--' can also be set in a config file (.default_field_config.txt or specified via --config). Config file syntax
-    allows: key=value, flag=true, stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi). In general, command-line values override
-    config file values which override defaults.
+    cleanup arguments:
+      --overwrite           Overwrite existing tarball (default: False)
+
+    Args that start with '--' can also be set in a config file (.default_config.cfg or specified via --config). Config file syntax allows: key=value, flag=true,
+    stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi). In general, command-line values override config file values which override defaults.
 
 
 * :py:mod:`arrakis.process_region`

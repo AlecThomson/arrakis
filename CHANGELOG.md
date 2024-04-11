@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### What's Changed
+
+* Allow SBID to passed as an argument
+    * This will enable a 'single field mode'
+    * Database queries / updates changes to support this
+* Unified ArgParse mode
+    * Much easier argument parsing
+    * Now reused amongst modules
+* Fixes to typing
+    * Much better use of `pathlib.Path` and `pandas`
+
 ## [2.1.7] - 2024-04-03
 ### What's Changed
 

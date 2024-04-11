@@ -43,7 +43,7 @@ def main():
     port_forward(port, "petrichor-i1")
     logger.info(client.scheduler_info()["services"])
 
-    results = imager.main(
+    _ = imager.main(
         msdir=Path("/scratch2/tho822/spiceracs/pipe_test"),
         out_dir=Path("/scratch2/tho822/spiceracs/pipe_test"),
         mgain=0.8,
@@ -66,7 +66,7 @@ def main():
         # parallel_deconvolution=6144,
         absmem=float(config["memory"].replace("GB", "").replace("GiB", "")),
     )
-    logs = client.get_worker_logs()
+    _ = client.get_worker_logs()
 
 
 if __name__ == "__main__":

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Arrakis single-field pipeline"""
+import argparse
 import logging
 import os
+from importlib import resources
 from pathlib import Path
 
 import configargparse
-import pkg_resources
 import yaml
 from astropy.time import Time
 from prefect import flow
@@ -24,12 +25,12 @@ from arrakis import (
 )
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 
 @flow(name="Combining+Synthesis on Arrakis")
 def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
-    """Workflow to process the SPIRCE-RACS data
+    """Workflow to process the SPICE-RACS data
 
     Args:
         args (configargparse.Namespace): Configuration parameters for this run
@@ -43,9 +44,10 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             task_runner=task_runner,
         )(
             field=args.field,
-            directory=str(args.outdir),
+            directory=str(args.datadir),
             host=host,
             epoch=args.epoch,
+            sbid=args.sbid,
             username=args.username,
             password=args.password,
             pad=args.pad,
@@ -62,9 +64,10 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             task_runner=task_runner,
         )(
             field=args.field,
-            datadir=Path(args.outdir),
+            datadir=Path(args.datadir),
             host=host,
             epoch=args.epoch,
+            sbid=args.sbid,
             holofile=Path(args.holofile),
             username=args.username,
             password=args.password,
@@ -80,9 +83,10 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     previous_future = (
         frion.main.with_options(task_runner=task_runner)(
             field=args.field,
-            outdir=args.outdir,
+            outdir=args.datadir,
             host=host,
             epoch=args.epoch,
+            sbid=args.sbid,
             username=args.username,
             password=args.password,
             database=args.database,
@@ -100,9 +104,10 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     previous_future = (
         rmsynth_oncuts.main.with_options(task_runner=task_runner)(
             field=args.field,
-            outdir=args.outdir,
-            host=host,
+            outdir=Path(args.datadir),
+            host=args.host,
             epoch=args.epoch,
+            sbid=args.sbid,
             username=args.username,
             password=args.password,
             dimension=args.dimension,
@@ -110,16 +115,16 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             database=args.database,
             do_validate=args.validate,
             limit=args.limit,
-            savePlots=args.savePlots,
-            weightType=args.weightType,
-            fitRMSF=args.fitRMSF,
-            phiMax_radm2=args.phiMax_radm2,
-            dPhi_radm2=args.dPhi_radm2,
-            nSamples=args.nSamples,
-            polyOrd=args.polyOrd,
-            noStokesI=args.noStokesI,
-            showPlots=args.showPlots,
-            not_RMSF=args.not_RMSF,
+            savePlots=args.save_plots,
+            weightType=args.weight_type,
+            fitRMSF=args.fit_rmsf,
+            phiMax_radm2=args.phi_max,
+            dPhi_radm2=args.dphi,
+            nSamples=args.n_samples,
+            polyOrd=args.poly_ord,
+            noStokesI=args.no_stokes_i,
+            showPlots=args.show_plots,
+            not_RMSF=args.not_rmsf,
             rm_verbose=args.rm_verbose,
             debug=args.debug,
             fit_function=args.fit_function,
@@ -135,19 +140,20 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     previous_future = (
         rmclean_oncuts.main.with_options(task_runner=task_runner)(
             field=args.field,
-            outdir=args.outdir,
+            outdir=args.datadir,
             host=host,
             epoch=args.epoch,
+            sbid=args.sbid,
             username=args.username,
             password=args.password,
             dimension=args.dimension,
             database=args.database,
             limit=args.limit,
             cutoff=args.cutoff,
-            maxIter=args.maxIter,
+            maxIter=args.max_iter,
             gain=args.gain,
             window=args.window,
-            showPlots=args.showPlots,
+            showPlots=args.show_plots,
             rm_verbose=args.rm_verbose,
         )
         if not args.skip_rmclean
@@ -159,6 +165,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             field=args.field,
             host=host,
             epoch=args.epoch,
+            sbid=args.sbid,
             username=args.username,
             password=args.password,
             verbose=args.verbose,
@@ -170,7 +177,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
 
     previous_future = (
         cleanup.main.with_options(task_runner=task_runner)(
-            datadir=args.outdir,
+            datadir=args.datadir,
         )
         if not args.skip_cleanup
         else previous_future
@@ -212,8 +219,8 @@ def create_dask_runner(
     logger.setLevel(logging.INFO)
     logger.info("Creating a Dask Task Runner.")
     if dask_config is None:
-        config_dir = pkg_resources.resource_filename("arrakis", "configs")
-        dask_config = f"{config_dir}/default.yaml"
+        config_dir = resources.files("arrakis.configs")
+        dask_config = config_dir / "default.yaml"
 
     with open(dask_config) as f:
         logger.info(f"Loading {dask_config}")
@@ -271,8 +278,9 @@ def main(args: configargparse.Namespace) -> None:
             name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
         )(
             msdir=args.msdir,
-            out_dir=args.outdir,
-            temp_dir=args.temp_dir,
+            out_dir=args.datadir,
+            temp_dir_wsclean=args.temp_dir_wsclean,
+            temp_dir_images=args.temp_dir_images,
             cutoff=args.psf_cutoff,
             robust=args.robust,
             pols=args.pols,
@@ -325,10 +333,7 @@ def main(args: configargparse.Namespace) -> None:
     )(args, host, dask_runner_2)
 
 
-def cli():
-    """Command-line interface"""
-    # Help string to be shown using the -h option
-
+def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
     {logo_str}
 
@@ -338,43 +343,13 @@ def cli():
         $ mongod --dbpath=/path/to/database --bind_ip $(hostname -i)
 
     """
-
-    imager_parser = imager.imager_parser(parent_parser=True)
-
     # Parse the command line options
-    parser = configargparse.ArgParser(
-        default_config_files=[".default_config.cfg"],
+    pipeline_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
         description=descStr,
         formatter_class=UltimateHelpFormatter,
-        parents=[imager_parser],
     )
-    parser.add("--config", required=False, is_config_file=True, help="Config file path")
-
-    parser.add_argument(
-        "field", metavar="field", type=str, help="Name of field (e.g. 2132-50A)."
-    )
-    parser.add_argument(
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch to read field data from",
-    )
-
-    parser.add_argument(
-        "--host",
-        default=None,
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
+    parser = pipeline_parser.add_argument_group("pipeline arguments")
     parser.add_argument(
         "--dask_config",
         type=str,
@@ -388,248 +363,79 @@ def cli():
         help="Config file for Dask SlurmCLUSTER.",
     )
     parser.add_argument(
-        "--holofile", type=str, default=None, help="Path to holography image"
-    )
-
-    parser.add_argument(
-        "--yanda",
-        type=str,
-        default="1.3.0",
-        help="Yandasoft version to pull from DockerHub [1.3.0].",
-    )
-
-    parser.add_argument(
-        "--yanda_image",
-        default=None,
-        type=Path,
-        help="Path to an existing yandasoft singularity container image. ",
-    )
-
-    flowargs = parser.add_argument_group("pipeline flow options")
-    flowargs.add_argument(
         "--imager_only",
         action="store_true",
         help="Only run the imager component of the pipeline. ",
     )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_imager", action="store_true", help="Skip imaging stage [False]."
     )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
     )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_linmos", action="store_true", help="Skip LINMOS stage [False]."
     )
-    flowargs.add_argument(
-        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
-    )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
     )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage [False]."
     )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage [False]."
     )
-    flowargs.add_argument(
+    parser.add_argument(
         "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
     )
-
-    options = parser.add_argument_group("output options")
-    options.add_argument(
-        "-v", "--verbose", action="store_true", help="Verbose output [False]."
+    parser.add_argument(
+        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
     )
 
-    cutargs = parser.add_argument_group("cutout arguments")
-    cutargs.add_argument(
-        "-p",
-        "--pad",
-        type=float,
-        default=5,
-        help="Number of beamwidths to pad around source [5].",
+    return pipeline_parser
+
+
+def cli():
+    """Command-line interface"""
+    # Help string to be shown using the -h option
+
+    pipe_parser = pipeline_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
+    gen_parser = generic_parser(parent_parser=True)
+    imager_parser = imager.imager_parser(parent_parser=True)
+    cutout_parser = cutout.cutout_parser(parent_parser=True)
+    linmos_parser = linmos.linmos_parser(parent_parser=True)
+    fr_parser = frion.frion_parser(parent_parser=True)
+    common_parser = rmsynth_oncuts.rm_common_parser(parent_parser=True)
+    synth_parser = rmsynth_oncuts.rmsynth_parser(parent_parser=True)
+    rmclean_parser = rmclean_oncuts.clean_parser(parent_parser=True)
+    catalogue_parser = makecat.cat_parser(parent_parser=True)
+    clean_parser = cleanup.cleanup_parser(parent_parser=True)
+    # Parse the command line options
+    parser = configargparse.ArgParser(
+        default_config_files=[
+            (resources.files("arrakis") / ".default_config.yaml").as_posix()
+        ],
+        description=pipe_parser.description,
+        formatter_class=UltimateHelpFormatter,
+        parents=[
+            pipe_parser,
+            work_parser,
+            gen_parser,
+            imager_parser,
+            cutout_parser,
+            linmos_parser,
+            fr_parser,
+            common_parser,
+            synth_parser,
+            rmclean_parser,
+            catalogue_parser,
+            clean_parser,
+        ],
     )
 
-    cutargs.add_argument("--dryrun", action="store_true", help="Do a dry-run [False].")
+    parser.add("--config", required=False, is_config_file=True, help="Config file path")
 
-    synth = parser.add_argument_group("RM-synth/CLEAN arguments")
-
-    synth.add_argument(
-        "--dimension",
-        default="1d",
-        help="How many dimensions for RMsynth [1d] or '3d'.",
-    )
-
-    synth.add_argument(
-        "-m",
-        "--database",
-        action="store_true",
-        help="Add RMsynth data to MongoDB [False].",
-    )
-
-    synth.add_argument(
-        "--tt0",
-        default=None,
-        type=str,
-        help="TT0 MFS image -- will be used for model of Stokes I -- also needs --tt1.",
-    )
-
-    synth.add_argument(
-        "--tt1",
-        default=None,
-        type=str,
-        help="TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.",
-    )
-
-    synth.add_argument(
-        "--validate", action="store_true", help="Run on RMsynth Stokes I [False]."
-    )
-
-    synth.add_argument(
-        "--limit", default=None, type=int, help="Limit number of sources [All]."
-    )
-    synth.add_argument(
-        "--own_fit",
-        dest="do_own_fit",
-        action="store_true",
-        help="Use own Stokes I fit function [False].",
-    )
-    tools = parser.add_argument_group("RM-tools arguments")
-    # RM-tools args
-    tools.add_argument(
-        "-sp", "--savePlots", action="store_true", help="save the plots [False]."
-    )
-    tools.add_argument(
-        "-w",
-        "--weightType",
-        default="variance",
-        help="weighting [variance] (all 1s) or 'uniform'.",
-    )
-    tools.add_argument(
-        "--fit_function",
-        type=str,
-        default="log",
-        help="Stokes I fitting function: 'linear' or ['log'] polynomials.",
-    )
-    tools.add_argument(
-        "-t",
-        "--fitRMSF",
-        action="store_true",
-        help="Fit a Gaussian to the RMSF [False]",
-    )
-    tools.add_argument(
-        "-l",
-        "--phiMax_radm2",
-        type=float,
-        default=None,
-        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].",
-    )
-    tools.add_argument(
-        "-d",
-        "--dPhi_radm2",
-        type=float,
-        default=None,
-        help="Width of Faraday depth channel [Auto].",
-    )
-    tools.add_argument(
-        "-s",
-        "--nSamples",
-        type=float,
-        default=5,
-        help="Number of samples across the FWHM RMSF.",
-    )
-    tools.add_argument(
-        "-o",
-        "--polyOrd",
-        type=int,
-        default=3,
-        help="polynomial order to fit to I spectrum [3].",
-    )
-    tools.add_argument(
-        "-i",
-        "--noStokesI",
-        action="store_true",
-        help="ignore the Stokes I spectrum [False].",
-    )
-    tools.add_argument(
-        "--showPlots", action="store_true", help="show the plots [False]."
-    )
-    tools.add_argument(
-        "-R",
-        "--not_RMSF",
-        action="store_true",
-        help="Skip calculation of RMSF? [False]",
-    )
-    tools.add_argument(
-        "-rmv",
-        "--rm_verbose",
-        action="store_true",
-        help="Verbose RMsynth/CLEAN [False].",
-    )
-    tools.add_argument(
-        "-D",
-        "--debug",
-        action="store_true",
-        help="turn on debugging messages & plots [False].",
-    )
-    # RM-tools args
-    tools.add_argument(
-        "-c",
-        "--cutoff",
-        type=float,
-        default=-3,
-        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].",
-    )
-    tools.add_argument(
-        "-n",
-        "--maxIter",
-        type=int,
-        default=10000,
-        help="maximum number of CLEAN iterations [10000].",
-    )
-    tools.add_argument(
-        "-g", "--gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
-    )
-    tools.add_argument(
-        "--window",
-        type=float,
-        default=None,
-        help="Further CLEAN in mask to this threshold [False].",
-    )
-    tools.add_argument(
-        "--ionex_server",
-        type=str,
-        default="ftp://ftp.aiub.unibe.ch/CODE/",
-        help="IONEX server [ftp://ftp.aiub.unibe.ch/CODE/].",
-    )
-    tools.add_argument(
-        "--ionex_prefix",
-        type=str,
-        default="codg",
-        help="IONEX prefix.",
-    )
-    tools.add_argument(
-        "--ionex_proxy_server",
-        type=str,
-        default=None,
-        help="Proxy server [None].",
-    )
-    tools.add_argument(
-        "--ionex_formatter",
-        type=str,
-        default=None,
-        help="IONEX formatter [None].",
-    )
-    tools.add_argument(
-        "--ionex_predownload",
-        action="store_true",
-        help="Pre-download IONEX files [False].",
-    )
-    cat = parser.add_argument_group("catalogue arguments")
-    # Cat args
-    cat.add_argument(
-        "--outfile", default=None, type=str, help="File to save table to [None]."
-    )
     args = parser.parse_args()
 
     parser.print_values()

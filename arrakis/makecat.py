@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Make an Arrakis catalogue"""
+import argparse
 import logging
 import os
 import time
 import warnings
 from pprint import pformat
-from typing import Tuple, Union
+from typing import Callable, NamedTuple, Optional, Tuple, Union
 
 import astropy.units as u
 import dask.dataframe as dd
@@ -26,14 +27,26 @@ from vorbin.voronoi_2d_binning import voronoi_2d_binning
 
 from arrakis import columns_possum
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
-from arrakis.utils.database import get_db, get_field_db, test_db
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.database import (
+    get_db,
+    get_field_db,
+    test_db,
+    validate_sbid_field_pair,
+)
+from arrakis.utils.pipeline import generic_parser, logo_str
 from arrakis.utils.plotting import latexify
 from arrakis.utils.typing import ArrayLike, TableLike
 
 logger.setLevel(logging.INFO)
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
+
+
+class SpectralIndices(NamedTuple):
+    alphas: np.ndarray
+    alphas_err: np.ndarray
+    betas: np.ndarray
+    betas_err: np.ndarray
 
 
 def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
@@ -51,14 +64,14 @@ def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
     return dx, dy
 
 
-def flag_blended_components(cat: RMTable) -> RMTable:
+def flag_blended_components(cat: TableLike) -> TableLike:
     """Identify blended components in a catalogue and flag them.
 
     Args:
-        cat (RMTable): Input catalogue
+        cat (TableLike): Input catalogue
 
     Returns:
-        RMTable: Output catalogue with minor components flagged
+        TableLike: Output catalogue with minor components flagged
     """
 
     def is_blended_component(sub_df: pd.DataFrame) -> pd.DataFrame:
@@ -223,7 +236,7 @@ def lognorm_from_percentiles(x1, p1, x2, p2):
 
 
 @task(name="Fix sigma_add")
-def sigma_add_fix(tab):
+def sigma_add_fix(tab: TableLike) -> TableLike:
     sigma_Q_low = np.array(tab["sigma_add_Q"] - tab["sigma_add_Q_err_minus"])
     sigma_Q_high = np.array(tab["sigma_add_Q"] + tab["sigma_add_Q_err_plus"])
 
@@ -276,7 +289,7 @@ def sigma_add_fix(tab):
     return tab
 
 
-def is_leakage(frac, sep, fit):
+def is_leakage(frac: float, sep: float, fit: Callable) -> bool:
     """Determine if a source is leakage
 
     Args:
@@ -292,21 +305,21 @@ def is_leakage(frac, sep, fit):
 
 
 def get_fit_func(
-    tab: Table,
+    tab: TableLike,
     nbins: int = 21,
     offset: float = 0.002,
     degree: int = 2,
     do_plot: bool = False,
     high_snr_cut: float = 30.0,
-) -> Tuple[np.polynomial.Polynomial.fit, plt.Figure]:
+) -> Tuple[Callable, plt.Figure]:
     """Fit an envelope to define leakage sources
 
     Args:
-        tab (Table): Catalogue to fit
+        tab (TableLike): Catalogue to fit
         nbins (int, optional): Number of bins along seperation axis. Defaults to 21.
 
     Returns:
-        np.polynomial.Polynomial.fit: 3rd order polynomial fit.
+        Callable: 3rd order polynomial fit.
     """
 
     logger.info(f"Using {high_snr_cut=}.")
@@ -344,7 +357,6 @@ def get_fit_func(
         idx = (hi_i_tab["beamdist"].to(u.deg).value < bins[i + 1]) & (
             hi_i_tab["beamdist"].to(u.deg).value >= bins[i]
         )
-        res = np.nanpercentile(frac_P[idx], [2.3, 16, 50, 84, 97.6])
         s2_los[i], s1_los[i], meds[i], s1_ups[i], s2_ups[i] = np.nanpercentile(
             frac_P[idx], [2.3, 16, 50, 84, 97.6]
         )
@@ -517,11 +529,11 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
 
 @task(name="Add cuts and flags")
 def cuts_and_flags(
-    cat: RMTable,
+    cat: TableLike,
     leakage_degree: int = 4,
     leakage_bins: int = 16,
     leakage_snr: float = 30.0,
-) -> RMTable:
+) -> TableLike:
     """Cut out bad sources, and add flag columns
 
     A flag of 'True' means the source is bad.
@@ -585,7 +597,7 @@ def cuts_and_flags(
 
 
 @task(name="Get spectral indices")
-def get_alpha(cat):
+def get_alpha(cat: TableLike) -> SpectralIndices:
     coefs_str = cat["stokesI_model_coef"]
     coefs_err_str = cat["stokesI_model_coef_err"]
     alphas = []
@@ -605,7 +617,7 @@ def get_alpha(cat):
         beta_err = float(coefs_err[-3])
         betas.append(beta)
         betas_err.append(beta_err)
-    return dict(
+    return SpectralIndices(
         alphas=np.array(alphas),
         alphas_err=np.array(alphas_err),
         betas=np.array(betas),
@@ -614,8 +626,10 @@ def get_alpha(cat):
 
 
 @task(name="Get integration times")
-def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
-    logger.warn("Will be stripping the trailing field character prefix. ")
+def get_integration_time(
+    cat: RMTable, field_col: Collection, sbid: Optional[int] = None
+):
+    logger.warning("Will be stripping the trailing field character prefix. ")
     field_names = [
         name[:-1] if name[-1] in ("A", "B") else name for name in list(cat["tile_id"])
     ]
@@ -623,28 +637,34 @@ def get_integration_time(cat: RMTable, field_col: Collection, epoch: int):
 
     logger.debug(f"Searching integration times for {unique_field_names=}")
 
-    query = {"$and": [{"FIELD_NAME": {"$in": unique_field_names}, "SELECT": 1}]}
-    reutrn_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1, "SBID": 1}
-    # Get most recent SBID if more than one is 'SELECT'ed
-    if field_col.count_documents(query) > 1:
-        logger.info(f"More than one SELECT=1 for field_names, getting most recent.")
-        field_datas = list(
-            field_col.find({"FIELD_NAME": {"$in": unique_field_names}}, reutrn_vals)
-        )
-        sbids = [f["CAL_SBID"] for f in field_datas]
-        max_idx = np.argmax(sbids)
-        logger.info(f"Using CAL_SBID {sbids[max_idx]}")
-        field_data = field_datas[max_idx]
-    elif field_col.count_documents(query) == 0:
-        logger.error(f"No data for field_names, trying without SELECT=1.")
-        field_data = list(
-            field_col.find({"FIELD_NAME": {"$in": unique_field_names}}, reutrn_vals)
-        )
-    else:
-        field_data = list(
-            field_col.find({"FIELD_NAME": {"$in": unique_field_names}}, reutrn_vals)
-        )
+    query = {"$and": [{"FIELD_NAME": {"$in": unique_field_names}}, {"SELECT": 1}]}
 
+    # If an SBID is given, we're looking for a specific field
+    if sbid is not None:
+        query["$and"].append({"SBID": sbid})
+        query["$and"].remove({"FIELD_NAME": {"$in": unique_field_names}})
+        # Get the singlular field name
+        field_names = [
+            field_col.find_one({"SBID": sbid}, {"FIELD_NAME": 1})["FIELD_NAME"]
+        ] * len(field_names)
+        unique_field_names = list(set(field_names))
+
+    reutrn_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1, "SBID": 1}
+
+    doc_count = field_col.count_documents(query)
+
+    if doc_count == 0:
+        logger.error("No data for field_names, trying without SELECT=1.")
+        query["$and"].remove({"SELECT": 1})
+        query["$and"].append({"SELECT": 0})
+        doc_count = field_col.count_documents(query)
+
+        if doc_count == 0:
+            raise ValueError(f"No data for query {query}")
+        else:
+            logger.warning("Using SELECT=0 instead.")
+
+    field_data = list(field_col.find(query, reutrn_vals))
     tint_df = pd.DataFrame(field_data)
     tint_df.set_index("FIELD_NAME", inplace=True, drop=False)
 
@@ -777,7 +797,8 @@ def write_votable(rmtab: TableLike, outfile: str) -> None:
 def main(
     field: str,
     host: str,
-    epoch: str,
+    epoch: int,
+    sbid: Optional[int] = None,
     leakage_degree: int = 4,
     leakage_bins: int = 16,
     leakage_snr: float = 30.0,
@@ -801,6 +822,21 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
+    # Check for SBID match
+    if sbid is not None:
+        field_col = get_field_db(
+            host=host,
+            epoch=epoch,
+            username=username,
+            password=password,
+        )
+        sbid_check = validate_sbid_field_pair(
+            field_name=field,
+            sbid=sbid,
+            field_col=field_col,
+        )
+        if not sbid_check:
+            raise ValueError(f"SBID {sbid} does not match field {field}")
     logger.info("Starting beams collection query")
     tick = time.time()
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
@@ -813,8 +849,20 @@ def main(
     query = {
         "$and": [
             {"Source_ID": {"$in": all_island_ids}},
-            {"rmsynth1d": True},
-            {"rmclean1d": True},
+            {
+                (
+                    f"{field}.rmsynth1d"
+                    if sbid is None
+                    else f"{field}_{sbid}.rmsynth1d"
+                ): True
+            },
+            {
+                (
+                    f"{field}.rmclean1d"
+                    if sbid is None
+                    else f"{field}_{sbid}.rmclean1d"
+                ): True
+            },
         ]
     }
 
@@ -823,9 +871,25 @@ def main(
         fields.update({n: 1})
     for n in columns_possum.sourcefinder_columns:
         fields.update({n: 1})
-    fields.update({"rmsynth_summary": 1})
-    fields.update({"rmclean_summary": 1})
-    fields.update({"header": 1})
+    fields.update(
+        {
+            (
+                f"{field}.rmsynth_summary"
+                if sbid is None
+                else f"{field}_{sbid}.rmsynth_summary"
+            ): 1
+        }
+    )
+    fields.update(
+        {
+            (
+                f"{field}.rmclean_summary"
+                if sbid is None
+                else f"{field}_{sbid}.rmclean_summary"
+            ): 1
+        }
+    )
+    fields.update({f"{field}.header" if sbid is None else f"{field}_{sbid}.header": 1})
 
     comps = list(comp_col.find(query, fields))
     tock = time.time()
@@ -837,6 +901,10 @@ def main(
     islands = list(island_col.find({"Source_ID": {"$in": all_island_ids}}))
     tock = time.time()
     logger.info(f"Finished island collection query - {tock-tick:.2f}s")
+
+    if len(comps) == 0:
+        logger.error("No components found for this field.")
+        raise ValueError("No components found for this field.")
 
     comps_df = pd.DataFrame(comps)
     comps_df.set_index("Source_ID", inplace=True)
@@ -870,7 +938,7 @@ def main(
                 # First try the component
                 try:
                     data += [comp[col]]
-                except KeyError as e:
+                except KeyError:
                     logger.warning(
                         f"Component {src_id} does not have {col}, trying island DB..."
                     )
@@ -886,15 +954,25 @@ def main(
         if src == "synth":
             for src_id, comp in comps_df.iterrows():
                 try:
-                    data += [comp["rmclean_summary"][col]]
+                    data += [
+                        comp[field if sbid is None else f"{field}_{sbid}"][
+                            "rmclean_summary"
+                        ][col]
+                    ]
                 except KeyError:
-                    data += [comp["rmsynth_summary"][col]]
+                    data += [
+                        comp[field if sbid is None else f"{field}_{sbid}"][
+                            "rmsynth_summary"
+                        ][col]
+                    ]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             rmtab.add_column(new_col)
 
         if src == "header":
             for src_id, comp in comps_df.iterrows():
-                data += [comp["header"][col]]
+                data += [
+                    comp[field if sbid is None else f"{field}_{sbid}"]["header"][col]
+                ]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             rmtab.add_column(new_col)
 
@@ -906,6 +984,12 @@ def main(
             data += [comp[selcol]]
         new_col = Column(data=data, name=selcol)
         rmtab.add_column(new_col)
+
+    # If we have specified an SBID, we're doing a single field only
+    # Therefore we overwrite SBID and field_name with the specified value
+    if sbid is not None:
+        rmtab["sbid"] = sbid
+        rmtab["field_name"] = field
 
     # Fix sigma_add
     rmtab = sigma_add_fix(rmtab)
@@ -919,15 +1003,17 @@ def main(
     )
 
     # Add spectral index from fitted model
-    alpha_dict = get_alpha(rmtab)
-    rmtab.add_column(Column(data=alpha_dict["alphas"], name="spectral_index"))
-    rmtab.add_column(Column(data=alpha_dict["alphas_err"], name="spectral_index_err"))
+    spectral_indices = get_alpha(rmtab)
+    rmtab.add_column(Column(data=spectral_indices.alphas, name="spectral_index"))
+    rmtab.add_column(
+        Column(data=spectral_indices.alphas_err, name="spectral_index_err")
+    )
 
     # Add integration time
     field_col = get_field_db(
         host=host, epoch=epoch, username=username, password=password
     )
-    tints = get_integration_time(rmtab, field_col, epoch=epoch)
+    tints = get_integration_time(rmtab, field_col)
     rmtab.add_column(Column(data=tints, name="int_time"))
     # Add epoch
     rmtab.add_column(Column(data=rmtab["start_time"] + (tints / 2), name="epoch"))
@@ -1012,18 +1098,7 @@ def main(
     logger.info("Done!")
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
-
-    from astropy.utils.exceptions import AstropyWarning
-
-    warnings.simplefilter("ignore", category=AstropyWarning)
-    from astropy.io.fits.verify import VerifyWarning
-
-    warnings.simplefilter("ignore", category=VerifyWarning)
-    # Help string to be shown using the -h option
-
+def cat_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -1033,28 +1108,12 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    cat_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
     )
-    parser.add_argument(
-        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
-    )
-
-    parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
-    )
-
+    parser = cat_parser.add_argument_group("catalogue arguments")
     parser.add_argument(
         "--leakage_degree",
         type=int,
@@ -1077,26 +1136,35 @@ def cli():
     )
 
     parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="verbose output [False]."
-    )
-
-    parser.add_argument(
-        "-w",
         "--write",
         dest="outfile",
         default=None,
         type=str,
-        help="File to save table to [None].",
+        help="File to save table to.",
     )
 
+    return cat_parser
+
+
+def cli():
+    """Command-line interface"""
+    import argparse
+
+    from astropy.utils.exceptions import AstropyWarning
+
+    warnings.simplefilter("ignore", category=AstropyWarning)
+    from astropy.io.fits.verify import VerifyWarning
+
+    warnings.simplefilter("ignore", category=VerifyWarning)
+    # Help string to be shown using the -h option
+
+    gen_parser = generic_parser(parent_parser=True)
+    catalogue_parser = cat_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        parents=[gen_parser, catalogue_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=catalogue_parser.description,
+    )
     args = parser.parse_args()
 
     verbose = args.verbose

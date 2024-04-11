@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
+import argparse
+import logging
 import os
 import sys
 import warnings
@@ -16,18 +18,26 @@ from prefect import flow, task, unmapped
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D
 
+from arrakis import rmsynth_oncuts
 from arrakis.logger import UltimateHelpFormatter, logger
-from arrakis.utils.database import get_db, test_db
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.database import (
+    get_db,
+    get_field_db,
+    test_db,
+    validate_sbid_field_pair,
+)
+from arrakis.utils.pipeline import generic_parser, logo_str
 
 
 @task(name="1D RM-CLEAN")
 def rmclean1d(
+    field: str,
     comp: dict,
-    outdir: str,
+    outdir: Path,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
+    sbid: Optional[int] = None,
     showPlots=False,
     savePlots=False,
     rm_verbose=True,
@@ -36,6 +46,7 @@ def rmclean1d(
     """1D RM-CLEAN
 
     Args:
+        field (str): RACS field name.
         comp (dict): Mongo entry for component.
         outdir (str): Output directory.
         cutoff (float, optional): CLEAN cutouff (in sigma). Defaults to -3.
@@ -50,93 +61,82 @@ def rmclean1d(
     """
     iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
-
     logger.debug(f"Working on {comp}")
-    try:
-        rm1dfiles = comp["rm1dfiles"]
-        fdfFile = os.path.join(outdir, f"{rm1dfiles['FDF_dirty']}")
-        rmsfFile = os.path.join(outdir, f"{rm1dfiles['RMSF']}")
-        weightFile = os.path.join(outdir, f"{rm1dfiles['weights']}")
-        rmSynthFile = os.path.join(outdir, f"{rm1dfiles['summary_json']}")
+    save_name = field if sbid is None else f"{field}_{sbid}"
 
-        prefix = os.path.join(os.path.abspath(os.path.dirname(fdfFile)), cname)
+    rm1dfiles = comp[save_name]["rm1dfiles"]
+    fdfFile = outdir / f"{rm1dfiles['FDF_dirty']}"
+    rmsfFile = outdir / f"{rm1dfiles['RMSF']}"
+    weightFile = outdir / f"{rm1dfiles['weights']}"
+    rmSynthFile = outdir / f"{rm1dfiles['summary_json']}"
 
-        # Sanity checks
-        for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
-            logger.debug(f"Checking {os.path.abspath(f)}")
-            if not os.path.exists(f):
-                logger.fatal("File does not exist: '{:}'.".format(f))
-                sys.exit()
-        nBits = 32
-        mDict, aDict = do_RMclean_1D.readFiles(
-            fdfFile, rmsfFile, weightFile, rmSynthFile, nBits
-        )
+    prefix = os.path.join(os.path.abspath(os.path.dirname(fdfFile)), cname)
 
-        # Run RM-CLEAN on the spectrum
-        outdict, arrdict = do_RMclean_1D.run_rmclean(
-            mDict=mDict,
-            aDict=aDict,
-            cutoff=cutoff,
-            maxIter=maxIter,
-            gain=gain,
-            nBits=nBits,
-            showPlots=showPlots,
-            verbose=rm_verbose,
-            prefixOut=prefix,
-            saveFigures=savePlots,
-            window=window,
-        )
-        # Ensure JSON serializable
-        for k, v in outdict.items():
-            if isinstance(v, np.float_):
-                outdict[k] = float(v)
-            elif isinstance(v, np.float32):
-                outdict[k] = float(v)
-            elif isinstance(v, np.int_):
-                outdict[k] = int(v)
-            elif isinstance(v, np.int32):
-                outdict[k] = int(v)
-            elif isinstance(v, np.ndarray):
-                outdict[k] = v.tolist()
+    # Sanity checks
+    for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:
+        logger.debug(f"Checking {f.absolute()}")
+        if not f.exists():
+            logger.fatal(f"File does not exist: '{f}'.")
+            raise FileNotFoundError(f"File does not exist: '{f}'")
 
-        # Save output
-        do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
-        if savePlots:
-            plt.close("all")
-            plotdir = os.path.join(outdir, "plots")
-            plot_files = glob(
-                os.path.join(os.path.abspath(os.path.dirname(fdfFile)), "*.pdf")
-            )
-            for src in plot_files:
-                base = os.path.basename(src)
-                dst = os.path.join(plotdir, base)
-                copyfile(src, dst)
-        # Load into Mongo
-        myquery = {"Gaussian_ID": cname}
+    nBits = 32
+    mDict, aDict = do_RMclean_1D.readFiles(
+        fdfFile, rmsfFile, weightFile, rmSynthFile, nBits
+    )
 
-        newvalues = {
-            "$set": {
-                "rmclean1d": True,
-                "rmclean_summary": outdict,
-            },
-        }
-    except KeyError:
-        logger.critical("Failed to load data! RM-CLEAN not applied to component!")
-        logger.critical(f"Island is {iname}, component is {cname}")
-        myquery = {"Gaussian_ID": cname}
+    # Run RM-CLEAN on the spectrum
+    outdict, arrdict = do_RMclean_1D.run_rmclean(
+        mDict=mDict,
+        aDict=aDict,
+        cutoff=cutoff,
+        maxIter=maxIter,
+        gain=gain,
+        nBits=nBits,
+        showPlots=showPlots,
+        verbose=rm_verbose,
+        prefixOut=prefix,
+        saveFigures=savePlots,
+        window=window,
+    )
+    # Ensure JSON serializable
+    for k, v in outdict.items():
+        if isinstance(v, np.float_):
+            outdict[k] = float(v)
+        elif isinstance(v, np.float32):
+            outdict[k] = float(v)
+        elif isinstance(v, np.int_):
+            outdict[k] = int(v)
+        elif isinstance(v, np.int32):
+            outdict[k] = int(v)
+        elif isinstance(v, np.ndarray):
+            outdict[k] = v.tolist()
 
-        newvalues = {
-            "$set": {
-                "rmclean1d": False,
-            },
-        }
+    # Save output
+    do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
+    if savePlots:
+        plt.close("all")
+        plotdir = outdir / "plots"
+        plot_files = list(fdfFile.parent.glob("*.pdf"))
+        for plot_file in plot_files:
+            copyfile(plot_file, plotdir / plot_file.name)
+
+    # Load into Mongo
+    myquery = {"Gaussian_ID": cname}
+
+    to_update = comp[save_name]
+    to_update["rmclean1d"] = True
+    to_update["rmclean_summary"] = outdict
+
+    newvalues = {"$set": {save_name: to_update}}
     return pymongo.UpdateOne(myquery, newvalues)
 
 
 @task(name="3D RM-CLEAN")
 def rmclean3d(
+    field: str,
     island: dict,
-    outdir: str,
+    outdir: Path,
+    sbid: Optional[int] = None,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
@@ -146,7 +146,7 @@ def rmclean3d(
 
     Args:
         island (dict): MongoDB island entry.
-        outdir (str): Output directory.
+        outdir (Path): Output directory.
         cutoff (float, optional): CLEAN cutoff (in sigma). Defaults to -3.
         maxIter (int, optional): Max CLEAN iterations. Defaults to 10000.
         gain (float, optional): CLEAN gain. Defaults to 0.1.
@@ -155,24 +155,14 @@ def rmclean3d(
     Returns:
         pymongo.UpdateOne: MongoDB update query.
     """
-    """3D RM-CLEAN
 
-    Args:
-        island_id (str): RACS Island ID
-        host (str): MongoDB host
-        field (str): RACS field
-        cutoff (int, optional): CLEAN cutoff. Defaults to -3.
-        maxIter (int, optional): CLEAN max iterations. Defaults to 10000.
-        gain (float, optional): CLEAN gain. Defaults to 0.1.
-        rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to False.
-    """
     iname = island["Source_ID"]
     prefix = f"{iname}_"
     rm3dfiles = island["rm3dfiles"]
 
     cleanFDF, ccArr, iterCountArr, residFDF, headtemp = do_RMclean_3D.run_rmclean(
-        fitsFDF=os.path.join(outdir, rm3dfiles["FDF_real_dirty"]),
-        fitsRMSF=os.path.join(outdir, rm3dfiles["RMSF_tot"]),
+        fitsFDF=(outdir / rm3dfiles["FDF_real_dirty"]).as_posix(),
+        fitsRMSF=(outdir / rm3dfiles["RMSF_tot"]).as_posix(),
         cutoff=cutoff,
         maxIter=maxIter,
         gain=gain,
@@ -189,15 +179,16 @@ def rmclean3d(
         residFDF,
         headtemp,
         prefixOut=prefix,
-        outDir=os.path.abspath(
-            os.path.dirname(os.path.join(outdir, rm3dfiles["FDF_real_dirty"]))
-        ),
+        outDir=(outdir / rm3dfiles["FDF_real_dirty"]).parent.absolute().as_posix(),
         write_separate_FDF=True,
         verbose=rm_verbose,
     )
     # Load into Mongo
+    save_name = field if sbid is None else f"{field}_{sbid}"
+    to_update = island[save_name]
+    to_update["rmclean3d"] = True
     myquery = {"Source_ID": iname}
-    newvalues = {"$set": {"rmclean3d": True}}
+    newvalues = {"$set": {save_name: to_update}}
     return pymongo.UpdateOne(myquery, newvalues)
 
 
@@ -207,6 +198,7 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
+    sbid: Optional[int] = None,
     username: Optional[str] = None,
     password: Optional[str] = None,
     dimension="1d",
@@ -240,21 +232,48 @@ def main(
         showPlots (bool, optional): Show interactive plots. Defaults to False.
         rm_verbose (bool, optional): Verbose output from RM-CLEAN. Defaults to False.
     """
-    outdir = os.path.abspath(outdir)
-    outdir = os.path.join(outdir, "cutouts")
+    outdir = outdir.absolute() / "cutouts"
 
     # default connection (ie, local)
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
 
-    query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+    # Check for SBID match
+    if sbid is not None:
+        field_col = get_field_db(
+            host=host,
+            epoch=epoch,
+            username=username,
+            password=password,
+        )
+        sbid_check = validate_sbid_field_pair(
+            field_name=field,
+            sbid=sbid,
+            field_col=field_col,
+        )
+        if not sbid_check:
+            raise ValueError(f"SBID {sbid} does not match field {field}")
 
-    beams = list(beams_col.find(query).sort("Source_ID"))
+    query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+    if sbid is not None:
+        query["$and"].append({f"beams.{field}.SBIDs": sbid})
+
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
 
     if dimension == "3d":
-        query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth3d": True}]}
+        query = {
+            "$and": [
+                {"Source_ID": {"$in": all_island_ids}},
+                {
+                    (
+                        f"{field}.rmsynth3d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmsynth3d"
+                    ): True
+                },
+            ]
+        }
 
         islands = list(
             island_col.find(
@@ -262,16 +281,38 @@ def main(
                 # Only get required values
                 {
                     "Source_ID": 1,
-                    "rm3dfiles": 1,
+                    f"{field}" if sbid is None else f"{field}_{sbid}": 1,
                 },
             ).sort("Source_ID")
         )
-        island_ids = [doc["Source_ID"] for doc in islands]
         n_island = island_col.count_documents(query)
-        island_col.update(query, {"$set": {"rmclean3d": False}})
+        result = island_col.update(
+            query,
+            {
+                "$set": {
+                    (
+                        f"{field}.rmclean3d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmclean3d"
+                    ): False
+                }
+            },
+        )
+        logger.info(pformat(result.raw_result))
 
     elif dimension == "1d":
-        query = {"$and": [{"Source_ID": {"$in": all_island_ids}}, {"rmsynth1d": True}]}
+        query = {
+            "$and": [
+                {"Source_ID": {"$in": all_island_ids}},
+                {
+                    (
+                        f"{field}.rmsynth1d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmsynth1d"
+                    ): True
+                },
+            ]
+        }
 
         components = list(
             comp_col.find(
@@ -280,23 +321,36 @@ def main(
                 {
                     "Source_ID": 1,
                     "Gaussian_ID": 1,
-                    "rm1dfiles": 1,
+                    f"{field}" if sbid is None else f"{field}_{sbid}": 1,
                 },
             ).sort("Source_ID")
         )
         n_comp = comp_col.count_documents(query)
-        comp_col.update_many(query, {"$set": {"rmclean1d": False}})
+        result = comp_col.update_many(
+            query,
+            {
+                "$set": {
+                    (
+                        f"{field}.rmclean1d"
+                        if sbid is None
+                        else f"{field}_{sbid}.rmclean1d"
+                    ): True
+                }
+            },
+        )
+        logger.info(pformat(result.raw_result))
 
     if limit is not None:
         count = limit
         n_comp = count
         n_island = count
-        # component_ids = component_ids[:count]
 
     if dimension == "1d":
         logger.info(f"Running RM-CLEAN on {n_comp} components")
         outputs = rmclean1d.map(
             comp=components,
+            field=unmapped(field),
+            sbid=unmapped(sbid),
             outdir=unmapped(outdir),
             cutoff=unmapped(cutoff),
             maxIter=unmapped(maxIter),
@@ -310,7 +364,9 @@ def main(
         logger.info(f"Running RM-CLEAN on {n_island} islands")
 
         outputs = rmclean3d.map(
+            field=unmapped(field),
             island=islands,
+            sbid=unmapped(sbid),
             outdir=unmapped(outdir),
             cutoff=unmapped(cutoff),
             maxIter=unmapped(maxIter),
@@ -333,16 +389,7 @@ def main(
     logger.info("RM-CLEAN done!")
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
-
-    from astropy.utils.exceptions import AstropyWarning
-
-    warnings.simplefilter("ignore", category=AstropyWarning)
-    from astropy.io.fits.verify import VerifyWarning
-
-    warnings.simplefilter("ignore", category=VerifyWarning)
+def clean_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -354,98 +401,55 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    clean_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
     )
-    parser.add_argument(
-        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
-    )
-    parser.add_argument(
-        "outdir",
-        metavar="outdir",
-        type=Path,
-        help="Directory containing cutouts (in subdir outdir/cutouts).",
-    )
-
-    parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
-    )
-
-    parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    parser.add_argument(
-        "--dimension",
-        dest="dimension",
-        default="1d",
-        help="How many dimensions for RMsynth [1d] or '3d'.",
-    )
-
-    parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="verbose output [False]."
-    )
-
-    parser.add_argument(
-        "-m", dest="database", action="store_true", help="Add data to MongoDB [False]."
-    )
-    parser.add_argument(
-        "-sp", "--savePlots", action="store_true", help="save the plots [False]."
-    )
-
-    parser.add_argument(
-        "--limit",
-        dest="limit",
-        default=None,
-        type=int,
-        help="Limit number of sources [All].",
-    )
+    parser = clean_parser.add_argument_group("rm-clean arguments")
 
     # RM-tools args
     parser.add_argument(
-        "-c",
-        dest="cutoff",
+        "--cutoff",
         type=float,
         default=-3,
-        help="CLEAN cutoff (+ve = absolute, -ve = sigma) [-3].",
+        help="CLEAN cutoff (+ve = absolute, -ve = sigma).",
     )
     parser.add_argument(
-        "-n",
-        dest="maxIter",
+        "--max_iter",
         type=int,
         default=10000,
-        help="maximum number of CLEAN iterations [10000].",
+        help="maximum number of CLEAN iterations.",
     )
+    parser.add_argument("--gain", type=float, default=0.1, help="CLEAN loop gain.")
     parser.add_argument(
-        "-g", dest="gain", type=float, default=0.1, help="CLEAN loop gain [0.1]."
-    )
-    parser.add_argument(
-        "-w",
-        dest="window",
+        "--window",
         type=float,
         default=None,
-        help="Further CLEAN in mask to this threshold [False].",
+        help="Further CLEAN in mask to this threshold.",
     )
-    parser.add_argument(
-        "-p", dest="showPlots", action="store_true", help="show the plots [False]."
-    )
-    parser.add_argument(
-        "-rmv", dest="rm_verbose", action="store_true", help="Verbose RM-CLEAN [False]."
+
+    return clean_parser
+
+
+def cli():
+    """Command-line interface"""
+
+    from astropy.utils.exceptions import AstropyWarning
+
+    warnings.simplefilter("ignore", category=AstropyWarning)
+    from astropy.io.fits.verify import VerifyWarning
+
+    warnings.simplefilter("ignore", category=VerifyWarning)
+
+    gen_parser = generic_parser(parent_parser=True)
+    common_parser = rmsynth_oncuts.rm_common_parser(parent_parser=True)
+    rmclean_parser = clean_parser(parent_parser=True)
+
+    parser = argparse.ArgumentParser(
+        parents=[gen_parser, common_parser, rmclean_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=rmclean_parser.description,
     )
 
     args = parser.parse_args()
@@ -453,33 +457,32 @@ def cli():
     verbose = args.verbose
     rmv = args.rm_verbose
     host = args.host
-    test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
-    )
+    test_db(host=args.host, username=args.username, password=args.password)
 
     if rmv:
         logger.setLevel(
-            level=logger.DEBUG,
+            level=logging.DEBUG,
         )
     elif verbose:
         logger.setLevel(
-            level=logger.INFO,
+            level=logging.INFO,
         )
     main(
         field=args.field,
-        outdir=Path(args.outdir),
+        outdir=Path(args.datadir),
         host=host,
+        epoch=args.epoch,
         username=args.username,
         password=args.password,
         dimension=args.dimension,
         database=args.database,
-        savePlots=args.savePlots,
+        savePlots=args.save_plots,
         limit=args.limit,
         cutoff=args.cutoff,
-        maxIter=args.maxIter,
+        maxIter=args.max_iter,
         gain=args.gain,
         window=args.window,
-        showPlots=args.showPlots,
+        showPlots=args.show_plots,
         rm_verbose=args.rm_verbose,
     )
 

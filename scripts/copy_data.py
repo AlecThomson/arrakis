@@ -27,7 +27,7 @@ def main(
     tab = Table.read(field_path)
     tab.add_index("FIELD_NAME")
     tab.add_index("CAL_SBID")
-    row = Table(tab.loc["FIELD_NAME", f"RACS_{name}"]).loc["CAL_SBID", sbid]["INDEX"]
+    _ = Table(tab.loc["FIELD_NAME", f"RACS_{name}"]).loc["CAL_SBID", sbid]["INDEX"]
     sb_dir = os.path.abspath(f"{spice_area}/{sbid}")
     field_dir = os.path.abspath(f"{sb_dir}/RACS_test4_1.05_{name}")
     bpcal = os.path.abspath(f"{sb_dir}/BPCAL")

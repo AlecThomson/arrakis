@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
+import argparse
 import logging
 import os
 import traceback
 import warnings
-from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
@@ -31,11 +31,15 @@ from RMutils.util_misc import create_frac_spectra
 from scipy.stats import norm
 
 from arrakis.logger import UltimateHelpFormatter, logger
-from arrakis.utils.database import get_db, test_db
+from arrakis.utils.database import (
+    get_db,
+    get_field_db,
+    test_db,
+    validate_sbid_field_pair,
+)
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
-from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 logger.setLevel(logging.INFO)
 
@@ -49,7 +53,7 @@ class Spectrum(Struct):
     """The RMS of the spectrum"""
     bkg: np.ndarray
     """The background of the spectrum"""
-    filename: str
+    filename: Path
     """The filename associated with the spectrum"""
     header: fits.Header
     """The header associated with the spectrum"""
@@ -87,9 +91,10 @@ class StokesIFitResult(Struct):
 def rmsynthoncut3d(
     island_id: str,
     beam_tuple: Tuple[str, pd.Series],
-    outdir: str,
+    outdir: Path,
     freq: np.ndarray,
     field: str,
+    sbid: Optional[int] = None,
     phiMax_radm2: Optional[float] = None,
     dPhi_radm2: Optional[float] = None,
     nSamples: int = 5,
@@ -127,6 +132,9 @@ def rmsynthoncut3d(
         ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
     # vfile = beam['beams'][field]['v_file']
 
+    header: fits.Header
+    dataQ: np.ndarray
+    dataI: np.ndarray
     header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
     header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
@@ -135,15 +143,18 @@ def rmsynthoncut3d(
     dataU = np.squeeze(dataU)
     dataI = np.squeeze(dataI)
 
+    save_name = field if sbid is None else f"{field}_{sbid}"
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         logger.critical(f"Cubelet {iname} is entirely NaN")
         myquery = {"Source_ID": iname}
         badvalues = {
             "$set": {
-                "rmsynth3d": False,
+                save_name: {
+                    "rmsynth3d": False,
+                }
             }
         }
-        return pymongo.UpdateOne(myquery, badvalues)
+        return pymongo.UpdateOne(myquery, badvalues, upsert=True)
 
     bkgq, rmsq = cubelet_bane(dataQ, header)
     rmsq[rmsq == 0] = np.nan
@@ -196,21 +207,27 @@ def rmsynthoncut3d(
 
     newvalues = {
         "$set": {
-            "rm3dfiles": {
-                "FDF_real_dirty": os.path.join(
-                    outer_dir, f"{prefix}FDF_real_dirty.fits"
-                ),
-                "FDF_im_dirty": os.path.join(outer_dir, f"{prefix}FDF_im_dirty.fits"),
-                "FDF_tot_dirty": os.path.join(outer_dir, f"{prefix}FDF_tot_dirty.fits"),
-                "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
-                "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
-                "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
-            },
-            "rmsynth3d": True,
-            "header": dict(header),
+            save_name: {
+                "rm3dfiles": {
+                    "FDF_real_dirty": os.path.join(
+                        outer_dir, f"{prefix}FDF_real_dirty.fits"
+                    ),
+                    "FDF_im_dirty": os.path.join(
+                        outer_dir, f"{prefix}FDF_im_dirty.fits"
+                    ),
+                    "FDF_tot_dirty": os.path.join(
+                        outer_dir, f"{prefix}FDF_tot_dirty.fits"
+                    ),
+                    "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
+                    "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
+                    "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
+                },
+                "rmsynth3d": True,
+                "header": dict(header),
+            }
         }
     }
-    return pymongo.UpdateOne(myquery, newvalues)
+    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
 def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
@@ -262,14 +279,14 @@ def extract_single_spectrum(
     stokes: str,
     ion: bool,
     field_dict: dict,
-    outdir: str,
+    outdir: Path,
 ) -> Spectrum:
     """Extract a single spectrum from a cubelet"""
     if ion and (stokes == "q" or stokes == "u"):
         key = f"{stokes}_file_ion"
     else:
         key = f"{stokes}_file"
-    filename = os.path.join(outdir, field_dict[key])
+    filename = outdir / field_dict[key]
     with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
         hdu = hdulist[0]
         data = np.squeeze(hdu.data)
@@ -299,7 +316,7 @@ def extract_all_spectra(
     coord: SkyCoord,
     ion: bool,
     field_dict: dict,
-    outdir: str,
+    outdir: Path,
 ) -> StokesSpectra:
     """Extract spectra from cubelets"""
     return StokesSpectra(
@@ -459,14 +476,17 @@ def update_rmtools_dict(
     for key, val in fit_dict["fit_flag"].items():
         mDict[f"fit_flag_{key}"] = val
 
+    return mDict
+
 
 @task(name="1D RM-synthesis")
 def rmsynthoncut1d(
     comp_tuple: Tuple[str, pd.Series],
     beam_tuple: Tuple[str, pd.Series],
-    outdir: str,
+    outdir: Path,
     freq: np.ndarray,
     field: str,
+    sbid: Optional[int] = None,
     polyOrd: int = 3,
     phiMax_radm2: Optional[float] = None,
     dPhi_radm2: Optional[float] = None,
@@ -492,6 +512,7 @@ def rmsynthoncut1d(
         freq (list): Frequencies in Hz
         host (str): MongoDB host
         field (str): RACS field
+        sbid (int, optional): SBID. Defaults to None.
         database (bool, optional): Update MongoDB. Defaults to False.
         polyOrd (int, optional): Order of fit to I. Defaults to 3.
         phiMax_radm2 (float, optional): Max FD. Defaults to None.
@@ -506,6 +527,7 @@ def rmsynthoncut1d(
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
     """
     logger.setLevel(logging.INFO)
+    save_name = field if sbid is None else f"{field}_{sbid}"
     comp = comp_tuple[1]
     beam = dict(beam_tuple[1])
 
@@ -528,8 +550,8 @@ def rmsynthoncut1d(
         if np.isnan(spectrum.data).all():
             logger.critical(f"Entire data is NaN for {iname} in {spectrum.filename}")
             myquery = {"Gaussian_ID": cname}
-            badvalues = {"$set": {"rmsynth1d": False}}
-            return pymongo.UpdateOne(myquery, badvalues)
+            badvalues = {"$set": {save_name: {"rmsynth1d": False}}}
+            return pymongo.UpdateOne(myquery, badvalues, upsert=True)
 
     prefix = f"{os.path.dirname(stokes_spectra.i.filename)}/{cname}"
 
@@ -554,14 +576,14 @@ def rmsynthoncut1d(
     ):
         logger.critical(f"{cname} QU data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
-        badvalues = {"$set": {"rmsynth1d": False}}
-        return pymongo.UpdateOne(myquery, badvalues)
+        badvalues = {"$set": {save_name: {"rmsynth1d": False}}}
+        return pymongo.UpdateOne(myquery, badvalues, upsert=True)
     # And I
     if np.isnan(filtered_stokes_spectra.i.data).all():
         logger.critical(f"{cname} I data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
-        badvalues = {"$set": {"rmsynth1d": False}}
-        return pymongo.UpdateOne(myquery, badvalues)
+        badvalues = {"$set": {save_name: {"rmsynth1d": False}}}
+        return pymongo.UpdateOne(myquery, badvalues, upsert=True)
 
     data = [np.array(freq)]
     bkg_data = [np.array(freq)]
@@ -598,16 +620,13 @@ def rmsynthoncut1d(
     except Exception as err:
         traceback.print_tb(err.__traceback__)
         raise err
+
     if savePlots:
         plt.close("all")
-        plotdir = os.path.join(outdir, "plots")
-        plot_files = glob(
-            os.path.join(os.path.dirname(filtered_stokes_spectra.i.filename), "*.pdf")
-        )
-        for src in plot_files:
-            base = os.path.basename(src)
-            dst = os.path.join(plotdir, base)
-            copyfile(src, dst)
+        plotdir = outdir / "plots"
+        plot_files = list(filtered_stokes_spectra.i.filename.parent.glob("*.pdf"))
+        for plot_file in plot_files:
+            copyfile(plot_file, plotdir / plot_file.name)
 
     # Update I, Q, U noise from data
     for stokes in "qu" if noStokesI else "iqu":
@@ -665,64 +684,63 @@ def rmsynthoncut1d(
     logger.debug(f"Heading for {cname} is {pformat(head_dict)}")
 
     outer_dir = os.path.basename(os.path.dirname(filtered_stokes_spectra.i.filename))
-
-    # Fix for json encoding
-
     newvalues = {
         "$set": {
-            "rm1dfiles": {
-                "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
-                "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
-                "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
-                "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
-                "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
-            },
-            "rmsynth1d": True,
-            "header": head_dict,
-            "rmsynth_summary": mDict,
-            "spectra": {
-                "freq": np.array(freq).tolist(),
-                "I_model": (
-                    stokes_i_fit_result.modStokesI.tolist()
-                    if stokes_i_fit_result.modStokesI is not None
-                    else None
-                ),
-                "I_model_params": {
-                    "alpha": (
-                        float(stokes_i_fit_result.alpha)
-                        if stokes_i_fit_result.alpha is not None
-                        else None
-                    ),
-                    "amplitude": (
-                        float(stokes_i_fit_result.amplitude)
-                        if stokes_i_fit_result.amplitude is not None
-                        else None
-                    ),
-                    "x_0": (
-                        float(stokes_i_fit_result.x_0)
-                        if stokes_i_fit_result.x_0 is not None
-                        else None
-                    ),
-                    "model_repr": stokes_i_fit_result.model_repr,
+            save_name: {
+                "rm1dfiles": {
+                    "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
+                    "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
+                    "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
+                    "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
+                    "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
                 },
-                "I": filtered_stokes_spectra.i.data.tolist(),
-                "Q": filtered_stokes_spectra.q.data.tolist(),
-                "U": filtered_stokes_spectra.u.data.tolist(),
-                "I_err": filtered_stokes_spectra.i.rms.tolist(),
-                "Q_err": filtered_stokes_spectra.q.rms.tolist(),
-                "U_err": filtered_stokes_spectra.u.rms.tolist(),
-                "I_bkg": filtered_stokes_spectra.i.bkg.tolist(),
-                "Q_bkg": filtered_stokes_spectra.q.bkg.tolist(),
-                "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
-            },
+                "rmsynth1d": True,
+                "header": head_dict,
+                "rmsynth_summary": mDict,
+                "spectra": {
+                    "freq": np.array(freq).tolist(),
+                    "I_model": (
+                        stokes_i_fit_result.modStokesI.tolist()
+                        if stokes_i_fit_result.modStokesI is not None
+                        else None
+                    ),
+                    "I_model_params": {
+                        "alpha": (
+                            float(stokes_i_fit_result.alpha)
+                            if stokes_i_fit_result.alpha is not None
+                            else None
+                        ),
+                        "amplitude": (
+                            float(stokes_i_fit_result.amplitude)
+                            if stokes_i_fit_result.amplitude is not None
+                            else None
+                        ),
+                        "x_0": (
+                            float(stokes_i_fit_result.x_0)
+                            if stokes_i_fit_result.x_0 is not None
+                            else None
+                        ),
+                        "model_repr": stokes_i_fit_result.model_repr,
+                    },
+                    "I": filtered_stokes_spectra.i.data.tolist(),
+                    "Q": filtered_stokes_spectra.q.data.tolist(),
+                    "U": filtered_stokes_spectra.u.data.tolist(),
+                    "I_err": filtered_stokes_spectra.i.rms.tolist(),
+                    "Q_err": filtered_stokes_spectra.q.rms.tolist(),
+                    "U_err": filtered_stokes_spectra.u.rms.tolist(),
+                    "I_bkg": filtered_stokes_spectra.i.bkg.tolist(),
+                    "Q_bkg": filtered_stokes_spectra.q.bkg.tolist(),
+                    "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
+                },
+            }
         }
     }
-    return pymongo.UpdateOne(myquery, newvalues)
+    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
 def rmsynthoncut_i(
     comp_id: str,
-    outdir: str,
+    outdir: Path,
     freq: np.ndarray,
     host: str,
     field: str,
@@ -766,8 +784,8 @@ def rmsynthoncut_i(
     if beams is None:
         raise ValueError(f"Beams for {iname} not found")
 
-    ifile = os.path.join(outdir, beams["beams"][field]["i_file"])
-    outdir = os.path.dirname(ifile)
+    ifile = outdir / beams["beams"][field]["i_file"]
+    outdir = ifile.parent
 
     header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
 
@@ -862,8 +880,9 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    sbid: Optional[int] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     dimension: str = "1d",
     verbose: bool = True,
     database: bool = False,
@@ -882,8 +901,8 @@ def main(
     rm_verbose: bool = False,
     debug: bool = False,
     fit_function: str = "log",
-    tt0: Union[str, None] = None,
-    tt1: Union[str, None] = None,
+    tt0: Optional[str] = None,
+    tt1: Optional[str] = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> None:
@@ -894,6 +913,7 @@ def main(
         outdir (Path): Output directory
         host (str): MongoDB host
         epoch (int): Epoch
+        sbid (Union[int, None], optional): SBID. Defaults to None.
         username (Union[str, None], optional): MongoDB username. Defaults to None.
         password (Union[str, None], optional): MongoDB password. Defaults to None.
         dimension (str, optional): RMsynth dimension. Defaults to "1d".
@@ -919,19 +939,39 @@ def main(
         ion (bool, optional): Ion. Defaults to False.
         do_own_fit (bool, optional): Do own fit. Defaults to False.
     """
-
-    outdir = os.path.abspath(outdir)
-    outdir = os.path.join(outdir, "cutouts")
+    logger.info(f"Running RMsynth on {field} field")
+    outdir = outdir.absolute() / "cutouts"
 
     if savePlots:
-        plotdir = os.path.join(outdir, "plots")
-        try_mkdir(plotdir)
+        plotdir = outdir / "plots"
+        plotdir.mkdir(parents=True, exist_ok=True)
 
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
 
+    # Check for SBID match
+    if sbid is not None:
+        field_col = get_field_db(
+            host=host,
+            epoch=epoch,
+            username=username,
+            password=password,
+        )
+        sbid_check = validate_sbid_field_pair(
+            field_name=field,
+            sbid=sbid,
+            field_col=field_col,
+        )
+        if not sbid_check:
+            raise ValueError(f"SBID {sbid} does not match field {field}")
+
     beam_query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
+
+    if sbid is not None:
+        beam_query["$and"].append({f"beams.{field}.SBIDs": sbid})
+
+    logger.info(f"Querying beams with {beam_query}")
 
     beams = pd.DataFrame(list(beams_col.find(beam_query).sort("Source_ID")))
     beams.set_index("Source_ID", drop=False, inplace=True)
@@ -960,14 +1000,46 @@ def main(
 
     # Unset rmsynth in db
     if dimension == "1d":
-        query_1d = {"$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth1d": True}]}
+        logger.info(f"Unsetting rmsynth1d for {n_comp} components")
+        query_1d = {"Source_ID": {"$in": island_ids}}
+        update_1d = {
+            "$set": {
+                (
+                    f"{field}.rmsynth1d"
+                    if sbid is None
+                    else f"{field}_{sbid}.rmsynth1d"
+                ): False
+            }
+        }
+        logger.info(pformat(update_1d))
 
-        comp_col.update_many(query_1d, {"$set": {"rmsynth1d": False}})
+        result = comp_col.update_many(
+            query_1d,
+            update_1d,
+            upsert=True,
+        )
+        logger.info(pformat(result.raw_result))
 
     elif dimension == "3d":
-        query_3d = {"$and": [{"Source_ID": {"$in": island_ids}}, {"rmsynth3d": True}]}
+        logger.info(f"Unsetting rmsynth3d for {n_island} islands")
+        query_3d = {"Source_ID": {"$in": island_ids}}
+        update_3d = {
+            "$set": {
+                (
+                    f"{field}.rmsynth3d"
+                    if sbid is None
+                    else f"{field}_{sbid}.rmsynth3d"
+                ): False
+            }
+        }
+        logger.info(pformat(update_3d))
+        result = island_col.update(
+            query_3d,
+            update_3d,
+            upsert=True,
+        )
 
-        island_col.update(query_3d, {"$set": {"rmsynth3d": False}})
+        logger.info(pformat(result.raw_result))
 
     if limit is not None:
         n_comp = limit
@@ -978,13 +1050,11 @@ def main(
 
     # Make frequency file
     freq, freqfile = getfreq(
-        os.path.join(outdir, f"{beams.iloc[0]['beams'][f'{field}']['q_file']}"),
+        outdir / f"{beams.iloc[0]['beams'][f'{field}']['q_file']}",
         outdir=outdir,
         filename="frequencies.txt",
     )
     freq = np.array(freq)
-
-    _batch_size = 100
 
     if do_validate:
         logger.info(f"Running RMsynth on {n_comp} components")
@@ -1013,6 +1083,7 @@ def main(
             outdir=unmapped(outdir),
             freq=unmapped(freq),
             field=unmapped(field),
+            sbid=unmapped(sbid),
             polyOrd=unmapped(polyOrd),
             phiMax_radm2=unmapped(phiMax_radm2),
             dPhi_radm2=unmapped(dPhi_radm2),
@@ -1039,6 +1110,7 @@ def main(
             outdir=unmapped(outdir),
             freq=unmapped(freq),
             field=unmapped(field),
+            sbid=unmapped(sbid),
             phiMax_radm2=unmapped(phiMax_radm2),
             dPhi_radm2=unmapped(dPhi_radm2),
             nSamples=unmapped(nSamples),
@@ -1064,17 +1136,28 @@ def main(
     logger.info("RMsynth done!")
 
 
-def cli():
-    """Command-line interface"""
-    import argparse
+def rm_common_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    common_parser = argparse.ArgumentParser(
+        formatter_class=UltimateHelpFormatter,
+        add_help=not parent_parser,
+    )
+    parser = common_parser.add_argument_group("common rm arguments")
 
-    from astropy.utils.exceptions import AstropyWarning
+    parser.add_argument(
+        "--dimension",
+        dest="dimension",
+        default="1d",
+        help="How many dimensions for RMsynth '1d' or '3d'.",
+    )
+    parser.add_argument("--save_plots", action="store_true", help="save the plots.")
+    parser.add_argument(
+        "--rm_verbose", action="store_true", help="Verbose RMsynth/RMClean."
+    )
 
-    warnings.simplefilter("ignore", category=AstropyWarning)
-    from astropy.io.fits.verify import VerifyWarning
+    return common_parser
 
-    warnings.simplefilter("ignore", category=VerifyWarning)
-    warnings.simplefilter("ignore", category=RuntimeWarning)
+
+def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -1086,59 +1169,15 @@ def cli():
     """
 
     # Parse the command line options
-    parser = argparse.ArgumentParser(
-        description=descStr, formatter_class=UltimateHelpFormatter
+    rmsynth_parser = argparse.ArgumentParser(
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
+        add_help=not parent_parser,
     )
-    parser.add_argument(
-        "field", metavar="field", type=str, help="RACS field to mosaic - e.g. 2132-50A."
-    )
-    parser.add_argument(
-        "outdir",
-        metavar="outdir",
-        type=Path,
-        help="Directory containing cutouts (in subdir outdir/cutouts).",
-    )
+    parser = rmsynth_parser.add_argument_group("rm-synth arguments")
 
     parser.add_argument(
-        "host",
-        metavar="host",
-        type=str,
-        help="Host of mongodb (probably $hostname -i).",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epoch",
-        type=int,
-        default=0,
-        help="Epoch of observation.",
-    )
-
-    parser.add_argument(
-        "--username", type=str, default=None, help="Username of mongodb."
-    )
-
-    parser.add_argument(
-        "--password", type=str, default=None, help="Password of mongodb."
-    )
-
-    parser.add_argument(
-        "--dimension",
-        dest="dimension",
-        default="1d",
-        help="How many dimensions for RMsynth [1d] or '3d'.",
-    )
-
-    parser.add_argument(
-        "-v", dest="verbose", action="store_true", help="verbose output [False]."
-    )
-
-    parser.add_argument(
-        "--ion", action="store_true", help="Use ionospheric-corrected data [False]."
-    )
-
-    parser.add_argument(
-        "-m", dest="database", action="store_true", help="Add data to MongoDB [False]."
+        "--ion", action="store_true", help="Use ionospheric-corrected data."
     )
 
     parser.add_argument(
@@ -1159,99 +1198,95 @@ def cli():
         "--validate",
         dest="validate",
         action="store_true",
-        help="Run on Stokes I [False].",
-    )
-
-    parser.add_argument(
-        "--limit",
-        dest="limit",
-        default=None,
-        type=int,
-        help="Limit number of sources [All].",
+        help="Run on Stokes I.",
     )
     parser.add_argument(
         "--own_fit",
         dest="do_own_fit",
         action="store_true",
-        help="Use own Stokes I fit function [False].",
+        help="Use own Stokes I fit function.",
     )
-
     # RM-tools args
     parser.add_argument(
-        "-sp", "--savePlots", action="store_true", help="save the plots [False]."
-    )
-    parser.add_argument(
-        "-w",
-        dest="weightType",
+        "--weight_type",
         default="variance",
-        help="weighting [variance] (all 1s) or 'uniform'.",
+        help="weighting (inverse) 'variance' or 'uniform' (all 1s).",
     )
     parser.add_argument(
-        "-f",
-        dest="fit_function",
+        "--fit_function",
         type=str,
         default="log",
-        help="Stokes I fitting function: 'linear' or ['log'] polynomials.",
+        help="Stokes I fitting function: 'linear' or 'log' polynomials.",
     )
     parser.add_argument(
-        "-t",
-        dest="fitRMSF",
+        "--fit_rmsf",
         action="store_true",
-        help="Fit a Gaussian to the RMSF [False]",
+        help="Fit a Gaussian to the RMSF",
     )
     parser.add_argument(
-        "-l",
-        dest="phiMax_radm2",
+        "--phi_max",
         type=float,
         default=None,
-        help="Absolute max Faraday depth sampled (overrides NSAMPLES) [Auto].",
+        help="Absolute max Faraday depth sampled (in rad/m^2) (overrides NSAMPLES).",
     )
     parser.add_argument(
-        "-d",
-        dest="dPhi_radm2",
+        "--dphi",
         type=float,
         default=None,
-        help="Width of Faraday depth channel [Auto].",
+        help="Width of Faraday depth channel.",
     )
     parser.add_argument(
-        "-s",
-        dest="nSamples",
+        "--n_samples",
         type=float,
         default=5,
         help="Number of samples across the FWHM RMSF.",
     )
     parser.add_argument(
-        "-o",
-        dest="polyOrd",
+        "--poly_ord",
         type=int,
         default=3,
-        help="polynomial order to fit to I spectrum [3].",
+        help="polynomial order to fit to I spectrum.",
     )
     parser.add_argument(
-        "-i",
-        dest="noStokesI",
+        "--no_stokes_i",
         action="store_true",
-        help="ignore the Stokes I spectrum [False].",
+        help="ignore the Stokes I spectrum.",
     )
+    parser.add_argument("--show_plots", action="store_true", help="show the plots.")
     parser.add_argument(
-        "-p", dest="showPlots", action="store_true", help="show the plots [False]."
-    )
-    parser.add_argument(
-        "-R",
-        dest="not_RMSF",
+        "--not_rmsf",
         action="store_true",
-        help="Skip calculation of RMSF? [False]",
+        help="Skip calculation of RMSF?",
     )
     parser.add_argument(
-        "-rmv", dest="rm_verbose", action="store_true", help="Verbose RMsynth [False]."
-    )
-    parser.add_argument(
-        "-D",
-        dest="debug",
+        "--debug",
         action="store_true",
-        help="turn on debugging messages & plots [False].",
+        help="turn on debugging messages & plots.",
     )
 
+    return rmsynth_parser
+
+
+def cli():
+    """Command-line interface"""
+
+    from astropy.utils.exceptions import AstropyWarning
+
+    warnings.simplefilter("ignore", category=AstropyWarning)
+    from astropy.io.fits.verify import VerifyWarning
+
+    warnings.simplefilter("ignore", category=VerifyWarning)
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+
+    gen_parser = generic_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
+    synth_parser = rmsynth_parser(parent_parser=True)
+    common_parser = rm_common_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        parents=[gen_parser, work_parser, common_parser, synth_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=synth_parser.description,
+    )
     args = parser.parse_args()
 
     if args.tt0 and not args.tt1:
@@ -1262,18 +1297,22 @@ def cli():
     verbose = args.verbose
     rmv = args.rm_verbose
     if rmv:
-        logger.setLevel(logger.DEBUG)
+        logger.setLevel(logging.DEBUG)
     elif verbose:
-        logger.setLevel(logger.INFO)
+        logger.setLevel(logging.INFO)
 
     test_db(
-        host=args.host, username=args.username, password=args.password, verbose=verbose
+        host=args.host,
+        username=args.username,
+        password=args.password,
     )
 
     main(
         field=args.field,
-        outdir=Path(args.outdir),
+        outdir=Path(args.datadir),
         host=args.host,
+        epoch=args.epoch,
+        sbid=args.sbid,
         username=args.username,
         password=args.password,
         dimension=args.dimension,
@@ -1281,16 +1320,16 @@ def cli():
         database=args.database,
         do_validate=args.validate,
         limit=args.limit,
-        savePlots=args.savePlots,
-        weightType=args.weightType,
-        fitRMSF=args.fitRMSF,
-        phiMax_radm2=args.phiMax_radm2,
-        dPhi_radm2=args.dPhi_radm2,
-        nSamples=args.nSamples,
-        polyOrd=args.polyOrd,
-        noStokesI=args.noStokesI,
-        showPlots=args.showPlots,
-        not_RMSF=args.not_RMSF,
+        savePlots=args.save_plots,
+        weightType=args.weight_type,
+        fitRMSF=args.fit_rmsf,
+        phiMax_radm2=args.phi_max,
+        dPhi_radm2=args.dphi,
+        nSamples=args.n_samples,
+        polyOrd=args.poly_ord,
+        noStokesI=args.no_stokes_i,
+        showPlots=args.show_plots,
+        not_RMSF=args.not_rmsf,
         rm_verbose=args.rm_verbose,
         debug=args.debug,
         fit_function=args.fit_function,
