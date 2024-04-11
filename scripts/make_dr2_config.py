@@ -14,7 +14,6 @@ from arrakis.logger import logger
 logger.setLevel(logging.INFO)
 # Public RACS database credentials
 RACSUSER = "anonymous"
-RACSPASS = "racs-db-letmein"
 RACSHOST = "146.118.68.63"
 RACSPORT = "5433"
 
@@ -37,7 +36,7 @@ def get_field_data(sbid: int) -> pd.Series:
 
     df = pd.read_sql(
         f"SELECT * from {table}",
-        f"postgresql://{RACSUSER}:{RACSPASS}@{RACSHOST}:{RACSPORT}/{racsdb}",
+        f"postgresql://{RACSUSER}:{os.environ['PGPASSWORD']}@{RACSHOST}:{RACSPORT}/{racsdb}",
     )
     df.set_index("SBID", inplace=True)
     return df.loc[sbid]
@@ -122,7 +121,8 @@ def main(
         epoch=7,
         ms_glob_pattern=f"'SB{sbid}.{field_data.FIELD_NAME}.beam*.round4.ms'",
         imager_dask_config="/scratch3/projects/spiceracs/arrakis/arrakis/configs/petrichor.yaml",
-        temp_dir="'$LOCALDIR'",
+        temp_dir_images="$LOCALDIR",
+        temp_dir_wsclean="$MEMDIR",
         mgain=0.7,
         force_mask_rounds=8,
         nmiter=15,
@@ -161,27 +161,26 @@ def main(
         debug=False,
         dimension="1d",
         dryrun=False,
-        fitRMSF=True,
+        fit_rmsf=True,
         fit_function="log",
         gain=0.1,
         holofile=holo_file.as_posix(),
-        maxIter=10000,
-        nSamples=100.0,
-        noStokesI=False,
-        not_RMSF=False,
-        outfile=f"{field_data.FIELD_NAME}_SB{sbid}_polcat.fits",
+        max_iter=10000,
+        n_samples=100.0,
+        no_stokes_i=False,
+        not_rmsf=False,
+        write=f"{field_data.FIELD_NAME}_SB{sbid}_polcat.fits",
         pad=7.0,
-        polyOrd=-2,
+        poly_ord=-2,
         rm_verbose=False,
-        savePlots=True,
-        showPlots=False,
+        save_plots=True,
+        show_plots=False,
         validate=False,
-        verbose=True,
-        weightType="variance",
+        weight_type="variance",
         yanda_image="/datasets/work/sa-mhongoose/work/containers/askapsoft_1.15.0-openmpi4.sif",
-        ionex_server="file:///datasets/work/sa-mhongoose/work/data/IONEX/ftp.aiub.unibe.ch",
-        ionex_formatter="ftp.aiub.unibe.ch",
-        ionex_prefix="codg",
+        ionex_server="file:///datasets/work/sa-mhongoose/work/data/IONEX/gdc.cddis.eosdis.nasa.gov",
+        ionex_formatter="cddis.gsfc.nasa.gov",
+        ionex_prefix="casg",
     )
 
     config_file = processing_dir / f"{sbid}_rm.yaml"
@@ -199,8 +198,8 @@ def main(
 #SBATCH --mem=36GB
 #SBATCH --time=1-00:00:00
 #SBATCH -A OD-217087
-#SBATCH -o {sbid}_rm_%j.log
-#SBATCH -e {sbid}_rm_%j.log
+#SBATCH -o {(processing_dir/str(sbid)).absolute().as_posix()}_rm_%j.log
+#SBATCH -e {(processing_dir/str(sbid)).absolute().as_posix()}_rm_%j.log
 #SBATCH --qos=express
 
 # I trust nothing

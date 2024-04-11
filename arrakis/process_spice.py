@@ -30,7 +30,7 @@ from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 @flow(name="Combining+Synthesis on Arrakis")
 def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
-    """Workflow to process the SPIRCE-RACS data
+    """Workflow to process the SPICE-RACS data
 
     Args:
         args (configargparse.Namespace): Configuration parameters for this run
