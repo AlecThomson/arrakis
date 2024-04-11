@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2024-04-11
 ### What's Changed
 
 * Allow SBID to passed as an argument
@@ -17,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     * Now reused amongst modules
 * Fixes to typing
     * Much better use of `pathlib.Path` and `pandas`
+* SBID by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/62
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.7...v2.1.8
 
 ## [2.1.7] - 2024-04-03
 ### What's Changed
