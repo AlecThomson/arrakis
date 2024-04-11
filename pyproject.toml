@@ -95,7 +95,6 @@ spice_cat = "arrakis.makecat:cli"
 spice_image = "arrakis.imager:cli"
 
 # Misc scripts
-make_dr2_config = { reference="scripts/make_dr2_config.py", type="file"}
 casda_prepare = { reference="scripts/casda_prepare.py", type="file"}
 check_cutout = { reference="scripts/check_cutout.py", type="file"}
 compare_leakage = { reference="scripts/compare_leakage.py", type="file"}
