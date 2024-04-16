@@ -7,6 +7,7 @@ from pprint import pformat
 from typing import Optional
 
 import pymongo
+from pymongo.database import Database
 
 from arrakis.logger import logger
 
@@ -34,8 +35,8 @@ def start_mongod(
         proc = sp.check_output(cmd.split())
     except sp.CalledProcessError as e:
         if e.returncode == 48:
-            logger.info(
-                "mongod already running - try shutting down first with `mongod --shutdown`"
+            logger.error(
+                f"mongod already running - try shutting down first with `mongod --dbpath {dbpath} --shutdown`"
             )
         logger.error(f"{e}")
         raise MongodError(f"Failed to start mongod. Command was: {cmd}")
@@ -58,6 +59,31 @@ def stop_mongod(
     logger.info("Stopped mongod")
 
 
+def create_or_update_user(
+    db: Database,
+    username: str,
+    password: str,
+    roles: list,
+):
+    try:
+        return db.command(
+            "createUser",
+            username,
+            pwd=password,
+            roles=roles,
+        )
+    except pymongo.errors.OperationFailure as e:
+        if e.code == 51003:
+            logger.error(f"User {username} already exists - updating...")
+            return db.command(
+                "updateUser",
+                username,
+                pwd=password,
+                roles=roles,
+            )
+        raise e
+
+
 def create_admin_user(
     host: str,
     password: str,
@@ -67,10 +93,10 @@ def create_admin_user(
     logger.info(f"Creating admin user {username} on {host}:{port}")
     client = pymongo.MongoClient(host, port)
     db = client.admin
-    res = db.command(
-        "createUser",
-        username,
-        pwd=password,
+    res = create_or_update_user(
+        db=db,
+        username=username,
+        password=password,
         roles=[{"role": "userAdminAnyDatabase", "db": "admin"}],
     )
     logger.info(pformat(res))
@@ -85,10 +111,10 @@ def create_read_only_user(
     logger.info(f"Creating read-only user {username} on {host}:{port}")
     client = pymongo.MongoClient(host, port)
     db = client.admin
-    res = db.command(
-        "createUser",
-        username,
-        pwd=password,
+    res = create_or_update_user(
+        db=db,
+        username=username,
+        password=password,
         roles=[{"role": "userAdminAnyDatabase", "db": "admin"}],
     )
     logger.info(pformat(res))
