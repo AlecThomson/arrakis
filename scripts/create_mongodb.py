@@ -35,7 +35,7 @@ def start_mongod(
     except sp.CalledProcessError as e:
         logger.error(f"{e}")
         raise MongodError(f"Failed to start mongod. Command was: {cmd}")
-    logger.info(proc.decode)
+    logger.info(proc.decode())
     logger.info("Started mongod")
 
 
