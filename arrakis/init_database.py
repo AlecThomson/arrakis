@@ -378,6 +378,16 @@ def read_racs_database(
     epoch: int,
     table: str,
 ) -> Table:
+    """Read the RACS database from CSVs or postgresql
+
+    Args:
+        survey_dir (Path): Path to RACS database (i.e. 'askap_surveys/racs' repo).
+        epoch (int): RACS epoch number.
+        table (str): Table name.
+
+    Returns:
+        Table: RACS database table.
+    """
     epoch_name = f"epoch_{epoch}"
     if survey_dir.parent.name == "postgresql:":
         logger.info("Reading RACS data from postgresql...")
