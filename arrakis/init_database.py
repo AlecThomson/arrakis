@@ -380,6 +380,7 @@ def read_racs_database(
 ) -> Table:
     epoch_name = f"epoch_{epoch}"
     if survey_dir.parent.name == "postgresql:":
+        logger.info("Reading RACS data from postgresql...")
         _dbstring = f"{survey_dir.parent.name}//{survey_dir.name}/{epoch_name}"
         _df = pd.read_sql(
             f"SELECT * from {table}",
@@ -387,6 +388,7 @@ def read_racs_database(
         )
         return Table.from_pandas(_df)
 
+    logger.info("Reading RACS data from CSVs...")
     basedir = survey_dir / "db" / epoch_name
     data_file = basedir / f"{table}.csv"
     if not data_file.exists():
