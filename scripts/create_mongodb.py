@@ -74,7 +74,7 @@ def create_or_update_user(
         )
     except pymongo.errors.OperationFailure as e:
         if e.code == 51003:
-            logger.error(f"User {username} already exists - updating...")
+            logger.warning(f"User {username} already exists - updating...")
             return db.command(
                 "updateUser",
                 username,
