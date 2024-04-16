@@ -48,7 +48,7 @@ pytest = "*"
 python_casacore = "*"
 RACS-tools = ">=3"
 radio_beam = "*"
-RMextract = {git = "https://github.com/AlecThomson/RMextract@race"}
+RMextract = {git = "https://github.com/AlecThomson/RMextract@race", optional=true}
 schwimmbad = "*"
 scipy = "*"
 spectral_cube = ">=0.6.3"
@@ -65,7 +65,7 @@ PolSpectra = ">=1.1.0"
 setuptools = "*"
 fixms = ">=0.2"
 fitscube = ">=0.3"
-psycopg2 = "*"
+psycopg2-binary = "*"
 sqlalchemy = "*"
 
 [tool.poetry.dev-dependencies]
@@ -84,6 +84,7 @@ docs = [
     "m2r2",
     "numpydoc",
 ]
+RMextract = ["RMextract"]
 
 [build-system]
 requires = ["poetry-core>=1.2", "numpy"]
