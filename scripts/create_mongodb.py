@@ -97,7 +97,7 @@ def create_admin_user(
         db=db,
         username=username,
         password=password,
-        roles=[{"role": "userAdminAnyDatabase", "db": "admin"}],
+        roles=["userAdminAnyDatabase", "readWriteAnyDatabase"],
     )
     logger.info(pformat(res))
 
@@ -115,7 +115,7 @@ def create_read_only_user(
         db=db,
         username=username,
         password=password,
-        roles=[{"role": "userAdminAnyDatabase", "db": "admin"}],
+        roles=["readAnyDatabase"],
     )
     logger.info(pformat(res))
 
