@@ -34,13 +34,9 @@ def start_mongod(
         proc = sp.check_output(cmd.split())
     except sp.CalledProcessError as e:
         if e.returncode == 48:
-            logger.info("mongod already running - shutting down and restarting")
-            stop_mongod(dbpath)
-            try:
-                proc = sp.check_output(cmd.split())
-            except sp.CalledProcessError as e:
-                logger.error(f"{e}")
-                raise MongodError(f"Failed to start mongod. Command was: {cmd}")
+            logger.info(
+                "mongod already running - try shutting down first with `mongod --shutdown`"
+            )
         logger.error(f"{e}")
         raise MongodError(f"Failed to start mongod. Command was: {cmd}")
     logger.info(proc.decode())
