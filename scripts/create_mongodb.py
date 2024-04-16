@@ -33,7 +33,7 @@ def start_mongod(
     try:
         proc = sp.check_output(cmd.split())
     except sp.CalledProcessError as e:
-	logger.error(f"{e}")
+        logger.error(f"{e}")
         raise MongodError(f"Failed to start mongod. Command was: {cmd}")
     logger.info(proc.decode)
     logger.info("Started mongod")
