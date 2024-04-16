@@ -118,7 +118,7 @@ def source_database(
     # Use pandas and follow
     # https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
     df_i = islandcat.to_pandas()
-    if type(df_i["Source_ID"][0]) is bytes:
+    if isinstance(df_i["Source_ID"][0], bytes):
         logger.info("Decoding strings!")
         str_df = df_i.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
@@ -145,7 +145,7 @@ def source_database(
     logger.info(f"Index created: {idx_res}")
 
     df_c = compcat.to_pandas()
-    if type(df_c["Source_ID"][0]) is bytes:
+    if isinstance(df_c["Source_ID"][0], bytes):
         logger.info("Decoding strings!")
         str_df = df_c.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
@@ -329,7 +329,7 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
 
 def beam_inf(
     database: Table,
-    basedir: Path,
+    survey_dir: Path,
     host: str,
     epoch: int,
     username: Optional[str] = None,
@@ -340,7 +340,7 @@ def beam_inf(
     for row in tqdm(database, desc="Reading beam info", file=TQDM_OUT):
         try:
             tab = read_racs_database(
-                survey_dir=basedir,
+                survey_dir=survey_dir,
                 epoch=epoch,
                 table=f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}",
             )
@@ -437,7 +437,7 @@ def field_database(
 
     beam_res = beam_inf(
         database=database,
-        basedir=basedir,
+        survey_dir=survey_dir,
         host=host,
         epoch=epoch,
         username=username,
