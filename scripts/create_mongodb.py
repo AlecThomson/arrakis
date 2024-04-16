@@ -10,7 +10,7 @@ import pymongo
 
 from arrakis.logger import logger
 
-logger.setLevel(logging.info)
+logger.setLevel(logging.INFO)
 
 
 class MongodError(Exception):
@@ -24,16 +24,18 @@ def start_mongod(
     port: Optional[int] = None,
     auth: bool = False,
 ):
-    cmd = f"mongod --dbpath {dbpath} --logpath {logpath} --bind_ip {host} --port {port}"
+    cmd = f"mongod --fork --dbpath {dbpath} --logpath {logpath} --bind_ip {host}"
     if auth:
         cmd += " --auth"
+    if port is not None:
+        cmd += f"--port {port}"
     logger.info(f"Running command: {cmd}")
-    proc = sp.check_output(cmd.split(), stderr=sp.STDOUT, capture_output=True)
-    logger.info(proc.stdout.decode("utf-8"))
-    logger.error(proc.stderr.decode("utf-8"))
-    if proc.returncode != 0:
+    try:
+        proc = sp.check_output(cmd.split())
+    except sp.CalledProcessError as e:
+	logger.error(f"{e}")
         raise MongodError(f"Failed to start mongod. Command was: {cmd}")
-
+    logger.info(proc.decode)
     logger.info("Started mongod")
 
 
@@ -43,11 +45,13 @@ def stop_mongod(
     logger.info(f"Stopping mongod with dbpath {dbpath}")
     cmd = f"mongod --dbpath {dbpath} --shutdown"
     logger.info(f"Running command: {cmd}")
-    proc = sp.check_output(cmd.split(), stderr=sp.STDOUT, capture_output=True)
-    logger.info(proc.stdout.decode("utf-8"))
-    logger.error(proc.stderr.decode("utf-8"))
-    if proc.returncode != 0:
+    try:
+        proc = sp.check_output(cmd.split())
+    except sp.CalledProcessError as e:
+        logger.error(f"{e}")
         raise MongodError(f"Failed to stop mongod. Command was: {cmd}")
+    logger.info(proc.decode())
+    logger.info("Stopped mongod")
 
 
 def create_admin_user(
