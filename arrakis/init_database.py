@@ -383,7 +383,7 @@ def read_racs_database(
         logger.info("Reading RACS data from postgresql...")
         _dbstring = f"{survey_dir.parent.name}//{survey_dir.name}/{epoch_name}"
         _df = pd.read_sql(
-            f"SELECT * from '{table}'",
+            f'SELECT * from "{table}"',
             f"{_dbstring}",
         )
         return Table.from_pandas(_df)
