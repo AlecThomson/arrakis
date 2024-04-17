@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+* Allow PostgreSQL RACS database to be ingested in `spice_init`
+* Add helper scipt `create_mongodb.py`
+
 ## [2.2.0] - 2024-04-11
 ### What's Changed
 

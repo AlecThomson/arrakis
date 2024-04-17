@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import pandas as pd
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord, search_around_sky
 from astropy.table import Table, vstack
@@ -117,7 +118,7 @@ def source_database(
     # Use pandas and follow
     # https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
     df_i = islandcat.to_pandas()
-    if type(df_i["Source_ID"][0]) is bytes:
+    if isinstance(df_i["Source_ID"][0], bytes):
         logger.info("Decoding strings!")
         str_df = df_i.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
@@ -144,7 +145,7 @@ def source_database(
     logger.info(f"Index created: {idx_res}")
 
     df_c = compcat.to_pandas()
-    if type(df_c["Source_ID"][0]) is bytes:
+    if isinstance(df_c["Source_ID"][0], bytes):
         logger.info("Decoding strings!")
         str_df = df_c.select_dtypes([object])
         str_df = str_df.stack().str.decode("utf-8").unstack()
@@ -226,10 +227,7 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
         Table: RACS catalogue table.
 
     """
-    basedir = survey_dir / "db" / f"epoch_{epoch}"
-    logger.info(f"Loading RACS database from {basedir}")
-    data_file = basedir / "field_data.csv"
-    database = Table.read(data_file)
+    database = read_racs_database(survey_dir, epoch, table="field_data")
     # Remove rows with SBID < 0
     database = database[database["SBID"] >= 0]
 
@@ -238,20 +236,21 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
     FIELD = row["FIELD_NAME"]
     SBID = row["SBID"]
     # Find FIELD and SBID in beamfile name
-    beamfile = basedir / f"beam_inf_{SBID}-{FIELD}.csv"
-    if not beamfile.exists():
-        raise FileNotFoundError(f"{beamfile} not found!")
-    racs_fields = Table.read(beamfile)
+    racs_fields = read_racs_database(
+        survey_dir, epoch, table=f"beam_inf_{SBID}-{FIELD}"
+    )
     racs_fields.add_column(FIELD, name="FIELD_NAME", index=0)
     racs_fields.add_column(SBID, name="SBID", index=0)
 
     # Add in all others
     for row in tqdm(database[1:], desc="Reading RACS database", file=TQDM_OUT):
-        beamfile = basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv"
-        if not beamfile.exists():
-            logger.error(f"{beamfile} not found!")
+        try:
+            tab = read_racs_database(
+                survey_dir, epoch, table=f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}"
+            )
+        except Exception as e:
+            logger.error(e)
             continue
-        tab = Table.read(beamfile)
         try:
             tab.add_column(row["FIELD_NAME"], name="FIELD_NAME", index=0)
             tab.add_column(row["SBID"], name="SBID", index=0)
@@ -330,7 +329,7 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
 
 def beam_inf(
     database: Table,
-    basedir: Path,
+    survey_dir: Path,
     host: str,
     epoch: int,
     username: Optional[str] = None,
@@ -339,11 +338,15 @@ def beam_inf(
     """Get the beam information"""
     tabs: List[Table] = []
     for row in tqdm(database, desc="Reading beam info", file=TQDM_OUT):
-        fname = basedir / f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}.csv"
-        if not fname.exists():
-            logger.error(f"{fname} not found!")
+        try:
+            tab = read_racs_database(
+                survey_dir=survey_dir,
+                epoch=epoch,
+                table=f"beam_inf_{row['SBID']}-{row['FIELD_NAME']}",
+            )
+        except Exception as e:
+            logger.error(e)
             continue
-        tab = Table.read(fname)
         if len(tab) == 0:
             logger.error(f"{row['SBID']}-{row['FIELD_NAME']} failed...")
             continue
@@ -370,6 +373,40 @@ def beam_inf(
     return insert_res
 
 
+def read_racs_database(
+    survey_dir: Path,
+    epoch: int,
+    table: str,
+) -> Table:
+    """Read the RACS database from CSVs or postgresql
+
+    Args:
+        survey_dir (Path): Path to RACS database (i.e. 'askap_surveys/racs' repo).
+        epoch (int): RACS epoch number.
+        table (str): Table name.
+
+    Returns:
+        Table: RACS database table.
+    """
+    epoch_name = f"epoch_{epoch}"
+    if survey_dir.parent.name == "postgresql:":
+        logger.info("Reading RACS data from postgresql...")
+        _dbstring = f"{survey_dir.parent.name}//{survey_dir.name}/{epoch_name}"
+        _df = pd.read_sql(
+            f'SELECT * from "{table}"',
+            f"{_dbstring}",
+        )
+        return Table.from_pandas(_df)
+
+    logger.info("Reading RACS data from CSVs...")
+    basedir = survey_dir / "db" / epoch_name
+    data_file = basedir / f"{table}.csv"
+    if not data_file.exists():
+        raise FileNotFoundError(f"{data_file} not found!")
+
+    return Table.read(data_file)
+
+
 def field_database(
     survey_dir: Path,
     host: str,
@@ -389,9 +426,7 @@ def field_database(
     Returns:
         Tuple[InsertManyResult, InsertManyResult]: Field and beam info insert object.
     """
-    basedir = survey_dir / "db" / f"epoch_{epoch}"
-    data_file = basedir / "field_data.csv"
-    database = Table.read(data_file)
+    database = read_racs_database(survey_dir, epoch, table="field_data")
     if "COMMENT" in database.colnames:
         database["COMMENT"] = database["COMMENT"].astype(str)
     # Remove rows with SBID < 0
@@ -414,7 +449,7 @@ def field_database(
 
     beam_res = beam_inf(
         database=database,
-        basedir=basedir,
+        survey_dir=survey_dir,
         host=host,
         epoch=epoch,
         username=username,

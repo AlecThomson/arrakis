@@ -21,6 +21,10 @@ For example, you can start mongo using (for NUMA systems like Pawsey): ::
 .. tip::
     It can be very convenient to run this database on a VM service like Pawsey's Nimbus cloud. You can then access the database from anywhere, and you don't need to worry about the database being deleted when you log out. This will require some network setup, such as opening the port for MongoDB (27017) on the VM. Get in touch with your local helpdesk if you need help with this.
 
+For conveniance, we have provided a helper script to setup a MongoDB with both an admin and read-only user in the `scripts` directory. You can run this script with the following command: ::
+
+    create_mongodb.py
+
 RACS database
 =============
 .. attention::
