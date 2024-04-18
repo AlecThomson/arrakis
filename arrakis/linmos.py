@@ -336,6 +336,8 @@ def main(
         logger.critical(f"Limiting to {limit} islands")
         big_beams = big_beams[:limit]
 
+    logger.info(f"Running LINMOS on {len(big_beams)} islands")
+
     all_parfiles = []
     for stoke in stokeslist:
         image_paths = find_images.map(
