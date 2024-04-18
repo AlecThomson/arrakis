@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2024-04-17
+### What's Changed
+* Use sql by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/63
+* Allow PostgreSQL RACS database to be ingested in `spice_init`
+* Add helper scipt `create_mongodb.py`
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.1.8...v2.2.1
+
 ## [2.2.0] - 2024-04-11
 ### What's Changed
 
