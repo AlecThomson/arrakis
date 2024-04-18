@@ -18,7 +18,6 @@ cluster_kwargs:
     ]
     local_directory: $LOCALDIR
     silence_logs: 'info'
-    worker_extra_args: ["--lifetime", "25m", "--lifetime-stagger", "4m"]
 adapt_kwargs:
     minimum: 108
     maximum: 512
