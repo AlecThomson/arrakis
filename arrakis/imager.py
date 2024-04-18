@@ -615,6 +615,7 @@ def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
 def main(
     msdir: Path,
     out_dir: Path,
+    num_beams: int = 36,
     temp_dir_images: Optional[Path] = None,
     temp_dir_wsclean: Optional[Path] = None,
     cutoff: Optional[float] = None,
@@ -652,6 +653,7 @@ def main(
     Args:
         msdir (Path): Path to the directory containing the MS files.
         out_dir (Path): Path to the directory where the images will be written.
+        num_beams (int, optional): Number of beams to image. Defaults to 36.
         temp_dir_images (Optional[Path], optional): Path for temporary files to be written. Defaults to None.
         temp_dir_wsclean (Optional[Path], optional): Path for temporary files to be written by WSClean. Defaults to None.
         cutoff (Optional[float], optional): WSClean cutoff. Defaults to None.
@@ -691,8 +693,8 @@ def main(
     mslist = sorted(msdir.glob(ms_glob_pattern))
 
     assert (len(mslist) > 0) & (
-        len(mslist) == 36
-    ), f"Incorrect number of MS files found: {len(mslist)} / 36"
+        len(mslist) == num_beams
+    ), f"Incorrect number of MS files found: {len(mslist)} / {num_beams} - glob pattern: {ms_glob_pattern}"
 
     logger.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []
@@ -1009,6 +1011,12 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         default=False,
         help="Do not apply the ASKAP MS corrections from the package fixms. ",
     )
+    parser.add_argument(
+        "--num_beams",
+        type=int,
+        help="Number of beams to image",
+        default=36,
+    )
 
     group = parser.add_argument_group("wsclean container options")
     mxg = group.add_mutually_exclusive_group()
@@ -1043,6 +1051,7 @@ def cli():
     main(
         msdir=args.msdir,
         out_dir=args.datadir,
+        num_beams=args.num_beams,
         temp_dir_wsclean=args.temp_dir_wsclean,
         temp_dir_images=args.temp_dir_images,
         cutoff=args.psf_cutoff,
