@@ -44,7 +44,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             task_runner=task_runner,
         )(
             field=args.field,
-            directory=str(args.datadir),
+            directory=args.datadir,
             host=host,
             epoch=args.epoch,
             sbid=args.sbid,
