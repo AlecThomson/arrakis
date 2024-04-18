@@ -123,7 +123,7 @@ def get_prefix(
     return out_dir / prefix
 
 
-@task(name="Image Beam")
+@task(name="Image Beam", persist_result=True)
 def image_beam(
     ms: Path,
     field_idx: int,
