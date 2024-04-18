@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2024-04-18
+### What's Changed
+* [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/61
+* Image fewer than 36 beams by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/64
+
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.2.1...v2.2.2
+
 ## [2.2.1] - 2024-04-17
 ### What's Changed
 * Use sql by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/63
