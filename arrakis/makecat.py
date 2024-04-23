@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.io import votable as vot
+from astropy.io.votable.tree import VOTableFile
 from astropy.stats import sigma_clip
 from astropy.table import Column, Table
 from dask.diagnostics import ProgressBar
@@ -685,7 +686,7 @@ def get_integration_time(
     return tints
 
 
-def add_metadata(vo_table: vot.tree.Table, filename: str):
+def add_metadata(vo_table: VOTableFile, filename: str):
     """Add metadata to VO Table for CASDA
 
     Args:
@@ -696,9 +697,14 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
     """
     # Add extra metadata
     for col_name, meta in columns_possum.extra_column_descriptions.items():
-        col = vo_table.get_first_table().get_field_by_id(col_name)
-        col.description = meta["description"]
-        col.ucd = meta["ucd"]
+        try:
+            col = vo_table.get_first_table().get_field_by_id(col_name)
+            col.description = meta["description"]
+            col.ucd = meta["ucd"]
+        except KeyError as e:
+            logger.error(e)
+            logger.warning(f"Column {col_name} not found in table")
+            continue
 
     # Add params for CASDA
     if len(vo_table.params) > 0:
