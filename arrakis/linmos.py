@@ -63,6 +63,7 @@ def find_images(
         ImagePaths: List of images and weights.
     """
     logger.setLevel(logging.INFO)
+    logger.critical(f"Hi Tim! I'm working on {field=}, {stoke=}, {len(beams_row[1])=}")
     beams = beams_row[1]
     src_name = beams.Source_ID
     field_beams = beams.beams[field]
@@ -340,6 +341,7 @@ def main(
 
     all_parfiles = []
     for stoke in stokeslist:
+        logger.critical(f"Submitting {stoke=}")
         image_paths = find_images.map(
             field=unmapped(field),
             beams_row=big_beams.iterrows(),
