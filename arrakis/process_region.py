@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Arrakis multi-field pipeline"""
+
 import argparse
 import logging
 import os

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Produce cutouts from RACS cubes"""
+
 import argparse
 import logging
 import warnings
@@ -7,9 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List
+from typing import List, Optional, Set, TypeVar
 from typing import NamedTuple as Struct
-from typing import Optional, Set, TypeVar
 
 import astropy.units as u
 import numpy as np
@@ -75,7 +75,6 @@ def cutout_weight(
     beam_num: int,
     dryrun=False,
 ) -> pymongo.UpdateOne:
-
     # Update database
     myquery = {"Source_ID": source_id}
 
@@ -333,7 +332,6 @@ def big_cutout(
     password: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> List[pymongo.UpdateOne]:
-
     wild = f"image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
     images = list(datadir.glob(wild))
     if len(images) == 0:

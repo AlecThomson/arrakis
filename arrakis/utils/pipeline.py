@@ -214,7 +214,7 @@ class performance_report_prefect:
 
 
 def inspect_client(
-    client: Union[distributed.Client, None] = None
+    client: Union[distributed.Client, None] = None,
 ) -> Tuple[str, int, int, u.Quantity, int, u.Quantity]:
     """_summary_
 

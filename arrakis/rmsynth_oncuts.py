@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
+
 import argparse
 import logging
 import os
@@ -8,9 +9,8 @@ import warnings
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List
+from typing import List, Optional, Tuple, Union
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple, Union
 
 import astropy.units as u
 import matplotlib

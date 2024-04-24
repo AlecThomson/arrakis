@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Create the Arrakis database"""
+
 import json
 import logging
 import time

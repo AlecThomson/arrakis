@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
+
 import argparse
 import logging
 import os
@@ -59,7 +60,6 @@ def rmclean1d(
     Returns:
         pymongo.UpdateOne: MongoDB update query.
     """
-    iname = comp["Source_ID"]
     cname = comp["Gaussian_ID"]
     logger.debug(f"Working on {comp}")
     save_name = field if sbid is None else f"{field}_{sbid}"

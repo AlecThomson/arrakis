@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Arrkis imager"""
+
 import argparse
 import hashlib
 import logging
@@ -9,9 +10,8 @@ import shutil
 from glob import glob
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple, Union
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple, Union
 
 import numpy as np
 from astropy.io import fits
@@ -692,8 +692,8 @@ def main(
     logger.info(f"Searching {msdir} for MS matching {ms_glob_pattern}.")
     mslist = sorted(msdir.glob(ms_glob_pattern))
 
-    assert (len(mslist) > 0) & (
-        len(mslist) == num_beams
+    assert (
+        (len(mslist) > 0) & (len(mslist) == num_beams)
     ), f"Incorrect number of MS files found: {len(mslist)} / {num_beams} - glob pattern: {ms_glob_pattern}"
 
     logger.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")

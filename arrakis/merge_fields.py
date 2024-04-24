@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
+
 import argparse
 import os
 from pprint import pformat
@@ -287,8 +288,8 @@ def main(
 ) -> str:
     logger.debug(f"{fields=}")
 
-    assert len(fields) == len(
-        field_dirs
+    assert (
+        len(fields) == len(field_dirs)
     ), f"List of fields must be the same length as length of field dirs. {len(fields)=},{len(field_dirs)=}"
 
     field_dict = {
@@ -415,7 +416,6 @@ def cli():
     )
     args = parser.parse_args()
 
-    verbose = args.verbose
     test_db(
         host=args.host,
         username=args.username,
