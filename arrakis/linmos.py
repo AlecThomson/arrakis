@@ -15,7 +15,7 @@ from typing import Optional, Tuple
 import pandas as pd
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient

@@ -3,10 +3,8 @@
 import argparse
 import logging
 import os
-from glob import glob
 from pathlib import Path
 from pprint import pformat
-from shutil import copyfile
 from typing import Callable, Dict, List
 from typing import NamedTuple as Struct
 from typing import Optional, Union
@@ -16,7 +14,7 @@ import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
 from FRion import correct, predict
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
@@ -27,7 +25,6 @@ from arrakis.utils.database import (
     validate_sbid_field_pair,
 )
 from arrakis.utils.fitsutils import getfreq
-from arrakis.utils.io import try_mkdir
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 logger.setLevel(logging.INFO)

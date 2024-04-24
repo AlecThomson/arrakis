@@ -3,18 +3,14 @@
 import argparse
 import logging
 import os
-import sys
 import warnings
-from glob import glob
 from pathlib import Path
 from pprint import pformat
-from shutil import copyfile
 from typing import Optional
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pymongo
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D
 from tqdm.auto import tqdm

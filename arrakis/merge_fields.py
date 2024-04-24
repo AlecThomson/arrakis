@@ -7,7 +7,7 @@ from shutil import copyfile
 from typing import Dict, List, Optional
 
 import pymongo
-from prefect import flow, task, unmapped
+from prefect import flow, task
 
 from arrakis.linmos import get_yanda, linmos, linmos_parser
 from arrakis.logger import UltimateHelpFormatter, logger
