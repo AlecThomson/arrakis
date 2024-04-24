@@ -1,10 +1,10 @@
 # Set up for Petrichor
 cluster_class: "dask_jobqueue.SLURMCluster"
 cluster_kwargs:
-    cores: 16
+    cores: 20
     processes: 1
     name: 'spice-worker'
-    memory: "128GiB"
+    memory: "160GiB"
     account: 'OD-217087'
     #queue: 'workq'
     walltime: '0-12:00:00'

@@ -17,9 +17,10 @@ import pymongo
 from prefect import flow, task, unmapped
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D
+from tqdm.auto import tqdm
 
 from arrakis import rmsynth_oncuts
-from arrakis.logger import UltimateHelpFormatter, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import (
     get_db,
     get_field_db,
@@ -27,6 +28,9 @@ from arrakis.utils.database import (
     validate_sbid_field_pair,
 )
 from arrakis.utils.pipeline import generic_parser, logo_str
+
+logger.setLevel(logging.INFO)
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 @task(name="1D RM-CLEAN")
@@ -92,10 +96,10 @@ def rmclean1d(
         maxIter=maxIter,
         gain=gain,
         nBits=nBits,
-        showPlots=showPlots,
+        showPlots=False,
         verbose=rm_verbose,
         prefixOut=prefix,
-        saveFigures=savePlots,
+        saveFigures=False,
         window=window,
     )
     # Ensure JSON serializable
@@ -113,12 +117,12 @@ def rmclean1d(
 
     # Save output
     do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
-    if savePlots:
-        plt.close("all")
-        plotdir = outdir / "plots"
-        plot_files = list(fdfFile.parent.glob("*.pdf"))
-        for plot_file in plot_files:
-            copyfile(plot_file, plotdir / plot_file.name)
+    # if savePlots:
+    #     plt.close("all")
+    #     plotdir = outdir / "plots"
+    #     plot_files = list(fdfFile.parent.glob("*.pdf"))
+    #     for plot_file in plot_files:
+    #         copyfile(plot_file, plotdir / plot_file.name)
 
     # Load into Mongo
     myquery = {"Gaussian_ID": cname}
@@ -344,35 +348,43 @@ def main(
         count = limit
         n_comp = count
         n_island = count
+        components = components[:count]
+        islands = islands[:count]
 
     if dimension == "1d":
+        outputs = []
         logger.info(f"Running RM-CLEAN on {n_comp} components")
-        outputs = rmclean1d.map(
-            comp=components,
-            field=unmapped(field),
-            sbid=unmapped(sbid),
-            outdir=unmapped(outdir),
-            cutoff=unmapped(cutoff),
-            maxIter=unmapped(maxIter),
-            gain=unmapped(gain),
-            showPlots=unmapped(showPlots),
-            savePlots=unmapped(savePlots),
-            rm_verbose=unmapped(rm_verbose),
-            window=unmapped(window),
-        )
+        for comp in tqdm(components, total=n_comp, desc="RM-CLEAN 1D", file=TQDM_OUT):
+            output = rmclean1d.submit(
+                comp=comp,
+                field=field,
+                sbid=sbid,
+                outdir=outdir,
+                cutoff=cutoff,
+                maxIter=maxIter,
+                gain=gain,
+                showPlots=showPlots,
+                savePlots=savePlots,
+                rm_verbose=rm_verbose,
+                window=window,
+            )
+            outputs.append(output)
+
     elif dimension == "3d":
         logger.info(f"Running RM-CLEAN on {n_island} islands")
-
-        outputs = rmclean3d.map(
-            field=unmapped(field),
-            island=islands,
-            sbid=unmapped(sbid),
-            outdir=unmapped(outdir),
-            cutoff=unmapped(cutoff),
-            maxIter=unmapped(maxIter),
-            gain=unmapped(gain),
-            rm_verbose=unmapped(rm_verbose),
-        )
+        outputs = []
+        for island in tqdm(islands, total=n_island, desc="RM-CLEAN 3D", file=TQDM_OUT):
+            output = rmclean3d.submit(
+                field=field,
+                island=island,
+                sbid=sbid,
+                outdir=outdir,
+                cutoff=cutoff,
+                maxIter=maxIter,
+                gain=gain,
+                rm_verbose=rm_verbose,
+            )
+            outputs.append(output)
 
     else:
         raise ValueError(f"Dimension {dimension} not supported.")

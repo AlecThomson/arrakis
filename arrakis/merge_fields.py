@@ -126,12 +126,15 @@ def copy_singletons(
     big_beams = list(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
-    updates = copy_singleton.map(
-        beam=big_beams,
-        field_dict=unmapped(field_dict),
-        merge_name=unmapped(merge_name),
-        data_dir=unmapped(data_dir),
-    )
+    updates = []
+    for beam in big_beams:
+        update = copy_singleton.submit(
+            beam=beam,
+            field_dict=field_dict,
+            merge_name=merge_name,
+            data_dir=data_dir,
+        )
+        updates.append(update)
     return updates
 
 
@@ -256,14 +259,16 @@ def merge_multiple_fields(
     big_beams = list(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
-
-    updates = merge_multiple_field.map(
-        beam=big_beams,
-        field_dict=unmapped(field_dict),
-        merge_name=unmapped(merge_name),
-        data_dir=unmapped(data_dir),
-        image=unmapped(image),
-    )
+    updates = []
+    for beam in big_beams:
+        update = merge_multiple_field.submit(
+            beam=beam,
+            field_dict=field_dict,
+            merge_name=merge_name,
+            data_dir=data_dir,
+            image=image,
+        )
+        updates.append(update)
 
     return updates
 
