@@ -21,7 +21,7 @@ from prefect import task
 from prefect.artifacts import create_markdown_artifact
 from scipy import interpolate, stats
 
-from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
+from arrakis.logger import logger
 
 logger.setLevel(logging.INFO)
 
