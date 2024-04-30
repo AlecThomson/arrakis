@@ -1,18 +1,15 @@
 #!/usr/bin/env python
 """Produce cutouts from RACS cubes"""
+
 import argparse
 import logging
-import os
-import pickle
 import warnings
 from concurrent.futures import ThreadPoolExecutor
-from glob import glob
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List
+from typing import List, Optional, Set, TypeVar
 from typing import NamedTuple as Struct
-from typing import Optional, Set, TypeVar, Union
 
 import astropy.units as u
 import numpy as np
@@ -36,7 +33,6 @@ from arrakis.utils.database import (
     validate_sbid_field_pair,
 )
 from arrakis.utils.fitsutils import fix_header
-from arrakis.utils.io import try_mkdir
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 iers.conf.auto_download = False
@@ -79,7 +75,6 @@ def cutout_weight(
     beam_num: int,
     dryrun=False,
 ) -> pymongo.UpdateOne:
-
     # Update database
     myquery = {"Source_ID": source_id}
 
@@ -337,7 +332,6 @@ def big_cutout(
     password: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> List[pymongo.UpdateOne]:
-
     wild = f"image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
     images = list(datadir.glob(wild))
     if len(images) == 0:

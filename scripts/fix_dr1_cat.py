@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Post process DR1 catalog"""
+
 import logging
 import os
 import pickle

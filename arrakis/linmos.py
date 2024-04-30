@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
+
 import argparse
 import logging
 import os
@@ -8,19 +9,19 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple
 
 import pandas as pd
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient
+from tqdm.auto import tqdm
 
-from arrakis.logger import UltimateHelpFormatter, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
@@ -30,6 +31,8 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 os.environ["OMP_NUM_THREADS"] = "1"
 
 logger.setLevel(logging.INFO)
+
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 class ImagePaths(Struct):
@@ -338,28 +341,33 @@ def main(
 
     logger.info(f"Running LINMOS on {len(big_beams)} islands")
 
-    all_parfiles = []
-    for stoke in stokeslist:
-        image_paths = find_images.map(
-            field=unmapped(field),
-            beams_row=big_beams.iterrows(),
-            stoke=unmapped(stoke.capitalize()),
-            datadir=unmapped(cutdir),
-        )
-        parfiles = genparset.map(
-            image_paths=image_paths,
-            stoke=unmapped(stoke.capitalize()),
-            datadir=unmapped(cutdir),
-            holofile=unmapped(holofile),
-        )
-        all_parfiles.extend(parfiles)
-
-    results = linmos.map(
-        all_parfiles,
-        unmapped(field),
-        unmapped(str(image)),
-        unmapped(holofile),
-    )
+    results = []
+    for beams_row in tqdm(
+        big_beams.iterrows(),
+        total=len(big_beams),
+        desc="Submitting tasks for LINMOS",
+        file=TQDM_OUT,
+    ):
+        for stoke in stokeslist:
+            image_path = find_images.submit(
+                field=field,
+                beams_row=beams_row,
+                stoke=stoke.capitalize(),
+                datadir=cutdir,
+            )
+            parset = genparset.submit(
+                image_paths=image_path,
+                stoke=stoke.capitalize(),
+                datadir=cutdir,
+                holofile=holofile,
+            )
+            result = linmos.submit(
+                parset=parset,
+                fieldname=field,
+                image=str(image),
+                holofile=holofile,
+            )
+            results.append(result)
 
     updates = [f.result() for f in results]
     updates = [u for u in updates if u is not None]

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Make an Arrakis catalogue"""
+
 import argparse
 import logging
 import os
@@ -15,6 +16,7 @@ import numpy as np
 import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.io import votable as vot
+from astropy.io.votable.tree import VOTableFile
 from astropy.stats import sigma_clip
 from astropy.table import Column, Table
 from dask.diagnostics import ProgressBar
@@ -513,9 +515,9 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
     cat_out = RMTable.from_pandas(df_out.reset_index())
     cat_out["local_rm_flag"].meta["ucd"] = "meta.code"
-    cat_out["local_rm_flag"].description = (
-        "RM is statistically different from nearby RMs"
-    )
+    cat_out[
+        "local_rm_flag"
+    ].description = "RM is statistically different from nearby RMs"
 
     # Bring back the units
     for col in cat_out.colnames:
@@ -685,7 +687,7 @@ def get_integration_time(
     return tints
 
 
-def add_metadata(vo_table: vot.tree.Table, filename: str):
+def add_metadata(vo_table: VOTableFile, filename: str):
     """Add metadata to VO Table for CASDA
 
     Args:
@@ -696,9 +698,14 @@ def add_metadata(vo_table: vot.tree.Table, filename: str):
     """
     # Add extra metadata
     for col_name, meta in columns_possum.extra_column_descriptions.items():
-        col = vo_table.get_first_table().get_field_by_id(col_name)
-        col.description = meta["description"]
-        col.ucd = meta["ucd"]
+        try:
+            col = vo_table.get_first_table().get_field_by_id(col_name)
+            col.description = meta["description"]
+            col.ucd = meta["ucd"]
+        except KeyError as e:
+            logger.error(e)
+            logger.warning(f"Column {col_name} not found in table")
+            continue
 
     # Add params for CASDA
     if len(vo_table.params) > 0:

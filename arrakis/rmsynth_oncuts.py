@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
+
 import argparse
 import logging
 import os
@@ -8,11 +9,11 @@ import warnings
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List
+from typing import List, Optional, Tuple, Union
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple, Union
 
 import astropy.units as u
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -23,14 +24,15 @@ from astropy.modeling import models
 from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from radio_beam import Beam
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
 from RMutils.util_misc import create_frac_spectra
 from scipy.stats import norm
+from tqdm.auto import tqdm
 
-from arrakis.logger import UltimateHelpFormatter, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import (
     get_db,
     get_field_db,
@@ -41,7 +43,9 @@ from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
+matplotlib.use("Agg")
 logger.setLevel(logging.INFO)
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 class Spectrum(Struct):
@@ -1077,49 +1081,65 @@ def main(
 
     elif dimension == "1d":
         logger.info(f"Running RMsynth on {n_comp} components")
-        outputs = rmsynthoncut1d.map(
-            comp_tuple=components.iterrows(),
-            beam_tuple=beams.loc[components.Source_ID].iterrows(),
-            outdir=unmapped(outdir),
-            freq=unmapped(freq),
-            field=unmapped(field),
-            sbid=unmapped(sbid),
-            polyOrd=unmapped(polyOrd),
-            phiMax_radm2=unmapped(phiMax_radm2),
-            dPhi_radm2=unmapped(dPhi_radm2),
-            nSamples=unmapped(nSamples),
-            weightType=unmapped(weightType),
-            fitRMSF=unmapped(fitRMSF),
-            noStokesI=unmapped(noStokesI),
-            showPlots=unmapped(showPlots),
-            savePlots=unmapped(savePlots),
-            debug=unmapped(debug),
-            rm_verbose=unmapped(rm_verbose),
-            fit_function=unmapped(fit_function),
-            tt0=unmapped(tt0),
-            tt1=unmapped(tt1),
-            ion=unmapped(ion),
-            do_own_fit=unmapped(do_own_fit),
-        )
+        outputs = []
+        for comp_tuple, beam_tuple in tqdm(
+            zip(components.iterrows(), beams.loc[components.Source_ID].iterrows()),
+            total=n_comp,
+            desc="Submitting RMsynth 1D jobs",
+            file=TQDM_OUT,
+        ):
+            output = rmsynthoncut1d.submit(
+                comp_tuple=comp_tuple,
+                beam_tuple=beam_tuple,
+                outdir=outdir,
+                freq=freq,
+                field=field,
+                sbid=sbid,
+                polyOrd=polyOrd,
+                phiMax_radm2=phiMax_radm2,
+                dPhi_radm2=dPhi_radm2,
+                nSamples=nSamples,
+                weightType=weightType,
+                fitRMSF=fitRMSF,
+                noStokesI=noStokesI,
+                showPlots=showPlots,
+                savePlots=savePlots,
+                debug=debug,
+                rm_verbose=rm_verbose,
+                fit_function=fit_function,
+                tt0=tt0,
+                tt1=tt1,
+                ion=ion,
+                do_own_fit=do_own_fit,
+            )
+            outputs.append(output)
 
     elif dimension == "3d":
         logger.info(f"Running RMsynth on {n_island} islands")
-        outputs = rmsynthoncut3d.map(
-            island_id=island_ids,
-            beam_tuple=beams.loc[island_ids].iterrows(),
-            outdir=unmapped(outdir),
-            freq=unmapped(freq),
-            field=unmapped(field),
-            sbid=unmapped(sbid),
-            phiMax_radm2=unmapped(phiMax_radm2),
-            dPhi_radm2=unmapped(dPhi_radm2),
-            nSamples=unmapped(nSamples),
-            weightType=unmapped(weightType),
-            fitRMSF=unmapped(fitRMSF),
-            not_RMSF=unmapped(not_RMSF),
-            rm_verbose=unmapped(rm_verbose),
-            ion=unmapped(ion),
-        )
+        outputs = []
+        for island_id, beam_tuple in tqdm(
+            zip(island_ids, beams.loc[island_ids].iterrows()),
+            total=n_island,
+            desc="Submitting RMsynth 3D jobs",
+            file=TQDM_OUT,
+        ):
+            output = rmsynthoncut3d.submit(
+                island_id=island_id,
+                beam_tuple=beam_tuple,
+                outdir=outdir,
+                freq=freq,
+                field=field,
+                sbid=sbid,
+                phiMax_radm2=phiMax_radm2,
+                dPhi_radm2=dPhi_radm2,
+                nSamples=nSamples,
+                weightType=weightType,
+                fitRMSF=fitRMSF,
+                not_RMSF=not_RMSF,
+                rm_verbose=rm_verbose,
+                ion=ion,
+            )
+            outputs.append(output)
     else:
         raise ValueError("An incorrect RMSynth mode has been configured. ")
 

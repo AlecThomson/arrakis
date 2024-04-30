@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """DANGER ZONE: Purge directories of un-needed FITS files."""
+
 import argparse
 import logging
 import shutil

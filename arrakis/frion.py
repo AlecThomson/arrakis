@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 """Correct for the ionosphere in parallel"""
+
 import argparse
 import logging
 import os
-from glob import glob
 from pathlib import Path
 from pprint import pformat
-from shutil import copyfile
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional, Union
 from typing import NamedTuple as Struct
-from typing import Optional, Union
 
 import astropy.units as u
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
 from FRion import correct, predict
-from prefect import flow, task, unmapped
+from prefect import flow, task
+from tqdm.auto import tqdm
 
-from arrakis.logger import UltimateHelpFormatter, logger
+from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import (
     get_db,
     get_field_db,
@@ -26,10 +25,10 @@ from arrakis.utils.database import (
     validate_sbid_field_pair,
 )
 from arrakis.utils.fitsutils import getfreq
-from arrakis.utils.io import try_mkdir
-from arrakis.utils.pipeline import generic_parser, logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
 logger.setLevel(logging.INFO)
+TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 class Prediction(Struct):
@@ -89,8 +88,8 @@ def predict_worker(
     start_time: Time,
     end_time: Time,
     freq: np.ndarray,
-    cutdir: str,
-    plotdir: str,
+    cutdir: Path,
+    plotdir: Path,
     server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
     prefix: str = "",
     formatter: Optional[Union[str, Callable]] = None,
@@ -114,8 +113,8 @@ def predict_worker(
     """
     logger.setLevel(logging.INFO)
 
-    ifile = os.path.join(cutdir, beam["beams"][field]["i_file"])
-    i_dir = os.path.dirname(ifile)
+    ifile: Path = cutdir / beam["beams"][field]["i_file"]
+    i_dir = ifile.parent
     iname = island["Source_ID"]
     ra = island["RA"]
     dec = island["Dec"]
@@ -137,7 +136,7 @@ def predict_worker(
         ra=ra,
         dec=dec,
         timestep=300.0,
-        ionexPath=os.path.join(os.path.dirname(cutdir), "IONEXdata"),
+        ionexPath=cutdir.parent / "IONEXdata",
         server=server,
         proxy_server=proxy_server,
         use_proxy=True,  # Always use proxy - forces urllib
@@ -146,23 +145,10 @@ def predict_worker(
         pre_download=pre_download,
         **proxy_args,
     )
+    logger.info(f"Predicted modulation for {iname}.")
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
     predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
-
-    plot_file = os.path.join(i_dir, f"{iname}_ion.png")
-    try:
-        predict.generate_plots(
-            times, RMs, theta, freq, position=[ra, dec], savename=plot_file
-        )
-    except Exception as e:
-        logger.error(f"Failed to generate plot: {e}")
-
-    plot_files = glob(os.path.join(i_dir, "*ion.png"))
-    logger.info(f"Plotting files: {plot_files=}")
-    for src in plot_files:
-        base = os.path.basename(src)
-        dst = os.path.join(plotdir, base)
-        copyfile(src, dst)
+    logger.info(f"Prediction file: {predict_file}")
 
     myquery = {"Source_ID": iname}
 
@@ -324,29 +310,40 @@ def main(
         formatter=ionex_formatter,
         pre_download=ionex_predownload,
     )
-    predictions = predict_worker.map(
-        island=islands,
-        field=unmapped(field),
-        beam=beams_cor,
-        start_time=unmapped(start_time),
-        end_time=unmapped(end_time),
-        freq=unmapped(freq.to(u.Hz).value),
-        cutdir=unmapped(cutdir),
-        plotdir=unmapped(plotdir),
-        server=unmapped(ionex_server),
-        prefix=unmapped(ionex_prefix),
-        proxy_server=unmapped(ionex_proxy_server),
-        formatter=unmapped(ionex_formatter),
-        pre_download=unmapped(ionex_predownload),
-    )
 
-    corrections = correct_worker.map(
-        beam=beams_cor,
-        outdir=unmapped(cutdir),
-        field=unmapped(field),
-        prediction=predictions,
-        island=islands,
-    )
+    predictions = []
+    corrections = []
+    assert len(islands) == len(beams_cor), "Islands and beams must be the same length"
+    for island, beam in tqdm(
+        zip(islands, beams_cor),
+        desc="Submitting tasks",
+        file=TQDM_OUT,
+        total=len(islands),
+    ):
+        prediction = predict_worker.submit(
+            island=island,
+            field=field,
+            beam=beam,
+            start_time=start_time,
+            end_time=end_time,
+            freq=freq.to(u.Hz).value,
+            cutdir=cutdir,
+            plotdir=plotdir,
+            server=ionex_server,
+            prefix=ionex_prefix,
+            proxy_server=ionex_proxy_server,
+            formatter=ionex_formatter,
+            pre_download=ionex_predownload,
+        )
+        predictions.append(prediction)
+        correction = correct_worker.submit(
+            beam=beam,
+            outdir=cutdir,
+            field=field,
+            prediction=prediction,
+            island=island,
+        )
+        corrections.append(correction)
 
     updates_arrays = [p.result().update for p in predictions]
     updates = [c.result() for c in corrections]
@@ -426,9 +423,10 @@ def cli():
     warnings.simplefilter("ignore", category=RuntimeWarning)
 
     gen_parser = generic_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
     f_parser = frion_parser(parent_parser=True)
     parser = argparse.ArgumentParser(
-        parents=[gen_parser, f_parser],
+        parents=[gen_parser, work_parser, f_parser],
         formatter_class=UltimateHelpFormatter,
         description=f_parser.description,
     )

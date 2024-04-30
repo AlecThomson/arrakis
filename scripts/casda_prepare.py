@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Prepare files for CASDA upload"""
+
 import argparse
 import hashlib
 import logging
@@ -262,9 +263,9 @@ def convert_spectra(
         hdul[0].header["CRPIX2"] = 1
         hdul[0].header["CUNTI1"] = "deg"
         hdul[0].header["CUNTI2"] = "deg"
-        hdul[0].header[
-            "comment"
-        ] = "Dummy image to indicate the pixel size and position"
+        hdul[0].header["comment"] = (
+            "Dummy image to indicate the pixel size and position"
+        )
         # Add dummy data to make it a valid FITS file
         hdul[0].data = np.zeros((1, 1))
         hdul.flush()
@@ -565,8 +566,8 @@ def main(
                 with open(outf, "w") as f:
                     for rid in rem_ids:
                         f.write(f"{rid}\n")
-                assert len(cubes) == len(
-                    set(polcat["source_id"])
+                assert (
+                    len(cubes) == len(set(polcat["source_id"]))
                 ), f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
 
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)

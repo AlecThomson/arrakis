@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
+
 import argparse
 import os
 from pprint import pformat
@@ -7,7 +8,7 @@ from shutil import copyfile
 from typing import Dict, List, Optional
 
 import pymongo
-from prefect import flow, task, unmapped
+from prefect import flow, task
 
 from arrakis.linmos import get_yanda, linmos, linmos_parser
 from arrakis.logger import UltimateHelpFormatter, logger
@@ -126,12 +127,15 @@ def copy_singletons(
     big_beams = list(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
-    updates = copy_singleton.map(
-        beam=big_beams,
-        field_dict=unmapped(field_dict),
-        merge_name=unmapped(merge_name),
-        data_dir=unmapped(data_dir),
-    )
+    updates = []
+    for beam in big_beams:
+        update = copy_singleton.submit(
+            beam=beam,
+            field_dict=field_dict,
+            merge_name=merge_name,
+            data_dir=data_dir,
+        )
+        updates.append(update)
     return updates
 
 
@@ -256,14 +260,16 @@ def merge_multiple_fields(
     big_beams = list(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
-
-    updates = merge_multiple_field.map(
-        beam=big_beams,
-        field_dict=unmapped(field_dict),
-        merge_name=unmapped(merge_name),
-        data_dir=unmapped(data_dir),
-        image=unmapped(image),
-    )
+    updates = []
+    for beam in big_beams:
+        update = merge_multiple_field.submit(
+            beam=beam,
+            field_dict=field_dict,
+            merge_name=merge_name,
+            data_dir=data_dir,
+            image=image,
+        )
+        updates.append(update)
 
     return updates
 
@@ -282,8 +288,8 @@ def main(
 ) -> str:
     logger.debug(f"{fields=}")
 
-    assert len(fields) == len(
-        field_dirs
+    assert (
+        len(fields) == len(field_dirs)
     ), f"List of fields must be the same length as length of field dirs. {len(fields)=},{len(field_dirs)=}"
 
     field_dict = {
@@ -410,7 +416,6 @@ def cli():
     )
     args = parser.parse_args()
 
-    verbose = args.verbose
     test_db(
         host=args.host,
         username=args.username,
