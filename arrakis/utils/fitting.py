@@ -166,9 +166,7 @@ def fit_pl(
         }
 
         # Initialise the save dict
-        save_dict = {
-            n: {} for n in range(nterms + 1)
-        }  # type: Dict[int, Dict[str, Any]]
+        save_dict = {n: {} for n in range(nterms + 1)}  # type: Dict[int, Dict[str, Any]]
         for n in range(nterms + 1):
             p0 = p0_long[: n + 1]
             save_dict[n]["aics"] = np.nan

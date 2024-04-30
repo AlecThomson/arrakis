@@ -83,7 +83,8 @@ def interpolate(field, comp, beams, cutdir, septab, holofile, verbose=True):
             imfile = glob(
                 os.path.join(cutdir, f"{comp['Source_ID']}*beam{bm:02d}.conv.fits")
             )[0]
-        except:
+        except Exception as e:
+            logger.error(e)
             logger.critical(f"No image file for source {comp['Source_ID']} beam {bm}")
             return
 

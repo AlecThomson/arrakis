@@ -55,7 +55,8 @@ SPICA = [
 def mslist(cal_sb, name):
     try:
         ms = glob(f"{racs_area}/{cal_sb}/RACS_test4_1.05_{name}/*beam00_*.ms")[0]
-    except:
+    except Exception as e:
+        logger.error(e)
         raise Exception(
             f"Can't find '{racs_area}/{cal_sb}/RACS_test4_1.05_{name}/*beam00_*.ms'"
         )

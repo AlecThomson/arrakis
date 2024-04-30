@@ -8,7 +8,7 @@ import subprocess
 import time
 import warnings
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 import astropy.units as u
 import dask.array as da
@@ -214,7 +214,7 @@ class performance_report_prefect:
 
 
 def inspect_client(
-    client: Union[distributed.Client, None] = None
+    client: Union[distributed.Client, None] = None,
 ) -> Tuple[str, int, int, u.Quantity, int, u.Quantity]:
     """_summary_
 

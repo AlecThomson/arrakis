@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
+
 import argparse
 import logging
 import os
@@ -8,14 +9,13 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple
 
 import pandas as pd
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
-from prefect import flow, task, unmapped
+from prefect import flow, task
 from racs_tools import beamcon_3D
 from spectral_cube.utils import SpectralCubeWarning
 from spython.main import Client as sclient

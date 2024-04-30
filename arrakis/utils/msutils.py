@@ -718,7 +718,7 @@ def wsclean(
         logger.warning("CAUTION - square channel joining and multiscale is unstable!")
 
     for key, value in arguments.items():
-        if type(value) is bool:
+        if isinstance(value, bool):
             if value:
                 command += f" -{key.replace('_', '-')}"
         elif value:
