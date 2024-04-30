@@ -385,28 +385,23 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Only run the imager component of the pipeline. ",
     )
     parser.add_argument(
-        "--skip_imager", action="store_true", help="Skip imaging stage [False]."
+        "--skip_imager", action="store_true", help="Skip imaging stage."
+    )
+    parser.add_argument("--skip_cutout", action="store_true", help="Skip cutout stage.")
+    parser.add_argument("--skip_linmos", action="store_true", help="Skip LINMOS stage.")
+    parser.add_argument("--skip_frion", action="store_true", help="Skip cleanup stage.")
+    parser.add_argument(
+        "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage."
     )
     parser.add_argument(
-        "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
+        "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage."
+    )
+    parser.add_argument("--skip_cat", action="store_true", help="Skip catalogue stage.")
+    parser.add_argument(
+        "--skip_validate", action="store_true", help="Skip validation stage."
     )
     parser.add_argument(
-        "--skip_linmos", action="store_true", help="Skip LINMOS stage [False]."
-    )
-    parser.add_argument(
-        "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
-    )
-    parser.add_argument(
-        "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage [False]."
-    )
-    parser.add_argument(
-        "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage [False]."
-    )
-    parser.add_argument(
-        "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
-    )
-    parser.add_argument(
-        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
+        "--skip_cleanup", action="store_true", help="Skip cleanup stage."
     )
 
     return pipeline_parser

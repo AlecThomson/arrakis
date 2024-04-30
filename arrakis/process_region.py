@@ -211,6 +211,9 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
     )
     parser.add_argument(
+        "--skip_validate", action="store_true", help="Skip validation stage."
+    )
+    parser.add_argument(
         "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
     )
     return pipeline_parser
