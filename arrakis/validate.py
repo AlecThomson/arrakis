@@ -3,6 +3,7 @@
 """Make validation plots from a catalogue"""
 import argparse
 import base64
+import logging
 from pathlib import Path
 from typing import NamedTuple as struct
 from typing import Optional, TypeVar
@@ -21,7 +22,9 @@ from prefect import task
 from prefect.artifacts import create_markdown_artifact
 from scipy import interpolate, stats
 
-from arrakis.logger import logger
+from arrakis.logger import UltimateHelpFormatter, logger
+from arrakis.makecat import cat_parser
+from arrakis.utils.pipeline import logo_str
 
 logger.setLevel(logging.INFO)
 
@@ -306,6 +309,7 @@ def plot_leakage(
     return fig
 
 
+@flow(name="Validation")
 def main(
     catalogue_path: Path,
     npix: int = 512,
@@ -353,3 +357,45 @@ def validation_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     Validate RM catalogue.
 
     """
+    val_parser = argparse.ArgumentParser(
+        add_help=not parent_parser,
+        description=descStr,
+        formatter_class=UltimateHelpFormatter,
+    )
+    parser = val_parser.add_argument_group("validation options")
+    parser.add_argument(
+        "--npix",
+        type=int,
+        default=512,
+        help="Number of pixels in the gridded maps",
+    )
+    parser.add_argument(
+        "--map_size",
+        type=float,
+        default=8,
+        help="Size of the maps in degrees",
+    )
+    return val_parser
+
+
+def cli():
+    catalogue_parser = cat_parser(parent_parser=True)
+    val_parser = validation_parser(parent_parser=True)
+    parser = argparse.ArgumentParser(
+        parents=[val_parser, catalogue_parser],
+        formatter_class=UltimateHelpFormatter,
+        description=catalogue_parser.description,
+    )
+    args = parser.parse_args()
+
+    main(
+        catalogue_path=Path(args.outfile),
+        npix=args.npix,
+        map_size=args.map_size * u.deg,
+        snr_cut=args.leakage_snr,
+        bins=args.leakage_bins,
+    )
+
+
+if __name__ == "__main__":
+    cli()
