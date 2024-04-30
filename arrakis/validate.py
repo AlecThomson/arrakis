@@ -143,6 +143,8 @@ def make_gridded_map(
         method="linear",
     )  # default method is linear
     data[~np.isfinite(data_l)] = np.nan
+    # Reverses the x-axis because RA
+    data = data[:, ::-1]
     return GriddedMap(data, coarse_wcs)
 
 
@@ -190,6 +192,8 @@ def make_binned_map(
     xc = (xe[1:] + xe[:-1]) / 2
     yc = (ye[1:] + ye[:-1]) / 2
     XC, YC = np.meshgrid(xc, yc)
+    # Reverses the x-axis because RA
+    data = data[:, ::-1]
     return BinnedMap(data, XC, YC, coarse_wcs)
 
 
