@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Make validation plots from a catalogue"""
+
 import argparse
 import base64
 import logging
@@ -317,7 +318,6 @@ def main(
     snr_cut: float = 50,
     bins: int = 11,
 ):
-
     outdir = catalogue_path.parent
     tab = Table.read(catalogue_path)
 
