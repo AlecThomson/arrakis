@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Make validation plots from a catalogue"""
+
 import argparse
 import base64
 import logging
@@ -18,7 +19,7 @@ from astropy.stats import mad_std, sigma_clip
 from astropy.table import Table
 from astropy.wcs import WCS
 from matplotlib.figure import Figure
-from prefect import task
+from prefect import task, flow
 from prefect.artifacts import create_markdown_artifact
 from scipy import interpolate, stats
 
@@ -317,7 +318,6 @@ def main(
     snr_cut: float = 50,
     bins: int = 11,
 ):
-
     outdir = catalogue_path.parent
     tab = Table.read(catalogue_path)
 

@@ -6,10 +6,12 @@ import logging
 import os
 from pathlib import Path
 
+from arrakis.validate import validation_parser
 import configargparse
 import pkg_resources
 import yaml
 from astropy.time import Time
+import astropy.units as u
 from prefect import flow
 
 from arrakis import (
@@ -20,6 +22,7 @@ from arrakis import (
     process_spice,
     rmclean_oncuts,
     rmsynth_oncuts,
+    validate,
 )
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
@@ -123,6 +126,17 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
         if not args.skip_cat
         else previous_future
     )
+    previous_future = (
+        validate.main.with_options(task_runner=task_runner)(
+            catalogue_path=Path(args.outfile),
+            npix=args.npix,
+            map_size=args.map_size * u.deg,
+            snr_cut=args.leakage_snr,
+            bins=args.leakage_bins,
+        )
+        if not args.skip_validate
+        else previous_future
+    )
 
 
 def main(args: configargparse.Namespace) -> None:
@@ -214,6 +228,7 @@ def cli():
     synth_parser = rmsynth_oncuts.rmsynth_parser(parent_parser=True)
     rmclean_parser = rmclean_oncuts.clean_parser(parent_parser=True)
     catalogue_parser = makecat.cat_parser(parent_parser=True)
+    val_parser = validation_parser(parent_parser=True)
     clean_parser = cleanup.cleanup_parser(parent_parser=True)
     # Parse the command line options
     parser = configargparse.ArgParser(
@@ -228,6 +243,7 @@ def cli():
             synth_parser,
             rmclean_parser,
             catalogue_parser,
+            val_parser,
             clean_parser,
         ],
     )
