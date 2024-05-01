@@ -212,7 +212,10 @@ def plot_rms_bkg(
         overlay[0].set_axislabel("$l$", color="tab:blue")
         overlay[1].set_axislabel("$b$", color="tab:blue")
         fig.colorbar(im, ax=ax, label="$\mu$Jy/beam", shrink=0.7, pad=0.15)
-        ax.set_title(f"Stokes {stokes} {thing}", pad=50)
+        ax.set_title(
+            f"Stokes {stokes} {thing} - med: {np.nanmedian(data * 1e6)} $\mu$Jy/beam",
+            pad=50,
+        )
 
     return fig
 
@@ -263,7 +266,10 @@ def plot_leakage(
         overlay[0].set_axislabel("$l$", color="tab:blue")
         overlay[1].set_axislabel("$b$", color="tab:blue")
         fig.colorbar(im, ax=ax, label="Fraction", shrink=0.7, pad=0.15)
-        ax.set_title(f"Stokes {stokes}/I (binned)", pad=50)
+        ax.set_title(
+            f"Stokes {stokes}/I (binned) - absmed: {np.nanmedian(np.abs(data))*100}%",
+            pad=50,
+        )
 
     return fig
 
