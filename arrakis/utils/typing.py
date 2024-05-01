@@ -16,3 +16,4 @@ ArrayLike = TypeVar(
 )
 TableLike = TypeVar("TableLike", RMTable, Table)
 PathLike = TypeVar("PathLike", str, Path)
+T = TypeVar("T")

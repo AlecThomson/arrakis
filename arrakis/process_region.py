@@ -6,7 +6,6 @@ import logging
 import os
 from pathlib import Path
 
-from arrakis.validate import validation_parser
 import configargparse
 import pkg_resources
 import yaml
@@ -26,6 +25,7 @@ from arrakis import (
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str
+from arrakis.validate import validation_parser
 
 
 @flow

@@ -6,6 +6,7 @@ import logging
 import os
 import time
 import warnings
+from pathlib import Path
 from pprint import pformat
 from typing import Callable, NamedTuple, Optional, Tuple, Union
 
@@ -35,7 +36,7 @@ from arrakis.utils.database import (
     test_db,
     validate_sbid_field_pair,
 )
-from arrakis.utils.pipeline import generic_parser, logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, upload_image_as_artifact
 from arrakis.utils.plotting import latexify
 from arrakis.utils.typing import ArrayLike, TableLike
 
@@ -359,11 +360,27 @@ def get_fit_func(
         idx = (hi_i_tab["beamdist"].to(u.deg).value < bins[i + 1]) & (
             hi_i_tab["beamdist"].to(u.deg).value >= bins[i]
         )
+        if idx.sum() == 0:
+            logger.warning(
+                f"No sources in bin {i} - consider lowering nbins (currently {nbins})"
+            )
+            meds[i] = np.nan
+            s1_los[i] = np.nan
+            s2_los[i] = np.nan
+            s1_ups[i] = np.nan
+            s2_ups[i] = np.nan
+            continue
         s2_los[i], s1_los[i], meds[i], s1_ups[i], s2_ups[i] = np.nanpercentile(
             frac_P[idx], [2.3, 16, 50, 84, 97.6]
         )
+
     # Fit to median with small offset
-    fit = np.polynomial.Polynomial.fit(bins_c, meds + offset, deg=degree, full=False)
+    fit = np.polynomial.Polynomial.fit(
+        bins_c[np.isfinite(meds)],
+        meds[np.isfinite(meds)] + offset,
+        deg=degree,
+        full=False,
+    )
     if not do_plot:
         return fit
 
@@ -554,7 +571,10 @@ def cuts_and_flags(
         degree=leakage_degree,
         high_snr_cut=leakage_snr,
     )
-    fig.savefig("leakage_fit.pdf")
+    figname = Path("leakage_fit.png")
+    fig.savefig(figname)
+    uuid = upload_image_as_artifact(image_path=figname, name="leakage_fit")
+    logger.info(f"Uploaded leakage fit plot to {uuid}")
     leakage_flag = is_leakage(
         cat["fracpol"].value, cat["beamdist"].to(u.deg).value, fit
     )
@@ -898,25 +918,22 @@ def main(
     )
     fields.update({f"{field}.header" if sbid is None else f"{field}_{sbid}.header": 1})
 
-    comps = list(comp_col.find(query, fields))
+    comps_df = pd.DataFrame(comp_col.find(query, fields))
+    comps_df.set_index("Source_ID", inplace=True)
     tock = time.time()
     logger.info(f"Finished component collection query - {tock-tick:.2f}s")
-    logger.info(f"Found {len(comps)} to catalogue. ")
+    logger.info(f"Found {len(comps_df)} components to catalogue. ")
 
     logger.info("Starting island collection query")
     tick = time.time()
-    islands = list(island_col.find({"Source_ID": {"$in": all_island_ids}}))
+    islands_df = pd.DataFrame(island_col.find({"Source_ID": {"$in": all_island_ids}}))
+    islands_df.set_index("Source_ID", inplace=True)
     tock = time.time()
     logger.info(f"Finished island collection query - {tock-tick:.2f}s")
 
-    if len(comps) == 0:
+    if len(comps_df) == 0:
         logger.error("No components found for this field.")
         raise ValueError("No components found for this field.")
-
-    comps_df = pd.DataFrame(comps)
-    comps_df.set_index("Source_ID", inplace=True)
-    islands_df = pd.DataFrame(islands)
-    islands_df.set_index("Source_ID", inplace=True)
 
     rmtab = RMTable()
     # Add items to main cat using RMtable standard
@@ -1186,6 +1203,7 @@ def cli():
         field=args.field,
         host=host,
         epoch=args.epoch,
+        sbid=args.sbid,
         leakage_degree=args.leakage_degree,
         leakage_bins=args.leakage_bins,
         leakage_snr=args.leakage_snr,

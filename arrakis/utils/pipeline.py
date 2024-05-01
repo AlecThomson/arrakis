@@ -2,13 +2,15 @@
 """Pipeline and flow utility functions"""
 
 import argparse
+import base64
 import logging
 import shlex
 import subprocess
 import time
 import warnings
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
+from uuid import UUID
 
 import astropy.units as u
 import dask.array as da
@@ -20,6 +22,8 @@ from dask.distributed import get_client
 from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner
+from prefect import task
+from prefect.artifacts import create_markdown_artifact
 from prefect_dask import get_dask_client
 from spectral_cube.utils import SpectralCubeWarning
 from tornado.ioloop import IOLoop
@@ -29,6 +33,8 @@ from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
+
+SUPPORTED_IMAGE_TYPES = ("png",)
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -46,6 +52,46 @@ logo_str = """
    |___|   |___|   |___|   |___|
 
 """
+
+
+# Stolen from Flint
+@task(name="Upload image as artifact")
+def upload_image_as_artifact(
+    image_path: Path, description: Optional[str] = None
+) -> UUID:
+    """Create and submit a markdown artifact tracked by prefect for an
+    input image. Currently supporting png formatted images.
+
+    The input image is converted to a base64 encoding, and embedded directly
+    within the markdown string. Therefore, be mindful of the image size as this
+    is tracked in the postgres database.
+
+    Args:
+        image_path (Path): Path to the image to upload
+        description (Optional[str], optional): A description passed to the markdown artifact. Defaults to None.
+
+    Returns:
+        UUID: Generated UUID of the registered artifact
+    """
+    image_type = image_path.suffix.replace(".", "")
+    assert image_path.exists(), f"{image_path} does not exist"
+    assert (
+        image_type in SUPPORTED_IMAGE_TYPES
+    ), f"{image_path} has type {image_type}, and is not supported. Supported types are {SUPPORTED_IMAGE_TYPES}"
+
+    with open(image_path, "rb") as open_image:
+        logger.info(f"Encoding {image_path} in base64")
+        image_base64 = base64.b64encode(open_image.read()).decode()
+
+    logger.info("Creating markdown tag")
+    markdown = f"![{image_path.stem}](data:image/{image_type};base64,{image_base64})"
+
+    logger.info("Registering artifact")
+    image_uuid: UUID = create_markdown_artifact(
+        markdown=markdown, description=description
+    )
+
+    return image_uuid
 
 
 def workdir_arg_parser(parent_parser: bool = False) -> argparse.ArgumentParser:

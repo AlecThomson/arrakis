@@ -9,14 +9,15 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 from typing import NamedTuple as Struct
+from typing import Optional, Tuple
 
-from astropy.io import fits
 import astropy.units as u
 import numpy as np
 import pandas as pd
 import pymongo
+from astropy.io import fits
 from astropy.utils.exceptions import AstropyWarning
 from prefect import flow, task
 from racs_tools import beamcon_3D

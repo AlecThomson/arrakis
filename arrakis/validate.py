@@ -3,12 +3,9 @@
 """Make validation plots from a catalogue"""
 
 import argparse
-import base64
 import logging
 from pathlib import Path
 from typing import NamedTuple as Struct
-from typing import Optional, TypeVar
-from uuid import UUID
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -19,18 +16,15 @@ from astropy.stats import mad_std, sigma_clip
 from astropy.table import Table
 from astropy.wcs import WCS
 from matplotlib.figure import Figure
-from prefect import task, flow
-from prefect.artifacts import create_markdown_artifact
+from prefect import flow, task
 from scipy import interpolate, stats
 
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.makecat import cat_parser
-from arrakis.utils.pipeline import logo_str
+from arrakis.utils.pipeline import logo_str, upload_image_as_artifact
+from arrakis.utils.typing import T
 
 logger.setLevel(logging.INFO)
-
-SUPPORTED_IMAGE_TYPES = ("png",)
-T = TypeVar("T")
 
 
 class GriddedMap(Struct):
@@ -53,46 +47,6 @@ class BinnedMap(Struct):
     """Y bin centres"""
     wcs: WCS
     """WCS of the binned data"""
-
-
-# Stolen from Flint
-@task(name="Upload image as artifact")
-def upload_image_as_artifact(
-    image_path: Path, description: Optional[str] = None
-) -> UUID:
-    """Create and submit a markdown artifact tracked by prefect for an
-    input image. Currently supporting png formatted images.
-
-    The input image is converted to a base64 encoding, and embedded directly
-    within the markdown string. Therefore, be mindful of the image size as this
-    is tracked in the postgres database.
-
-    Args:
-        image_path (Path): Path to the image to upload
-        description (Optional[str], optional): A description passed to the markdown artifact. Defaults to None.
-
-    Returns:
-        UUID: Generated UUID of the registered artifact
-    """
-    image_type = image_path.suffix.replace(".", "")
-    assert image_path.exists(), f"{image_path} does not exist"
-    assert (
-        image_type in SUPPORTED_IMAGE_TYPES
-    ), f"{image_path} has type {image_type}, and is not supported. Supported types are {SUPPORTED_IMAGE_TYPES}"
-
-    with open(image_path, "rb") as open_image:
-        logger.info(f"Encoding {image_path} in base64")
-        image_base64 = base64.b64encode(open_image.read()).decode()
-
-    logger.info("Creating markdown tag")
-    markdown = f"![{image_path.stem}](data:image/{image_type};base64,{image_base64})"
-
-    logger.info("Registering artifact")
-    image_uuid: UUID = create_markdown_artifact(
-        markdown=markdown, description=description
-    )
-
-    return image_uuid
 
 
 def make_gridded_map(

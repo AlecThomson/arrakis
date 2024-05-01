@@ -6,8 +6,8 @@ import warnings
 from pathlib import Path
 from typing import Optional
 
-from astropy.utils.exceptions import AstropyWarning
 import astropy.units as u
+from astropy.utils.exceptions import AstropyWarning
 from casacore.tables import table
 from spectral_cube.utils import SpectralCubeWarning
 

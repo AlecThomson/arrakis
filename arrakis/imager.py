@@ -10,14 +10,15 @@ import shutil
 from glob import glob
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List
 from typing import NamedTuple as Struct
+from typing import Optional, Tuple, Union
 
+import astropy.units as u
 import numpy as np
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
-import astropy.units as u
 from fitscube import combine_fits
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
@@ -32,8 +33,8 @@ from arrakis.utils.msutils import (
     beam_from_ms,
     field_idx_from_ms,
     field_name_from_ms,
-    wsclean,
     get_pol_axis,
+    wsclean,
 )
 from arrakis.utils.pipeline import logo_str, workdir_arg_parser
 

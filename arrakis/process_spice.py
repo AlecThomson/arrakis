@@ -7,7 +7,6 @@ import os
 from importlib import resources
 from pathlib import Path
 
-from arrakis.validate import validation_parser
 import configargparse
 import yaml
 from astropy.time import Time
@@ -29,6 +28,7 @@ from arrakis import (
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
+from arrakis.validate import validation_parser
 
 
 @flow(name="Combining+Synthesis on Arrakis")
