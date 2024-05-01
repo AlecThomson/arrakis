@@ -573,7 +573,7 @@ def cuts_and_flags(
     )
     figname = Path("leakage_fit.png")
     fig.savefig(figname)
-    uuid = upload_image_as_artifact(image_path=figname, name="leakage_fit")
+    uuid = upload_image_as_artifact(image_path=figname, description="Leakage fit")
     logger.info(f"Uploaded leakage fit plot to {uuid}")
     leakage_flag = is_leakage(
         cat["fracpol"].value, cat["beamdist"].to(u.deg).value, fit
