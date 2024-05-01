@@ -6,7 +6,7 @@ import argparse
 import base64
 import logging
 from pathlib import Path
-from typing import NamedTuple as struct
+from typing import NamedTuple as Struct
 from typing import Optional, TypeVar
 from uuid import UUID
 
@@ -33,7 +33,7 @@ SUPPORTED_IMAGE_TYPES = ("png",)
 T = TypeVar("T")
 
 
-class GriddedMap(struct):
+class GriddedMap(Struct):
     """Gridded catalogue data"""
 
     data: np.ndarray
@@ -42,7 +42,7 @@ class GriddedMap(struct):
     """WCS of the gridded data"""
 
 
-class BinnedMap(struct):
+class BinnedMap(Struct):
     """Binned catalogue data"""
 
     data: np.ndarray
@@ -219,7 +219,7 @@ def plot_rms_bkg(
         "u": ("U", "bkg"),
     }
     per_subplot_kw = {
-        key: {"projection": err_bkg_dict[stokes][thing]["wcs"]}
+        key: {"projection": err_bkg_dict[stokes][thing].wcs}
         for key, (stokes, thing) in mapping.items()
     }
     fig, ax_dict = plt.subplot_mosaic(
@@ -237,7 +237,7 @@ def plot_rms_bkg(
     )
     for key, ax in ax_dict.items():
         stokes, thing = mapping[key]
-        data = err_bkg_dict[stokes][thing]["data"]
+        data = err_bkg_dict[stokes][thing].data
         if thing == "err":
             im = ax.imshow(
                 data * 1e6,
@@ -281,7 +281,7 @@ def plot_leakage(
         )
 
     per_subplot_kw = {
-        stokes: {"projection": val["wcs"]} for stokes, val in leakage_dict.items()
+        stokes: {"projection": val.wcs} for stokes, val in leakage_dict.items()
     }
     fig, ax_dict = plt.subplot_mosaic(
         """
@@ -297,9 +297,9 @@ def plot_leakage(
     )
     for stokes, ax in ax_dict.items():
         data = leakage_dict[stokes].data
-        XC = leakage_dict[stokes].XC
-        YC = leakage_dict[stokes].YC
-        im = ax.pcolormesh(XC, YC, data, cmap="RdBu_r", vmin=-0.05, vmax=0.05)
+        xc = leakage_dict[stokes].xc
+        yc = leakage_dict[stokes].yc
+        im = ax.pcolormesh(xc, yc, data, cmap="RdBu_r", vmin=-0.05, vmax=0.05)
         ax.set(xlabel="RA", ylabel="Dec")
         ax.grid()
         overlay = ax.get_coords_overlay("galactic")
@@ -318,7 +318,7 @@ def plot_leakage(
 def main(
     catalogue_path: Path,
     npix: int = 512,
-    map_size: u.Quantity = 8 * u.deg,
+    map_size: float = 8,
     snr_cut: float = 50,
     bins: int = 11,
 ):
@@ -328,7 +328,7 @@ def main(
     rms_bkg_fig = plot_rms_bkg(
         tab,
         npix=npix,
-        map_size=map_size,
+        map_size=map_size * u.deg,
     )
     rms_bkg_path = outdir / "validation_rms_bkg.png"
     rms_bkg_fig.savefig(rms_bkg_path)
@@ -342,7 +342,7 @@ def main(
         snr_cut=snr_cut,
         bins=bins,
         npix=npix,
-        map_size=map_size,
+        map_size=map_size * u.deg,
     )
     leakage_path = outdir / "validation_leakage.png"
     leakage_fig.savefig(leakage_path)
@@ -395,7 +395,7 @@ def cli():
     main(
         catalogue_path=Path(args.outfile),
         npix=args.npix,
-        map_size=args.map_size * u.deg,
+        map_size=args.map_size,
         snr_cut=args.leakage_snr,
         bins=args.leakage_bins,
     )

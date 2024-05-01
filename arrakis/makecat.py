@@ -1143,7 +1143,7 @@ def cat_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--write",
+        "--catfile",
         dest="outfile",
         default=None,
         type=str,

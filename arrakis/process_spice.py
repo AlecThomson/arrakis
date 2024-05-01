@@ -11,7 +11,6 @@ from arrakis.validate import validation_parser
 import configargparse
 import yaml
 from astropy.time import Time
-import astropy.units as u
 from prefect import flow
 from prefect.task_runners import BaseTaskRunner
 from prefect_dask import DaskTaskRunner
@@ -183,7 +182,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
         validate.main.with_options(task_runner=task_runner)(
             catalogue_path=Path(args.outfile),
             npix=args.npix,
-            map_size=args.map_size * u.deg,
+            map_size=args.map_size,
             snr_cut=args.leakage_snr,
             bins=args.leakage_bins,
         )

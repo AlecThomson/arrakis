@@ -11,7 +11,6 @@ import configargparse
 import pkg_resources
 import yaml
 from astropy.time import Time
-import astropy.units as u
 from prefect import flow
 
 from arrakis import (
@@ -130,7 +129,7 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
         validate.main.with_options(task_runner=task_runner)(
             catalogue_path=Path(args.outfile),
             npix=args.npix,
-            map_size=args.map_size * u.deg,
+            map_size=args.map_size,
             snr_cut=args.leakage_snr,
             bins=args.leakage_bins,
         )
