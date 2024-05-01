@@ -12,6 +12,9 @@ from pprint import pformat
 from typing import Dict, List, Optional, Tuple
 from typing import NamedTuple as Struct
 
+from astropy.io import fits
+import astropy.units as u
+import numpy as np
 import pandas as pd
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
@@ -160,6 +163,16 @@ def genparset(
     """
     logger.setLevel(logging.INFO)
 
+    pol_angles_list: List[float] = []
+    for im in image_paths.images:
+        _pol_angle: float = fits.getheader(im)["INSTRUMENT_RECEPTOR_ANGLE"]
+        pol_angles_list.append(_pol_angle)
+    pol_angles: u.Quantity = pol_angles_list * u.deg
+
+    alpha: u.Quantity = pol_angles[0]
+
+    assert np.allclose(pol_angles, alpha), "Polarisation angles are not the same!"
+
     image_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.images])}]"
     weight_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.weights])}]"
 
@@ -188,6 +201,7 @@ linmos.weightstate      = Inherent
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
 linmos.primarybeam.ASKAP_PB.image = {holofile.resolve().as_posix()}
+linmos.primarybeamASKAP_PB.alpha = {alpha.to(u.rad).value}
 linmos.removeleakage    = true
 """
     else:

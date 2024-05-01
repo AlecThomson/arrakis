@@ -17,6 +17,7 @@ import numpy as np
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
+import astropy.units as u
 from fitscube import combine_fits
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
@@ -32,6 +33,7 @@ from arrakis.utils.msutils import (
     field_idx_from_ms,
     field_name_from_ms,
     wsclean,
+    get_pol_axis,
 )
 from arrakis.utils.pipeline import logo_str, workdir_arg_parser
 
@@ -377,7 +379,11 @@ def image_beam(
 
 @task(name="Make Cube")
 def make_cube(
-    pol: str, image_set: ImageSet, common_beam_pkl: Path, aux_mode: Optional[str] = None
+    pol: str,
+    image_set: ImageSet,
+    common_beam_pkl: Path,
+    pol_angle: u.Quantity,
+    aux_mode: Optional[str] = None,
 ) -> Tuple[Path, Path]:
     """Make a cube from the images"""
     logger = get_run_logger()
@@ -391,6 +397,12 @@ def make_cube(
     hdu_list, freqs = combine_fits(file_list=image_list, create_blanks=True)
     new_header = hdu_list[0].header
     data_cube = hdu_list[0].data
+
+    # Add pol angle to header
+    new_header["INSTRUMENT_RECEPTOR_ANGLE"] = (
+        pol_angle.to(u.deg).value,
+        "Orig. pol. axis rotation angle in degrees",
+    )
 
     tmp_header = new_header.copy()
     # Need to swap NAXIS 3 and 4 to make LINMOS happy - booo
@@ -726,8 +738,10 @@ def main(
             ms_fix = fix_ms_askap_corrs(
                 ms=ms_fix, data_column="DATA", corrected_data_column=data_column
             )
+            pol_angle = get_pol_axis(ms_fix, col="INSTRUMENT_RECEPTOR_ANGLE")
         else:
             ms_fix = ms
+            pol_angle = get_pol_axis(ms_fix, col="RECEPTOR_ANGLE")
         # Image with wsclean
         image_set = image_beam.submit(
             ms=ms_fix,
@@ -790,6 +804,7 @@ def main(
                     pol=pol,
                     image_set=sm_image_set,
                     common_beam_pkl=common_beam_pkl,
+                    pol_angle=pol_angle,
                     aux_mode=aux_mode,
                     wait_for=[sm_image_set],
                 )
