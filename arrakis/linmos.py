@@ -169,9 +169,12 @@ def genparset(
         pol_angles_list.append(_pol_angle)
     pol_angles: u.Quantity = pol_angles_list * u.deg
 
-    alpha: u.Quantity = pol_angles[0]
+    pol_0: u.Quantity = pol_angles[0]
 
-    assert np.allclose(pol_angles, alpha), "Polarisation angles are not the same!"
+    assert np.allclose(pol_angles, pol_0), "Polarisation angles are not the same!"
+
+    logger.warning("Assuming holography was done at -45 degrees")
+    alpha = pol_0 - -45 * u.deg
 
     image_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.images])}]"
     weight_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.weights])}]"
