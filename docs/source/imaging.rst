@@ -21,19 +21,13 @@ This can be run using:
 .. code-block::
 
     $ spice_image -h
-    usage: spice_image [-h] [--temp_dir_wsclean TEMP_DIR_WSCLEAN] [--temp_dir_images TEMP_DIR_IMAGES]
-                       [--psf_cutoff PSF_CUTOFF] [--robust ROBUST] [--nchan NCHAN] [--pols POLS] [--size SIZE] [--scale SCALE]
-                       [--mgain MGAIN] [--niter NITER] [--nmiter NMITER] [--auto_mask AUTO_MASK]
-                       [--auto_threshold AUTO_THRESHOLD] [--local_rms] [--local_rms_window LOCAL_RMS_WINDOW]
-                       [--force_mask_rounds FORCE_MASK_ROUNDS] [--gridder {direct-ft,idg,wgridder,tuned-wgridder,wstacking}]
-                       [--taper TAPER] [--minuv MINUV] [--parallel PARALLEL] [--purge] [--mpi] [--multiscale]
-                       [--multiscale_scale_bias MULTISCALE_SCALE_BIAS] [--multiscale_scales MULTISCALE_SCALES]
-                       [--absmem ABSMEM] [--make_residual_cubes] [--ms_glob_pattern MS_GLOB_PATTERN]
-                       [--data_column DATA_COLUMN] [--no_mf_weighting] [--skip_fix_ms] [--num_beams NUM_BEAMS]
-                       [--hosted-wsclean HOSTED_WSCLEAN | --local_wsclean LOCAL_WSCLEAN]
+    usage: spice_image [-h] [--temp_dir_wsclean TEMP_DIR_WSCLEAN] [--temp_dir_images TEMP_DIR_IMAGES] [--psf_cutoff PSF_CUTOFF] [--robust ROBUST] [--nchan NCHAN] [--pols POLS] [--size SIZE] [--scale SCALE] [--mgain MGAIN] [--niter NITER] [--nmiter NMITER] [--auto_mask AUTO_MASK]
+                       [--auto_threshold AUTO_THRESHOLD] [--local_rms] [--local_rms_window LOCAL_RMS_WINDOW] [--force_mask_rounds FORCE_MASK_ROUNDS] [--gridder {direct-ft,idg,wgridder,tuned-wgridder,wstacking}] [--taper TAPER] [--minuv MINUV] [--parallel PARALLEL] [--purge] [--mpi]
+                       [--multiscale] [--multiscale_scale_bias MULTISCALE_SCALE_BIAS] [--multiscale_scales MULTISCALE_SCALES] [--absmem ABSMEM] [--make_residual_cubes] [--ms_glob_pattern MS_GLOB_PATTERN] [--data_column DATA_COLUMN] [--no_mf_weighting] [--skip_fix_ms]
+                       [--num_beams NUM_BEAMS] [--disable_pol_local_rms] [--disable_pol_force_mask_rounds] [--hosted-wsclean HOSTED_WSCLEAN | --local_wsclean LOCAL_WSCLEAN]
                        msdir datadir
-
-
+    
+        
         mmm   mmm   mmm   mmm   mmm
         )-(   )-(   )-(   )-(   )-(
        ( S ) ( P ) ( I ) ( C ) ( E )
@@ -44,17 +38,17 @@ This can be run using:
        ( R )   ( A )   ( C )   ( S )
        |   |   |   |   |   |   |   |
        |___|   |___|   |___|   |___|
-
+    
         Arrkis imager
-
-
+        
+    
     options:
       -h, --help            show this help message and exit
       --hosted-wsclean HOSTED_WSCLEAN
                             Docker or Singularity image for wsclean (default: docker://alecthomson/wsclean:latest)
       --local_wsclean LOCAL_WSCLEAN
                             Path to local wsclean Singularity image (default: None)
-
+    
     imaging arguments:
       msdir                 Directory containing MS files
       --temp_dir_wsclean TEMP_DIR_WSCLEAN
@@ -98,7 +92,11 @@ This can be run using:
       --skip_fix_ms         Do not apply the ASKAP MS corrections from the package fixms.  (default: False)
       --num_beams NUM_BEAMS
                             Number of beams to image (default: 36)
-
+      --disable_pol_local_rms
+                            Disable local RMS for polarisation images (default: False)
+      --disable_pol_force_mask_rounds
+                            Disable force mask rounds for polarisation images (default: False)
+    
     workdir arguments:
       datadir               Directory to create/find full-size images and 'cutout' directory
 
@@ -128,43 +126,47 @@ The `spice_process` CLI
 
 It is also possible to run just the imaging part of the pipeline using a the `spice_process` command line tool, as described in :ref:`Running the pipeline`. You will need to envoke the argument `--imager_only`, along with the other imaging arguments. This will run the imaging pipeline in parallel, using the Dask task runner defined in your config file of choice. Here is an example pipeline config for only imaging:
 
-.. code-block:: cfg
+.. code-block:: yaml
 
-    # SB8593.cfg
-    imager_only = True
-    ms_glob_pattern = 'scienceData_SB8593_RACS_1347-37A.beam*_averaged_cal.leakage.split.ms'
-    imager_dask_config = petrichor.yaml
-    mgain = 0.7
-    force_mask_rounds = 8
-    nmiter = 15
-    niter = 500000
-    local_rms = True
-    auto_mask = 4
-    local_rms_window = 60
-    auto_threshold = 1
-    size = 6144
-    scale = 2.5
-    robust = -0.5
-    pols = IQU
-    gridder = wgridder
-    minuv = 200
-    local_wsclean = wsclean_force_mask.sif
-    multiscale = True
-    multiscale_scale_bias = 0.7
-    multiscale_scales = "0,2,4,8,16,32,64,128"
-    purge = False
-    absmem = 100
-    nchan = 36
-    psf_cutoff = 30
-    skip_fix_ms = False
-    data_column = CORRECTED_DATA
+    # SB8593.yaml
+    imager_only: true
+    ms_glob_pattern: 'scienceData_SB8593_RACS_1347-37A.beam*_averaged_cal.leakage.split.ms'
+    imager_dask_config: petrichor.yaml
+    mgain: 0.7
+    force_mask_rounds: 8
+    nmiter: 15
+    niter: 500000
+    local_rms: true
+    auto_mask: 4
+    local_rms_window: 60
+    auto_threshold: 1
+    size: 6144
+    scale: 2.5
+    robust: -0.5
+    pols: IQU
+    gridder: wgridder
+    minuv: 200
+    local_wsclean: wsclean_force_mask.sif
+    multiscale: true
+    multiscale_scale_bias: 0.7
+    multiscale_scales: "0,2,4,8,16,32,64,128"
+    purge: false
+    absmem: 100
+    nchan: 36
+    psf_cutoff: 30
+    skip_fix_ms: false
+    data_column: CORRECTED_DATA
+    disable_pol_local_rms: true
+    disable_pol_force_mask_rounds: false
+    temp_dir_images: /dev/shm
+    temp_dir_wsclean: /dev/shm
 
 You would then run the pipeline using:
 
 .. code-block:: bash
 
     spice_process \
-        --config SB8593.cfg \
+        --config SB8593.yaml \
         /path/to/ms/files/ \
         /path/to/work/dir/ \
         RACS_1347-37A
