@@ -250,20 +250,6 @@ def image_beam(
         pols = pols.replace("I", "")
 
     if all([p in pols.upper() for p in ("Q", "U")]):
-        if squared_channel_joining:
-            logger.info("Using squared channel joining")
-            logger.info("Reducing mask by sqrt(2) to account for this")
-            auto_mask_reduce = np.round(auto_mask / (np.sqrt(2)), decimals=2)
-
-            logger.info(f"auto_mask = {auto_mask}")
-            logger.info(f"auto_mask_reduce = {auto_mask_reduce}")
-            auto_threshold_reduce = np.round(auto_threshold / (np.sqrt(2)), decimals=2)
-            logger.info(f"auto_threshold = {auto_threshold}")
-            logger.info(f"auto_threshold_reduce = {auto_threshold_reduce}")
-        else:
-            auto_mask_reduce = auto_mask
-            auto_threshold_reduce = auto_threshold
-
         if disable_pol_local_rms:
             logger.info("Disabling local RMS for polarisation images")
             local_rms = False
@@ -292,9 +278,9 @@ def image_beam(
             squared_channel_joining=squared_channel_joining,
             mgain=mgain,
             niter=niter,
-            auto_mask=auto_mask_reduce,
+            auto_mask=auto_mask,
             force_mask_rounds=force_mask_rounds,
-            auto_threshold=auto_threshold_reduce,
+            auto_threshold=auto_threshold,
             gridder=gridder,
             weight=f"briggs {robust}",
             log_time=False,
@@ -308,8 +294,12 @@ def image_beam(
             local_rms=local_rms,
             local_rms_window=local_rms_window,
             multiscale=multiscale if not squared_channel_joining else False,
-            multiscale_scale_bias=multiscale_scale_bias,
-            multiscale_scales=multiscale_scales,
+            multiscale_scale_bias=multiscale_scale_bias
+            if not squared_channel_joining
+            else None,
+            multiscale_scales=multiscale_scales
+            if not squared_channel_joining
+            else None,
             data_column=data_column,
             no_mf_weighting=no_mf_weighting,
             no_update_model_required=no_update_model_required,
