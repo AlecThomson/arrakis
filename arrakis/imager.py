@@ -293,6 +293,7 @@ def image_beam(
             nmiter=nmiter,
             local_rms=local_rms,
             local_rms_window=local_rms_window,
+            # Avoid multiscale when using squared channel joining
             multiscale=multiscale if not squared_channel_joining else False,
             multiscale_scale_bias=multiscale_scale_bias
             if not squared_channel_joining
