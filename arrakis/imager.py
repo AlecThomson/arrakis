@@ -165,6 +165,7 @@ def image_beam(
     no_update_model_required: bool = True,
     beam_fitting_size: Optional[float] = 1.25,
     disable_pol_local_rms: bool = False,
+    disable_pol_force_mask_rounds: bool = False,
 ) -> ImageSet:
     """Image a single beam"""
     logger = get_run_logger()
@@ -267,6 +268,10 @@ def image_beam(
             logger.info("Disabling local RMS for polarisation images")
             local_rms = False
             local_rms_window = None
+
+        if disable_pol_force_mask_rounds:
+            logger.info("Disabling force mask rounds for polarisation images")
+            force_mask_rounds = None
 
         command = wsclean(
             mslist=[ms.resolve(strict=True).as_posix()],
@@ -684,6 +689,7 @@ def main(
     skip_fix_ms: bool = False,
     no_mf_weighting: bool = False,
     disable_pol_local_rms: bool = False,
+    disable_pol_force_mask_rounds: bool = False,
 ):
     """Arrakis imager flow
 
@@ -723,6 +729,7 @@ def main(
         skip_fix_ms (bool, optional): Apply FixMS. Defaults to False.
         no_mf_weighting (bool, optional): WSClean no_mf_weighting. Defaults to False.
         disable_pol_local_rms (bool, optional): Disable local RMS for polarisation images. Defaults to False.
+        disable_pol_force_mask_rounds (bool, optional): Disable force mask rounds for polarisation images. Defaults to False.
     """
 
     simage = get_wsclean(wsclean=wsclean_path)
@@ -803,6 +810,7 @@ def main(
             data_column=data_column,
             no_mf_weighting=no_mf_weighting,
             disable_pol_local_rms=disable_pol_local_rms,
+            disable_pol_force_mask_rounds=disable_pol_force_mask_rounds,
         )
 
         # Compute the smallest beam that all images can be convolved to.
@@ -1066,6 +1074,11 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         action="store_true",
         help="Disable local RMS for polarisation images",
     )
+    parser.add_argument(
+        "--disable_pol_force_mask_rounds",
+        action="store_true",
+        help="Disable force mask rounds for polarisation images",
+    )
 
     group = parser.add_argument_group("wsclean container options")
     mxg = group.add_mutually_exclusive_group()
@@ -1133,6 +1146,7 @@ def cli():
         skip_fix_ms=args.skip_fix_ms,
         no_mf_weighting=args.no_mf_weighting,
         disable_pol_local_rms=args.disable_pol_local_rms,
+        disable_pol_force_mask_rounds=args.disable_pol_force_mask_rounds,
     )
 
 

@@ -327,6 +327,7 @@ def main(args: configargparse.Namespace) -> None:
             skip_fix_ms=args.skip_fix_ms,
             no_mf_weighting=args.no_mf_weighting,
             disable_pol_local_rms=args.disable_pol_local_rms,
+            disable_pol_force_mask_rounds=args.disable_pol_force_mask_rounds,
         )
         client = dask_runner._client
         if client is not None:
