@@ -164,6 +164,7 @@ def image_beam(
     no_mf_weighting: bool = False,
     no_update_model_required: bool = True,
     beam_fitting_size: Optional[float] = 1.25,
+    disable_pol_local_rms: bool = False,
 ) -> ImageSet:
     """Image a single beam"""
     logger = get_run_logger()
@@ -180,6 +181,23 @@ def image_beam(
         prefix = temp_dir_images / prefix.name
 
     temp_dir_wsclean = parse_env_path(temp_dir_wsclean)
+
+    # Catch mis-matched args
+    if not local_rms:
+        logger.warning(
+            f"Local RMS is disabled. Setting local_rms_window to None. Was set to {local_rms_window}."
+        )
+        local_rms_window = None
+
+    if not multiscale:
+        logger.warning(
+            f"Multiscale is disabled. Setting multiscale_scale_bias to None. Was set to {multiscale_scale_bias}."
+        )
+        multiscale_scale_bias = None
+        logger.warning(
+            f"Multiscale is disabled. Setting multiscale_scales to None. Was set to {multiscale_scales}."
+        )
+        multiscale_scales = None
 
     commands = []
     # Do any I cleaning separately
@@ -238,12 +256,17 @@ def image_beam(
 
             logger.info(f"auto_mask = {auto_mask}")
             logger.info(f"auto_mask_reduce = {auto_mask_reduce}")
+            auto_threshold_reduce = np.round(auto_threshold / (np.sqrt(2)), decimals=2)
+            logger.info(f"auto_threshold = {auto_threshold}")
+            logger.info(f"auto_threshold_reduce = {auto_threshold_reduce}")
         else:
             auto_mask_reduce = auto_mask
+            auto_threshold_reduce = auto_threshold
 
-        if local_rms_window:
-            local_rms_window = int(local_rms_window / 2)
-            logger.info(f"Scaled local RMS window to {local_rms_window}.")
+        if disable_pol_local_rms:
+            logger.info("Disabling local RMS for polarisation images")
+            local_rms = False
+            local_rms_window = None
 
         command = wsclean(
             mslist=[ms.resolve(strict=True).as_posix()],
@@ -266,7 +289,7 @@ def image_beam(
             niter=niter,
             auto_mask=auto_mask_reduce,
             force_mask_rounds=force_mask_rounds,
-            auto_threshold=auto_threshold,
+            auto_threshold=auto_threshold_reduce,
             gridder=gridder,
             weight=f"briggs {robust}",
             log_time=False,
@@ -383,7 +406,7 @@ def make_cube(
     pol: str,
     image_set: ImageSet,
     common_beam_pkl: Path,
-    pol_angle: u.Quantity,
+    pol_angle_deg: float,
     aux_mode: Optional[str] = None,
 ) -> Tuple[Path, Path]:
     """Make a cube from the images"""
@@ -401,7 +424,7 @@ def make_cube(
 
     # Add pol angle to header
     new_header["INSTRUMENT_RECEPTOR_ANGLE"] = (
-        pol_angle.to(u.deg).value,
+        pol_angle_deg,
         "Orig. pol. axis rotation angle in degrees",
     )
 
@@ -660,6 +683,7 @@ def main(
     data_column: str = "CORRECTED_DATA",
     skip_fix_ms: bool = False,
     no_mf_weighting: bool = False,
+    disable_pol_local_rms: bool = False,
 ):
     """Arrakis imager flow
 
@@ -698,6 +722,7 @@ def main(
         data_column (str, optional): Data column to image. Defaults to "CORRECTED_DATA".
         skip_fix_ms (bool, optional): Apply FixMS. Defaults to False.
         no_mf_weighting (bool, optional): WSClean no_mf_weighting. Defaults to False.
+        disable_pol_local_rms (bool, optional): Disable local RMS for polarisation images. Defaults to False.
     """
 
     simage = get_wsclean(wsclean=wsclean_path)
@@ -739,10 +764,12 @@ def main(
             ms_fix = fix_ms_askap_corrs(
                 ms=ms_fix, data_column="DATA", corrected_data_column=data_column
             )
-            pol_angle = get_pol_axis(ms_fix, col="INSTRUMENT_RECEPTOR_ANGLE")
+            pol_angle_deg = (
+                get_pol_axis(ms_fix, col="INSTRUMENT_RECEPTOR_ANGLE").to(u.deg).value
+            )
         else:
             ms_fix = ms
-            pol_angle = get_pol_axis(ms_fix, col="RECEPTOR_ANGLE")
+            pol_angle_deg = get_pol_axis(ms_fix, col="RECEPTOR_ANGLE").to(u.deg).value
         # Image with wsclean
         image_set = image_beam.submit(
             ms=ms_fix,
@@ -775,6 +802,7 @@ def main(
             absmem=absmem,
             data_column=data_column,
             no_mf_weighting=no_mf_weighting,
+            disable_pol_local_rms=disable_pol_local_rms,
         )
 
         # Compute the smallest beam that all images can be convolved to.
@@ -805,7 +833,7 @@ def main(
                     pol=pol,
                     image_set=sm_image_set,
                     common_beam_pkl=common_beam_pkl,
-                    pol_angle=pol_angle,
+                    pol_angle_deg=pol_angle_deg,
                     aux_mode=aux_mode,
                     wait_for=[sm_image_set],
                 )
@@ -1033,6 +1061,11 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Number of beams to image",
         default=36,
     )
+    parser.add_argument(
+        "--disable_pol_local_rms",
+        action="store_true",
+        help="Disable local RMS for polarisation images",
+    )
 
     group = parser.add_argument_group("wsclean container options")
     mxg = group.add_mutually_exclusive_group()
@@ -1078,6 +1111,9 @@ def cli():
         scale=args.scale,
         mgain=args.mgain,
         niter=args.niter,
+        nmiter=args.nmiter,
+        local_rms=args.local_rms,
+        local_rms_window=args.local_rms_window,
         auto_mask=args.auto_mask,
         force_mask_rounds=args.force_mask_rounds,
         auto_threshold=args.auto_threshold,
@@ -1096,6 +1132,7 @@ def cli():
         data_column=args.data_column,
         skip_fix_ms=args.skip_fix_ms,
         no_mf_weighting=args.no_mf_weighting,
+        disable_pol_local_rms=args.disable_pol_local_rms,
     )
 
 

@@ -326,6 +326,7 @@ def main(args: configargparse.Namespace) -> None:
             data_column=args.data_column,
             skip_fix_ms=args.skip_fix_ms,
             no_mf_weighting=args.no_mf_weighting,
+            disable_pol_local_rms=args.disable_pol_local_rms,
         )
         client = dask_runner._client
         if client is not None:
@@ -425,9 +426,6 @@ def cli():
     clean_parser = cleanup.cleanup_parser(parent_parser=True)
     # Parse the command line options
     parser = configargparse.ArgParser(
-        default_config_files=[
-            (resources.files("arrakis") / ".default_config.yaml").as_posix()
-        ],
         description=pipe_parser.description,
         formatter_class=UltimateHelpFormatter,
         parents=[

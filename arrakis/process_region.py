@@ -234,7 +234,6 @@ def cli():
     clean_parser = cleanup.cleanup_parser(parent_parser=True)
     # Parse the command line options
     parser = configargparse.ArgParser(
-        default_config_files=[".default_config.cfg"],
         description=pipe_parser.description,
         formatter_class=UltimateHelpFormatter,
         parents=[
