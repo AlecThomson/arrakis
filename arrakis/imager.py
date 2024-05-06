@@ -264,6 +264,10 @@ def image_beam(
         auto_mask *= scale_factor
         auto_mask = my_ceil(auto_mask, 2)
 
+        logger.info(f"Scaling auto_threshold by {scale_factor}")
+        auto_threshold *= scale_factor
+        auto_threshold = my_ceil(auto_threshold, 2)
+
         if disable_pol_local_rms:
             logger.info("Disabling local RMS for polarisation images")
             local_rms = False
@@ -293,7 +297,7 @@ def image_beam(
             squared_channel_joining=squared_channel_joining,
             mgain=mgain,
             niter=niter,
-            auto_mask=auto_mask * scale_factor,
+            auto_mask=auto_mask,
             force_mask_rounds=force_mask_rounds,
             auto_threshold=auto_threshold,
             gridder=gridder,
