@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 from typing import NamedTuple as Struct
 from typing import Optional, Tuple, Union
 
+from arrakis.utils.meta import my_ceil
 import astropy.units as u
 import numpy as np
 from astropy.io import fits
@@ -216,6 +217,7 @@ def image_beam(
             pol="I",
             verbose=True,
             channels_out=nchan,
+            parallel_gridding=nchan,
             scale=f"{scale}asec",
             size=f"{npix} {npix}",
             join_polarizations=False,  # Only do I
@@ -250,6 +252,18 @@ def image_beam(
         pols = pols.replace("I", "")
 
     if all([p in pols.upper() for p in ("Q", "U")]):
+        scale_factor = 1.0
+
+        if join_polarizations:
+            scale_factor *= 2.0
+
+        if squared_channel_joining:
+            scale_factor *= np.sqrt(2.0)
+
+        logger.info(f"Scaling auto_mask by {scale_factor}")
+        auto_mask *= scale_factor
+        auto_mask = my_ceil(auto_mask, 2)
+
         if disable_pol_local_rms:
             logger.info("Disabling local RMS for polarisation images")
             local_rms = False
@@ -271,6 +285,7 @@ def image_beam(
             pol=pols,
             verbose=True,
             channels_out=nchan,
+            parallel_gridding=nchan,
             scale=f"{scale}asec",
             size=f"{npix} {npix}",
             join_polarizations=join_polarizations,
@@ -278,7 +293,7 @@ def image_beam(
             squared_channel_joining=squared_channel_joining,
             mgain=mgain,
             niter=niter,
-            auto_mask=auto_mask,
+            auto_mask=auto_mask * scale_factor,
             force_mask_rounds=force_mask_rounds,
             auto_threshold=auto_threshold,
             gridder=gridder,
