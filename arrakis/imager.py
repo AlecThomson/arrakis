@@ -104,9 +104,9 @@ def get_mfs_image(
         else f"{prefix_str}-MFS-{pol}-residual.fits"
     )
 
-    big_image = fits.getdata(mfs_image_name)
-    big_model = fits.getdata(mfs_model_name)
-    big_residual = fits.getdata(mfs_residual_name)
+    big_image = fits.getdata(mfs_image_name).squeeze()
+    big_model = fits.getdata(mfs_model_name).squeeze()
+    big_residual = fits.getdata(mfs_residual_name).squeeze()
 
     small_image = resize(big_image, small_size)
     small_model = resize(big_model, small_size)
