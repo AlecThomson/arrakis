@@ -131,7 +131,7 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             npix=args.npix,
             map_size=args.map_size,
             snr_cut=args.leakage_snr,
-            bins=args.leakage_bins,
+            bins=args.leakage_bins * 2,
         )
         if not args.skip_validate
         else previous_future
