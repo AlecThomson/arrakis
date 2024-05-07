@@ -67,6 +67,7 @@ fixms = ">=0.2.6"
 fitscube = ">=0.3"
 psycopg2-binary = "*"
 sqlalchemy = "*"
+scikit-image = ">=0.23"
 
 [tool.poetry.dev-dependencies]
 black = ">=23"
