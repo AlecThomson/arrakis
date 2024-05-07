@@ -257,11 +257,13 @@ def linmos(
         command=linmos_command,
         bind=f"{rootdir}:{rootdir},{holo_folder}:{holo_folder}",
         return_result=True,
+        quiet=False,
+        stream=True,
     )
-
-    outstr = "\n".join(output["message"])
     with open(log_file, "w") as f:
-        f.write(outstr)
+        for line in output:
+            logger.info(line)
+            f.write(line)
 
     if output["return_code"] != 0:
         raise Exception(f"LINMOS failed! Check '{log_file}'")
