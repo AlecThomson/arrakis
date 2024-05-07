@@ -23,10 +23,12 @@ from arrakis import (
     makecat,
     rmclean_oncuts,
     rmsynth_oncuts,
+    validate,
 )
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
+from arrakis.validate import validation_parser
 
 
 @flow(name="Combining+Synthesis on Arrakis")
@@ -177,6 +179,18 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     )
 
     previous_future = (
+        validate.main.with_options(task_runner=task_runner)(
+            catalogue_path=Path(args.outfile),
+            npix=args.npix,
+            map_size=args.map_size,
+            snr_cut=args.leakage_snr,
+            bins=args.leakage_bins,
+        )
+        if not args.skip_validate
+        else previous_future
+    )
+
+    previous_future = (
         cleanup.main.with_options(task_runner=task_runner)(
             datadir=args.datadir,
         )
@@ -312,6 +326,8 @@ def main(args: configargparse.Namespace) -> None:
             data_column=args.data_column,
             skip_fix_ms=args.skip_fix_ms,
             no_mf_weighting=args.no_mf_weighting,
+            disable_pol_local_rms=args.disable_pol_local_rms,
+            disable_pol_force_mask_rounds=args.disable_pol_force_mask_rounds,
         )
         client = dask_runner._client
         if client is not None:
@@ -370,28 +386,23 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Only run the imager component of the pipeline. ",
     )
     parser.add_argument(
-        "--skip_imager", action="store_true", help="Skip imaging stage [False]."
+        "--skip_imager", action="store_true", help="Skip imaging stage."
+    )
+    parser.add_argument("--skip_cutout", action="store_true", help="Skip cutout stage.")
+    parser.add_argument("--skip_linmos", action="store_true", help="Skip LINMOS stage.")
+    parser.add_argument("--skip_frion", action="store_true", help="Skip cleanup stage.")
+    parser.add_argument(
+        "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage."
     )
     parser.add_argument(
-        "--skip_cutout", action="store_true", help="Skip cutout stage [False]."
+        "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage."
+    )
+    parser.add_argument("--skip_cat", action="store_true", help="Skip catalogue stage.")
+    parser.add_argument(
+        "--skip_validate", action="store_true", help="Skip validation stage."
     )
     parser.add_argument(
-        "--skip_linmos", action="store_true", help="Skip LINMOS stage [False]."
-    )
-    parser.add_argument(
-        "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
-    )
-    parser.add_argument(
-        "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage [False]."
-    )
-    parser.add_argument(
-        "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage [False]."
-    )
-    parser.add_argument(
-        "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
-    )
-    parser.add_argument(
-        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
+        "--skip_cleanup", action="store_true", help="Skip cleanup stage."
     )
 
     return pipeline_parser
@@ -412,12 +423,10 @@ def cli():
     synth_parser = rmsynth_oncuts.rmsynth_parser(parent_parser=True)
     rmclean_parser = rmclean_oncuts.clean_parser(parent_parser=True)
     catalogue_parser = makecat.cat_parser(parent_parser=True)
+    val_parser = validation_parser(parent_parser=True)
     clean_parser = cleanup.cleanup_parser(parent_parser=True)
     # Parse the command line options
     parser = configargparse.ArgParser(
-        default_config_files=[
-            (resources.files("arrakis") / ".default_config.yaml").as_posix()
-        ],
         description=pipe_parser.description,
         formatter_class=UltimateHelpFormatter,
         parents=[
@@ -432,6 +441,7 @@ def cli():
             synth_parser,
             rmclean_parser,
             catalogue_parser,
+            val_parser,
             clean_parser,
         ],
     )

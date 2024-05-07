@@ -6,10 +6,20 @@ import warnings
 from itertools import zip_longest
 
 from astropy.utils.exceptions import AstropyWarning
+import numpy as np
 from spectral_cube.utils import SpectralCubeWarning
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
+
+
+# From https://stackoverflow.com/questions/58065055/floor-and-ceil-with-number-of-decimals#:~:text=The%20function%20np.,a%20number%20with%20zero%20decimals.
+def my_ceil(a, precision=0):
+    return np.true_divide(np.ceil(a * 10**precision), 10**precision)
+
+
+def my_floor(a, precision=0):
+    return np.true_divide(np.floor(a * 10**precision), 10**precision)
 
 
 # From https://stackoverflow.com/questions/1176136/convert-string-to-python-class-object

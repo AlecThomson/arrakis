@@ -20,10 +20,12 @@ from arrakis import (
     process_spice,
     rmclean_oncuts,
     rmsynth_oncuts,
+    validate,
 )
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import test_db
 from arrakis.utils.pipeline import logo_str
+from arrakis.validate import validation_parser
 
 
 @flow
@@ -123,6 +125,17 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
         if not args.skip_cat
         else previous_future
     )
+    previous_future = (
+        validate.main.with_options(task_runner=task_runner)(
+            catalogue_path=Path(args.outfile),
+            npix=args.npix,
+            map_size=args.map_size,
+            snr_cut=args.leakage_snr,
+            bins=args.leakage_bins,
+        )
+        if not args.skip_validate
+        else previous_future
+    )
 
 
 def main(args: configargparse.Namespace) -> None:
@@ -197,6 +210,9 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
     )
     parser.add_argument(
+        "--skip_validate", action="store_true", help="Skip validation stage."
+    )
+    parser.add_argument(
         "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
     )
     return pipeline_parser
@@ -214,10 +230,10 @@ def cli():
     synth_parser = rmsynth_oncuts.rmsynth_parser(parent_parser=True)
     rmclean_parser = rmclean_oncuts.clean_parser(parent_parser=True)
     catalogue_parser = makecat.cat_parser(parent_parser=True)
+    val_parser = validation_parser(parent_parser=True)
     clean_parser = cleanup.cleanup_parser(parent_parser=True)
     # Parse the command line options
     parser = configargparse.ArgParser(
-        default_config_files=[".default_config.cfg"],
         description=pipe_parser.description,
         formatter_class=UltimateHelpFormatter,
         parents=[
@@ -228,6 +244,7 @@ def cli():
             synth_parser,
             rmclean_parser,
             catalogue_parser,
+            val_parser,
             clean_parser,
         ],
     )

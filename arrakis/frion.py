@@ -6,8 +6,9 @@ import logging
 import os
 from pathlib import Path
 from pprint import pformat
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List
 from typing import NamedTuple as Struct
+from typing import Optional, Union
 
 import astropy.units as u
 import numpy as np

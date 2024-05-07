@@ -9,11 +9,15 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 from typing import NamedTuple as Struct
+from typing import Optional, Tuple
 
+import astropy.units as u
+import numpy as np
 import pandas as pd
 import pymongo
+from astropy.io import fits
 from astropy.utils.exceptions import AstropyWarning
 from prefect import flow, task
 from racs_tools import beamcon_3D
@@ -160,6 +164,19 @@ def genparset(
     """
     logger.setLevel(logging.INFO)
 
+    pol_angles_list: List[float] = []
+    for im in image_paths.images:
+        _pol_angle: float = fits.getheader(im)["INSTRUMENT_RECEPTOR_ANGLE"]
+        pol_angles_list.append(_pol_angle)
+    pol_angles: u.Quantity = pol_angles_list * u.deg
+
+    pol_0: u.Quantity = pol_angles[0]
+
+    assert np.allclose(pol_angles, pol_0), "Polarisation angles are not the same!"
+
+    logger.warning("Assuming holography was done at -45 degrees")
+    alpha = pol_0 - -45 * u.deg
+
     image_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.images])}]"
     weight_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.weights])}]"
 
@@ -188,6 +205,7 @@ linmos.weightstate      = Inherent
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
 linmos.primarybeam.ASKAP_PB.image = {holofile.resolve().as_posix()}
+linmos.primarybeamASKAP_PB.alpha = {alpha.to(u.rad).value}
 linmos.removeleakage    = true
 """
     else:

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### What's Changed
+
+* Add validation stage to pipeline, including plot artifacts
+* Add LINMOS rotation for rotated fields
+* Fixes WSClean argument handling and clean thresholds
+
+
 ## [2.2.2] - 2024-04-18
 ### What's Changed
 * [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/61

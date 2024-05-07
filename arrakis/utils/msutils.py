@@ -3,8 +3,10 @@
 
 import copy
 import warnings
+from pathlib import Path
 from typing import Optional
 
+import astropy.units as u
 from astropy.utils.exceptions import AstropyWarning
 from casacore.tables import table
 from spectral_cube.utils import SpectralCubeWarning
@@ -13,6 +15,46 @@ from arrakis.logger import logger
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)
+
+
+def get_pol_axis(
+    ms: Path, feed_idx: Optional[int] = None, col: str = "RECEPTOR_ANGLE"
+) -> u.Quantity:
+    """Get the polarization axis from the ASKAP MS. Checks are performed
+    to ensure this polarisation axis angle is constant throughout the observation.
+
+
+    Args:
+        ms (Path): The path to the measurement set that will be inspected
+        feed_idx (Optional[int], optional): Specify the entery in the FEED
+        table of `ms` to return. This might be required when a subset of a
+        measurement set has been extracted from an observation with a varying
+        orientation.
+        col (str, optional): The column to extract the polarization angle from.
+
+    Returns:
+        astropy.units.Quantity: The rotation of the PAF throughout the observing.
+    """
+    _known_cols = ("RECEPTOR_ANGLE", "INSTRUMENT_RECEPTOR_ANGLE")
+    if col not in _known_cols:
+        raise ValueError(f"Unknown column {col=}, please use one of {_known_cols}")
+    with table((ms / "FEED").as_posix(), readonly=True, ack=False) as tf:
+        ms_feed = tf.getcol(col) * u.rad
+        # PAF is at 45deg to feeds
+        # 45 - feed_angle = pol_angle
+        pol_axes = -(ms_feed - 45.0 * u.deg)
+
+    if feed_idx is None:
+        assert (ms_feed[:, 0] == ms_feed[0, 0]).all() & (
+            ms_feed[:, 1] == ms_feed[0, 1]
+        ).all(), f"The {col} changes with time, please check the MS"
+
+        pol_ang = pol_axes[0, 0].to(u.deg)
+    else:
+        logger.debug(f"Extracting the third-axis orientation for {feed_idx=}")
+        pol_ang = pol_axes[feed_idx, 0].to(u.deg)
+
+    return pol_ang
 
 
 def beam_from_ms(ms: str) -> int:
