@@ -915,6 +915,7 @@ def main(
         make_validation_plots.submit(
             prefix=prefixs[ms],
             pols=pols,
+            wait_for=[image_set],
         )
 
         # Compute the smallest beam that all images can be convolved to.
