@@ -252,21 +252,12 @@ def image_beam(
         pols = pols.replace("I", "")
 
     if all([p in pols.upper() for p in ("Q", "U")]):
-        scale_factor = 1.0
-
-        if join_polarizations:
-            scale_factor *= 2.0
-
         if squared_channel_joining:
-            scale_factor *= np.sqrt(2.0)
-
-        logger.info(f"Scaling auto_mask by {scale_factor}")
-        auto_mask *= scale_factor
-        auto_mask = my_ceil(auto_mask, 2)
-
-        logger.info(f"Scaling auto_threshold by {scale_factor}")
-        auto_threshold *= scale_factor
-        auto_threshold = my_ceil(auto_threshold, 2)
+            logger.info(
+                "Squared channel joining is enabled - scaling auto_mask and auto_threshold by power of 2"
+            )
+            auto_mask = my_ceil(auto_mask**2, 2)
+            auto_threshold = my_ceil(auto_threshold**2, 2)
 
         if disable_pol_local_rms:
             logger.info("Disabling local RMS for polarisation images")
