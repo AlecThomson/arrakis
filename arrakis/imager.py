@@ -47,7 +47,7 @@ from arrakis.utils.msutils import (
 )
 from arrakis.utils.pipeline import (
     logo_str,
-    upload_image_as_artifact,
+    upload_image_as_artifact_task,
     workdir_arg_parser,
 )
 
@@ -115,6 +115,7 @@ def get_mfs_image(
     return MFSImage(image=small_image, model=small_model, residual=small_residual)
 
 
+@task(name="Make Validation Plots")
 def make_validation_plots(prefix: Path, pols: str) -> None:
     """Make validation plots for the images.
 
@@ -145,7 +146,7 @@ def make_validation_plots(prefix: Path, pols: str) -> None:
         fig_name = Path(f"{prefix.name}_abs_stokes_{stokes}.png")
         fig.savefig(fig_name)
         plt.close(fig)
-        uuid = upload_image_as_artifact(
+        uuid = upload_image_as_artifact_task.fn(
             fig_name,
             description=f"abs(Stokes {stokes}) - {prefix.name}",
         )
@@ -469,9 +470,6 @@ def image_beam(
             logger.error(
                 f"RMS of {rms} is too high in image {mfs_image}, try imaging with lower mgain {mgain - 0.1}"
             )
-
-    # Make validation plots
-    make_validation_plots(prefix, pols)
 
     # Get images
     image_lists = {}
@@ -912,6 +910,11 @@ def main(
             no_mf_weighting=no_mf_weighting,
             disable_pol_local_rms=disable_pol_local_rms,
             disable_pol_force_mask_rounds=disable_pol_force_mask_rounds,
+        )
+
+        make_validation_plots.submit(
+            prefix=prefixs[ms],
+            pols=pols,
         )
 
         # Compute the smallest beam that all images can be convolved to.

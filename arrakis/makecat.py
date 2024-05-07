@@ -36,7 +36,11 @@ from arrakis.utils.database import (
     test_db,
     validate_sbid_field_pair,
 )
-from arrakis.utils.pipeline import generic_parser, logo_str, upload_image_as_artifact
+from arrakis.utils.pipeline import (
+    generic_parser,
+    logo_str,
+    upload_image_as_artifact_task,
+)
 from arrakis.utils.plotting import latexify
 from arrakis.utils.typing import ArrayLike, TableLike
 
@@ -573,7 +577,7 @@ def cuts_and_flags(
     )
     figname = Path("leakage_fit.png")
     fig.savefig(figname)
-    uuid = upload_image_as_artifact(image_path=figname, description="Leakage fit")
+    uuid = upload_image_as_artifact_task(image_path=figname, description="Leakage fit")
     logger.info(f"Uploaded leakage fit plot to {uuid}")
     leakage_flag = is_leakage(
         cat["fracpol"].value, cat["beamdist"].to(u.deg).value, fit

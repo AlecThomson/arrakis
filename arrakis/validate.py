@@ -21,7 +21,7 @@ from scipy import interpolate, stats
 
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.makecat import cat_parser
-from arrakis.utils.pipeline import logo_str, upload_image_as_artifact
+from arrakis.utils.pipeline import logo_str, upload_image_as_artifact_task
 from arrakis.utils.typing import T
 
 logger.setLevel(logging.INFO)
@@ -292,7 +292,7 @@ def main(
     )
     rms_bkg_path = outdir / "validation_rms_bkg.png"
     rms_bkg_fig.savefig(rms_bkg_path)
-    rms_bkg_uuid = upload_image_as_artifact(
+    rms_bkg_uuid = upload_image_as_artifact_task(
         rms_bkg_path, description="Noise and background validation maps"
     )
     logger.info(f"Uploaded rms_bkg plot as {rms_bkg_uuid}")
@@ -306,7 +306,7 @@ def main(
     )
     leakage_path = outdir / "validation_leakage.png"
     leakage_fig.savefig(leakage_path)
-    leakage_uuid = upload_image_as_artifact(
+    leakage_uuid = upload_image_as_artifact_task(
         leakage_path, description="Leakage validation maps"
     )
     logger.info(f"Uploaded leakage plot as {leakage_uuid}")
