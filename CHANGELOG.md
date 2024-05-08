@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2024-05-08
+## What's Changed
+* Validate image by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/68
+* Adds and improves validation plots
+* Fixes LINMOS rotation parameters
+
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.3.0...v2.3.1
+
 ## [2.3.0] - 2024-05-07
 ### What's Changed
 
