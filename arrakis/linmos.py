@@ -265,7 +265,9 @@ def linmos(
     )
     with open(log_file, "w") as f:
         for line in output:
-            logger.info(line)
+            # We could log this, but it's a lot of output
+            # We seem to be DDoS'ing the Prefect server
+            # logger.info(line)
             f.write(line)
 
     new_files = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
