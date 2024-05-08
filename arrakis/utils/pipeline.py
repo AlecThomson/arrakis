@@ -56,7 +56,7 @@ logo_str = """
 
 # Stolen from Flint
 @task(name="Upload image as artifact")
-def upload_image_as_artifact(
+def upload_image_as_artifact_task(
     image_path: Path, description: Optional[str] = None
 ) -> UUID:
     """Create and submit a markdown artifact tracked by prefect for an

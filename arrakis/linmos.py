@@ -174,8 +174,11 @@ def genparset(
 
     assert np.allclose(pol_angles, pol_0), "Polarisation angles are not the same!"
 
+    logger.info(f"Using polarisation angle {pol_0} for linmos")
+
     logger.warning("Assuming holography was done at -45 degrees")
     alpha = pol_0 - -45 * u.deg
+    logger.info(f"Using alpha = {alpha}")
 
     image_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.images])}]"
     weight_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.weights])}]"
@@ -205,7 +208,7 @@ linmos.weightstate      = Inherent
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
 linmos.primarybeam.ASKAP_PB.image = {holofile.resolve().as_posix()}
-linmos.primarybeamASKAP_PB.alpha = {alpha.to(u.rad).value}
+linmos.primarybeam.ASKAP_PB.alpha = {alpha.to(u.rad).value}
 linmos.removeleakage    = true
 """
     else:
@@ -257,14 +260,15 @@ def linmos(
         command=linmos_command,
         bind=f"{rootdir}:{rootdir},{holo_folder}:{holo_folder}",
         return_result=True,
+        quiet=False,
+        stream=True,
     )
-
-    outstr = "\n".join(output["message"])
     with open(log_file, "w") as f:
-        f.write(outstr)
-
-    if output["return_code"] != 0:
-        raise Exception(f"LINMOS failed! Check '{log_file}'")
+        for line in output:
+            # We could log this, but it's a lot of output
+            # We seem to be DDoS'ing the Prefect server
+            # logger.info(line)
+            f.write(line)
 
     new_files = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 

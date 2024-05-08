@@ -184,7 +184,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             npix=args.npix,
             map_size=args.map_size,
             snr_cut=args.leakage_snr,
-            bins=args.leakage_bins,
+            bins=args.leakage_bins * 2,
         )
         if not args.skip_validate
         else previous_future

@@ -20,12 +20,20 @@ import numpy as np
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
+from astropy.visualization import (
+    SqrtStretch,
+    ImageNormalize,
+    MinMaxInterval,
+)
 from fitscube import combine_fits
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
+import matplotlib.pyplot as plt
+import matplotlib
 from prefect import flow, get_run_logger, task
 from racs_tools import beamcon_2D
 from spython.main import Client as sclient
+from skimage.transform import resize
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
@@ -37,7 +45,13 @@ from arrakis.utils.msutils import (
     get_pol_axis,
     wsclean,
 )
-from arrakis.utils.pipeline import logo_str, workdir_arg_parser
+from arrakis.utils.pipeline import (
+    logo_str,
+    upload_image_as_artifact_task,
+    workdir_arg_parser,
+)
+
+matplotlib.use("Agg")
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -53,6 +67,91 @@ class ImageSet(Struct):
     """Dictionary of lists of images. The keys are the polarisations and the values are the list of images for that polarisation."""
     aux_lists: Optional[Dict[Tuple[str, str], List[str]]] = None
     """Dictionary of lists of auxillary images. The keys are a tuple of the polarisation and the image type, and the values are the list of images for that polarisation and image type."""
+
+
+class MFSImage(Struct):
+    """Representation of a multi-frequency synthesis image."""
+
+    image: np.ndarray
+    """The image data."""
+    model: np.ndarray
+    """The model data."""
+    residual: np.ndarray
+    """The residual data."""
+
+
+def get_mfs_image(
+    prefix_str: str, pol: str, small_size: Tuple[int, int] = (512, 512)
+) -> MFSImage:
+    """Get the MFS image from the image set.
+
+    Returns:
+        MFSImage: The MFS image.
+    """
+    mfs_image_name = (
+        f"{prefix_str}-MFS-image.fits"
+        if pol == "I"
+        else f"{prefix_str}-MFS-{pol}-image.fits"
+    )
+    mfs_model_name = (
+        f"{prefix_str}-MFS-model.fits"
+        if pol == "I"
+        else f"{prefix_str}-MFS-{pol}-model.fits"
+    )
+    mfs_residual_name = (
+        f"{prefix_str}-MFS-residual.fits"
+        if pol == "I"
+        else f"{prefix_str}-MFS-{pol}-residual.fits"
+    )
+
+    big_image = fits.getdata(mfs_image_name).squeeze()
+    big_model = fits.getdata(mfs_model_name).squeeze()
+    big_residual = fits.getdata(mfs_residual_name).squeeze()
+
+    small_image = resize(big_image, small_size)
+    small_model = resize(big_model, small_size)
+    small_residual = resize(big_residual, small_size)
+
+    return MFSImage(image=small_image, model=small_model, residual=small_residual)
+
+
+@task(name="Make Validation Plots")
+def make_validation_plots(prefix: Path, pols: str) -> None:
+    """Make validation plots for the images.
+
+    Args:
+        prefix (Path): Prefix of the images.
+        pols (str): Polarisation to make the plots for.
+    """
+    prefix_str = prefix.resolve().as_posix()
+    for stokes in pols:
+        mfs_image = get_mfs_image(prefix_str, stokes)
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+        for ax, sub_image, title in zip(axs, mfs_image, ("Image", "Model", "Residual")):
+            sub_image = np.abs(sub_image)
+            if title == "Model":
+                norm = ImageNormalize(
+                    sub_image, interval=MinMaxInterval(), stretch=SqrtStretch()
+                )
+            else:
+                norm = ImageNormalize(mfs_image.image, vmin=0, stretch=SqrtStretch())
+            _ = ax.imshow(sub_image, origin="lower", norm=norm, cmap="cubehelix")
+            ax.set_title(title)
+            ax.get_yaxis().set_visible(False)
+            ax.get_xaxis().set_visible(False)
+        fig.suptitle(f"abs(Stokes {stokes}) - {prefix.name}")
+        # Remove the space between the plots
+        fig.subplots_adjust(wspace=0, hspace=0)
+
+        fig_name = Path(f"{prefix.name}_abs_stokes_{stokes}.png")
+        fig.savefig(fig_name, bbox_inches="tight", dpi=300)
+        plt.close(fig)
+
+        uuid = upload_image_as_artifact_task.fn(
+            fig_name,
+            description=f"abs(Stokes {stokes}) - {prefix.name}",
+        )
+        logger.info(f"Uploaded {fig_name} to {uuid}")
 
 
 def get_wsclean(wsclean: Union[Path, str]) -> Path:
@@ -812,6 +911,12 @@ def main(
             no_mf_weighting=no_mf_weighting,
             disable_pol_local_rms=disable_pol_local_rms,
             disable_pol_force_mask_rounds=disable_pol_force_mask_rounds,
+        )
+
+        make_validation_plots.submit(
+            prefix=prefixs[ms],
+            pols=pols,
+            wait_for=[image_set],
         )
 
         # Compute the smallest beam that all images can be convolved to.
