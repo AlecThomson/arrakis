@@ -144,7 +144,7 @@ def make_validation_plots(prefix: Path, pols: str) -> None:
         fig.subplots_adjust(wspace=0, hspace=0)
 
         fig_name = Path(f"{prefix.name}_abs_stokes_{stokes}.png")
-        fig.savefig(fig_name)
+        fig.savefig(fig_name, bbox_inches="tight", dpi=300)
         plt.close(fig)
 
         uuid = upload_image_as_artifact_task.fn(

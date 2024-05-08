@@ -576,7 +576,7 @@ def cuts_and_flags(
         high_snr_cut=leakage_snr,
     )
     figname = Path("leakage_fit.png")
-    fig.savefig(figname)
+    fig.savefig(figname, bbox_inches="tight", dpi=300)
     uuid = upload_image_as_artifact_task(image_path=figname, description="Leakage fit")
     logger.info(f"Uploaded leakage fit plot to {uuid}")
     leakage_flag = is_leakage(
