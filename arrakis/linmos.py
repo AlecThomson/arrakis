@@ -208,7 +208,7 @@ linmos.weightstate      = Inherent
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
 linmos.primarybeam.ASKAP_PB.image = {holofile.resolve().as_posix()}
-linmos.primarybeamASKAP_PB.alpha = {alpha.to(u.rad).value}
+linmos.primarybeam.ASKAP_PB.alpha = {alpha.to(u.rad).value}
 linmos.removeleakage    = true
 """
     else:
