@@ -174,8 +174,11 @@ def genparset(
 
     assert np.allclose(pol_angles, pol_0), "Polarisation angles are not the same!"
 
+    logger.info(f"Using polarisation angle {pol_0} for linmos")
+
     logger.warning("Assuming holography was done at -45 degrees")
     alpha = pol_0 - -45 * u.deg
+    logger.info(f"Using alpha = {alpha}")
 
     image_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.images])}]"
     weight_string = f"[{','.join([im.resolve().with_suffix('').as_posix() for im in image_paths.weights])}]"
@@ -264,9 +267,6 @@ def linmos(
         for line in output:
             logger.info(line)
             f.write(line)
-
-    if output["return_code"] != 0:
-        raise Exception(f"LINMOS failed! Check '{log_file}'")
 
     new_files = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
