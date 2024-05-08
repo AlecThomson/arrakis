@@ -134,7 +134,7 @@ def make_validation_plots(prefix: Path, pols: str) -> None:
                     sub_image, interval=MinMaxInterval(), stretch=SqrtStretch()
                 )
             else:
-                norm = ImageNormalize(mfs_image.image, vmin=0, stretch=SqrtStretch())
+                norm = ImageNormalize(mfs_image.residual, vmin=0, stretch=SqrtStretch())
             _ = ax.imshow(sub_image, origin="lower", norm=norm, cmap="cubehelix")
             ax.set_title(title)
             ax.get_yaxis().set_visible(False)
