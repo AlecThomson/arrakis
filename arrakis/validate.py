@@ -6,6 +6,7 @@ import argparse
 import logging
 from pathlib import Path
 from typing import NamedTuple as Struct
+from importlib import resources
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -213,7 +214,7 @@ def plot_rms_bkg(
         overlay[1].set_axislabel("$b$", color="tab:blue")
         fig.colorbar(im, ax=ax, label="$\mu$Jy/beam", shrink=0.7, pad=0.15)
         ax.set_title(
-            f"Stokes {stokes} {thing} - med: {np.nanmedian(data * 1e6)} $\mu$Jy/beam",
+            f"Stokes {stokes} {thing} - med: {np.nanmedian(data * 1e6):0.1f}$\pm${np.nanstd(data * 1e6):0.1f} $\mu$Jy/beam\n - min: {np.nanmin(data * 1e6):0.1f} $\mu$Jy/beam",
             pad=50,
         )
 
@@ -267,10 +268,162 @@ def plot_leakage(
         overlay[1].set_axislabel("$b$", color="tab:blue")
         fig.colorbar(im, ax=ax, label="Fraction", shrink=0.7, pad=0.15)
         ax.set_title(
-            f"Stokes {stokes}/I (binned) - absmed: {np.nanmedian(np.abs(data))*100}%",
+            f"Stokes {stokes}/I (binned) - absmed: {np.nanmedian(np.abs(data))*100:0.1f}$\pm${np.nanstd(np.abs(data))*100:0.1f}%",
             pad=50,
         )
 
+    return fig
+
+
+def cross_match(
+    my_tab: Table, other_tab: Table, radius: u.Quantity = 1 * u.arcsec
+) -> Table:
+    my_coords = SkyCoord(ra=my_tab["ra"], dec=my_tab["dec"], unit="deg")
+    other_coords = SkyCoord(ra=other_tab["ra"], dec=other_tab["dec"], unit="deg")
+    idx, d2d, _ = my_coords.match_to_catalog_sky(other_coords)
+    sep_constraint = d2d < radius
+    other_match = other_tab[idx[sep_constraint]]
+    my_match = my_tab[sep_constraint]
+    return my_match, other_match
+
+
+@task(name="rm plot")
+def plot_rm(
+    tab: Table,
+    npix: int = 512,
+    map_size: u.Quantity = 8 * u.deg,
+) -> Figure:
+    good_idx = (
+        (~tab["snr_flag"])
+        & (~tab["leakage_flag"])
+        & (~tab["channel_flag"])
+        & (~tab["stokesI_fit_flag"])
+        & (~tab["local_rm_flag"])
+    )
+
+    good_tab = tab[good_idx]
+
+    nvss_path = resources.files("arrakis.data") / "Taylor2009.fits.zip"
+    nvss_tab = Table.read(nvss_path, format="fits")
+    spass_path = resources.files("arrakis.data") / "Schnitzeler2019.fits.zip"
+    spass_tab = Table.read(spass_path, format="fits")
+
+    rm_gridded = make_gridded_map(good_tab, "rm", npix=npix, map_size=map_size)
+
+    fig, ax_dict = plt.subplot_mosaic(
+        """
+        MNS
+        """,
+        figsize=(16, 4),
+        per_subplot_kw={
+            "M": {"projection": rm_gridded.wcs},
+        },
+    )
+    for label, other_cat, ax in zip(
+        ("NVSS", "SPASS"),
+        (nvss_tab, spass_tab),
+        (ax_dict["N"], ax_dict["S"]),
+    ):
+        ax.set_title(label)
+        racs_match, other_match = cross_match(good_tab, other_cat, radius=60 * u.arcsec)
+        if len(racs_match) == 0:
+            # Hide axes
+            ax.axis("off")
+            ax.text(
+                x=0.5,
+                y=0.5,
+                s=f"No {label} matches",
+                transform=ax.transAxes,
+                ha="center",
+                va="center",
+            )
+            continue
+        _ = ax.errorbar(
+            racs_match["rm"],
+            other_match["rm"],
+            xerr=racs_match["rm_err"] * 5,
+            yerr=other_match["rm_err"] * 5,
+            fmt="o",
+            label="$\pm 5 \sigma$",
+        )
+        abs_max_val = np.nanmax(
+            (np.abs(np.concatenate([racs_match["rm"], other_match["rm"]]))).value
+        )
+        ax.plot(
+            [-abs_max_val, abs_max_val],
+            [-abs_max_val, abs_max_val],
+            color="k",
+            ls="--",
+        )
+        ax.legend()
+
+        ax.set(
+            xlabel=f"RACS  / {u.rad/u.m**2:latex_inline}",
+            ylabel=f"{label} / {u.rad/u.m**2:latex_inline}",
+            aspect="equal",
+        )
+    _ = ax_dict["M"].imshow(
+        rm_gridded.data * np.nan,
+        origin="lower",
+        cmap="coolwarm",
+        vmin=-100,
+        vmax=100,
+    )
+
+    def rm_scaler(rm: np.ndarray) -> np.ndarray:
+        # Scale the RM value by 2
+        return 2 * np.abs(rm)
+
+    pos_idx = good_tab["rm"] > 0
+    neg_idx = good_tab["rm"] < 0
+
+    _ = ax_dict["M"].scatter(
+        good_tab["ra"][pos_idx],
+        good_tab["dec"][pos_idx],
+        edgecolor="tab:red",
+        s=rm_scaler(good_tab["rm"][pos_idx]),
+        facecolor="none",
+        transform=ax_dict["M"].get_transform("world"),
+        linewidths=1,
+    )
+
+    _ = ax_dict["M"].scatter(
+        good_tab["ra"][neg_idx],
+        good_tab["dec"][neg_idx],
+        edgecolor="tab:blue",
+        s=rm_scaler(good_tab["rm"][neg_idx]),
+        facecolor="none",
+        transform=ax_dict["M"].get_transform("world"),
+        linewidths=1,
+    )
+
+    for rm in [-100, -10, +10, 100]:
+        _ = ax_dict["M"].scatter(
+            np.nan,
+            np.nan,
+            edgecolor="tab:blue" if rm < 0 else "tab:red",
+            s=rm_scaler(rm),
+            facecolor="none",
+            transform=ax_dict["M"].get_transform("world"),
+            label=rf"{rm}",
+            linewidths=1,
+        )
+
+    ax_dict["M"].legend()
+
+    ax_dict["M"].set(xlabel="RA", ylabel="Dec")
+    ax_dict["M"].grid()
+    overlay = ax_dict["M"].get_coords_overlay("galactic")
+    overlay.grid(color="tab:blue", ls="dashed", alpha=0.6)
+    overlay[0].tick_params(colors="tab:blue")
+    overlay[1].tick_params(colors="tab:blue")
+    overlay[0].set_axislabel("$l$", color="tab:blue")
+    overlay[1].set_axislabel("$b$", color="tab:blue")
+    ax_dict["M"].set_title("RM bubble", pad=50)
+    fig.suptitle(
+        "rotation measure",
+        y=1.1,
+    )
     return fig
 
 
@@ -310,6 +463,18 @@ def main(
         leakage_path, description="Leakage validation maps"
     )
     logger.info(f"Uploaded leakage plot as {leakage_uuid}")
+
+    rm_fig = plot_rm(
+        tab,
+        npix=npix,
+        map_size=map_size * u.deg,
+    )
+    rm_path = outdir / "validation_rm.png"
+    rm_fig.savefig(rm_path)
+    rm_uuid = upload_image_as_artifact_task(
+        rm_path, description="Rotation measure validation maps"
+    )
+    logger.info(f"Uploaded rm plot as {rm_uuid}")
 
     logger.info("Validation plots complete")
 
