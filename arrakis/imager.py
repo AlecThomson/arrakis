@@ -146,6 +146,7 @@ def make_validation_plots(prefix: Path, pols: str) -> None:
         fig_name = Path(f"{prefix.name}_abs_stokes_{stokes}.png")
         fig.savefig(fig_name)
         plt.close(fig)
+
         uuid = upload_image_as_artifact_task.fn(
             fig_name,
             description=f"abs(Stokes {stokes}) - {prefix.name}",
