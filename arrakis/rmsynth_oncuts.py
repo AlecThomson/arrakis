@@ -555,8 +555,15 @@ def rmsynthoncut1d(
         if np.isnan(spectrum.data).all():
             logger.critical(f"Entire data is NaN for {iname} in {spectrum.filename}")
             myquery = {"Gaussian_ID": cname}
-            badvalues = {"$set": {save_name: {"rmsynth1d": False}}}
-            return pymongo.UpdateOne(myquery, badvalues, upsert=True)
+            badvalues = {
+                "field": save_name,
+                "rmsynth1d": False,
+            }
+            operation = {"$set": {"rm_outputs.$[elem]": badvalues}}
+            filter_condition = [{"elem.field": save_name}]
+            return pymongo.UpdateOne(
+                myquery, operation, upsert=True, array_filters=filter_condition
+            )
 
     prefix = f"{os.path.dirname(stokes_spectra.i.filename)}/{cname}"
 
@@ -690,56 +697,54 @@ def rmsynthoncut1d(
 
     outer_dir = os.path.basename(os.path.dirname(filtered_stokes_spectra.i.filename))
     newvalues = {
-        "$set": {
-            save_name: {
-                "rm1dfiles": {
-                    "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
-                    "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
-                    "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
-                    "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
-                    "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
-                },
-                "rmsynth1d": True,
-                "header": head_dict,
-                "rmsynth_summary": mDict,
-                "spectra": {
-                    "freq": np.array(freq).tolist(),
-                    "I_model": (
-                        stokes_i_fit_result.modStokesI.tolist()
-                        if stokes_i_fit_result.modStokesI is not None
-                        else None
-                    ),
-                    "I_model_params": {
-                        "alpha": (
-                            float(stokes_i_fit_result.alpha)
-                            if stokes_i_fit_result.alpha is not None
-                            else None
-                        ),
-                        "amplitude": (
-                            float(stokes_i_fit_result.amplitude)
-                            if stokes_i_fit_result.amplitude is not None
-                            else None
-                        ),
-                        "x_0": (
-                            float(stokes_i_fit_result.x_0)
-                            if stokes_i_fit_result.x_0 is not None
-                            else None
-                        ),
-                        "model_repr": stokes_i_fit_result.model_repr,
-                    },
-                    "I": filtered_stokes_spectra.i.data.tolist(),
-                    "Q": filtered_stokes_spectra.q.data.tolist(),
-                    "U": filtered_stokes_spectra.u.data.tolist(),
-                    "I_err": filtered_stokes_spectra.i.rms.tolist(),
-                    "Q_err": filtered_stokes_spectra.q.rms.tolist(),
-                    "U_err": filtered_stokes_spectra.u.rms.tolist(),
-                    "I_bkg": filtered_stokes_spectra.i.bkg.tolist(),
-                    "Q_bkg": filtered_stokes_spectra.q.bkg.tolist(),
-                    "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
-                },
-            }
-        }
+        "field": save_name,
+        "rm1dfiles": {
+            "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
+            "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
+            "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
+            "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
+            "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
+        },
+        "rmsynth1d": True,
+        "header": head_dict,
+        "rmsynth_summary": mDict,
+        "spectra": {
+            "freq": np.array(freq).tolist(),
+            "I_model": (
+                stokes_i_fit_result.modStokesI.tolist()
+                if stokes_i_fit_result.modStokesI is not None
+                else None
+            ),
+            "I_model_params": {
+                "alpha": (
+                    float(stokes_i_fit_result.alpha)
+                    if stokes_i_fit_result.alpha is not None
+                    else None
+                ),
+                "amplitude": (
+                    float(stokes_i_fit_result.amplitude)
+                    if stokes_i_fit_result.amplitude is not None
+                    else None
+                ),
+                "x_0": (
+                    float(stokes_i_fit_result.x_0)
+                    if stokes_i_fit_result.x_0 is not None
+                    else None
+                ),
+                "model_repr": stokes_i_fit_result.model_repr,
+            },
+            "I": filtered_stokes_spectra.i.data.tolist(),
+            "Q": filtered_stokes_spectra.q.data.tolist(),
+            "U": filtered_stokes_spectra.u.data.tolist(),
+            "I_err": filtered_stokes_spectra.i.rms.tolist(),
+            "Q_err": filtered_stokes_spectra.q.rms.tolist(),
+            "U_err": filtered_stokes_spectra.u.rms.tolist(),
+            "I_bkg": filtered_stokes_spectra.i.bkg.tolist(),
+            "Q_bkg": filtered_stokes_spectra.q.bkg.tolist(),
+            "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
+        },
     }
+    operation = {"$push": {"rm_outputs": newvalues}}
     return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
