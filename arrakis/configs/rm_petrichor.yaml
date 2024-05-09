@@ -21,7 +21,7 @@ cluster_kwargs:
     worker_extra_args: ["--memory-limit", "128GiB"]
 adapt_kwargs:
     minimum: 108
-    maximum: 512
+    maximum: 108
     wait_count: 20
     target_duration: "5s"
     interval: "10s"
