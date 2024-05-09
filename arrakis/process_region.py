@@ -66,7 +66,6 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             dimension=args.dimension,
             verbose=args.verbose,
             database=args.database,
-            do_validate=args.validate,
             limit=args.limit,
             savePlots=args.save_plots,
             weightType=args.weight_type,

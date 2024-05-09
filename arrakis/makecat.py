@@ -877,23 +877,11 @@ def main(
 
     logger.info("Starting component collection query")
     tick = time.time()
+    save_name = field if sbid is None else f"{field}_{sbid}"
     query = {
         "$and": [
             {"Source_ID": {"$in": all_island_ids}},
-            {
-                (
-                    f"{field}.rmsynth1d"
-                    if sbid is None
-                    else f"{field}_{sbid}.rmsynth1d"
-                ): True
-            },
-            {
-                (
-                    f"{field}.rmclean1d"
-                    if sbid is None
-                    else f"{field}_{sbid}.rmclean1d"
-                ): True
-            },
+            {"rm_outputs_1d.field": save_name, "rm_outputs_1d.rmsynth1d": True},
         ]
     }
 
@@ -902,27 +890,39 @@ def main(
         fields.update({n: 1})
     for n in columns_possum.sourcefinder_columns:
         fields.update({n: 1})
-    fields.update(
-        {
-            (
-                f"{field}.rmsynth_summary"
-                if sbid is None
-                else f"{field}_{sbid}.rmsynth_summary"
-            ): 1
-        }
-    )
-    fields.update(
-        {
-            (
-                f"{field}.rmclean_summary"
-                if sbid is None
-                else f"{field}_{sbid}.rmclean_summary"
-            ): 1
-        }
-    )
-    fields.update({f"{field}.header" if sbid is None else f"{field}_{sbid}.header": 1})
 
-    comps_df = pd.DataFrame(comp_col.find(query, fields))
+    fields.update(
+        {
+            "rmsynth_summary": {
+                "$arrayElemAt": [
+                    "$rm_outputs_1d.rmsynth_summary",
+                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
+                ]
+            }
+        }
+    )
+    fields.update(
+        {
+            "rmclean_summary": {
+                "$arrayElemAt": [
+                    "$rm_outputs_1d.rmclean_summary",
+                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
+                ]
+            }
+        }
+    )
+    fields.update(
+        {
+            "header": {
+                "$arrayElemAt": [
+                    "$rm_outputs_1d.header",
+                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
+                ]
+            }
+        }
+    )
+    pipeline = [{"$match": query}, {"$project": fields}]
+    comps_df = pd.DataFrame(comp_col.aggregate(pipeline))
     comps_df.set_index("Source_ID", inplace=True)
     tock = time.time()
     logger.info(f"Finished component collection query - {tock-tick:.2f}s")
@@ -982,25 +982,15 @@ def main(
         if src == "synth":
             for src_id, comp in comps_df.iterrows():
                 try:
-                    data += [
-                        comp[field if sbid is None else f"{field}_{sbid}"][
-                            "rmclean_summary"
-                        ][col]
-                    ]
+                    data += [comp["rmclean_summary"][col]]
                 except KeyError:
-                    data += [
-                        comp[field if sbid is None else f"{field}_{sbid}"][
-                            "rmsynth_summary"
-                        ][col]
-                    ]
+                    data += [comp["rmsynth_summary"][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             rmtab.add_column(new_col)
 
         if src == "header":
             for src_id, comp in comps_df.iterrows():
-                data += [
-                    comp[field if sbid is None else f"{field}_{sbid}"]["header"][col]
-                ]
+                data += [comp["header"][col]]
             new_col = Column(data=data, name=name, dtype=typ, unit=unit)
             rmtab.add_column(new_col)
 
