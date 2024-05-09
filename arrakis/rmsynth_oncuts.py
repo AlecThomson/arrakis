@@ -29,7 +29,6 @@ from prefect import flow, task
 from radio_beam import Beam
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
-from RMutils.util_misc import create_frac_spectra
 from scipy.stats import norm
 from tqdm.auto import tqdm
 
@@ -153,13 +152,14 @@ def rmsynthoncut3d(
         logger.critical(f"Cubelet {iname} is entirely NaN")
         myquery = {"Source_ID": iname}
         badvalues = {
-            "$set": {
-                save_name: {
-                    "rmsynth3d": False,
-                }
-            }
+            "field": save_name,
+            "rmsynth3d": False,
         }
-        return pymongo.UpdateOne(myquery, badvalues, upsert=True)
+        operation = {"$set": {"rm_outputs_3d.$[elem]": badvalues}}
+        filter_condition = [{"elem.field": save_name}]
+        return pymongo.UpdateOne(
+            myquery, operation, upsert=True, array_filters=filter_condition
+        )
 
     bkgq, rmsq = cubelet_bane(dataQ, header)
     rmsq[rmsq == 0] = np.nan
@@ -211,28 +211,23 @@ def rmsynthoncut3d(
     outer_dir = os.path.basename(os.path.dirname(ifile))
 
     newvalues = {
-        "$set": {
-            save_name: {
-                "rm3dfiles": {
-                    "FDF_real_dirty": os.path.join(
-                        outer_dir, f"{prefix}FDF_real_dirty.fits"
-                    ),
-                    "FDF_im_dirty": os.path.join(
-                        outer_dir, f"{prefix}FDF_im_dirty.fits"
-                    ),
-                    "FDF_tot_dirty": os.path.join(
-                        outer_dir, f"{prefix}FDF_tot_dirty.fits"
-                    ),
-                    "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
-                    "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
-                    "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
-                },
-                "rmsynth3d": True,
-                "header": dict(header),
-            }
-        }
+        "field": save_name,
+        "rm3dfiles": {
+            "FDF_real_dirty": os.path.join(outer_dir, f"{prefix}FDF_real_dirty.fits"),
+            "FDF_im_dirty": os.path.join(outer_dir, f"{prefix}FDF_im_dirty.fits"),
+            "FDF_tot_dirty": os.path.join(outer_dir, f"{prefix}FDF_tot_dirty.fits"),
+            "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
+            "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
+            "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
+        },
+        "rmsynth3d": True,
+        "header": dict(header),
     }
-    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
+    operation = {"$set": {"rm_outputs_3d.$[elem]": newvalues}}
+    filter_condition = [{"elem.field": save_name}]
+    return pymongo.UpdateOne(
+        myquery, newvalues, upsert=True, array_filters=filter_condition
+    )
 
 
 def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
@@ -559,7 +554,7 @@ def rmsynthoncut1d(
                 "field": save_name,
                 "rmsynth1d": False,
             }
-            operation = {"$set": {"rm_outputs.$[elem]": badvalues}}
+            operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
             filter_condition = [{"elem.field": save_name}]
             return pymongo.UpdateOne(
                 myquery, operation, upsert=True, array_filters=filter_condition
@@ -592,7 +587,7 @@ def rmsynthoncut1d(
             "field": save_name,
             "rmsynth1d": False,
         }
-        operation = {"$set": {"rm_outputs.$[elem]": badvalues}}
+        operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
         filter_condition = [{"elem.field": save_name}]
         return pymongo.UpdateOne(
             myquery, badvalues, upsert=True, array_filters=filter_condition
@@ -605,7 +600,7 @@ def rmsynthoncut1d(
             "field": save_name,
             "rmsynth1d": False,
         }
-        operation = {"$set": {"rm_outputs.$[elem]": badvalues}}
+        operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
         filter_condition = [{"elem.field": save_name}]
         return pymongo.UpdateOne(
             myquery, badvalues, upsert=True, array_filters=filter_condition
@@ -758,147 +753,11 @@ def rmsynthoncut1d(
             "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
         },
     }
-    operation = {"$set": {"rm_outputs.$[elem]": newvalues}}
+    operation = {"$set": {"rm_outputs_1d.$[elem]": newvalues}}
     filter_condition = [{"elem.field": save_name}]
     return pymongo.UpdateOne(
         myquery, newvalues, upsert=True, array_filters=filter_condition
     )
-
-
-def rmsynthoncut_i(
-    comp_id: str,
-    outdir: Path,
-    freq: np.ndarray,
-    host: str,
-    field: str,
-    epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
-    nSamples: int = 5,
-    phiMax_radm2: Union[float, None] = None,
-    verbose: bool = False,
-    rm_verbose: bool = False,
-):
-    """RMsynth on Stokes I
-
-    Args:
-        comp_id (str): RACS component ID
-        freq (list): Frequencies in Hz
-        host (str): MongoDB host
-        field (str): RACS field
-        nSamples ([type]): Samples across the RMSF
-        phiMax_radm2 (float): Max FD
-        verbose (bool, optional): Verbose output Defaults to False.
-        rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
-    """
-    logger.setLevel(logging.INFO)
-
-    beams_col, island_col, comp_col = get_db(
-        host=host, epoch=epoch, username=username, password=password
-    )
-
-    # Basic querey
-    myquery = {"Gaussian_ID": comp_id}
-    doc = comp_col.find_one(myquery)
-
-    if doc is None:
-        raise ValueError(f"Component {comp_id} not found")
-
-    iname = doc["Source_ID"]
-    cname = doc["Gaussian_ID"]
-
-    beams = beams_col.find_one({"Source_ID": iname})
-    if beams is None:
-        raise ValueError(f"Beams for {iname} not found")
-
-    ifile = outdir / beams["beams"][field]["i_file"]
-    outdir = ifile.parent
-
-    header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
-
-    prefix = f"{outdir}/validation_{cname}"
-    # Get source peak from Selavy
-    ra = doc["RA"]
-    dec = doc["Dec"]
-    if len(dataI.shape) == 4:
-        # drop Stokes axis
-        wcs = WCS(header).dropaxis(2)
-    else:
-        wcs = WCS(header)
-
-    x, y, z = (
-        np.array(wcs.all_world2pix(ra, dec, np.nanmean(freq), 0)).round().astype(int)
-    )
-
-    mom = np.nansum(dataI, axis=0)
-
-    plt.ion()
-    plt.figure()
-    plt.imshow(mom, origin="lower", cmap="cubehelix_r")
-    plt.scatter(x, y, c="r", marker="x")
-    plt.show()
-    _ = input("Press [enter] to continue")  # wait for input from the user
-    plt.close()  # close the figure to show the next one.
-
-    data = np.nansum(dataI[:, y - 1 : y + 1 + 1, x - 1 : x + 1 + 1], axis=(1, 2))
-
-    bkgi, rmsi = cubelet_bane(dataI, header)
-    rmsi[rmsi == 0] = np.nan
-    rmsi[np.isnan(rmsi)] = np.nanmedian(rmsi)
-    noise = rmsi
-
-    plt.ion()
-    plt.figure()
-    plt.step(freq / 1e9, data)
-
-    imod, qArr, uArr, dqArr, duArr, fitDict = create_frac_spectra(
-        freqArr=freq,
-        IArr=data,
-        QArr=data,
-        UArr=data,
-        dIArr=noise,
-        dQArr=noise,
-        dUArr=noise,
-        polyOrd=3,
-        verbose=True,
-        debug=False,
-    )
-    plt.plot(freq / 1e9, imod)
-    plt.xlabel(r"$\nu$ [GHz]")
-    plt.ylabel(r"$I$ [Jy/beam]")
-    plt.tight_layout()
-    plt.show()
-    _ = input("Press [enter] to continue")  # wait for input from the user
-    plt.close()  # close the figure to show the next one.
-
-    data = data - imod
-    data = data - np.nanmean(data)
-    plt.ion()
-    plt.figure()
-    plt.step(freq / 1e9, data)
-    plt.xlabel(r"$\nu$ [GHz]")
-    plt.ylabel(r"$I-\mathrm{model}(I)-\mathrm{mean}(\mathrm{model}(I))$")
-    plt.tight_layout()
-    plt.show()
-    _ = input("Press [enter] to continue")  # wait for input from the user
-    plt.close()  # close the figure to show the next one.
-
-    datalist = [freq, data, data, dqArr, duArr]
-
-    phi_max = phiMax_radm2
-    mDict, aDict = do_RMsynth_1D.run_rmsynth(
-        datalist, phiMax_radm2=phi_max, nSamples=nSamples, verbose=True
-    )
-    plt.ion()
-    plt.figure()
-    plt.plot(aDict["phiArr_radm2"], abs(aDict["dirtyFDF"]))
-    plt.xlabel(r"$\phi$ [rad m$^{-2}$]")
-    plt.ylabel(r"Dirty FDF (Stokes I)")
-    plt.tight_layout()
-    plt.show()
-    _ = input("Press [enter] to continue")  # wait for input from the user
-    plt.close()  # close the figure to show the next one.
-    do_RMsynth_1D.saveOutput(mDict, aDict, prefix, verbose=verbose)
 
 
 @flow(name="RMsynth on cutouts")
@@ -913,7 +772,6 @@ def main(
     dimension: str = "1d",
     verbose: bool = True,
     database: bool = False,
-    do_validate: bool = False,
     limit: Union[int, None] = None,
     savePlots: bool = False,
     weightType: str = "variance",
@@ -1025,26 +883,21 @@ def main(
     n_comp = comp_col.count_documents(isl_query)
     n_island = island_col.count_documents(isl_query)
 
-    # save_name = field if sbid is None else f"{field}_{sbid}"
+    save_name = field if sbid is None else f"{field}_{sbid}"
     # Unset rmsynth in db
     if dimension == "1d":
         logger.info(f"Unsetting rmsynth1d for {n_comp} components")
         query_1d = {"Source_ID": {"$in": island_ids}}
         update_1d = {
-            "$set": {
-                (
-                    f"{field}.rmsynth1d"
-                    if sbid is None
-                    else f"{field}_{sbid}.rmsynth1d"
-                ): False
-            }
+            "field": save_name,
+            "rmsynth1d": False,
         }
-        logger.info(pformat(update_1d))
+        operation_1d = {"$set": {"rm_outputs_1d.$[elem]": update_1d}}
+        filter_condition = [{"elem.field": save_name}]
+        logger.info(pformat(operation_1d))
 
         result = comp_col.update_many(
-            query_1d,
-            update_1d,
-            upsert=True,
+            query_1d, operation_1d, upsert=True, array_filters=filter_condition
         )
         logger.info(pformat(result.raw_result))
 
@@ -1052,19 +905,17 @@ def main(
         logger.info(f"Unsetting rmsynth3d for {n_island} islands")
         query_3d = {"Source_ID": {"$in": island_ids}}
         update_3d = {
-            "$set": {
-                (
-                    f"{field}.rmsynth3d"
-                    if sbid is None
-                    else f"{field}_{sbid}.rmsynth3d"
-                ): False
-            }
+            "field": save_name,
+            "rmsynth3d": False,
         }
-        logger.info(pformat(update_3d))
+        operation_3d = {"$set": {"rm_outputs_1d.$[elem]": update_3d}}
+        filter_condition = [{"elem.field": save_name}]
+        logger.info(pformat(operation_3d))
         result = island_col.update(
             query_3d,
-            update_3d,
+            operation_3d,
             upsert=True,
+            array_filters=filter_condition,
         )
 
         logger.info(pformat(result.raw_result))
@@ -1084,26 +935,7 @@ def main(
     )
     freq = np.array(freq)
 
-    if do_validate:
-        logger.info(f"Running RMsynth on {n_comp} components")
-        # We don't run this in parallel!
-        for i, comp_id in enumerate(component_ids):
-            _ = rmsynthoncut_i(
-                comp_id=comp_id,
-                outdir=outdir,
-                freq=freq,
-                host=host,
-                epoch=epoch,
-                field=field,
-                username=username,
-                password=password,
-                nSamples=nSamples,
-                phiMax_radm2=phiMax_radm2,
-                verbose=verbose,
-                rm_verbose=rm_verbose,
-            )
-
-    elif dimension == "1d":
+    if dimension == "1d":
         logger.info(f"Running RMsynth on {n_comp} components")
         outputs = []
         for comp_tuple, beam_tuple in tqdm(
@@ -1237,13 +1069,6 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         type=str,
         help="TT1 MFS image -- will be used for model of Stokes I -- also needs --tt0.",
     )
-
-    parser.add_argument(
-        "--validate",
-        dest="validate",
-        action="store_true",
-        help="Run on Stokes I.",
-    )
     parser.add_argument(
         "--own_fit",
         dest="do_own_fit",
@@ -1362,7 +1187,6 @@ def cli():
         dimension=args.dimension,
         verbose=verbose,
         database=args.database,
-        do_validate=args.validate,
         limit=args.limit,
         savePlots=args.save_plots,
         weightType=args.weight_type,
