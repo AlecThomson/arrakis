@@ -167,7 +167,11 @@ def rmclean3d(
 
     iname = island["Source_ID"]
     prefix = f"{iname}_"
-    rm3dfiles = island["rm3dfiles"]
+    rm3dfiles = island["rm_outputs_3d"]["rm3dfiles"]
+    save_name = field if sbid is None else f"{field}_{sbid}"
+    assert (
+        island["rm_outputs_3d"]["field"] == save_name
+    ), f"Field mismatch - expected {save_name} got {island['rm_outputs_3d']['field']}"
 
     cleanFDF, ccArr, iterCountArr, residFDF, headtemp = do_RMclean_3D.run_rmclean(
         fitsFDF=(outdir / rm3dfiles["FDF_real_dirty"]).as_posix(),
@@ -193,11 +197,12 @@ def rmclean3d(
         verbose=rm_verbose,
     )
     # Load into Mongo
-    save_name = field if sbid is None else f"{field}_{sbid}"
-    to_update = island[save_name]
-    to_update["rmclean3d"] = True
-    myquery = {"Source_ID": iname}
-    newvalues = {"$set": {save_name: to_update}}
+    myquery = {"Source_ID": iname, "rm_outputs_3d.field": save_name}
+    to_update = {
+        "rm_outputs_3d.$.rmclean3d": True,
+    }
+    newvalues = {"$set": to_update}
+
     return pymongo.UpdateOne(myquery, newvalues)
 
 
@@ -273,32 +278,34 @@ def main(
         query = {
             "$and": [
                 {"Source_ID": {"$in": all_island_ids}},
-                {"rm_outputs_3d": [{"field": save_name, "rmsynth3d": True}]},
+                {"rm_outputs_3d.field": save_name, "rm_outputs_3d.rmsynth3d": True},
             ]
         }
-
-        islands = list(
-            island_col.find(
-                query,
-                # Only get required values
-                {
-                    "Source_ID": 1,
-                    f"{field}" if sbid is None else f"{field}_{sbid}": 1,
-                },
-            ).sort("Source_ID")
-        )
-        n_island = island_col.count_documents(query)
-        result = island_col.update(
-            query,
+        # exit()
+        pipeline = [
+            {"$match": query},
             {
-                "$set": {
-                    (
-                        f"{field}.rmclean3d"
-                        if sbid is None
-                        else f"{field}_{sbid}.rmclean3d"
-                    ): False
+                "$project": {
+                    "Source_ID": 1,
+                    "Gaussian_ID": 1,
+                    "rm_outputs_3d": {
+                        "$arrayElemAt": [
+                            "$rm_outputs_3d",
+                            {"$indexOfArray": ["$rm_outputs_3d.field", save_name]},
+                        ]
+                    },
                 }
             },
+        ]
+        islands = list(island_col.aggregate(pipeline))
+        n_comp = island_col.count_documents(query)
+        update_3d = {"rm_outputs_3d.$.rmclean3d": False}
+        operation_3d = {"$set": update_3d}
+        logger.info(pformat(operation_3d))
+
+        result = island_col.update_many(
+            query,
+            operation_3d,
         )
         logger.info(pformat(result.raw_result))
         if limit is not None:
