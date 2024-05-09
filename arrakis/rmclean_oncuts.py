@@ -8,8 +8,11 @@ import warnings
 from pathlib import Path
 from pprint import pformat
 from typing import Optional
+from shutil import copyfile
 
 import numpy as np
+from matplotlib import pyplot as plt
+import matplotlib
 import pymongo
 from prefect import flow, task
 from RMtools_1D import do_RMclean_1D
@@ -24,8 +27,9 @@ from arrakis.utils.database import (
     test_db,
     validate_sbid_field_pair,
 )
-from arrakis.utils.pipeline import generic_parser, logo_str
+from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
+matplotlib.use("Agg")
 logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -39,7 +43,6 @@ def rmclean1d(
     maxIter=10000,
     gain=0.1,
     sbid: Optional[int] = None,
-    showPlots=False,
     savePlots=False,
     rm_verbose=True,
     window=None,
@@ -53,7 +56,6 @@ def rmclean1d(
         cutoff (float, optional): CLEAN cutouff (in sigma). Defaults to -3.
         maxIter (int, optional): Maximum CLEAN interation. Defaults to 10000.
         gain (float, optional): CLEAN gain. Defaults to 0.1.
-        showPlots (bool, optional): Show CLEAN plots. Defaults to False.
         savePlots (bool, optional): Save CLEAN plots. Defaults to False.
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to True.
 
@@ -64,7 +66,11 @@ def rmclean1d(
     logger.debug(f"Working on {comp}")
     save_name = field if sbid is None else f"{field}_{sbid}"
 
-    rm1dfiles = comp[save_name]["rm1dfiles"]
+    assert (
+        comp["rm_outputs_1d"]["field"] == save_name
+    ), f"Field mismatch - expected {save_name} got {comp['rm_outputs_1d']['field']}"
+
+    rm1dfiles = comp["rm_outputs_1d"]["rm1dfiles"]
     fdfFile = outdir / f"{rm1dfiles['FDF_dirty']}"
     rmsfFile = outdir / f"{rm1dfiles['RMSF']}"
     weightFile = outdir / f"{rm1dfiles['weights']}"
@@ -113,21 +119,24 @@ def rmclean1d(
 
     # Save output
     do_RMclean_1D.saveOutput(outdict, arrdict, prefixOut=prefix, verbose=rm_verbose)
-    # if savePlots:
-    #     plt.close("all")
-    #     plotdir = outdir / "plots"
-    #     plot_files = list(fdfFile.parent.glob("*.pdf"))
-    #     for plot_file in plot_files:
-    #         copyfile(plot_file, plotdir / plot_file.name)
+    if savePlots:
+        plt.close("all")
+        plotdir = outdir / "plots"
+        plot_files = list(fdfFile.parent.glob("*.pdf"))
+        for plot_file in plot_files:
+            copyfile(plot_file, plotdir / plot_file.name)
 
     # Load into Mongo
-    myquery = {"Gaussian_ID": cname}
+    myquery = {
+        "Gaussian_ID": cname,
+        "rm_outputs_1d.field": save_name,
+    }
 
-    to_update = comp[save_name]
-    to_update["rmclean1d"] = True
-    to_update["rmclean_summary"] = outdict
-
-    newvalues = {"$set": {save_name: to_update}}
+    to_update = {
+        "rm_outputs_1d.$.rmclean1d": True,
+        "rm_outputs_1d.$.rmclean_summary": outdict,
+    }
+    newvalues = {"$set": to_update}
     return pymongo.UpdateOne(myquery, newvalues)
 
 
@@ -209,7 +218,6 @@ def main(
     maxIter=10000,
     gain=0.1,
     window=None,
-    showPlots=False,
     rm_verbose=False,
 ):
     """Run RM-CLEAN on cutouts flow
@@ -229,7 +237,6 @@ def main(
         cutoff (float, optional): CLEAN cutoff (in sigma). Defaults to -3.
         maxIter (int, optional): Max CLEAN iterations. Defaults to 10000.
         gain (float, optional): Clean gain. Defaults to 0.1.
-        showPlots (bool, optional): Show interactive plots. Defaults to False.
         rm_verbose (bool, optional): Verbose output from RM-CLEAN. Defaults to False.
     """
     outdir = outdir.absolute() / "cutouts"
@@ -261,17 +268,12 @@ def main(
 
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
 
+    save_name = field if sbid is None else f"{field}_{sbid}"
     if dimension == "3d":
         query = {
             "$and": [
                 {"Source_ID": {"$in": all_island_ids}},
-                {
-                    (
-                        f"{field}.rmsynth3d"
-                        if sbid is None
-                        else f"{field}_{sbid}.rmsynth3d"
-                    ): True
-                },
+                {"rm_outputs_3d": [{"field": save_name, "rmsynth3d": True}]},
             ]
         }
 
@@ -299,53 +301,50 @@ def main(
             },
         )
         logger.info(pformat(result.raw_result))
+        if limit is not None:
+            count = limit
+            n_island = count
+            islands = islands[:count]
 
     elif dimension == "1d":
         query = {
             "$and": [
                 {"Source_ID": {"$in": all_island_ids}},
-                {
-                    (
-                        f"{field}.rmsynth1d"
-                        if sbid is None
-                        else f"{field}_{sbid}.rmsynth1d"
-                    ): True
-                },
+                {"rm_outputs_1d.field": save_name, "rm_outputs_1d.rmsynth1d": True},
             ]
         }
-
-        components = list(
-            comp_col.find(
-                query,
-                # Only get required values
-                {
+        # exit()
+        pipeline = [
+            {"$match": query},
+            {
+                "$project": {
                     "Source_ID": 1,
                     "Gaussian_ID": 1,
-                    f"{field}" if sbid is None else f"{field}_{sbid}": 1,
-                },
-            ).sort("Source_ID")
-        )
-        n_comp = comp_col.count_documents(query)
-        result = comp_col.update_many(
-            query,
-            {
-                "$set": {
-                    (
-                        f"{field}.rmclean1d"
-                        if sbid is None
-                        else f"{field}_{sbid}.rmclean1d"
-                    ): True
+                    "rm_outputs_1d": {
+                        "$arrayElemAt": [
+                            "$rm_outputs_1d",
+                            {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
+                        ]
+                    },
                 }
             },
+        ]
+        components = list(comp_col.aggregate(pipeline))
+        n_comp = comp_col.count_documents(query)
+        update_1d = {"rm_outputs_1d.$.rmclean1d": False}
+        operation_1d = {"$set": update_1d}
+        logger.info(pformat(operation_1d))
+
+        result = comp_col.update_many(
+            query,
+            operation_1d,
         )
         logger.info(pformat(result.raw_result))
 
-    if limit is not None:
-        count = limit
-        n_comp = count
-        n_island = count
-        components = components[:count]
-        islands = islands[:count]
+        if limit is not None:
+            count = limit
+            n_comp = count
+            components = components[:count]
 
     if dimension == "1d":
         outputs = []
@@ -359,7 +358,6 @@ def main(
                 cutoff=cutoff,
                 maxIter=maxIter,
                 gain=gain,
-                showPlots=showPlots,
                 savePlots=savePlots,
                 rm_verbose=rm_verbose,
                 window=window,
@@ -451,11 +449,12 @@ def cli():
     warnings.simplefilter("ignore", category=VerifyWarning)
 
     gen_parser = generic_parser(parent_parser=True)
+    work_parser = workdir_arg_parser(parent_parser=True)
     common_parser = rmsynth_oncuts.rm_common_parser(parent_parser=True)
     rmclean_parser = clean_parser(parent_parser=True)
 
     parser = argparse.ArgumentParser(
-        parents=[gen_parser, common_parser, rmclean_parser],
+        parents=[gen_parser, work_parser, common_parser, rmclean_parser],
         formatter_class=UltimateHelpFormatter,
         description=rmclean_parser.description,
     )
@@ -477,6 +476,7 @@ def cli():
         )
     main(
         field=args.field,
+        sbid=args.sbid,
         outdir=Path(args.datadir),
         host=host,
         epoch=args.epoch,
@@ -490,7 +490,6 @@ def cli():
         maxIter=args.max_iter,
         gain=args.gain,
         window=args.window,
-        showPlots=args.show_plots,
         rm_verbose=args.rm_verbose,
     )
 
