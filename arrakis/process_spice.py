@@ -155,7 +155,6 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             maxIter=args.max_iter,
             gain=args.gain,
             window=args.window,
-            showPlots=args.show_plots,
             rm_verbose=args.rm_verbose,
         )
         if not args.skip_rmclean
