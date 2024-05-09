@@ -960,7 +960,7 @@ def main(
             clean = cleanup.submit(
                 purge=purge,
                 image_sets=[sm_image_set],
-                wait_for=cube_images,
+                wait_for=[cube_images],
             )
             clean_sm_image_sets.append(clean)
 
