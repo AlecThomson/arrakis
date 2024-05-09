@@ -226,7 +226,7 @@ def rmsynthoncut3d(
     operation = {"$set": {"rm_outputs_3d.$[elem]": newvalues}}
     filter_condition = [{"elem.field": save_name}]
     return pymongo.UpdateOne(
-        myquery, newvalues, upsert=True, array_filters=filter_condition
+        myquery, operation, upsert=True, array_filters=filter_condition
     )
 
 
@@ -756,7 +756,7 @@ def rmsynthoncut1d(
     operation = {"$set": {"rm_outputs_1d.$[elem]": newvalues}}
     filter_condition = [{"elem.field": save_name}]
     return pymongo.UpdateOne(
-        myquery, newvalues, upsert=True, array_filters=filter_condition
+        myquery, operation, upsert=True, array_filters=filter_condition
     )
 
 
@@ -887,7 +887,21 @@ def main(
     # Unset rmsynth in db
     if dimension == "1d":
         logger.info(f"Unsetting rmsynth1d for {n_comp} components")
-        query_1d = {"Source_ID": {"$in": island_ids}}
+        # exit()
+        query_1d = {
+            "$and": [
+                {"Source_ID": {"$in": island_ids}},
+                {"rm_outputs_1d": {"$exists": True}},
+            ]
+        }
+        test_count = comp_col.count_documents(query_1d)
+        if test_count == 0:
+            # Initialize the field
+            comp_col.update_many(
+                {"Source_ID": {"$in": island_ids}},
+                {"$set": {"rm_outputs_1d": [{"field": save_name, "rmsynth1d": False}]}},
+            )
+
         update_1d = {
             "field": save_name,
             "rmsynth1d": False,
@@ -903,12 +917,23 @@ def main(
 
     elif dimension == "3d":
         logger.info(f"Unsetting rmsynth3d for {n_island} islands")
-        query_3d = {"Source_ID": {"$in": island_ids}}
+        query_3d = {
+            "$and": [
+                {"Source_ID": {"$in": island_ids}},
+                {"rm_outputs_3d": {"$exists": True}},
+            ]
+        }
+        if test_count == 0:
+            # Initialize the field
+            comp_col.update_many(
+                {"Source_ID": {"$in": island_ids}},
+                {"$set": {"rm_outputs_3d": [{"field": save_name, "rmsynth3d": False}]}},
+            )
         update_3d = {
             "field": save_name,
             "rmsynth3d": False,
         }
-        operation_3d = {"$set": {"rm_outputs_1d.$[elem]": update_3d}}
+        operation_3d = {"$set": {"rm_outputs_3d.$[elem]": update_3d}}
         filter_condition = [{"elem.field": save_name}]
         logger.info(pformat(operation_3d))
         result = island_col.update(
