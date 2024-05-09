@@ -588,14 +588,28 @@ def rmsynthoncut1d(
     ):
         logger.critical(f"{cname} QU data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
-        badvalues = {"$set": {save_name: {"rmsynth1d": False}}}
-        return pymongo.UpdateOne(myquery, badvalues, upsert=True)
+        badvalues = {
+            "field": save_name,
+            "rmsynth1d": False,
+        }
+        operation = {"$set": {"rm_outputs.$[elem]": badvalues}}
+        filter_condition = [{"elem.field": save_name}]
+        return pymongo.UpdateOne(
+            myquery, badvalues, upsert=True, array_filters=filter_condition
+        )
     # And I
     if np.isnan(filtered_stokes_spectra.i.data).all():
         logger.critical(f"{cname} I data is all NaNs.")
         myquery = {"Gaussian_ID": cname}
-        badvalues = {"$set": {save_name: {"rmsynth1d": False}}}
-        return pymongo.UpdateOne(myquery, badvalues, upsert=True)
+        badvalues = {
+            "field": save_name,
+            "rmsynth1d": False,
+        }
+        operation = {"$set": {"rm_outputs.$[elem]": badvalues}}
+        filter_condition = [{"elem.field": save_name}]
+        return pymongo.UpdateOne(
+            myquery, badvalues, upsert=True, array_filters=filter_condition
+        )
 
     data = [np.array(freq)]
     bkg_data = [np.array(freq)]
@@ -744,8 +758,11 @@ def rmsynthoncut1d(
             "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
         },
     }
-    operation = {"$push": {"rm_outputs": newvalues}}
-    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
+    operation = {"$set": {"rm_outputs.$[elem]": newvalues}}
+    filter_condition = [{"elem.field": save_name}]
+    return pymongo.UpdateOne(
+        myquery, newvalues, upsert=True, array_filters=filter_condition
+    )
 
 
 def rmsynthoncut_i(
@@ -1008,6 +1025,7 @@ def main(
     n_comp = comp_col.count_documents(isl_query)
     n_island = island_col.count_documents(isl_query)
 
+    # save_name = field if sbid is None else f"{field}_{sbid}"
     # Unset rmsynth in db
     if dimension == "1d":
         logger.info(f"Unsetting rmsynth1d for {n_comp} components")
