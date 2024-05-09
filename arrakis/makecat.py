@@ -891,9 +891,6 @@ def main(
     for n in columns_possum.sourcefinder_columns:
         fields.update({n: 1})
 
-    # fields.update({"rm_outputs_1d.rmclean_summary": 1})
-    # fields.update({"rm_outputs_1d.header": 1})
-
     fields.update(
         {
             "rmsynth_summary": {
