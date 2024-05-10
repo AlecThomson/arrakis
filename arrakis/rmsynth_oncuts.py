@@ -890,7 +890,7 @@ def main(
         # exit()
         query_1d = {
             "$and": [
-                {"Source_ID": {"$in": island_ids}},
+                {"Gaussian_ID": {"$in": component_ids}},
                 {"rm_outputs_1d": {"$exists": True}},
             ]
         }
@@ -898,7 +898,7 @@ def main(
         if test_count == 0:
             # Initialize the field
             comp_col.update_many(
-                {"Source_ID": {"$in": island_ids}},
+                {"Gaussian_ID": {"$in": component_ids}},
                 {"$set": {"rm_outputs_1d": [{"field": save_name, "rmsynth1d": False}]}},
             )
 
