@@ -302,6 +302,42 @@ def get_yanda(version="1.3.0") -> str:
     return image
 
 
+# We reduce the inner loop to a serial call
+# This is to avoid overwhelming the Prefect server
+@task(name="LINMOS loop")
+def serial_loop(
+    field: str,
+    beams_row: Tuple[int, pd.Series],
+    stokeslist: List[str],
+    cutdir: Path,
+    holofile: Path,
+    image: Path,
+) -> List[Optional[pymongo.UpdateOne]]:
+    results = []
+    for stoke in stokeslist:
+        image_path = find_images.fn(
+            field=field,
+            beams_row=beams_row,
+            stoke=stoke.capitalize(),
+            datadir=cutdir,
+        )
+        parset = genparset.fn(
+            image_paths=image_path,
+            stoke=stoke.capitalize(),
+            datadir=cutdir,
+            holofile=holofile,
+        )
+        result = linmos.fn(
+            parset=parset,
+            fieldname=field,
+            image=str(image),
+            holofile=holofile,
+        )
+        results.append(result)
+
+    return results
+
+
 @flow(name="LINMOS")
 def main(
     field: str,
@@ -370,28 +406,19 @@ def main(
         desc="Submitting tasks for LINMOS",
         file=TQDM_OUT,
     ):
-        for stoke in stokeslist:
-            image_path = find_images.submit(
-                field=field,
-                beams_row=beams_row,
-                stoke=stoke.capitalize(),
-                datadir=cutdir,
-            )
-            parset = genparset.submit(
-                image_paths=image_path,
-                stoke=stoke.capitalize(),
-                datadir=cutdir,
-                holofile=holofile,
-            )
-            result = linmos.submit(
-                parset=parset,
-                fieldname=field,
-                image=str(image),
-                holofile=holofile,
-            )
-            results.append(result)
+        sub_results = serial_loop.submit(
+            field=field,
+            beams_row=beams_row,
+            stokeslist=stokeslist,
+            cutdir=cutdir,
+            holofile=holofile,
+            image=image,
+        )
+        results.append(sub_results)
 
-    updates = [f.result() for f in results]
+    updates_lists: List[list] = [f.result() for f in results]
+    # Flatten
+    updates = [u for ul in updates_lists for u in ul]
     updates = [u for u in updates if u is not None]
     logger.info("Updating database...")
     db_res = beams_col.bulk_write(updates, ordered=False)
