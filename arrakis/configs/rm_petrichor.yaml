@@ -20,8 +20,8 @@ cluster_kwargs:
     silence_logs: 'info'
     worker_extra_args: ["--memory-limit", "128GiB"]
 adapt_kwargs:
-    minimum: 108
-    maximum: 108
+    minimum: 1
+    maximum: 512
     wait_count: 20
     target_duration: "5s"
     interval: "10s"
