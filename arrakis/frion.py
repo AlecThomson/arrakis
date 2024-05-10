@@ -39,6 +39,11 @@ class Prediction(Struct):
     update: pymongo.UpdateOne
 
 
+class FrionResults(Struct):
+    prediction: Prediction
+    correction: pymongo.UpdateOne
+
+
 @task(name="FRion correction")
 def correct_worker(
     beam: Dict, outdir: str, field: str, prediction: Prediction, island: dict
@@ -179,6 +184,50 @@ def index_beams(island: dict, beams: List[dict]) -> dict:
     return beam
 
 
+# We reduce the inner loop to a serial call
+# This is to avoid overwhelming the Prefect server
+@task(name="FRion loop")
+def serial_loop(
+    island: dict,
+    field: str,
+    beam: dict,
+    start_time: Time,
+    end_time: Time,
+    freq_hz_array: np.ndarray,
+    cutdir: Path,
+    plotdir: Path,
+    ionex_server: str,
+    ionex_prefix: str,
+    ionex_proxy_server: Optional[str],
+    ionex_formatter: Optional[Union[str, Callable]],
+    ionex_predownload: bool,
+) -> FrionResults:
+    prediction = predict_worker.fn(
+        island=island,
+        field=field,
+        beam=beam,
+        start_time=start_time,
+        end_time=end_time,
+        freq=freq_hz_array,
+        cutdir=cutdir,
+        plotdir=plotdir,
+        server=ionex_server,
+        prefix=ionex_prefix,
+        proxy_server=ionex_proxy_server,
+        formatter=ionex_formatter,
+        pre_download=ionex_predownload,
+    )
+    correction = correct_worker.fn(
+        beam=beam,
+        outdir=cutdir,
+        field=field,
+        prediction=prediction,
+        island=island,
+    )
+
+    return FrionResults(prediction=prediction, correction=correction)
+
+
 @flow(name="FRion")
 def main(
     field: str,
@@ -312,8 +361,7 @@ def main(
         pre_download=ionex_predownload,
     )
 
-    predictions = []
-    corrections = []
+    frion_results = []
     assert len(islands) == len(beams_cor), "Islands and beams must be the same length"
     for island, beam in tqdm(
         zip(islands, beams_cor),
@@ -321,33 +369,31 @@ def main(
         file=TQDM_OUT,
         total=len(islands),
     ):
-        prediction = predict_worker.submit(
+        frion_result = serial_loop.submit(
             island=island,
             field=field,
             beam=beam,
             start_time=start_time,
             end_time=end_time,
-            freq=freq.to(u.Hz).value,
+            freq_hz_array=freq.to(u.Hz).value,
             cutdir=cutdir,
             plotdir=plotdir,
-            server=ionex_server,
-            prefix=ionex_prefix,
-            proxy_server=ionex_proxy_server,
-            formatter=ionex_formatter,
-            pre_download=ionex_predownload,
+            ionex_server=ionex_server,
+            ionex_prefix=ionex_prefix,
+            ionex_proxy_server=ionex_proxy_server,
+            ionex_formatter=ionex_formatter,
+            ionex_predownload=ionex_predownload,
         )
-        predictions.append(prediction)
-        correction = correct_worker.submit(
-            beam=beam,
-            outdir=cutdir,
-            field=field,
-            prediction=prediction,
-            island=island,
-        )
-        corrections.append(correction)
+        frion_results.append(frion_result)
 
-    updates_arrays = [p.result().update for p in predictions]
-    updates = [c.result() for c in corrections]
+    predictions = []
+    corrections = []
+    for result in frion_results:
+        predictions.append(result.result().prediction)
+        corrections.append(result.result().correction)
+
+    updates_arrays = [p.update for p in predictions]
+    updates = corrections
     if database:
         logger.info("Updating beams database...")
         db_res = beams_col.bulk_write(updates, ordered=False)
