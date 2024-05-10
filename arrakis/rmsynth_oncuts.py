@@ -895,12 +895,16 @@ def main(
             ]
         }
         test_count = comp_col.count_documents(query_1d)
-        if test_count == 0:
+        if test_count < n_comp:
             # Initialize the field
-            comp_col.update_many(
-                {"Gaussian_ID": {"$in": component_ids}},
+            result = comp_col.update_many(
+                {
+                    "Gaussian_ID": {"$in": component_ids},
+                    "rm_outputs_1d": {"$exists": False},
+                },
                 {"$set": {"rm_outputs_1d": [{"field": save_name, "rmsynth1d": False}]}},
             )
+            logger.info(pformat(result.raw_result))
 
         update_1d = {
             "field": save_name,
