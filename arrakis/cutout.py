@@ -148,19 +148,25 @@ def cutout_image(
 
     padder: float = cube.header["BMAJ"] * u.deg * pad
 
-    xlo = Longitude(cutout_args.ra_low * u.deg) - Longitude(padder)
-    xhi = Longitude(cutout_args.ra_high * u.deg) + Longitude(padder)
-    ylo = Latitude(cutout_args.dec_low * u.deg) - Latitude(padder)
-    yhi = Latitude(cutout_args.dec_high * u.deg) + Latitude(padder)
+    top_right = SkyCoord(cutout_args.ra_low * u.deg, cutout_args.dec_high * u.deg)
+    bottom_left = SkyCoord(cutout_args.ra_high * u.deg, cutout_args.dec_low * u.deg)
 
-    xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
-    xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
+    top_right_off = top_right.spherical_offsets_by(d_lon=padder, d_lat=padder)
+    bottom_left_off = bottom_left.spherical_offsets_by(d_lon=-padder, d_lat=-padder)
+    # Only need the critical corners - but just in case:
+    # top_left = SkyCoord(cutout_args.ra_high * u.deg, cutout_args.dec_high * u.deg)
+    # bottom_right = SkyCoord(cutout_args.ra_low, cutout_args.dec_low * u.deg)
+    # top_left_off = top_left.spherical_offsets_by(d_lon=-padder, d_lat=padder)
+    # bottom_right_off = bottom_right.spherical_offsets_by(d_lon=padder, d_lat=-padder)
+
+    x_left, y_bottom = skycoord_to_pixel(bottom_left_off, cube.wcs)
+    x_right, y_top = skycoord_to_pixel(top_right_off, cube.wcs)
 
     # Round for cutout
-    yp_lo_idx = int(np.floor(yp_lo))
-    yp_hi_idx = int(np.ceil(yp_hi))
-    xp_lo_idx = int(np.floor(xp_hi))
-    xp_hi_idx = int(np.ceil(xp_lo))
+    yp_lo_idx = int(np.floor(y_bottom))
+    yp_hi_idx = int(np.ceil(y_top))
+    xp_lo_idx = int(np.floor(x_right))
+    xp_hi_idx = int(np.ceil(x_left))
 
     # Use subcube for header transformation
     cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
@@ -237,32 +243,75 @@ def get_args(
         ra_max = np.max(coords.ra)
         ra_i_max = np.argmax(coords.ra)
         ra_off = Longitude(majs[ra_i_max])
-        ra_high = ra_max + ra_off
 
         ra_min = np.min(coords.ra)
         ra_i_min = np.argmin(coords.ra)
         ra_off = Longitude(majs[ra_i_min])
-        ra_low = ra_min - ra_off
 
         dec_max = np.max(coords.dec)
         dec_i_max = np.argmax(coords.dec)
-        dec_off = Longitude(majs[dec_i_max])
-        dec_high = dec_max + dec_off
+        dec_off = Latitude(majs[dec_i_max])
 
         dec_min = np.min(coords.dec)
         dec_i_min = np.argmin(coords.dec)
-        dec_off = Longitude(majs[dec_i_min])
-        dec_low = dec_min - dec_off
+        dec_off = Latitude(majs[dec_i_min])
+
+        # Use SkyCoords to account for poles and meridian
+        top_right = SkyCoord(ra_min, dec_max)
+        top_left = SkyCoord(ra_max, dec_max)
+        bottom_right = SkyCoord(ra_min, dec_min)
+        bottom_left = SkyCoord(ra_max, dec_min)
+        top_right_off = top_right.spherical_offsets_by(d_lon=ra_off, d_lat=dec_off)
+        top_left_off = top_left.spherical_offsets_by(d_lon=-ra_off, d_lat=dec_off)
+        bottom_right_off = bottom_right.spherical_offsets_by(
+            d_lon=ra_off, d_lat=-dec_off
+        )
+        bottom_left_off = bottom_left.spherical_offsets_by(
+            d_lon=-ra_off, d_lat=-dec_off
+        )
+        ra_high: float = np.max(
+            [
+                top_right_off.ra.deg,
+                top_left_off.ra.deg,
+                bottom_right_off.ra.deg,
+                bottom_left_off.ra.deg,
+            ]
+        )
+        ra_low: float = np.min(
+            [
+                top_right_off.ra.deg,
+                top_left_off.ra.deg,
+                bottom_right_off.ra.deg,
+                bottom_left_off.ra.deg,
+            ]
+        )
+        dec_high: float = np.max(
+            [
+                top_right_off.dec.deg,
+                top_left_off.dec.deg,
+                bottom_right_off.dec.deg,
+                bottom_left_off.dec.deg,
+            ]
+        )
+        dec_low: float = np.min(
+            [
+                top_right_off.dec.deg,
+                top_left_off.dec.deg,
+                bottom_right_off.dec.deg,
+                bottom_left_off.dec.deg,
+            ]
+        )
+
     except Exception as e:
         logger.debug(f"coords are {coords=}")
         logger.debug(f"comps are {comps=}")
         raise e
 
     return CutoutArgs(
-        ra_high=ra_high.deg,
-        ra_low=ra_low.deg,
-        dec_high=dec_high.deg,
-        dec_low=dec_low.deg,
+        ra_high=ra_high,
+        ra_low=ra_low,
+        dec_high=dec_high,
+        dec_low=dec_low,
         outdir=outdir,
     )
 
