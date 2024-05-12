@@ -160,10 +160,10 @@ def cutout_image(
     top_left_off = top_left.spherical_offsets_by(d_lon=-padder, d_lat=padder)
     bottom_right_off = bottom_right.spherical_offsets_by(d_lon=padder, d_lat=-padder)
 
-    x_left, y_bottom = skycoord_to_pixel(bottom_left_off, cube.wcs)
-    x_right, y_top = skycoord_to_pixel(top_right_off, cube.wcs)
-    _x_left, _y_top = skycoord_to_pixel(top_left_off, cube.wcs)
-    _x_right, _y_bottom = skycoord_to_pixel(bottom_right_off, cube.wcs)
+    x_left, y_bottom = skycoord_to_pixel(bottom_left_off, cube.wcs.celestial)
+    x_right, y_top = skycoord_to_pixel(top_right_off, cube.wcs.celestial)
+    _x_left, _y_top = skycoord_to_pixel(top_left_off, cube.wcs.celestial)
+    _x_right, _y_bottom = skycoord_to_pixel(bottom_right_off, cube.wcs.celestial)
 
     # Compare all points in case of insanity at the poles
     yp_lo_idx = int(np.floor(min(y_bottom, _y_bottom, y_top, _y_top)))
