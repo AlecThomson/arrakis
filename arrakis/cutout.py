@@ -22,6 +22,7 @@ from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs.utils import skycoord_to_pixel
 from prefect import flow, task
+from prefect.task_runners import ConcurrentTaskRunner
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm.auto import tqdm
@@ -153,20 +154,22 @@ def cutout_image(
 
     top_right_off = top_right.spherical_offsets_by(d_lon=padder, d_lat=padder)
     bottom_left_off = bottom_left.spherical_offsets_by(d_lon=-padder, d_lat=-padder)
-    # Only need the critical corners - but just in case:
-    # top_left = SkyCoord(cutout_args.ra_high * u.deg, cutout_args.dec_high * u.deg)
-    # bottom_right = SkyCoord(cutout_args.ra_low, cutout_args.dec_low * u.deg)
-    # top_left_off = top_left.spherical_offsets_by(d_lon=-padder, d_lat=padder)
-    # bottom_right_off = bottom_right.spherical_offsets_by(d_lon=padder, d_lat=-padder)
+
+    top_left = SkyCoord(cutout_args.ra_high * u.deg, cutout_args.dec_high * u.deg)
+    bottom_right = SkyCoord(cutout_args.ra_low * u.deg, cutout_args.dec_low * u.deg)
+    top_left_off = top_left.spherical_offsets_by(d_lon=-padder, d_lat=padder)
+    bottom_right_off = bottom_right.spherical_offsets_by(d_lon=padder, d_lat=-padder)
 
     x_left, y_bottom = skycoord_to_pixel(bottom_left_off, cube.wcs)
     x_right, y_top = skycoord_to_pixel(top_right_off, cube.wcs)
+    _x_left, _y_top = skycoord_to_pixel(top_left_off, cube.wcs)
+    _x_right, _y_bottom = skycoord_to_pixel(bottom_right_off, cube.wcs)
 
-    # Round for cutout
-    yp_lo_idx = int(np.floor(y_bottom))
-    yp_hi_idx = int(np.ceil(y_top))
-    xp_lo_idx = int(np.floor(x_right))
-    xp_hi_idx = int(np.ceil(x_left))
+    # Compare all points in case of insanity at the poles
+    yp_lo_idx = int(np.floor(min(y_bottom, _y_bottom, y_top, _y_top)))
+    yp_hi_idx = int(np.ceil(max(y_bottom, _y_bottom, y_top, _y_top)))
+    xp_lo_idx = int(np.floor(min(x_left, x_right, _x_left, _x_right)))
+    xp_hi_idx = int(np.ceil(max(x_left, x_right, _x_left, _x_right)))
 
     # Use subcube for header transformation
     cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
@@ -572,7 +575,7 @@ def main(args: argparse.Namespace) -> None:
         args (argparse.Namespace): Command-line args
         verbose (bool, optional): Verbose output. Defaults to True.
     """
-    cutout_islands(
+    cutout_islands.with_options(task_runner=ConcurrentTaskRunner)(
         field=args.field,
         directory=args.datadir,
         host=args.host,
