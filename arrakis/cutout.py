@@ -253,75 +253,62 @@ def get_args(
     coords = SkyCoord(ras, decs, frame="icrs")
     padder = np.max(majs)
 
-    coords = SkyCoord(ras, decs)
-
     try:
         # If in South - Northern boundary will have greatest RA range
         # And vice versa
         northern_boundary = SkyCoord(ras, np.ones_like(ras.value) * decs.max())
         southern_boundary = SkyCoord(ras, np.ones_like(ras.value) * decs.min())
 
-        if abs(decs.max()) > abs(decs.min()):
+        if np.abs(decs.max()) > np.abs(decs.min()):
             # North - use Southern
             longest_boundary = southern_boundary
         else:
             # South - use Northern
             longest_boundary = northern_boundary
 
-        # Find the coords with greatest separation
-        # That gives us our image size
-        # PA tells us East from West wrap
-        for i, coord_1 in enumerate(longest_boundary):
-            for j, coord_2 in enumerate(longest_boundary):
-                sep = coord_1.separation(coord_2)
-                pa = coord_1.position_angle(coord_2)
-                if i == 0 and j == 0:
-                    largest_sep = sep
-                    largest_pa = pa
-                    largest_i = i
-                    largest_j = j
-                if sep > largest_sep:
-                    largest_i = i
-                    largest_j = j
-                    largest_sep = sep
-                    largest_pa = pa
+        # Compute separations and position angles between all pairs of coordinates
+        separations = longest_boundary[:, np.newaxis].separation(longest_boundary)
+        position_angles = longest_boundary[:, np.newaxis].position_angle(
+            longest_boundary
+        )
 
-        if largest_pa > 180 * u.deg:
-            # PA points West / left
+        # Find the index of the pair with the largest separation
+        largest_i, largest_j = np.unravel_index(
+            np.argmax(separations), separations.shape
+        )
+
+        # Determine left and right points based on position angle
+        if position_angles[largest_i, largest_j] > 180 * u.deg:
             left_point = longest_boundary[largest_i]
             right_point = longest_boundary[largest_j]
         else:
-            # PA points East / right
             left_point = longest_boundary[largest_j]
             right_point = longest_boundary[largest_i]
 
-        # Use SkyCoords to account for poles and meridian
+        # Compute coordinates for top right, top left, bottom right, and bottom left points
         top_right = SkyCoord(right_point.ra, decs.max())
         top_left = SkyCoord(left_point.ra, decs.max())
         bottom_right = SkyCoord(right_point.ra, decs.min())
         bottom_left = SkyCoord(left_point.ra, decs.min())
 
+        # Compute offsets for top right, top left, bottom right, and bottom left points
+        offset = padder * np.sqrt(2)
         top_right_off = top_right.directional_offset_by(
-            position_angle=-45 * u.deg,
-            separation=padder * np.sqrt(2),
+            position_angle=-45 * u.deg, separation=offset
         )
         bottom_left_off = bottom_left.directional_offset_by(
-            position_angle=135 * u.deg,
-            separation=padder * np.sqrt(2),
+            position_angle=135 * u.deg, separation=offset
         )
         top_left_off = top_left.directional_offset_by(
-            position_angle=45 * u.deg,
-            separation=padder * np.sqrt(2),
+            position_angle=45 * u.deg, separation=offset
         )
         bottom_right_off = bottom_right.directional_offset_by(
-            position_angle=-135 * u.deg,
-            separation=padder * np.sqrt(2),
+            position_angle=-135 * u.deg, separation=offset
         )
 
-        dec_low = (
-            np.min([bottom_left_off.dec.value, bottom_right_off.dec.value]) * u.deg
-        )
-        dec_high = np.max([top_left_off.dec.value, top_right_off.dec.value]) * u.deg
+        # Compute dec_low, dec_high, ra_right, and ra_left
+        dec_low = min(bottom_left_off.dec.value, bottom_right_off.dec.value) * u.deg
+        dec_high = max(top_left_off.dec.value, top_right_off.dec.value) * u.deg
         ra_right = top_right_off.ra
         ra_left = top_left_off.ra
 
