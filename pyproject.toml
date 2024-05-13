@@ -46,7 +46,7 @@ pymongo = "*"
 pymultinest = "*"
 pytest = "*"
 python_casacore = "*"
-RACS-tools = ">=3"
+RACS-tools = ">=3.0.5"
 radio_beam = "*"
 RMextract = {git = "https://github.com/AlecThomson/RMextract@race", optional=true}
 schwimmbad = "*"
