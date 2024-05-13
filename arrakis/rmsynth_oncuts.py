@@ -26,6 +26,7 @@ from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 from prefect import flow, task
+from prefect.task_runners import ConcurrentTaskRunner
 from radio_beam import Beam
 from RMtools_1D import do_RMsynth_1D
 from RMtools_3D import do_RMsynth_3D
@@ -296,7 +297,11 @@ def extract_single_spectrum(
     rms[np.isnan(rms)] = np.nanmedian(rms)
     wcs = WCS(header)
     x, y = np.array(wcs.celestial.world_to_pixel(coord)).round().astype(int)
-    spectrum_arr = np.array(data[:, y, x])
+    try:
+        spectrum_arr = np.array(data[:, y, x])
+    except Exception as e:
+        logger.error(f"Error extracting spectrum from {filename}")
+        raise e
     spectrum_arr[spectrum_arr == 0] = np.nan
     rms[~np.isfinite(spectrum_arr)] = np.nan
     bkg[~np.isfinite(spectrum_arr)] = np.nan
@@ -1205,7 +1210,7 @@ def cli():
         password=args.password,
     )
 
-    main(
+    main.with_options(task_runner=ConcurrentTaskRunner)(
         field=args.field,
         outdir=Path(args.datadir),
         host=args.host,

@@ -16,12 +16,13 @@ import astropy.units as u
 import numpy as np
 import pandas as pd
 import pymongo
-from astropy.coordinates import Latitude, Longitude, SkyCoord
+from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.utils import iers
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs.utils import skycoord_to_pixel
 from prefect import flow, task
+from prefect.task_runners import ConcurrentTaskRunner
 from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 from tqdm.auto import tqdm
@@ -55,9 +56,9 @@ class CutoutArgs(Struct):
     """Arguments for cutout function"""
 
     """Name of the source"""
-    ra_high: float
+    ra_left: float
     """Upper RA bound in degrees"""
-    ra_low: float
+    ra_right: float
     """Lower RA bound in degrees"""
     dec_high: float
     """Upper DEC bound in degrees"""
@@ -148,19 +149,38 @@ def cutout_image(
 
     padder: float = cube.header["BMAJ"] * u.deg * pad
 
-    xlo = Longitude(cutout_args.ra_low * u.deg) - Longitude(padder)
-    xhi = Longitude(cutout_args.ra_high * u.deg) + Longitude(padder)
-    ylo = Latitude(cutout_args.dec_low * u.deg) - Latitude(padder)
-    yhi = Latitude(cutout_args.dec_high * u.deg) + Latitude(padder)
+    top_right = SkyCoord(cutout_args.ra_right * u.deg, cutout_args.dec_high * u.deg)
+    bottom_left = SkyCoord(cutout_args.ra_left * u.deg, cutout_args.dec_low * u.deg)
+    top_left = SkyCoord(cutout_args.ra_left * u.deg, cutout_args.dec_high * u.deg)
+    bottom_right = SkyCoord(cutout_args.ra_right * u.deg, cutout_args.dec_low * u.deg)
 
-    xp_lo, yp_lo = skycoord_to_pixel(SkyCoord(xlo, ylo), cube.wcs)
-    xp_hi, yp_hi = skycoord_to_pixel(SkyCoord(xhi, yhi), cube.wcs)
+    top_right_off = top_right.directional_offset_by(
+        position_angle=-45 * u.deg,
+        separation=padder * np.sqrt(2),
+    )
+    bottom_left_off = bottom_left.directional_offset_by(
+        position_angle=135 * u.deg,
+        separation=padder * np.sqrt(2),
+    )
+    top_left_off = top_left.directional_offset_by(
+        position_angle=45 * u.deg,
+        separation=padder * np.sqrt(2),
+    )
+    bottom_right_off = bottom_right.directional_offset_by(
+        position_angle=-135 * u.deg,
+        separation=padder * np.sqrt(2),
+    )
 
-    # Round for cutout
-    yp_lo_idx = int(np.floor(yp_lo))
-    yp_hi_idx = int(np.ceil(yp_hi))
-    xp_lo_idx = int(np.floor(xp_hi))
-    xp_hi_idx = int(np.ceil(xp_lo))
+    x_left, y_bottom = skycoord_to_pixel(bottom_left_off, cube.wcs.celestial)
+    x_right, y_top = skycoord_to_pixel(top_right_off, cube.wcs.celestial)
+    _x_left, _y_top = skycoord_to_pixel(top_left_off, cube.wcs.celestial)
+    _x_right, _y_bottom = skycoord_to_pixel(bottom_right_off, cube.wcs.celestial)
+
+    # Compare all points in case of insanity at the poles
+    yp_lo_idx = int(np.floor(min(y_bottom, _y_bottom, y_top, _y_top)))
+    yp_hi_idx = int(np.ceil(max(y_bottom, _y_bottom, y_top, _y_top)))
+    xp_lo_idx = int(np.floor(min(x_left, x_right, _x_left, _x_right)))
+    xp_hi_idx = int(np.ceil(max(x_left, x_right, _x_left, _x_right)))
 
     # Use subcube for header transformation
     cutout_cube = cube[:, yp_lo_idx:yp_hi_idx, xp_lo_idx:xp_hi_idx]
@@ -230,39 +250,78 @@ def get_args(
     ras: u.Quantity = comps.RA.values * u.deg
     decs: u.Quantity = comps.Dec.values * u.deg
     majs: List[float] = comps.Maj.values * u.arcsec
-
-    coords = SkyCoord(ras, decs)
+    coords = SkyCoord(ras, decs, frame="icrs")
+    padder = np.max(majs)
 
     try:
-        ra_max = np.max(coords.ra)
-        ra_i_max = np.argmax(coords.ra)
-        ra_off = Longitude(majs[ra_i_max])
-        ra_high = ra_max + ra_off
+        # If in South - Northern boundary will have greatest RA range
+        # And vice versa
+        northern_boundary = SkyCoord(ras, np.ones_like(ras.value) * decs.max())
+        southern_boundary = SkyCoord(ras, np.ones_like(ras.value) * decs.min())
 
-        ra_min = np.min(coords.ra)
-        ra_i_min = np.argmin(coords.ra)
-        ra_off = Longitude(majs[ra_i_min])
-        ra_low = ra_min - ra_off
+        if np.abs(decs.max()) > np.abs(decs.min()):
+            # North - use Southern
+            longest_boundary = southern_boundary
+        else:
+            # South - use Northern
+            longest_boundary = northern_boundary
 
-        dec_max = np.max(coords.dec)
-        dec_i_max = np.argmax(coords.dec)
-        dec_off = Longitude(majs[dec_i_max])
-        dec_high = dec_max + dec_off
+        # Compute separations and position angles between all pairs of coordinates
+        separations = longest_boundary[:, np.newaxis].separation(longest_boundary)
+        position_angles = longest_boundary[:, np.newaxis].position_angle(
+            longest_boundary
+        )
 
-        dec_min = np.min(coords.dec)
-        dec_i_min = np.argmin(coords.dec)
-        dec_off = Longitude(majs[dec_i_min])
-        dec_low = dec_min - dec_off
+        # Find the index of the pair with the largest separation
+        largest_i, largest_j = np.unravel_index(
+            np.argmax(separations), separations.shape
+        )
+
+        # Determine left and right points based on position angle
+        if position_angles[largest_i, largest_j] > 180 * u.deg:
+            left_point = longest_boundary[largest_i]
+            right_point = longest_boundary[largest_j]
+        else:
+            left_point = longest_boundary[largest_j]
+            right_point = longest_boundary[largest_i]
+
+        # Compute coordinates for top right, top left, bottom right, and bottom left points
+        top_right = SkyCoord(right_point.ra, decs.max())
+        top_left = SkyCoord(left_point.ra, decs.max())
+        bottom_right = SkyCoord(right_point.ra, decs.min())
+        bottom_left = SkyCoord(left_point.ra, decs.min())
+
+        # Compute offsets for top right, top left, bottom right, and bottom left points
+        offset = padder * np.sqrt(2)
+        top_right_off = top_right.directional_offset_by(
+            position_angle=-45 * u.deg, separation=offset
+        )
+        bottom_left_off = bottom_left.directional_offset_by(
+            position_angle=135 * u.deg, separation=offset
+        )
+        top_left_off = top_left.directional_offset_by(
+            position_angle=45 * u.deg, separation=offset
+        )
+        bottom_right_off = bottom_right.directional_offset_by(
+            position_angle=-135 * u.deg, separation=offset
+        )
+
+        # Compute dec_low, dec_high, ra_right, and ra_left
+        dec_low = min(bottom_left_off.dec.value, bottom_right_off.dec.value) * u.deg
+        dec_high = max(top_left_off.dec.value, top_right_off.dec.value) * u.deg
+        ra_right = top_right_off.ra
+        ra_left = top_left_off.ra
+
     except Exception as e:
         logger.debug(f"coords are {coords=}")
         logger.debug(f"comps are {comps=}")
         raise e
 
     return CutoutArgs(
-        ra_high=ra_high.deg,
-        ra_low=ra_low.deg,
-        dec_high=dec_high.deg,
-        dec_low=dec_low.deg,
+        ra_left=ra_left.to(u.deg).value,
+        ra_right=ra_right.to(u.deg).value,
+        dec_high=dec_high.to(u.deg).value,
+        dec_low=dec_low.to(u.deg).value,
         outdir=outdir,
     )
 
@@ -523,7 +582,7 @@ def main(args: argparse.Namespace) -> None:
         args (argparse.Namespace): Command-line args
         verbose (bool, optional): Verbose output. Defaults to True.
     """
-    cutout_islands(
+    cutout_islands.with_options(task_runner=ConcurrentTaskRunner)(
         field=args.field,
         directory=args.datadir,
         host=args.host,
