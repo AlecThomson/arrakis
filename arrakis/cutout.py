@@ -256,9 +256,23 @@ def get_args(
     coords = SkyCoord(ras, decs)
 
     try:
+        # If in South - Northern boundary will have greatest RA range
+        # And vice versa
         northern_boundary = SkyCoord(ras, np.ones_like(ras.value) * decs.max())
-        for i, coord_1 in enumerate(northern_boundary):
-            for j, coord_2 in enumerate(northern_boundary):
+        southern_boundary = SkyCoord(ras, np.ones_like(ras.value) * decs.min())
+
+        if abs(decs.max()) > abs(decs.min()):
+            # North - use Southern
+            longest_boundary = southern_boundary
+        else:
+            # South - use Northern
+            longest_boundary = northern_boundary
+
+        # Find the coords with greatest separation
+        # That gives us our image size
+        # PA tells us East from West wrap
+        for i, coord_1 in enumerate(longest_boundary):
+            for j, coord_2 in enumerate(longest_boundary):
                 sep = coord_1.separation(coord_2)
                 pa = coord_1.position_angle(coord_2)
                 if i == 0 and j == 0:
@@ -272,12 +286,14 @@ def get_args(
                     largest_sep = sep
                     largest_pa = pa
 
-        if largest_pa > 90 * u.deg:
-            left_point = northern_boundary[largest_i]
-            right_point = northern_boundary[largest_j]
+        if largest_pa > 180 * u.deg:
+            # PA points West / left
+            left_point = longest_boundary[largest_i]
+            right_point = longest_boundary[largest_j]
         else:
-            left_point = northern_boundary[largest_j]
-            right_point = northern_boundary[largest_i]
+            # PA points East / right
+            left_point = longest_boundary[largest_j]
+            right_point = longest_boundary[largest_i]
 
         # Use SkyCoords to account for poles and meridian
         top_right = SkyCoord(right_point.ra, decs.max())
