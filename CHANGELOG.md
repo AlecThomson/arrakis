@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.3.2] - 2024-05-10
+## [2.3.4] - 2024-05-13
+### What's Changed
+* Polar by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/71
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.3.3...v2.3.4
+
+## [2.3.3] - 2024-05-10
 ### What's Changed
 * Reduce number of tasks by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/70
 
