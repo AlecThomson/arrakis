@@ -376,7 +376,7 @@ def worker(
     return [image_update, weight_update]
 
 
-@task(name="Cutout from big cube")
+@task(name="Cutout from big cube", retries=3, retry_delay_seconds=[1, 10, 100])
 def big_cutout(
     sources: pd.DataFrame,
     comps: pd.DataFrame,
