@@ -144,7 +144,7 @@ def make_validation_plots(prefix: Path, pols: str) -> None:
         fig.subplots_adjust(wspace=0, hspace=0)
 
         fig_name = Path(f"{prefix.name}_abs_stokes_{stokes}.png")
-        fig.savefig(fig_name, bbox_inches="tight", dpi=300)
+        fig.savefig(fig_name, bbox_inches="tight", dpi=72)
         plt.close(fig)
 
         uuid = upload_image_as_artifact_task.fn(
@@ -651,6 +651,8 @@ def smooth_imageset(
     with open(common_beam_pkl, "rb") as f:
         logger.info(f"Loading common beam from {common_beam_pkl}")
         common_beam = pickle.load(f)
+
+    logger.info(f"{common_beam=}")
 
     logger.info(f"Smooting {image_set.ms} images")
 

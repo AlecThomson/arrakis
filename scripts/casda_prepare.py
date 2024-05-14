@@ -69,7 +69,7 @@ def make_thumbnail(cube_f: str, cube_dir: str):
     fig.colorbar(im, ax=ax, label=f"{convert_bunit(head['BUNIT']):latex_inline}")
     outf = os.path.join(cube_dir, os.path.basename(cube_f).replace(".fits", ".png"))
     logger.info(f"Saving thumbnail to {outf}")
-    fig.savefig(outf, dpi=300)
+    fig.savefig(outf, dpi=72)
     plt.close(fig)
 
 

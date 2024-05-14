@@ -444,7 +444,7 @@ def main(
         map_size=map_size * u.deg,
     )
     rms_bkg_path = outdir / "validation_rms_bkg.png"
-    rms_bkg_fig.savefig(rms_bkg_path, bbox_inches="tight", dpi=300)
+    rms_bkg_fig.savefig(rms_bkg_path, bbox_inches="tight", dpi=72)
     rms_bkg_uuid = upload_image_as_artifact_task(
         rms_bkg_path, description="Noise and background validation maps"
     )
@@ -458,7 +458,7 @@ def main(
         map_size=map_size * u.deg,
     )
     leakage_path = outdir / "validation_leakage.png"
-    leakage_fig.savefig(leakage_path, bbox_inches="tight", dpi=300)
+    leakage_fig.savefig(leakage_path, bbox_inches="tight", dpi=72)
     leakage_uuid = upload_image_as_artifact_task(
         leakage_path, description="Leakage validation maps"
     )
@@ -470,7 +470,7 @@ def main(
         map_size=map_size * u.deg,
     )
     rm_path = outdir / "validation_rm.png"
-    rm_fig.savefig(rm_path, bbox_inches="tight", dpi=300)
+    rm_fig.savefig(rm_path, bbox_inches="tight", dpi=72)
     rm_uuid = upload_image_as_artifact_task(
         rm_path, description="Rotation measure validation maps"
     )
