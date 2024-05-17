@@ -645,7 +645,18 @@ def rmsynthoncut1d(
         )
     except Exception as err:
         traceback.print_tb(err.__traceback__)
-        raise err
+        logger.error(f"Error in RM-Synthesis for {cname}")
+        logger.error(err)
+        myquery = {"Gaussian_ID": cname}
+        badvalues = {
+            "field": save_name,
+            "rmsynth1d": False,
+        }
+        operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
+        filter_condition = [{"elem.field": save_name}]
+        return pymongo.UpdateOne(
+            myquery, badvalues, upsert=True, array_filters=filter_condition
+        )
 
     if savePlots:
         plt.close("all")
