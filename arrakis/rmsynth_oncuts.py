@@ -595,7 +595,7 @@ def rmsynthoncut1d(
         operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
         filter_condition = [{"elem.field": save_name}]
         return pymongo.UpdateOne(
-            myquery, badvalues, upsert=True, array_filters=filter_condition
+            myquery, operation, upsert=True, array_filters=filter_condition
         )
     # And I
     if np.isnan(filtered_stokes_spectra.i.data).all():
@@ -608,7 +608,7 @@ def rmsynthoncut1d(
         operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
         filter_condition = [{"elem.field": save_name}]
         return pymongo.UpdateOne(
-            myquery, badvalues, upsert=True, array_filters=filter_condition
+            myquery, operation, upsert=True, array_filters=filter_condition
         )
 
     data = [np.array(freq)]
@@ -655,7 +655,7 @@ def rmsynthoncut1d(
         operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
         filter_condition = [{"elem.field": save_name}]
         return pymongo.UpdateOne(
-            myquery, badvalues, upsert=True, array_filters=filter_condition
+            myquery, operation, upsert=True, array_filters=filter_condition
         )
 
     if savePlots:
