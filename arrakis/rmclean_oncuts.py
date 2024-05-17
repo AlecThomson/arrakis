@@ -339,12 +339,14 @@ def main(
         components = list(comp_col.aggregate(pipeline))
         n_comp = comp_col.count_documents(query)
         update_1d = {"rm_outputs_1d.$.rmclean1d": False}
+        # filter_condition = [{"elem.field": save_name}]
         operation_1d = {"$set": update_1d}
         logger.info(pformat(operation_1d))
 
         result = comp_col.update_many(
             query,
             operation_1d,
+            upsert=True,
         )
         logger.info(pformat(result.raw_result))
 
