@@ -4,7 +4,7 @@ cluster_kwargs:
     cores: 4
     processes: 4
     name: 'spice-worker'
-    memory: "128GiB"
+    memory: "144GiB"
     account: 'OD-217087'
     walltime: '0-00:45:00'
     job_extra_directives: ['--qos express']
