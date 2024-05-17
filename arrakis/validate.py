@@ -438,43 +438,52 @@ def main(
     outdir = catalogue_path.parent
     tab = Table.read(catalogue_path)
 
-    rms_bkg_fig = plot_rms_bkg(
-        tab,
-        npix=npix,
-        map_size=map_size * u.deg,
-    )
-    rms_bkg_path = outdir / "validation_rms_bkg.png"
-    rms_bkg_fig.savefig(rms_bkg_path, bbox_inches="tight", dpi=72)
-    rms_bkg_uuid = upload_image_as_artifact_task(
-        rms_bkg_path, description="Noise and background validation maps"
-    )
-    logger.info(f"Uploaded rms_bkg plot as {rms_bkg_uuid}")
+    try:
+        rms_bkg_fig = plot_rms_bkg(
+            tab,
+            npix=npix,
+            map_size=map_size * u.deg,
+        )
+        rms_bkg_path = outdir / "validation_rms_bkg.png"
+        rms_bkg_fig.savefig(rms_bkg_path, bbox_inches="tight", dpi=72)
+        rms_bkg_uuid = upload_image_as_artifact_task(
+            rms_bkg_path, description="Noise and background validation maps"
+        )
+        logger.info(f"Uploaded rms_bkg plot as {rms_bkg_uuid}")
+    except Exception as e:
+        logger.error(f"Error in rms_bkg plot: {e}")
 
-    leakage_fig = plot_leakage(
-        tab,
-        snr_cut=snr_cut,
-        bins=bins,
-        npix=npix,
-        map_size=map_size * u.deg,
-    )
-    leakage_path = outdir / "validation_leakage.png"
-    leakage_fig.savefig(leakage_path, bbox_inches="tight", dpi=72)
-    leakage_uuid = upload_image_as_artifact_task(
-        leakage_path, description="Leakage validation maps"
-    )
-    logger.info(f"Uploaded leakage plot as {leakage_uuid}")
+    try:
+        leakage_fig = plot_leakage(
+            tab,
+            snr_cut=snr_cut,
+            bins=bins,
+            npix=npix,
+            map_size=map_size * u.deg,
+        )
+        leakage_path = outdir / "validation_leakage.png"
+        leakage_fig.savefig(leakage_path, bbox_inches="tight", dpi=72)
+        leakage_uuid = upload_image_as_artifact_task(
+            leakage_path, description="Leakage validation maps"
+        )
+        logger.info(f"Uploaded leakage plot as {leakage_uuid}")
+    except Exception as e:
+        logger.error(f"Error in leakage plot: {e}")
 
-    rm_fig = plot_rm(
-        tab,
-        npix=npix,
-        map_size=map_size * u.deg,
-    )
-    rm_path = outdir / "validation_rm.png"
-    rm_fig.savefig(rm_path, bbox_inches="tight", dpi=72)
-    rm_uuid = upload_image_as_artifact_task(
-        rm_path, description="Rotation measure validation maps"
-    )
-    logger.info(f"Uploaded rm plot as {rm_uuid}")
+    try:
+        rm_fig = plot_rm(
+            tab,
+            npix=npix,
+            map_size=map_size * u.deg,
+        )
+        rm_path = outdir / "validation_rm.png"
+        rm_fig.savefig(rm_path, bbox_inches="tight", dpi=72)
+        rm_uuid = upload_image_as_artifact_task(
+            rm_path, description="Rotation measure validation maps"
+        )
+        logger.info(f"Uploaded rm plot as {rm_uuid}")
+    except Exception as e:
+        logger.error(f"Error in rm plot: {e}")
 
     logger.info("Validation plots complete")
 
