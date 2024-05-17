@@ -453,85 +453,91 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     df_out.set_index("cat_id", inplace=True)
     df_out["local_rm_flag"] = False
 
-    def sn_func(index, signal=None, noise=None):
-        try:
-            sn = len(np.array(index))
-        except TypeError:
-            sn = 1
-        return sn
+    try:
 
-    target_sn = 30
-    target_bins = 6
-    fail = True
-    while target_sn > 1:
-        logger.debug(
-            f"Trying to find Voroni bins with RMs per bin={target_sn}, Number of bins={target_bins}"
-        )
-        try:
-            (
-                bin_number,
-                x_gen,
-                y_gen,
-                x_bar,
-                y_bar,
-                sn,
-                nPixels,
-                scale,
-            ) = voronoi_2d_binning(
-                x=good_cat["ra"],
-                y=good_cat["dec"],
-                signal=np.ones_like(good_cat["polint"]),
-                noise=np.ones_like(good_cat["polint_err"]),
-                target_sn=target_sn,
-                sn_func=sn_func,
-                cvt=False,
-                pixelsize=10,
-                plot=False,
-                quiet=True,
-                wvt=False,
-            )
-            num_of_bins = len(np.unique(bin_number))
-            logger.info(
-                f"Target RMs per bin and number of bins: {target_sn} / {target_bins}."
-            )
-            if num_of_bins >= target_bins:
-                break
-            else:
-                logger.info(
-                    f"Found {num_of_bins} bins, targeting minimum {target_bins}"
-                )
-                target_sn -= 5
-        except ValueError as e:
-            if "Not enough S/N in the whole set of pixels." not in str(e):
-                raise e
-            logger.warning(
-                f"Failed with target number of RMs per bin of {target_sn}. Trying again with {target_sn-10}"
-            )
-            target_sn -= 10
-    else:
-        fail_msg = "Failed to converge towards a Voronoi binning solution. "
-        logger.error(fail_msg)
+        def sn_func(index, signal=None, noise=None):
+            try:
+                sn = len(np.array(index))
+            except TypeError:
+                sn = 1
+            return sn
 
+        target_sn = 30
+        target_bins = 6
         fail = True
-
-    if not fail:
-        logger.info(f"Found {len(set(bin_number))} bins")
-        df["bin_number"] = bin_number
-
-        # Use sigma clipping to find outliers
-        def masker(x):
-            return pd.Series(
-                sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
-                index=x.index,
+        while target_sn > 1:
+            logger.debug(
+                f"Trying to find Voroni bins with RMs per bin={target_sn}, Number of bins={target_bins}"
             )
+            try:
+                (
+                    bin_number,
+                    x_gen,
+                    y_gen,
+                    x_bar,
+                    y_bar,
+                    sn,
+                    nPixels,
+                    scale,
+                ) = voronoi_2d_binning(
+                    x=good_cat["ra"],
+                    y=good_cat["dec"],
+                    signal=np.ones_like(good_cat["polint"]),
+                    noise=np.ones_like(good_cat["polint_err"]),
+                    target_sn=target_sn,
+                    sn_func=sn_func,
+                    cvt=False,
+                    pixelsize=10,
+                    plot=False,
+                    quiet=True,
+                    wvt=False,
+                )
+                num_of_bins = len(np.unique(bin_number))
+                logger.info(
+                    f"Target RMs per bin and number of bins: {target_sn} / {target_bins}."
+                )
+                if num_of_bins >= target_bins:
+                    break
+                else:
+                    logger.info(
+                        f"Found {num_of_bins} bins, targeting minimum {target_bins}"
+                    )
+                    target_sn -= 5
+            except ValueError as e:
+                if "Not enough S/N in the whole set of pixels." not in str(e):
+                    raise e
+                logger.warning(
+                    f"Failed with target number of RMs per bin of {target_sn}. Trying again with {target_sn-10}"
+                )
+                target_sn -= 10
+        else:
+            fail_msg = "Failed to converge towards a Voronoi binning solution. "
+            logger.error(fail_msg)
 
-        perc_g = df.groupby("bin_number").apply(
-            masker,
-        )
-        # Put flag into the catalogue
-        df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
-        df.drop(columns=["bin_number"], inplace=True)
-        df_out.update(df["local_rm_flag"])
+            fail = True
+
+        if not fail:
+            logger.info(f"Found {len(set(bin_number))} bins")
+            df["bin_number"] = bin_number
+
+            # Use sigma clipping to find outliers
+            def masker(x):
+                return pd.Series(
+                    sigma_clip(x["rm"], sigma=3, maxiters=None, cenfunc=np.median).mask,
+                    index=x.index,
+                )
+
+            perc_g = df.groupby("bin_number").apply(
+                masker,
+            )
+            # Put flag into the catalogue
+            df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
+            df.drop(columns=["bin_number"], inplace=True)
+            df_out.update(df["local_rm_flag"])
+
+    except Exception as e:
+        logger.error(f"Failed to compute local RM flag: {e}")
+        logger.error("Flag will be set to False.")
 
     df_out["local_rm_flag"] = df_out["local_rm_flag"].astype(bool)
     cat_out = RMTable.from_pandas(df_out.reset_index())
