@@ -137,7 +137,8 @@ def rmclean1d(
         "rm_outputs_1d.$.rmclean_summary": outdict,
     }
     newvalues = {"$set": to_update}
-    return pymongo.UpdateOne(myquery, newvalues)
+    filter_condition = [{"elem.field": save_name}]
+    return pymongo.UpdateOne(myquery, newvalues, array_filters=filter_condition)
 
 
 @task(name="3D RM-CLEAN")
