@@ -887,7 +887,9 @@ def main(
     query = {
         "$and": [
             {"Source_ID": {"$in": all_island_ids}},
-            {"rm_outputs_1d.field": save_name, "rm_outputs_1d.rmsynth1d": True},
+            {"rm_outputs_1d": {"$elemMatch": {"field": save_name}}},
+            {"rm_outputs_1d": {"$elemMatch": {"rmsynth1d": True}}},
+            {"rm_outputs_1d": {"$elemMatch": {"rmclean1d": True}}},
         ]
     }
 
