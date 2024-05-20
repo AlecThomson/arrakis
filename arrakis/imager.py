@@ -2,6 +2,7 @@
 """Arrkis imager"""
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import logging
 import os
@@ -669,20 +670,27 @@ def smooth_imageset(
         }
 
     sm_images = {}
-    for pol, pol_images in images_to_smooth.items():
-        logger.info(f"Smoothing {pol=} for {image_set.ms}")
-        for img in pol_images:
-            logger.info(f"Smoothing {img}")
-            beamcon_2D.worker(
-                file=img,
-                outdir=None,
-                new_beam=common_beam,
-                conv_mode="robust",
-                suffix="conv",
-                cutoff=cutoff,
-            )
+    with ThreadPoolExecutor() as executor:
+        for pol, pol_images in images_to_smooth.items():
+            logger.info(f"Smoothing {pol=} for {image_set.ms}")
+            for img in pol_images:
+                logger.info(f"Smoothing {img}")
+                last_result = executor.submit(
+                    beamcon_2D.worker,
+                    file=img,
+                    outdir=None,
+                    new_beam=common_beam,
+                    conv_mode="robust",
+                    suffix="conv",
+                    cutoff=cutoff,
+                )
 
-        sm_images[pol] = [image.replace(".fits", ".conv.fits") for image in pol_images]
+            sm_images[pol] = [
+                image.replace(".fits", ".conv.fits") for image in pol_images
+            ]
+
+    # Wait on all the futures
+    _ = last_result.result()
 
     return ImageSet(
         ms=image_set.ms,
