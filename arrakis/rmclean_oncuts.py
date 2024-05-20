@@ -137,8 +137,7 @@ def rmclean1d(
         "rm_outputs_1d.$.rmclean_summary": outdict,
     }
     newvalues = {"$set": to_update}
-    filter_condition = [{"elem.field": save_name}]
-    return pymongo.UpdateOne(myquery, newvalues, array_filters=filter_condition)
+    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
 @task(name="3D RM-CLEAN")
@@ -204,7 +203,7 @@ def rmclean3d(
     }
     newvalues = {"$set": to_update}
 
-    return pymongo.UpdateOne(myquery, newvalues)
+    return pymongo.UpdateOne(myquery, newvalues, upsert=True)
 
 
 @flow(name="RM-CLEAN on cutouts")
@@ -318,7 +317,12 @@ def main(
         query = {
             "$and": [
                 {"Source_ID": {"$in": all_island_ids}},
-                {"rm_outputs_1d.field": save_name, "rm_outputs_1d.rmsynth1d": True},
+                {
+                    "rm_outputs_1d": {
+                        "$elemMatch": {"field": save_name, "rmsynth1d": True}
+                    }
+                },
+                # {"rm_outputs_1d.field": save_name, "rm_outputs_1d.rmsynth1d": True},
             ]
         }
         # exit()

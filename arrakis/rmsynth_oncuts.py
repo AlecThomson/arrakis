@@ -151,16 +151,9 @@ def rmsynthoncut3d(
     save_name = field if sbid is None else f"{field}_{sbid}"
     if np.isnan(dataI).all() or np.isnan(dataQ).all() or np.isnan(dataU).all():
         logger.critical(f"Cubelet {iname} is entirely NaN")
-        myquery = {"Source_ID": iname}
-        badvalues = {
-            "field": save_name,
-            "rmsynth3d": False,
-        }
-        operation = {"$set": {"rm_outputs_3d.$[elem]": badvalues}}
-        filter_condition = [{"elem.field": save_name}]
-        return pymongo.UpdateOne(
-            myquery, operation, upsert=True, array_filters=filter_condition
-        )
+        myquery = {"Source_ID": iname, "rm_outputs_3d.field": save_name}
+        operation = {"$set": {"rm_outputs_3d.$.rmsynth3d": False}}
+        return pymongo.UpdateOne(myquery, operation, upsert=True)
 
     bkgq, rmsq = cubelet_bane(dataQ, header)
     rmsq[rmsq == 0] = np.nan
@@ -554,16 +547,9 @@ def rmsynthoncut1d(
     for spectrum in stokes_spectra:
         if np.isnan(spectrum.data).all():
             logger.critical(f"Entire data is NaN for {iname} in {spectrum.filename}")
-            myquery = {"Gaussian_ID": cname}
-            badvalues = {
-                "field": save_name,
-                "rmsynth1d": False,
-            }
-            operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
-            filter_condition = [{"elem.field": save_name}]
-            return pymongo.UpdateOne(
-                myquery, operation, upsert=True, array_filters=filter_condition
-            )
+            myquery = {"Gaussian_ID": cname, "rm_outputs_1d.field": save_name}
+            operation = {"$set": {"rm_outputs_1d.$.rmsynth1d": False}}
+            return pymongo.UpdateOne(myquery, operation, upsert=True)
 
     prefix = f"{os.path.dirname(stokes_spectra.i.filename)}/{cname}"
 
@@ -587,29 +573,15 @@ def rmsynthoncut1d(
         or np.sum(np.isfinite(filtered_stokes_spectra.u.data)) < 2
     ):
         logger.critical(f"{cname} QU data is all NaNs.")
-        myquery = {"Gaussian_ID": cname}
-        badvalues = {
-            "field": save_name,
-            "rmsynth1d": False,
-        }
-        operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
-        filter_condition = [{"elem.field": save_name}]
-        return pymongo.UpdateOne(
-            myquery, operation, upsert=True, array_filters=filter_condition
-        )
+        myquery = {"Gaussian_ID": cname, "rm_outputs_1d.field": save_name}
+        operation = {"$set": {"rm_outputs_1d.$.rmsynth1d": False}}
+        return pymongo.UpdateOne(myquery, operation, upsert=True)
     # And I
     if np.isnan(filtered_stokes_spectra.i.data).all():
         logger.critical(f"{cname} I data is all NaNs.")
-        myquery = {"Gaussian_ID": cname}
-        badvalues = {
-            "field": save_name,
-            "rmsynth1d": False,
-        }
-        operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
-        filter_condition = [{"elem.field": save_name}]
-        return pymongo.UpdateOne(
-            myquery, operation, upsert=True, array_filters=filter_condition
-        )
+        myquery = {"Gaussian_ID": cname, "rm_outputs_1d.field": save_name}
+        operation = {"$set": {"rm_outputs_1d.$.rmsynth1d": False}}
+        return pymongo.UpdateOne(myquery, operation, upsert=True)
 
     data = [np.array(freq)]
     bkg_data = [np.array(freq)]
@@ -647,16 +619,9 @@ def rmsynthoncut1d(
         traceback.print_tb(err.__traceback__)
         logger.error(f"Error in RM-Synthesis for {cname}")
         logger.error(err)
-        myquery = {"Gaussian_ID": cname}
-        badvalues = {
-            "field": save_name,
-            "rmsynth1d": False,
-        }
-        operation = {"$set": {"rm_outputs_1d.$[elem]": badvalues}}
-        filter_condition = [{"elem.field": save_name}]
-        return pymongo.UpdateOne(
-            myquery, operation, upsert=True, array_filters=filter_condition
-        )
+        myquery = {"Gaussian_ID": cname, "rm_outputs_1d.field": save_name}
+        operation = {"$set": {"rm_outputs_1d.$.rmsynth1d": False}}
+        return pymongo.UpdateOne(myquery, operation, upsert=True)
 
     if savePlots:
         plt.close("all")
@@ -903,15 +868,15 @@ def main(
     # Unset rmsynth in db
     if dimension == "1d":
         logger.info(f"Unsetting rmsynth1d for {n_comp} components")
-        # exit()
-        query_1d = {
+
+        # Check if the array exists at all
+        query_1d_exists = {
             "$and": [
                 {"Gaussian_ID": {"$in": component_ids}},
                 {"rm_outputs_1d": {"$exists": True}},
             ]
         }
-        test_count = comp_col.count_documents(query_1d)
-        if test_count < n_comp:
+        if comp_col.count_documents(query_1d_exists) < n_comp:
             # Initialize the field
             result = comp_col.update_many(
                 {
@@ -922,45 +887,67 @@ def main(
             )
             logger.info(pformat(result.raw_result))
 
-        update_1d = {
-            "field": save_name,
-            "rmsynth1d": False,
+        query_1d = {
+            "$and": [
+                {"Gaussian_ID": {"$in": component_ids}},
+                {"rm_outputs_1d.field": save_name},
+            ]
         }
-        operation_1d = {"$set": {"rm_outputs_1d.$[elem]": update_1d}}
-        filter_condition = [{"elem.field": save_name}]
-        logger.info(pformat(operation_1d))
+        test_count = comp_col.count_documents(query_1d)
+        if test_count < n_comp:
+            # Initialize the field
+            result = comp_col.update_many(
+                {
+                    "Gaussian_ID": {"$in": component_ids},
+                },
+                {"$push": {"rm_outputs_1d": {"field": save_name, "rmsynth1d": False}}},
+            )
+            logger.info(pformat(result.raw_result))
 
+        operation_1d = {"$set": {"rm_outputs_1d.$.rmsynth1d": False}}
+        logger.info(pformat(operation_1d))
         result = comp_col.update_many(
-            query_1d, operation_1d, upsert=True, array_filters=filter_condition
+            query_1d,
+            operation_1d,
+            upsert=True,  # array_filters=filter_condition
         )
         logger.info(pformat(result.raw_result))
 
     elif dimension == "3d":
         logger.info(f"Unsetting rmsynth3d for {n_island} islands")
-        query_3d = {
+        query_3d_exists = {
             "$and": [
                 {"Source_ID": {"$in": island_ids}},
                 {"rm_outputs_3d": {"$exists": True}},
             ]
         }
-        if test_count == 0:
+        test_count = island_col.count_documents(query_3d_exists)
+        if test_count < n_island:
             # Initialize the field
             comp_col.update_many(
                 {"Source_ID": {"$in": island_ids}},
                 {"$set": {"rm_outputs_3d": [{"field": save_name, "rmsynth3d": False}]}},
             )
-        update_3d = {
-            "field": save_name,
-            "rmsynth3d": False,
+
+        query_3d = {
+            "$and": [
+                {"Source_ID": {"$in": island_ids}},
+                {"rm_outputs_3d.field": save_name},
+            ]
         }
-        operation_3d = {"$set": {"rm_outputs_3d.$[elem]": update_3d}}
-        filter_condition = [{"elem.field": save_name}]
+        test_count = island_col.count_documents(query_3d)
+        if test_count < n_island:
+            # Initialize the field
+            island_col.update_many(
+                {"Source_ID": {"$in": island_ids}},
+                {"$push": {"rm_outputs_3d": {"field": save_name, "rmsynth3d": False}}},
+            )
+        operation_3d = {"$set": {"rm_outputs_3d.$.rmsynth3d": False}}
         logger.info(pformat(operation_3d))
         result = island_col.update(
             query_3d,
             operation_3d,
             upsert=True,
-            array_filters=filter_condition,
         )
 
         logger.info(pformat(result.raw_result))
