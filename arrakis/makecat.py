@@ -911,6 +911,26 @@ def main(
     )
     fields.update(
         {
+            "rmsynth1d": {
+                "$arrayElemAt": [
+                    "$rm_outputs_1d.rmsynth1d",
+                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
+                ]
+            }
+        }
+    )
+    fields.update(
+        {
+            "rmclean1d": {
+                "$arrayElemAt": [
+                    "$rm_outputs_1d.rmclean1d",
+                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
+                ]
+            }
+        }
+    )
+    fields.update(
+        {
             "rmclean_summary": {
                 "$arrayElemAt": [
                     "$rm_outputs_1d.rmclean_summary",
@@ -932,6 +952,10 @@ def main(
     pipeline = [{"$match": query}, {"$project": fields}]
     comps_df = pd.DataFrame(comp_col.aggregate(pipeline))
     comps_df.set_index("Source_ID", inplace=True)
+    # For sanity
+    comps_df = comps_df.loc[
+        comps_df.rmclean1d.astype(bool) & comps_df.rmsynth1d.astype(bool)
+    ]
     tock = time.time()
     logger.info(f"Finished component collection query - {tock-tick:.2f}s")
     logger.info(f"Found {len(comps_df)} components to catalogue. ")
