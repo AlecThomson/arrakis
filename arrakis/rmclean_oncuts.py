@@ -91,19 +91,26 @@ def rmclean1d(
     )
 
     # Run RM-CLEAN on the spectrum
-    outdict, arrdict = do_RMclean_1D.run_rmclean(
-        mDict=mDict,
-        aDict=aDict,
-        cutoff=cutoff,
-        maxIter=maxIter,
-        gain=gain,
-        nBits=nBits,
-        showPlots=False,
-        verbose=rm_verbose,
-        prefixOut=prefix,
-        saveFigures=False,
-        window=window,
-    )
+    try:
+        outdict, arrdict = do_RMclean_1D.run_rmclean(
+            mDict=mDict,
+            aDict=aDict,
+            cutoff=cutoff,
+            maxIter=maxIter,
+            gain=gain,
+            nBits=nBits,
+            showPlots=False,
+            verbose=rm_verbose,
+            prefixOut=prefix,
+            saveFigures=False,
+            window=window,
+        )
+    except Exception as e:
+        logger.error(f"Error running RM-CLEAN on {cname}: {e}")
+        myquery = {"Gaussian_ID": cname, "rm_outputs_1d.field": save_name}
+        operation = {"$set": {"rm_outputs_1d.$.rmclean1d": False}}
+        return pymongo.UpdateOne(myquery, operation, upsert=True)
+
     # Ensure JSON serializable
     for k, v in outdict.items():
         if isinstance(v, np.float_):
