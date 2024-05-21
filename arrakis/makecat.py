@@ -956,6 +956,10 @@ def main(
     comps_df = comps_df.loc[
         comps_df.rmclean1d.astype(bool) & comps_df.rmsynth1d.astype(bool)
     ]
+    comps_df.dropna(
+        subset=["rmclean_summary", "rmsynth_summary", "rmclean1d", "rmsynth1d"],
+        inplace=True,
+    )
     tock = time.time()
     logger.info(f"Finished component collection query - {tock-tick:.2f}s")
     logger.info(f"Found {len(comps_df)} components to catalogue. ")
