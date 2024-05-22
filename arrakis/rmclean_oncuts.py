@@ -86,12 +86,11 @@ def rmclean1d(
             raise FileNotFoundError(f"File does not exist: '{f}'")
 
     nBits = 32
-    mDict, aDict = do_RMclean_1D.readFiles(
-        fdfFile, rmsfFile, weightFile, rmSynthFile, nBits
-    )
-
-    # Run RM-CLEAN on the spectrum
     try:
+        mDict, aDict = do_RMclean_1D.readFiles(
+            fdfFile, rmsfFile, weightFile, rmSynthFile, nBits
+        )
+        # Run RM-CLEAN on the spectrum
         outdict, arrdict = do_RMclean_1D.run_rmclean(
             mDict=mDict,
             aDict=aDict,
