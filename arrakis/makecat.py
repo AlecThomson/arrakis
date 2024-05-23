@@ -887,9 +887,19 @@ def main(
     query = {
         "$and": [
             {"Source_ID": {"$in": all_island_ids}},
-            {"rm_outputs_1d": {"$elemMatch": {"field": save_name}}},
-            {"rm_outputs_1d": {"$elemMatch": {"rmsynth1d": True}}},
-            {"rm_outputs_1d": {"$elemMatch": {"rmclean1d": True}}},
+            {
+                "rm_outputs_1d": {
+                    "$elemMatch": {
+                        "$and": [
+                            {"field": save_name},
+                            {"rmsynth1d": True},
+                            {"rmclean1d": True},
+                            {"rmsynth_summary": {"$exists": True}},
+                            {"rmclean_summary": {"$exists": True}},
+                        ],
+                    }
+                },
+            },
         ]
     }
 
@@ -951,7 +961,6 @@ def main(
     )
     pipeline = [{"$match": query}, {"$project": fields}]
     comps_df = pd.DataFrame(comp_col.aggregate(pipeline))
-    comps_df.set_index("Source_ID", inplace=True)
     # For sanity
     comps_df = comps_df.loc[
         comps_df.rmclean1d.astype(bool) & comps_df.rmsynth1d.astype(bool)
@@ -960,6 +969,7 @@ def main(
         subset=["rmclean_summary", "rmsynth_summary", "rmclean1d", "rmsynth1d"],
         inplace=True,
     )
+    comps_df.set_index("Source_ID", inplace=True)
     tock = time.time()
     logger.info(f"Finished component collection query - {tock-tick:.2f}s")
     logger.info(f"Found {len(comps_df)} components to catalogue. ")
