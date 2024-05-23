@@ -617,6 +617,9 @@ def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
 
     logger.info(f"The common beam is: {common_beam=}")
 
+    if any([np.isnan(common_beam.major), np.isnan(common_beam.minor)]):
+        raise ValueError("Common beam is NaN, consider raising the cutoff.")
+
     # serialise the beam
     common_beam_pkl = Path(f"beam_{image_hash}.pkl")
 
