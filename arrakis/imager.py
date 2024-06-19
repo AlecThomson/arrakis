@@ -273,6 +273,11 @@ def image_beam(
     # Evaluate the temp directory if a ENV variable is used
     temp_dir_images = parse_env_path(temp_dir_images)
     if temp_dir_images != out_dir:
+        # Add a new subdir to the temp directory
+        # Attempt to prevent other tasks from overwriting each other
+        ms_hash = hashlib.md5(ms.resolve(strict=True).as_posix().encode()).hexdigest()
+        temp_dir_images = temp_dir_images / ms_hash
+        temp_dir_images.mkdir(parents=True, exist_ok=True)
         # Copy the MS to the temp directory
         ms_temp = temp_dir_images / ms.name
         logger.info(f"Copying {ms} to {ms_temp}")
