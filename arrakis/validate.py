@@ -347,7 +347,7 @@ def plot_rm(
             label="$\pm 5 \sigma$",
         )
         abs_max_val = np.nanmax(
-            (np.abs(np.concatenate([racs_match["rm"], other_match["rm"]]))).value
+            (np.abs(np.concatenate([racs_match["rm"], other_match["rm"]])))
         )
         ax.plot(
             [-abs_max_val, abs_max_val],
