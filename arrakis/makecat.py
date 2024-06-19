@@ -904,62 +904,48 @@ def main(
     }
 
     fields = {}
+    projected_fields = {}
     for n in columns_possum.input_names:
         fields.update({n: 1})
+        projected_fields.update({n: 1})
     for n in columns_possum.sourcefinder_columns:
         fields.update({n: 1})
+        projected_fields.update({n: 1})
 
+    # Filter to ensure we only get the fields we want
     fields.update(
+        {
+            "filtered_rm_outputs": {
+                "$filter": {
+                    "input": "$rm_outputs_1d",
+                    "as": "item",
+                    "cond": {
+                        "$and": [
+                            {"$eq": ["$$item.field", save_name]},
+                            {"$eq": ["$$item.rmsynth1d", True]},
+                            {"$eq": ["$$item.rmclean1d", True]},
+                            {"$gt": [{"$type": "$$item.rmsynth_summary"}, "missing"]},
+                            {"$gt": [{"$type": "$$item.rmclean_summary"}, "missing"]},
+                        ]
+                    },
+                }
+            },
+        }
+    )
+    # Add the filtered fields back to nice values
+    projected_fields.update(
         {
             "rmsynth_summary": {
-                "$arrayElemAt": [
-                    "$rm_outputs_1d.rmsynth_summary",
-                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
-                ]
-            }
-        }
-    )
-    fields.update(
-        {
-            "rmsynth1d": {
-                "$arrayElemAt": [
-                    "$rm_outputs_1d.rmsynth1d",
-                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
-                ]
-            }
-        }
-    )
-    fields.update(
-        {
-            "rmclean1d": {
-                "$arrayElemAt": [
-                    "$rm_outputs_1d.rmclean1d",
-                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
-                ]
-            }
-        }
-    )
-    fields.update(
-        {
+                "$arrayElemAt": ["$filtered_rm_outputs.rmsynth_summary", 0]
+            },
+            "rmsynth1d": {"$arrayElemAt": ["$filtered_rm_outputs.rmsynth1d", 0]},
+            "rmclean1d": {"$arrayElemAt": ["$filtered_rm_outputs.rmclean1d", 0]},
             "rmclean_summary": {
-                "$arrayElemAt": [
-                    "$rm_outputs_1d.rmclean_summary",
-                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
-                ]
-            }
+                "$arrayElemAt": ["$filtered_rm_outputs.rmclean_summary", 0]
+            },
         }
     )
-    fields.update(
-        {
-            "header": {
-                "$arrayElemAt": [
-                    "$rm_outputs_1d.header",
-                    {"$indexOfArray": ["$rm_outputs_1d.field", save_name]},
-                ]
-            }
-        }
-    )
-    pipeline = [{"$match": query}, {"$project": fields}]
+    pipeline = [{"$match": query}, {"$project": fields}, {"$project": projected_fields}]
     comps_df = pd.DataFrame(comp_col.aggregate(pipeline))
     # For sanity
     comps_df = comps_df.loc[
