@@ -7,6 +7,8 @@ import stat
 import warnings
 from glob import glob
 from pathlib import Path
+import shlex
+import subprocess as sp
 from typing import Tuple
 
 from astropy.table import Table
@@ -22,6 +24,19 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
+
+
+def verify_tarball(
+    tarball: str | Path,
+):
+    cmd = f"tar -tvf {tarball}"
+    logger.info(f"Verifying tarball {tarball}")
+    popen = sp.Popen(shlex.split(cmd), stderr=sp.PIPE)
+    with popen.stderr:
+        for line in iter(popen.stderr.readline, b""):
+            logger.error(line.decode().strip())
+    exitcode = popen.wait()
+    return exitcode == 0
 
 
 def parse_env_path(env_path: PathLike) -> Path:

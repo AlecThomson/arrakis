@@ -8,6 +8,7 @@ import tarfile
 from pathlib import Path
 from typing import List
 
+from arrakis.utils.io import verify_tarball
 import astropy.units as u
 import numpy as np
 from prefect import flow, get_run_logger, task
@@ -58,6 +59,11 @@ def make_cutout_tarball(cutdir: Path, overwrite: bool = False) -> Path:
             tar.add(cutout, arcname=cutout.name)
 
     logger.info(f"Tarball created: {tarball}")
+
+    verification = verify_tarball(tarball)
+    if not verification:
+        raise RuntimeError(f"Verification of {tarball} failed!")
+
     logger.critical(f"Removing {cutdir}")
     shutil.rmtree(cutdir)
     return tarball
