@@ -926,6 +926,7 @@ def main(
                             {"$eq": ["$$item.rmclean1d", True]},
                             {"$gt": [{"$type": "$$item.rmsynth_summary"}, "missing"]},
                             {"$gt": [{"$type": "$$item.rmclean_summary"}, "missing"]},
+                            {"$gt": [{"$type": "$$item.header"}, "missing"]},
                         ]
                     },
                 }
@@ -943,18 +944,19 @@ def main(
             "rmclean_summary": {
                 "$arrayElemAt": ["$filtered_rm_outputs.rmclean_summary", 0]
             },
+            "header": {"$arrayElemAt": ["$filtered_rm_outputs.header", 0]},
         }
     )
     pipeline = [{"$match": query}, {"$project": fields}, {"$project": projected_fields}]
     comps_df = pd.DataFrame(comp_col.aggregate(pipeline))
     # For sanity
-    comps_df = comps_df.loc[
-        comps_df.rmclean1d.astype(bool) & comps_df.rmsynth1d.astype(bool)
-    ]
-    comps_df.dropna(
-        subset=["rmclean_summary", "rmsynth_summary", "rmclean1d", "rmsynth1d"],
-        inplace=True,
-    )
+    # comps_df = comps_df.loc[
+    #     comps_df.rmclean1d.astype(bool) & comps_df.rmsynth1d.astype(bool)
+    # ]
+    # comps_df.dropna(
+    #     subset=["rmclean_summary", "rmsynth_summary", "rmclean1d", "rmsynth1d"],
+    #     inplace=True,
+    # )
     comps_df.set_index("Source_ID", inplace=True)
     tock = time.time()
     logger.info(f"Finished component collection query - {tock-tick:.2f}s")
