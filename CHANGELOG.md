@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.5] - 2024-06-21
+
+### What's Changed
+* Added tarball verification
+* Tweaks to petrichor config
+* Retry cutout failues
+* Reduce validation plot resolution
+* Fail if commonbeam is NaN (i.e. whole beam will be blanked)
+* Use threadpool for beamcon
+* Catch the failure of Voronoi binning
+* Fixes to database queries and related structuring
+* Catch failure of a validation plot
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.3.4...v2.3.5
+
 ## [2.3.4] - 2024-05-13
 ### What's Changed
 * Polar by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/71
