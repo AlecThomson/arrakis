@@ -830,6 +830,60 @@ def write_votable(rmtab: TableLike, outfile: str) -> None:
     replace_nans(outfile)
 
 
+def update_tile_separations(rmtab: TableLike, field_col: Collection) -> TableLike:
+    """
+    Update the tile separations in the catalogue
+
+    Args:
+        rmtab (TableLike): Table to update
+        field_col (Collection): Field collection
+
+    Returns:
+        TableLike: Updated table
+
+    """
+    logger.info("Updating tile separations")
+    field_names = np.unique(rmtab["tile_id"].data)
+
+    field_data = pd.DataFrame(
+        field_col.find(
+            {"FIELD_NAME": {"$in": list(field_names)}},
+        )
+    )
+    field_data.drop_duplicates(subset=["FIELD_NAME"], inplace=True)
+    field_data.set_index("FIELD_NAME", inplace=True)
+
+    field_coords = SkyCoord(
+        ra=field_data["RA_DEG"], dec=field_data["DEC_DEG"], unit=(u.deg, u.deg)
+    )
+    field_data["coords"] = field_coords
+
+    coords = SkyCoord(ra=rmtab["ra"], dec=rmtab["dec"], unit=(u.deg, u.deg))
+
+    rmtab.add_column(
+        Column(
+            data=np.zeros_like(rmtab["ra"]) * np.nan, name="l_tile_centre", unit=u.deg
+        )
+    )
+    rmtab.add_column(
+        Column(
+            data=np.zeros_like(rmtab["ra"]) * np.nan, name="m_tile_centre", unit=u.deg
+        )
+    )
+
+    for field_name, row in field_data.iterrows():
+        field_coord = row["coords"]
+        tab_idx = rmtab["tile_id"] == field_name
+        tile_sep = coords[tab_idx].separation(field_coord)
+        tile_l, tile_m = coords[tab_idx].spherical_offsets_to(field_coord)
+        rmtab["l_tile_centre"][tab_idx] = tile_l
+        rmtab["m_tile_centre"][tab_idx] = tile_m
+        rmtab["separation_tile_centre"][tab_idx] = tile_sep
+        rmtab["beamdist"][tab_idx] = tile_sep
+
+    return rmtab
+
+
 @flow(name="Make catalogue")
 def main(
     field: str,
@@ -859,14 +913,15 @@ def main(
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
+    field_col = get_field_db(
+        host=host,
+        epoch=epoch,
+        username=username,
+        password=password,
+    )
+
     # Check for SBID match
     if sbid is not None:
-        field_col = get_field_db(
-            host=host,
-            epoch=epoch,
-            username=username,
-            password=password,
-        )
         sbid_check = validate_sbid_field_pair(
             field_name=field,
             sbid=sbid,
@@ -874,6 +929,7 @@ def main(
         )
         if not sbid_check:
             raise ValueError(f"SBID {sbid} does not match field {field}")
+
     logger.info("Starting beams collection query")
     tick = time.time()
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
@@ -1042,6 +1098,9 @@ def main(
     if sbid is not None:
         rmtab["sbid"] = sbid
         rmtab["field_name"] = field
+
+    # Add tile separations
+    rmtab = update_tile_separations(rmtab, field_col)
 
     # Fix sigma_add
     rmtab = sigma_add_fix(rmtab)
