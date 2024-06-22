@@ -297,6 +297,14 @@ extra_column_descriptions = {
         "description": "Separation from tile centre",
         "ucd": "pos.angDistance",
     },
+    "l_tile_centre": {
+        "description": "RA offset from tile centre",
+        "ucd": "pos.eq.ra;pos.offset",
+    },
+    "m_tile_centre": {
+        "description": "Dec offset from tile centre",
+        "ucd": "pos.eq.dec;pos.offset",
+    },
     "s_code": {
         "description": "Source complexity classification",
         "ucd": "meta.code.class",
