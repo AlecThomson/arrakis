@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.6] - 2024-06-25
+
+## What's Changed
+* Added field/tile seperation calculation and columns
+* Added an auto-purge to temp-image files in imager
+
 ## [2.3.5] - 2024-06-21
 
 ### What's Changed
