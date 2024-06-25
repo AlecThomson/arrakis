@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.3.6] - 2024-06-25
 
-## What's Changed
+### What's Changed
+* Add field offsets by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/72
 * Added field/tile seperation calculation and columns
+* [pre-commit.ci] pre-commit autoupdate by @pre-commit-ci in https://github.com/AlecThomson/arrakis/pull/65
 * Added an auto-purge to temp-image files in imager
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.3.5...v2.3.6
 
 ## [2.3.5] - 2024-06-21
 
