@@ -273,11 +273,6 @@ def image_beam(
     # Evaluate the temp directory if a ENV variable is used
     temp_dir_images = parse_env_path(temp_dir_images)
     if temp_dir_images != out_dir:
-        # Add a new subdir to the temp directory
-        # Attempt to prevent other tasks from overwriting each other
-        ms_hash = hashlib.md5(ms.resolve(strict=True).as_posix().encode()).hexdigest()
-        temp_dir_images = temp_dir_images / ms_hash
-        temp_dir_images.mkdir(parents=True, exist_ok=True)
         # Copy the MS to the temp directory
         ms_temp = temp_dir_images / ms.name
         logger.info(f"Copying {ms} to {ms_temp}")
@@ -456,6 +451,8 @@ def image_beam(
         all_fits_files = list(temp_dir_images.glob(f"{prefix.name}*.fits"))
         for fits_file in tqdm(all_fits_files, desc="Copying images", file=TQDM_OUT):
             shutil.copy(fits_file, out_dir)
+            # Purge the temp directory
+            fits_file.unlink()
 
         # Update the prefix
         prefix = out_dir / prefix.name
