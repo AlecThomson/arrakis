@@ -288,7 +288,7 @@ def main(args: configargparse.Namespace) -> None:
 
         logger.info("Obtained DaskTaskRunner, executing the imager workflow. ")
         imager.main.with_options(
-            name=f"Arrakis Imaging -- {args.field}", task_runner=dask_runner
+            name=f"Arrakis Imaging -- {args.sbid}:{args.field}", task_runner=dask_runner
         )(
             msdir=args.msdir,
             out_dir=args.datadir,
@@ -345,7 +345,7 @@ def main(args: configargparse.Namespace) -> None:
 
     # Define flow
     process_spice.with_options(
-        name=f"Arrakis Synthesis -- {args.field}",
+        name=f"Arrakis Synthesis -- {args.sbid}:{args.field}",
     )(args, host, dask_runner_2)
 
 

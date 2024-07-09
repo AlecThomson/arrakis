@@ -169,7 +169,7 @@ def main(args: configargparse.Namespace) -> None:
     inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
 
     process_merge.with_options(
-        name=f"SPICE-RACS: {args.merge_name}", task_runner=dask_runner
+        name=f"Arrakis Merge: {args.merge_name}", task_runner=dask_runner
     )(args, args.host, inter_dir, dask_runner)
 
 
