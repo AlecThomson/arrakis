@@ -9,6 +9,7 @@ from pprint import pformat
 from typing import Callable, Dict, List
 from typing import NamedTuple as Struct
 from typing import Optional, Union
+from urllib.error import URLError
 
 import astropy.units as u
 import numpy as np
@@ -134,24 +135,45 @@ def predict_worker(
     }
     logger.info("Set up empty Proxy structure.")
 
-    times, RMs, theta = predict.calculate_modulation(
-        start_time=start_time.fits,
-        end_time=end_time.fits,
-        freq_array=freq,
-        telescope_location=predict.get_telescope_coordinates("ASKAP"),
-        ra=ra,
-        dec=dec,
-        timestep=300.0,
-        ionexPath=cutdir.parent / "IONEXdata",
-        server=server,
-        proxy_server=proxy_server,
-        use_proxy=True,  # Always use proxy - forces urllib
-        prefix=prefix,
-        formatter=formatter,
-        pre_download=pre_download,
-        **proxy_args,
-    )
-    logger.info(f"Predicted modulation for {iname}.")
+    # Final solutions from CDDIS
+    _prefixes_to_try = [
+        prefix,
+        "codg",
+        "jplg",
+        "casg",
+        "esag",
+        "upcg",
+        "igsg",
+    ]
+    for _prefix in _prefixes_to_try:
+        try:
+            times, RMs, theta = predict.calculate_modulation(
+                start_time=start_time.fits,
+                end_time=end_time.fits,
+                freq_array=freq,
+                telescope_location=predict.get_telescope_coordinates("ASKAP"),
+                ra=ra,
+                dec=dec,
+                timestep=300.0,
+                ionexPath=cutdir.parent / "IONEXdata",
+                server=server,
+                proxy_server=proxy_server,
+                use_proxy=True,  # Always use proxy - forces urllib
+                prefix=_prefix,
+                formatter=formatter,
+                pre_download=pre_download,
+                **proxy_args,
+            )
+            break
+        except URLError:
+            logger.error(f"Could not find IONEX file with prefix '{_prefix}'")
+            logger.warning("Trying next prefix.")
+            continue
+    else:
+        raise FileNotFoundError(
+            f"Could not find IONEX file with prefixes {_prefixes_to_try}"
+        )
+
     predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
     predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
     logger.info(f"Prediction file: {predict_file}")
