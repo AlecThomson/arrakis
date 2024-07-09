@@ -56,8 +56,6 @@ matplotlib.use("Agg")
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
-get_pol_axis_task = task(get_pol_axis, name="Get pol. axis")
-
 
 class ImageSet(Struct):
     """Container to organise files related to t he imaging of a measurement set."""
@@ -81,6 +79,13 @@ class MFSImage(Struct):
     """The model data."""
     residual: np.ndarray
     """The residual data."""
+
+
+@task(name="Get pol. axis")
+def get_pol_axis_task(
+    ms: Path, feed_idx: Optional[int] = None, col: str = "RECEPTOR_ANGLE"
+) -> float:
+    return get_pol_axis(ms=ms, feed_idx=feed_idx, col=col).to(u.deg).value
 
 
 @task(name="Merge ImageSets")
@@ -457,6 +462,7 @@ def image_beam(
         all_fits_files = []
         for pol in pols:
             for suffix in suffixes:
+                # Get channel images
                 globstr = (
                     f"{prefix.name}-*[0-9]-{suffix}.fits"
                     if len(pols) == 1
@@ -465,7 +471,17 @@ def image_beam(
                 sub_fits_files = list(temp_dir_images.glob(globstr))
                 all_fits_files.extend(sub_fits_files)
 
+                # Get the MFS image
+                mfs_globstr = (
+                    f"{prefix.name}-MFS-{pol}-{suffix}.fits"
+                    if len(pols) > 1
+                    else f"{prefix.name}-MFS-{suffix}.fits"
+                )
+                mfs_files = list(temp_dir_images.glob(mfs_globstr))
+                all_fits_files.extend(mfs_files)
+
         for fits_file in tqdm(all_fits_files, desc="Copying images", file=TQDM_OUT):
+            logger.info(f"Copying {fits_file} to {out_dir}")
             shutil.copy(fits_file, out_dir)
             # Purge the temp directory
             fits_file.unlink()
@@ -893,6 +909,8 @@ def main(
 
     # Image_sets will be a containter that represents the output wsclean image products
     # produced for each beam. A single ImageSet is a container for a single beam.
+    ms_list_fixed = []
+    pol_angles = []
     for ms in mslist:
         logger.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
@@ -901,18 +919,17 @@ def main(
             ms_fix = fix_ms_askap_corrs.submit(
                 ms=ms_fix, data_column="DATA", corrected_data_column=data_column
             )
-            pol_angle_deg = (
-                get_pol_axis_task(ms_fix, col="INSTRUMENT_RECEPTOR_ANGLE")
-                .to(u.deg)
-                .value
+            pol_angle_deg = get_pol_axis_task.submit(
+                ms_fix, col="INSTRUMENT_RECEPTOR_ANGLE"
             )
         else:
             ms_fix = ms
-            pol_angle_deg = (
-                get_pol_axis_task(ms_fix, col="RECEPTOR_ANGLE").to(u.deg).value
-            )
-        # Image with wsclean
+            pol_angle_deg = get_pol_axis_task.submit(ms_fix, col="RECEPTOR_ANGLE")
+        ms_list_fixed.append(ms_fix)
+        pol_angles.append(pol_angle_deg)
 
+    for ms, ms_fix, pol_angle_deg in zip(mslist, ms_list_fixed, pol_angles):
+        # Image with wsclean
         # split out stokes I and QUV
         if "I" in pols:
             pols = pols.replace("I", "")
@@ -992,7 +1009,7 @@ def main(
             disable_pol_force_mask_rounds=disable_pol_force_mask_rounds,
         )
 
-        image_set = merge_imagesets([image_set_I, image_set_pol])
+        image_set = merge_imagesets.submit([image_set_I, image_set_pol])
 
         make_validation_plots.submit(
             prefix=prefixs[ms],
