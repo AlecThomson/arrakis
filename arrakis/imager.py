@@ -56,6 +56,8 @@ matplotlib.use("Agg")
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
+get_pol_axis_task = task(get_pol_axis, name="Get pol. axis")
+
 
 class ImageSet(Struct):
     """Container to organise files related to t he imaging of a measurement set."""
@@ -79,6 +81,50 @@ class MFSImage(Struct):
     """The model data."""
     residual: np.ndarray
     """The residual data."""
+
+
+@task(name="Merge ImageSets")
+def merge_imagesets(image_sets: List[Optional[ImageSet]]) -> ImageSet:
+    """Merge a collection of ImageSets into a single ImageSet.
+
+    Args:
+        image_sets (List[ImageSet]): Collection of ImageSets to merge.
+
+    Returns:
+        ImageSet: A single ImageSet containing all the images from the input ImageSets.
+    """
+    logger = get_run_logger()
+
+    logger.info(f"Merging {len(image_sets)} ImageSets.")
+
+    # Remove any None values
+    image_sets = [image_set for image_set in image_sets if image_set is not None]
+
+    ms = image_sets[0].ms
+    prefix = image_sets[0].prefix
+
+    for image_set in image_sets:
+        assert image_set.ms == ms, f"{image_set.ms=} does not match {ms=}"
+        assert (
+            image_set.prefix == prefix
+        ), f"{image_set.prefix=} does not match {prefix=}"
+
+    image_lists = {}
+    aux_lists = {}
+
+    for image_set in image_sets:
+        for pol, images in image_set.image_lists.items():
+            if pol not in image_lists:
+                image_lists[pol] = []
+            image_lists[pol].extend(images)
+
+        if image_set.aux_lists:
+            for (pol, aux), aux_images in image_set.aux_lists.items():
+                if (pol, aux) not in aux_lists:
+                    aux_lists[(pol, aux)] = []
+                aux_lists[(pol, aux)].extend(aux_images)
+
+    return ImageSet(ms=ms, prefix=prefix, image_lists=image_lists, aux_lists=aux_lists)
 
 
 def get_mfs_image(
@@ -284,6 +330,11 @@ def image_beam(
 
     temp_dir_wsclean = parse_env_path(temp_dir_wsclean)
 
+    # Make temp MS to allow parallel imaging
+    ms_temp = ms.with_suffix(f".{pols}.temp.ms")
+    logger.info(f"Copying {ms} to {ms_temp}")
+    shutil.copytree(ms, ms_temp)
+
     # Catch mis-matched args
     if not local_rms:
         logger.warning(
@@ -301,154 +352,119 @@ def image_beam(
         )
         multiscale_scales = None
 
-    commands = []
-    # Do any I cleaning separately
-    do_stokes_I = "I" in pols
-    if do_stokes_I:
-        command = wsclean(
-            mslist=[ms.resolve(strict=True).as_posix()],
-            temp_dir=(
-                temp_dir_wsclean.resolve(strict=True).as_posix()
-                if temp_dir_wsclean is not None
-                else None
-            ),
-            use_mpi=False,
-            name=prefix.resolve().as_posix(),
-            pol="I",
-            verbose=True,
-            channels_out=nchan,
-            parallel_gridding=nchan,
-            scale=f"{scale}asec",
-            size=f"{npix} {npix}",
-            join_polarizations=False,  # Only do I
-            join_channels=join_channels,
-            squared_channel_joining=False,  # Dont want to square I
-            mgain=mgain,
-            niter=niter,
-            auto_mask=auto_mask,
-            force_mask_rounds=force_mask_rounds,
-            auto_threshold=auto_threshold,
-            gridder=gridder,
-            weight=f"briggs {robust}",
-            log_time=False,
-            mem=mem,
-            abs_mem=absmem,
-            taper_gaussian=f"{taper}asec" if taper else None,
-            field=field_idx,
-            parallel_deconvolution=parallel_deconvolution,
-            minuv_l=minuv_l,
-            nmiter=nmiter,
-            local_rms=local_rms,
-            local_rms_window=local_rms_window,
-            multiscale_scale_bias=multiscale_scale_bias,
-            multiscale=multiscale,
-            multiscale_scales=multiscale_scales,
-            data_column=data_column,
-            no_mf_weighting=no_mf_weighting,
-            no_update_model_required=no_update_model_required,
-            beam_fitting_size=beam_fitting_size,
+    if squared_channel_joining:
+        logger.info(
+            "Squared channel joining is enabled - scaling auto_mask and auto_threshold by power of 2"
         )
-        commands.append(command)
-        pols = pols.replace("I", "")
+        auto_mask = my_ceil(auto_mask**2, 2)
+        auto_threshold = my_ceil(auto_threshold**2, 2)
 
-    if all([p in pols.upper() for p in ("Q", "U")]):
-        if squared_channel_joining:
-            logger.info(
-                "Squared channel joining is enabled - scaling auto_mask and auto_threshold by power of 2"
-            )
-            auto_mask = my_ceil(auto_mask**2, 2)
-            auto_threshold = my_ceil(auto_threshold**2, 2)
+    if disable_pol_local_rms and pols != "I":
+        logger.info("Disabling local RMS for polarisation images")
+        local_rms = False
+        local_rms_window = None
 
-        if disable_pol_local_rms:
-            logger.info("Disabling local RMS for polarisation images")
-            local_rms = False
-            local_rms_window = None
+    if disable_pol_force_mask_rounds and pols != "I":
+        logger.info("Disabling force mask rounds for polarisation images")
+        force_mask_rounds = None
 
-        if disable_pol_force_mask_rounds:
-            logger.info("Disabling force mask rounds for polarisation images")
-            force_mask_rounds = None
-
-        command = wsclean(
-            mslist=[ms.resolve(strict=True).as_posix()],
-            temp_dir=(
-                temp_dir_wsclean.resolve(strict=True).as_posix()
-                if temp_dir_wsclean is not None
-                else None
-            ),
-            use_mpi=False,
-            name=prefix.resolve().as_posix(),
-            pol=pols,
-            verbose=True,
-            channels_out=nchan,
-            parallel_gridding=nchan,
-            scale=f"{scale}asec",
-            size=f"{npix} {npix}",
-            join_polarizations=join_polarizations,
-            join_channels=join_channels,
-            squared_channel_joining=squared_channel_joining,
-            mgain=mgain,
-            niter=niter,
-            auto_mask=auto_mask,
-            force_mask_rounds=force_mask_rounds,
-            auto_threshold=auto_threshold,
-            gridder=gridder,
-            weight=f"briggs {robust}",
-            log_time=False,
-            mem=mem,
-            abs_mem=absmem,
-            taper_gaussian=f"{taper}asec" if taper else None,
-            field=field_idx,
-            parallel_deconvolution=parallel_deconvolution,
-            minuv_l=minuv_l,
-            nmiter=nmiter,
-            local_rms=local_rms,
-            local_rms_window=local_rms_window,
-            # Avoid multiscale when using squared channel joining
-            multiscale=multiscale if not squared_channel_joining else False,
-            multiscale_scale_bias=multiscale_scale_bias
-            if not squared_channel_joining
-            else None,
-            multiscale_scales=multiscale_scales
-            if not squared_channel_joining
-            else None,
-            data_column=data_column,
-            no_mf_weighting=no_mf_weighting,
-            no_update_model_required=no_update_model_required,
-            beam_fitting_size=beam_fitting_size,
-        )
-        commands.append(command)
+    command = wsclean(
+        mslist=[ms_temp.resolve(strict=True).as_posix()],
+        temp_dir=(
+            temp_dir_wsclean.resolve(strict=True).as_posix()
+            if temp_dir_wsclean is not None
+            else None
+        ),
+        use_mpi=False,
+        name=prefix.resolve().as_posix(),
+        pol=pols,
+        verbose=True,
+        channels_out=nchan,
+        parallel_gridding=nchan,
+        scale=f"{scale}asec",
+        size=f"{npix} {npix}",
+        join_polarizations=join_polarizations,
+        join_channels=join_channels,
+        squared_channel_joining=squared_channel_joining,
+        mgain=mgain,
+        niter=niter,
+        auto_mask=auto_mask,
+        force_mask_rounds=force_mask_rounds,
+        auto_threshold=auto_threshold,
+        gridder=gridder,
+        weight=f"briggs {robust}",
+        log_time=False,
+        mem=mem,
+        abs_mem=absmem,
+        taper_gaussian=f"{taper}asec" if taper else None,
+        field=field_idx,
+        parallel_deconvolution=parallel_deconvolution,
+        minuv_l=minuv_l,
+        nmiter=nmiter,
+        local_rms=local_rms,
+        local_rms_window=local_rms_window,
+        # Avoid multiscale when using squared channel joining
+        multiscale=multiscale if not squared_channel_joining else False,
+        multiscale_scale_bias=multiscale_scale_bias
+        if not squared_channel_joining
+        else None,
+        multiscale_scales=multiscale_scales if not squared_channel_joining else None,
+        data_column=data_column,
+        no_mf_weighting=no_mf_weighting,
+        no_update_model_required=no_update_model_required,
+        beam_fitting_size=beam_fitting_size,
+    )
 
     root_dir = ms.parent
+    logger.info(f"Running wsclean with command: {command}")
+    try:
+        output = sclient.execute(
+            image=simage.resolve(strict=True).as_posix(),
+            command=command.split(),
+            bind=f"{out_dir}:{out_dir}, {root_dir.resolve(strict=True).as_posix()}:{root_dir.resolve(strict=True).as_posix()}",
+            return_result=True,
+            quiet=False,
+            stream=True,
+        )
+        for line in output:
+            logger.info(line.rstrip())
+            # Catch divergence - look for the string 'KJy' in the output
+            if "KJy" in line:
+                raise ValueError(
+                    f"Detected divergence in wsclean output: {line.rstrip()}"
+                )
+    except CalledProcessError as e:
+        logger.error(f"Failed to run wsclean with command: {command}")
+        logger.error(f"Stdout: {e.stdout}")
+        logger.error(f"Stderr: {e.stderr}")
+        logger.error(f"{e=}")
+        raise e
 
-    for command in commands:
-        logger.info(f"Running wsclean with command: {command}")
-        try:
-            output = sclient.execute(
-                image=simage.resolve(strict=True).as_posix(),
-                command=command.split(),
-                bind=f"{out_dir}:{out_dir}, {root_dir.resolve(strict=True).as_posix()}:{root_dir.resolve(strict=True).as_posix()}",
-                return_result=True,
-                quiet=False,
-                stream=True,
-            )
-            for line in output:
-                logger.info(line.rstrip())
-                # Catch divergence - look for the string 'KJy' in the output
-                if "KJy" in line:
-                    raise ValueError(
-                        f"Detected divergence in wsclean output: {line.rstrip()}"
-                    )
-        except CalledProcessError as e:
-            logger.error(f"Failed to run wsclean with command: {command}")
-            logger.error(f"Stdout: {e.stdout}")
-            logger.error(f"Stderr: {e.stderr}")
-            logger.error(f"{e=}")
-            raise e
+    # Purge ms_temp
+    shutil.rmtree(ms_temp)
 
+    suffixes: List[str] = ["image", "model", "psf", "residual", "dirty"]
     if temp_dir_images != out_dir:
         # Copy the images to the output directory
         logger.info(f"Copying images to {out_dir}")
-        all_fits_files = list(temp_dir_images.glob(f"{prefix.name}*.fits"))
+        # Suffixes are:
+        # ["image", "model", "psf", "residual", "dirty"]
+        # For single pol files are
+        # {prefix}-{chan:02d}-{suffix}.fits
+        # For multiple pols files are
+        # {prefix}-{chan:02d}-{pol}-{suffix}.fits
+
+        all_fits_files = []
+        for pol in pols:
+            for suffix in suffixes:
+                globstr = (
+                    f"{prefix.name}-*[0-9]-{suffix}.fits"
+                    if len(pols) == 1
+                    else f"{prefix.name}-*[0-9]-{pol}-{suffix}.fits"
+                )
+                sub_fits_files = list(temp_dir_images.glob(globstr))
+                all_fits_files.extend(sub_fits_files)
+
         for fits_file in tqdm(all_fits_files, desc="Copying images", file=TQDM_OUT):
             shutil.copy(fits_file, out_dir)
             # Purge the temp directory
@@ -460,12 +476,10 @@ def image_beam(
     prefix_str = prefix.resolve().as_posix()
 
     # Check rms of image to check for divergence
-    if do_stokes_I:
-        pols += "I"
     for pol in pols:
         mfs_image = (
             f"{prefix_str}-MFS-image.fits"
-            if pol == "I"
+            if len(pols) == 1
             else f"{prefix_str}-MFS-{pol}-image.fits"
         )
         rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
@@ -478,10 +492,11 @@ def image_beam(
     # Get images
     image_lists = {}
     aux_lists = {}
+    aux_suffixes = suffixes[1:]
     for pol in pols:
         imglob = (
             f"{prefix_str}-*[0-9]-image.fits"
-            if pol == "I"
+            if len(pols) == 1
             else f"{prefix_str}-*[0-9]-{pol}-image.fits"
         )
         image_list = sorted(glob(imglob))
@@ -489,10 +504,10 @@ def image_beam(
 
         logger.info(f"Found {len(image_list)} images for {pol=} {ms}.")
 
-        for aux in ["model", "psf", "residual", "dirty"]:
+        for aux in aux_suffixes:
             aux_list = (
                 sorted(glob(f"{prefix_str}-*[0-9]-{aux}.fits"))
-                if pol == "I" or aux == "psf"
+                if len(pols) == 1 or aux == "psf"
                 else sorted(glob(f"{prefix_str}-*[0-9]-{pol}-{aux}.fits"))
             )
             aux_lists[(pol, aux)] = aux_list
@@ -882,18 +897,65 @@ def main(
         logger.info(f"Imaging {ms}")
         # Apply Emil's fix for MSs feed centre
         if not skip_fix_ms:
-            ms_fix = fix_ms(ms)
-            ms_fix = fix_ms_askap_corrs(
+            ms_fix = fix_ms.submit(ms)
+            ms_fix = fix_ms_askap_corrs.submit(
                 ms=ms_fix, data_column="DATA", corrected_data_column=data_column
             )
             pol_angle_deg = (
-                get_pol_axis(ms_fix, col="INSTRUMENT_RECEPTOR_ANGLE").to(u.deg).value
+                get_pol_axis_task(ms_fix, col="INSTRUMENT_RECEPTOR_ANGLE")
+                .to(u.deg)
+                .value
             )
         else:
             ms_fix = ms
-            pol_angle_deg = get_pol_axis(ms_fix, col="RECEPTOR_ANGLE").to(u.deg).value
+            pol_angle_deg = (
+                get_pol_axis_task(ms_fix, col="RECEPTOR_ANGLE").to(u.deg).value
+            )
         # Image with wsclean
-        image_set = image_beam.submit(
+
+        # split out stokes I and QUV
+        if "I" in pols:
+            pols = pols.replace("I", "")
+            image_set_I = image_beam.submit(
+                ms=ms_fix,
+                field_idx=field_idxs[ms],
+                out_dir=out_dir,
+                temp_dir_wsclean=temp_dir_wsclean,
+                temp_dir_images=temp_dir_images,
+                prefix=prefixs[ms],
+                simage=simage.resolve(strict=True),
+                robust=robust,
+                pols="I",
+                join_polarizations=False,  # Only do I
+                squared_channel_joining=False,  # Dont want to square I
+                nchan=nchan,
+                scale=scale,
+                npix=size,
+                mgain=mgain,
+                niter=niter,
+                auto_mask=auto_mask,
+                force_mask_rounds=force_mask_rounds,
+                auto_threshold=auto_threshold,
+                taper=taper,
+                minuv_l=minuv,
+                parallel_deconvolution=parallel_deconvolution,
+                gridder=gridder,
+                nmiter=nmiter,
+                local_rms=local_rms,
+                local_rms_window=local_rms_window,
+                multiscale=multiscale,
+                multiscale_scale_bias=multiscale_scale_bias,
+                multiscale_scales=multiscale_scales,
+                absmem=absmem,
+                data_column=data_column,
+                no_mf_weighting=no_mf_weighting,
+                disable_pol_local_rms=disable_pol_local_rms,
+                disable_pol_force_mask_rounds=disable_pol_force_mask_rounds,
+            )
+        else:
+            image_set_I = None
+
+        image_set_pol = image_beam.submit(
             ms=ms_fix,
             field_idx=field_idxs[ms],
             out_dir=out_dir,
@@ -903,6 +965,8 @@ def main(
             simage=simage.resolve(strict=True),
             robust=robust,
             pols=pols,
+            join_polarizations=len(pols) > 1,
+            squared_channel_joining=True,
             nchan=nchan,
             scale=scale,
             npix=size,
@@ -927,6 +991,8 @@ def main(
             disable_pol_local_rms=disable_pol_local_rms,
             disable_pol_force_mask_rounds=disable_pol_force_mask_rounds,
         )
+
+        image_set = merge_imagesets([image_set_I, image_set_pol])
 
         make_validation_plots.submit(
             prefix=prefixs[ms],
