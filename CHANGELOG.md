@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.7] - 2024-07-09
+### What's Changed
+* Check ionex by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/74
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.3.6...v2.3.7
+
 ## [2.3.6] - 2024-06-25
 
 ### What's Changed
