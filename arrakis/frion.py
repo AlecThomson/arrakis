@@ -9,6 +9,7 @@ from pprint import pformat
 from typing import Callable, Dict, List
 from typing import NamedTuple as Struct
 from typing import Optional, Union
+from urllib.error import URLError
 
 import astropy.units as u
 import numpy as np
@@ -134,12 +135,15 @@ def predict_worker(
     }
     logger.info("Set up empty Proxy structure.")
 
+    # Final solutions from CDDIS
     _prefixes_to_try = [
         prefix,
         "codg",
         "jplg",
         "casg",
         "esag",
+        "upcg",
+        "igsg",
     ]
     for _prefix in _prefixes_to_try:
         try:
@@ -161,8 +165,8 @@ def predict_worker(
                 **proxy_args,
             )
             break
-        except FileNotFoundError as e:
-            logger.error(f"Could not find IONEX file with prefix {_prefix}: {e}")
+        except URLError:
+            logger.error(f"Could not find IONEX file with prefix '{_prefix}'")
             logger.warning("Trying next prefix.")
             continue
     else:
