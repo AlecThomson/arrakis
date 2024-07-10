@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.8] - 2024-07-10
+### What's Changed
+* Add flow diagram by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/75
+* Split Stokes I and QU imaging tasks by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/76
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.3.7...v2.3.8
+
 ## [2.3.7] - 2024-07-09
 ### What's Changed
 * Check ionex by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/74
