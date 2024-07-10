@@ -3,4 +3,5 @@ sphinx-book-theme
 sphinx-autoapi
 numpydoc
 myst_parser
+sphinxcontrib-mermaid
 -e ./

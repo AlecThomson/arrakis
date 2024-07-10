@@ -27,6 +27,10 @@ Details of each module can be found in the API documentation. But broadly the st
 
 .. rst-class::  clear-both
 
+.. mermaid:: ./flow.mmd
+
+
+
 ----
 
 With an initalised database you can call the pipeline on a single field: ::

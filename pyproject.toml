@@ -84,6 +84,7 @@ docs = [
     "sphinx-autoapi",
     "m2r2",
     "numpydoc",
+    "sphinxcontrib-mermaid",
 ]
 RMextract = ["RMextract"]
 
