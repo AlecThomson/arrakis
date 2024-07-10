@@ -109,7 +109,9 @@ def merge_imagesets(image_sets: List[Optional[ImageSet]]) -> ImageSet:
     prefix = image_sets[0].prefix
 
     for image_set in image_sets:
-        assert image_set.ms == ms, f"{image_set.ms=} does not match {ms=}"
+        assert (
+            image_set.ms.name == ms.name
+        ), f"{image_set.ms.name=} does not match {ms.name=}"
         assert (
             image_set.prefix == prefix
         ), f"{image_set.prefix=} does not match {prefix=}"
@@ -932,7 +934,6 @@ def main(
         # Image with wsclean
         # split out stokes I and QUV
         if "I" in pols:
-            pols = pols.replace("I", "")
             image_set_I = image_beam.submit(
                 ms=ms_fix,
                 field_idx=field_idxs[ms],
@@ -981,7 +982,7 @@ def main(
             prefix=prefixs[ms],
             simage=simage.resolve(strict=True),
             robust=robust,
-            pols=pols,
+            pols=pols.replace("I", ""),  # There is no 'I' in polarisation...
             join_polarizations=len(pols) > 1,
             squared_channel_joining=True,
             nchan=nchan,
