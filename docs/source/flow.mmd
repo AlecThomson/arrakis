@@ -1,0 +1,21 @@
+%%{init: {'theme':'default', 'fontFamily': 'monospace'}}%%
+
+flowchart TD
+    classDef empty width:0px,height:0px;
+    I[Stokes I catalogue] -->|arrakis.init_database| G
+    A[Visibilities / beam] -->|arrakis.imager| B(Cubes / beam)
+    J[TEC data] -->|arrakis.frion|D
+    B -->|arrakis.cutout| C(Cubelets / beam)
+    C -->|arrakis.linmos| D(Cubelets / source)
+    G -->|query| C
+    D -->|arrakis.rmsynth_oncuts| E(Spectra / component)
+    G -->|query| D
+    E -->|arrakis.rmsynth_oncuts,\n arrakis.rmclean_oncuts| F(Polarisation / component)
+    F -->|store| G{mongoDB database}
+    E -->|store| G
+    G -->|arrakis.makecat| H[Catalogue]
+    H -->|arrakis.validate| K[Validation report]
+    K --- X[ ]:::empty
+    D --- X
+    E --- X
+    X -->|arrakis.cleanup| L[Archive products]

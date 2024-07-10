@@ -46,6 +46,7 @@ extensions = [
     "myst_parser",
     "autoapi.extension",
     "sphinx.ext.autosectionlabel",
+    "sphinxcontrib.mermaid",
 ]
 
 source_suffix = [".rst"]
@@ -91,3 +92,12 @@ html_favicon = "favicon.ico"
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../"))
+
+mermaid_params = [
+    "--theme",
+    "forest",
+    "--width",
+    "600",
+    "--backgroundColor",
+    "transparent",
+]
