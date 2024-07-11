@@ -665,7 +665,7 @@ def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
     return common_beam_pkl
 
 
-@task(name="Smooth ImageSet")
+@task(name="Smooth ImageSet", persist_result=True)
 def smooth_imageset(
     image_set: ImageSet,
     common_beam_pkl: Path,
