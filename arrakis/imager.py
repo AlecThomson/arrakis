@@ -330,7 +330,7 @@ def image_beam(
         ms_temp = temp_dir_images / ms.name
         logger.info(f"Copying {ms} to {ms_temp}")
         ms_temp = ms_temp.resolve(strict=False)
-        shutil.copytree(ms, ms_temp)
+        shutil.copytree(ms, ms_temp, dirs_exist_ok=True)
         ms = ms_temp
         # Update the prefix
         prefix = temp_dir_images / prefix.name
@@ -340,7 +340,7 @@ def image_beam(
     # Make temp MS to allow parallel imaging
     ms_temp = ms.with_suffix(f".{pols}.temp.ms")
     logger.info(f"Copying {ms} to {ms_temp}")
-    shutil.copytree(ms, ms_temp)
+    shutil.copytree(ms, ms_temp, dirs_exist_ok=True)
 
     # Catch mis-matched args
     if not local_rms:
@@ -620,7 +620,7 @@ def make_cube(
     return new_name, new_w_name
 
 
-@task(name="Get Beam")
+@task(name="Get Beam", persist_result=True)
 def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
     """Derive a common resolution across all images within a set of ImageSet
 
