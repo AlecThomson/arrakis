@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.9] - 2024-07-11
+### What's Changed
+* Switch to dynamic versioning
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.3.8...v2.3.9
+
 ## [2.3.8] - 2024-07-10
 ### What's Changed
 * Add flow diagram by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/75
