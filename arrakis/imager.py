@@ -542,7 +542,7 @@ def image_beam(
     return image_set
 
 
-@task(name="Make Cube")
+@task(name="Make Cube", persist_result=True)
 def make_cube(
     pol: str,
     image_set: ImageSet,
