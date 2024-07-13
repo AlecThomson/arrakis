@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.10] - 2024-07-13
+### What's Changed
+* Improve stability with `persist_result=True` and `dirs_exist_ok=True`
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.3.9...v2.3.10
+
 ## [2.3.9] - 2024-07-11
 ### What's Changed
 * Switch to dynamic versioning
