@@ -873,11 +873,19 @@ def update_tile_separations(rmtab: TableLike, field_col: Collection) -> TableLik
 
     for field_name, row in field_data.iterrows():
         field_coord = row["coords"]
-        tab_idx = rmtab["tile_id"] == field_name
+        tab_idx = rmtab["field_name"] == field_name
         tile_sep = coords[tab_idx].separation(field_coord)
-        tile_l, tile_m = coords[tab_idx].spherical_offsets_to(field_coord)
-        rmtab["l_tile_centre"][tab_idx] = tile_l
-        rmtab["m_tile_centre"][tab_idx] = tile_m
+        tile_pa = field_coord.position_angle(coords[tab_idx])
+
+        pol_axis = row["POL_AXIS"] * u.deg
+        pa = +45 * u.deg  # Assume this to always be true for ASKAP
+
+        footprint_pa = pa + pol_axis
+        tile_l_rot = tile_sep.to(u.rad) * np.sin(tile_pa - footprint_pa)
+        tile_m_rot = tile_sep.to(u.rad) * np.cos(tile_pa - footprint_pa)
+
+        rmtab["l_tile_centre"][tab_idx] = tile_l_rot.to(u.deg)
+        rmtab["m_tile_centre"][tab_idx] = tile_m_rot.to(u.deg)
         rmtab["separation_tile_centre"][tab_idx] = tile_sep
         rmtab["beamdist"][tab_idx] = tile_sep
 
