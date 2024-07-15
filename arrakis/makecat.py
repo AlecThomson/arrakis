@@ -1098,6 +1098,7 @@ def main(
     if sbid is not None:
         rmtab["sbid"] = sbid
         rmtab["field_name"] = field
+        rmtab["tile_id"] = field
 
     # Add tile separations
     rmtab = update_tile_separations(rmtab, field_col)
