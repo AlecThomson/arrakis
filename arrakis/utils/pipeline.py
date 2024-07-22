@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Pipeline and flow utility functions"""
 
+from __future__ import annotations
+
 import argparse
 import base64
 import logging
@@ -9,14 +11,13 @@ import subprocess
 import time
 import warnings
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
 from uuid import UUID
 
 import astropy.units as u
 import dask.array as da
-import dask.distributed as distributed
 import numpy as np
 from astropy.utils.exceptions import AstropyWarning
+from dask import distributed
 from dask.delayed import Delayed
 from dask.distributed import get_client
 from distributed.client import futures_of
@@ -57,7 +58,7 @@ logo_str = """
 # Stolen from Flint
 @task(name="Upload image as artifact")
 def upload_image_as_artifact_task(
-    image_path: Path, description: Optional[str] = None
+    image_path: Path, description: str | None = None
 ) -> UUID:
     """Create and submit a markdown artifact tracked by prefect for an
     input image. Currently supporting png formatted images.
@@ -260,8 +261,8 @@ class performance_report_prefect:
 
 
 def inspect_client(
-    client: Union[distributed.Client, None] = None,
-) -> Tuple[str, int, int, u.Quantity, int, u.Quantity]:
+    client: distributed.Client | None = None,
+) -> tuple[str, int, int, u.Quantity, int, u.Quantity]:
     """_summary_
 
     Args:
@@ -311,9 +312,7 @@ def chunk_dask(
     return chunk_outputs
 
 
-def delayed_to_da(
-    list_of_delayed: List[Delayed], chunk: Union[int, None] = None
-) -> da.Array:
+def delayed_to_da(list_of_delayed: list[Delayed], chunk: int | None = None) -> da.Array:
     """Convert list of delayed arrays to a dask array
 
     Args:
@@ -324,18 +323,13 @@ def delayed_to_da(
         da.Array: Dask array
     """
     sample = list_of_delayed[0].compute()
-    dim = (len(list_of_delayed),) + sample.shape
-    if chunk is None:
-        c_dim = dim
-    else:
-        c_dim = (chunk,) + sample.shape
+    dim = (len(list_of_delayed), *sample.shape)
+    c_dim = dim if chunk is None else (chunk, *sample.shape)
     darray_list = [
         da.from_delayed(lazy, dtype=sample.dtype, shape=sample.shape)
         for lazy in list_of_delayed
     ]
-    darray = da.stack(darray_list, axis=0).reshape(dim).rechunk(c_dim)
-
-    return darray
+    return da.stack(darray_list, axis=0).reshape(dim).rechunk(c_dim)
 
 
 # stolen from https://github.com/tqdm/tqdm/issues/278

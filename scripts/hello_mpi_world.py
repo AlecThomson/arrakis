@@ -3,6 +3,8 @@
 Parallel Hello World
 """
 
+from __future__ import annotations
+
 import sys
 
 from mpi4py import MPI

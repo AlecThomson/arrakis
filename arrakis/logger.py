@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Logging module for arrakis"""
 
+from __future__ import annotations
+
 import argparse
 import io
 import logging

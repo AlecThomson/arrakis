@@ -1,10 +1,11 @@
 #!/usr/bin/env python
+from __future__ import annotations
+
 import argparse
 import logging
 import subprocess as sp
 from pathlib import Path
 from pprint import pformat
-from typing import Optional
 
 import pymongo
 from arrakis.logger import logger
@@ -21,7 +22,7 @@ def start_mongod(
     dbpath: Path,
     logpath: Path,
     host: str = "localhost",
-    port: Optional[int] = None,
+    port: int | None = None,
     auth: bool = False,
 ):
     cmd = f"mongod --fork --dbpath {dbpath} --logpath {logpath} --bind_ip {host}"
@@ -38,7 +39,8 @@ def start_mongod(
                 f"mongod already running - try shutting down first with `mongod --dbpath {dbpath} --shutdown`"
             )
         logger.error(f"{e}")
-        raise MongodError(f"Failed to start mongod. Command was: {cmd}")
+        msg = f"Failed to start mongod. Command was: {cmd}"
+        raise MongodError(msg)
     logger.info(proc.decode())
     logger.info("Started mongod")
 
@@ -53,7 +55,8 @@ def stop_mongod(
         proc = sp.check_output(cmd.split())
     except sp.CalledProcessError as e:
         logger.error(f"{e}")
-        raise MongodError(f"Failed to stop mongod. Command was: {cmd}")
+        msg = f"Failed to stop mongod. Command was: {cmd}"
+        raise MongodError(msg)
     logger.info(proc.decode())
     logger.info("Stopped mongod")
 
@@ -86,7 +89,7 @@ def create_or_update_user(
 def create_admin_user(
     host: str,
     password: str,
-    port: Optional[int] = None,
+    port: int | None = None,
     username: str = "admin",
 ):
     logger.info(f"Creating admin user {username} on {host}:{port}")
@@ -104,7 +107,7 @@ def create_admin_user(
 def create_read_only_user(
     host: str,
     password: str,
-    port: Optional[int] = None,
+    port: int | None = None,
     username: str = "reader",
 ):
     logger.info(f"Creating read-only user {username} on {host}:{port}")
@@ -124,9 +127,9 @@ def main(
     admin_password: str,
     reader_password: str,
     host: str = "localhost",
-    port: Optional[int] = None,
-    admin_username: Optional[str] = "admin",
-    reader_username: Optional[str] = "reader",
+    port: int | None = None,
+    admin_username: str | None = "admin",
+    reader_username: str | None = "reader",
 ):
     logpath = dbpath.parent / "mongod.log"
     start_mongod(

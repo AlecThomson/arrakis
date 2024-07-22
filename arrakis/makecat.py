@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Make an Arrakis catalogue"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os
@@ -8,7 +10,7 @@ import time
 import warnings
 from pathlib import Path
 from pprint import pformat
-from typing import Callable, NamedTuple, Optional, Tuple, Union
+from typing import Callable, NamedTuple
 
 import astropy.units as u
 import dask.dataframe as dd
@@ -56,7 +58,7 @@ class SpectralIndices(NamedTuple):
     betas_err: np.ndarray
 
 
-def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
+def combinate(data: ArrayLike) -> tuple[ArrayLike, ArrayLike]:
     """Return all combinations of data with itself
 
     Args:
@@ -156,7 +158,7 @@ def flag_blended_components(cat: TableLike) -> TableLike:
                 name="blend_ratio",
                 dtype=float,
             )
-        df = pd.DataFrame(
+        return pd.DataFrame(
             {
                 "is_blended_flag": is_blended,
                 "N_blended": n_blended,
@@ -165,10 +167,8 @@ def flag_blended_components(cat: TableLike) -> TableLike:
             index=sub_df.index,
         )
 
-        return df
-
     df = cat.to_pandas()
-    df.set_index("cat_id", inplace=True)
+    df = df.set_index("cat_id")
     ddf = dd.from_pandas(df, chunksize=1000)
     grp = ddf.groupby("source_id")
     logger.info("Identifying blended components...")
@@ -318,7 +318,7 @@ def get_fit_func(
     degree: int = 2,
     do_plot: bool = False,
     high_snr_cut: float = 30.0,
-) -> Tuple[Callable, plt.Figure]:
+) -> tuple[Callable, plt.Figure]:
     """Fit an envelope to define leakage sources
 
     Args:
@@ -445,12 +445,12 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     logger.info(f"Number of available sources: {len(good_cat)}.")
 
     df = good_cat.to_pandas()
-    df.reset_index(inplace=True)
-    df.set_index("cat_id", inplace=True)
+    df = df.reset_index()
+    df = df.set_index("cat_id")
 
     df_out = big_cat.to_pandas()
-    df_out.reset_index(inplace=True)
-    df_out.set_index("cat_id", inplace=True)
+    df_out = df_out.reset_index()
+    df_out = df_out.set_index("cat_id")
     df_out["local_rm_flag"] = False
 
     try:
@@ -532,7 +532,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
             )
             # Put flag into the catalogue
             df["local_rm_flag"] = perc_g.reset_index().set_index("cat_id")[0]
-            df.drop(columns=["bin_number"], inplace=True)
+            df = df.drop(columns=["bin_number"])
             df_out.update(df["local_rm_flag"])
 
     except Exception as e:
@@ -658,9 +658,7 @@ def get_alpha(cat: TableLike) -> SpectralIndices:
 
 
 @task(name="Get integration times")
-def get_integration_time(
-    cat: RMTable, field_col: Collection, sbid: Optional[int] = None
-):
+def get_integration_time(cat: RMTable, field_col: Collection, sbid: int | None = None):
     logger.warning("Will be stripping the trailing field character prefix. ")
     field_names = [
         name[:-1] if name[-1] in ("A", "B") else name for name in list(cat["tile_id"])
@@ -692,13 +690,14 @@ def get_integration_time(
         doc_count = field_col.count_documents(query)
 
         if doc_count == 0:
-            raise ValueError(f"No data for query {query}")
+            msg = f"No data for query {query}"
+            raise ValueError(msg)
         else:
             logger.warning("Using SELECT=0 instead.")
 
     field_data = list(field_col.find(query, reutrn_vals))
     tint_df = pd.DataFrame(field_data)
-    tint_df.set_index("FIELD_NAME", inplace=True, drop=False)
+    tint_df = tint_df.set_index("FIELD_NAME", drop=False)
 
     # Check for duplicates
     if len(tint_df.index) != len(set(tint_df.index)):
@@ -783,7 +782,6 @@ def replace_nans(filename: str):
     Args:
         filename (str): File name
     """
-    pass
     # with open(filename, "r") as f:
     #     xml = f.read()
     # xml = xml.replace("NaN", "null")
@@ -850,8 +848,8 @@ def update_tile_separations(rmtab: TableLike, field_col: Collection) -> TableLik
             {"FIELD_NAME": {"$in": list(field_names)}},
         )
     )
-    field_data.drop_duplicates(subset=["FIELD_NAME"], inplace=True)
-    field_data.set_index("FIELD_NAME", inplace=True)
+    field_data = field_data.drop_duplicates(subset=["FIELD_NAME"])
+    field_data = field_data.set_index("FIELD_NAME")
 
     field_coords = SkyCoord(
         ra=field_data["RA_DEG"], dec=field_data["DEC_DEG"], unit=(u.deg, u.deg)
@@ -897,14 +895,14 @@ def main(
     field: str,
     host: str,
     epoch: int,
-    sbid: Optional[int] = None,
+    sbid: int | None = None,
     leakage_degree: int = 4,
     leakage_bins: int = 16,
     leakage_snr: float = 30.0,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    username: str | None = None,
+    password: str | None = None,
     verbose: bool = True,
-    outfile: Union[str, None] = None,
+    outfile: str | None = None,
 ) -> None:
     """Make a catalogue from the Arrakis database flow
 
@@ -936,7 +934,8 @@ def main(
             field_col=field_col,
         )
         if not sbid_check:
-            raise ValueError(f"SBID {sbid} does not match field {field}")
+            msg = f"SBID {sbid} does not match field {field}"
+            raise ValueError(msg)
 
     logger.info("Starting beams collection query")
     tick = time.time()
@@ -1021,7 +1020,7 @@ def main(
     #     subset=["rmclean_summary", "rmsynth_summary", "rmclean1d", "rmsynth1d"],
     #     inplace=True,
     # )
-    comps_df.set_index("Source_ID", inplace=True)
+    comps_df = comps_df.set_index("Source_ID")
     tock = time.time()
     logger.info(f"Finished component collection query - {tock-tick:.2f}s")
     logger.info(f"Found {len(comps_df)} components to catalogue. ")
@@ -1029,17 +1028,18 @@ def main(
     logger.info("Starting island collection query")
     tick = time.time()
     islands_df = pd.DataFrame(island_col.find({"Source_ID": {"$in": all_island_ids}}))
-    islands_df.set_index("Source_ID", inplace=True)
+    islands_df = islands_df.set_index("Source_ID")
     tock = time.time()
     logger.info(f"Finished island collection query - {tock-tick:.2f}s")
 
     if len(comps_df) == 0:
         logger.error("No components found for this field.")
-        raise ValueError("No components found for this field.")
+        msg = "No components found for this field."
+        raise ValueError(msg)
 
     rmtab = RMTable()
     # Add items to main cat using RMtable standard
-    for j, [name, typ, src, col, unit] in enumerate(
+    for _j, [name, typ, src, col, unit] in enumerate(
         tqdm(
             zip(
                 columns_possum.output_cols,
@@ -1174,7 +1174,7 @@ def main(
     # Replace all infs with nans
     for col in rmtab.colnames:
         # Check if column is a float
-        if isinstance(rmtab[col][0], np.float_):
+        if isinstance(rmtab[col][0], np.float64):
             rmtab[col][np.isinf(rmtab[col])] = np.nan
 
     # Convert all mJy to Jy
@@ -1209,7 +1209,7 @@ def main(
 
     logger.info(f"Writing {outfile} to disk")
     _, ext = os.path.splitext(outfile)
-    if ext == ".xml" or ext == ".vot":
+    if ext in (".xml", ".vot"):
         write_votable(rmtab, outfile)
     else:
         rmtab.write(outfile, overwrite=True)

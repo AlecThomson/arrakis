@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Run LINMOS on cutouts in parallel"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os
@@ -9,7 +11,6 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from typing import Dict, List, Optional, Tuple
 from typing import NamedTuple as Struct
 
 import astropy.units as u
@@ -41,16 +42,16 @@ TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 class ImagePaths(Struct):
     """Class to hold image paths"""
 
-    images: List[Path]
+    images: list[Path]
     """List of image paths"""
-    weights: List[Path]
+    weights: list[Path]
     """List of weight paths"""
 
 
 @task(name="Find images")
 def find_images(
     field: str,
-    beams_row: Tuple[int, pd.Series],
+    beams_row: tuple[int, pd.Series],
     stoke: str,
     datadir: Path,
 ) -> ImagePaths:
@@ -74,7 +75,7 @@ def find_images(
     field_beams = beams.beams[field]
 
     # First check that the images exist
-    image_list: List[Path] = []
+    image_list: list[Path] = []
     for bm in list(set(field_beams["beam_list"])):  # Ensure list of beams is unique!
         imfile = Path(field_beams[f"{stoke.lower()}_beam{bm}_image_file"])
         assert (
@@ -85,9 +86,10 @@ def find_images(
     image_list = sorted(image_list)
 
     if len(image_list) == 0:
-        raise Exception("No files found. Have you run imaging? Check your prefix?")
+        msg = "No files found. Have you run imaging? Check your prefix?"
+        raise Exception(msg)
 
-    weight_list: List[Path] = []
+    weight_list: list[Path] = []
     for bm in list(set(field_beams["beam_list"])):  # Ensure list of beams is unique!
         wgtsfile = Path(field_beams[f"{stoke.lower()}_beam{bm}_weight_file"])
         assert (
@@ -109,8 +111,8 @@ def find_images(
 
 @task(name="Smooth images")
 def smooth_images(
-    image_dict: Dict[str, ImagePaths],
-) -> Dict[str, ImagePaths]:
+    image_dict: dict[str, ImagePaths],
+) -> dict[str, ImagePaths]:
     """Smooth cubelets to a common resolution
 
     Args:
@@ -119,9 +121,9 @@ def smooth_images(
     Returns:
         ImagePaths: Smoothed cubelets.
     """
-    smooth_dict: Dict[str, ImagePaths] = {}
+    smooth_dict: dict[str, ImagePaths] = {}
     for stoke, image_list in image_dict.items():
-        infiles: List[str] = []
+        infiles: list[str] = []
         for im in image_list.images:
             if im.suffix == ".fits":
                 infiles.append(im.resolve().as_posix())
@@ -132,8 +134,8 @@ def smooth_images(
             conv_mode="robust",
             suffix="cres",
         )
-        smooth_files: List[Path] = []
-        for key, val in datadict.items():
+        smooth_files: list[Path] = []
+        for _key, val in datadict.items():
             smooth_files.append(Path(val["outfile"]))
         smooth_dict[stoke] = ImagePaths(smooth_files, image_list.weights)
 
@@ -145,7 +147,7 @@ def genparset(
     image_paths: ImagePaths,
     stoke: str,
     datadir: Path,
-    holofile: Optional[Path] = None,
+    holofile: Path | None = None,
 ) -> str:
     """Generate parset for LINMOS
 
@@ -163,7 +165,7 @@ def genparset(
     """
     logger.setLevel(logging.INFO)
 
-    pol_angles_list: List[float] = []
+    pol_angles_list: list[float] = []
     for im in image_paths.images:
         _pol_angle: float = fits.getheader(im)["INSTRUMENT_RECEPTOR_ANGLE"]
         pol_angles_list.append(_pol_angle)
@@ -221,8 +223,8 @@ linmos.removeleakage    = true
 
 @task(name="Run linmos")
 def linmos(
-    parset: Optional[str], fieldname: str, image: str, holofile: Path
-) -> Optional[pymongo.UpdateOne]:
+    parset: str | None, fieldname: str, image: str, holofile: Path
+) -> pymongo.UpdateOne | None:
     """Run linmos
 
     Args:
@@ -242,7 +244,7 @@ def linmos(
     logger.setLevel(logging.INFO)
 
     if parset is None:
-        return
+        return None
 
     workdir = os.path.dirname(parset)
     rootdir = os.path.split(workdir)[0]
@@ -272,7 +274,8 @@ def linmos(
     new_files = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
     if len(new_files) != 1:
-        raise Exception(f"LINMOS file not found! -- check {log_file}?")
+        msg = f"LINMOS file not found! -- check {log_file}?"
+        raise Exception(msg)
 
     new_file = os.path.abspath(new_files[0])
     outer = os.path.basename(os.path.dirname(new_file))
@@ -297,8 +300,7 @@ def get_yanda(version="1.3.0") -> str:
         str: Path to yandasoft image.
     """
     sclient.load(f"docker://csirocass/yandasoft:{version}-galaxy")
-    image = os.path.abspath(sclient.pull())
-    return image
+    return os.path.abspath(sclient.pull())
 
 
 # We reduce the inner loop to a serial call
@@ -306,12 +308,12 @@ def get_yanda(version="1.3.0") -> str:
 @task(name="LINMOS loop")
 def serial_loop(
     field: str,
-    beams_row: Tuple[int, pd.Series],
-    stokeslist: List[str],
+    beams_row: tuple[int, pd.Series],
+    stokeslist: list[str],
     cutdir: Path,
     holofile: Path,
     image: Path,
-) -> List[Optional[pymongo.UpdateOne]]:
+) -> list[pymongo.UpdateOne | None]:
     results = []
     for stoke in stokeslist:
         image_path = find_images.fn(
@@ -343,14 +345,14 @@ def main(
     datadir: Path,
     host: str,
     epoch: int,
-    sbid: Optional[int] = None,
-    holofile: Optional[Path] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    sbid: int | None = None,
+    holofile: Path | None = None,
+    username: str | None = None,
+    password: str | None = None,
     yanda: str = "1.3.0",
-    yanda_img: Optional[Path] = None,
-    stokeslist: Optional[List[str]] = None,
-    limit: Optional[int] = None,
+    yanda_img: Path | None = None,
+    stokeslist: list[str] | None = None,
+    limit: int | None = None,
 ) -> None:
     """LINMOS flow
 
@@ -387,7 +389,7 @@ def main(
 
     logger.info(f"The query is {query=}")
 
-    island_ids: List[str] = sorted(beams_col.distinct("Source_ID", query))
+    island_ids: list[str] = sorted(beams_col.distinct("Source_ID", query))
     big_beams = pd.DataFrame(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
@@ -415,7 +417,7 @@ def main(
         )
         results.append(sub_results)
 
-    updates_lists: List[list] = [f.result() for f in results]
+    updates_lists: list[list] = [f.result() for f in results]
     # Flatten
     updates = [u for ul in updates_lists for u in ul]
     updates = [u for u in updates if u is not None]

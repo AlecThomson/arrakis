@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 """MeasurementSet utilities"""
 
+from __future__ import annotations
+
 import copy
 import warnings
 from pathlib import Path
-from typing import Optional
 
 import astropy.units as u
 from astropy.utils.exceptions import AstropyWarning
@@ -18,7 +19,7 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 
 def get_pol_axis(
-    ms: Path, feed_idx: Optional[int] = None, col: str = "RECEPTOR_ANGLE"
+    ms: Path, feed_idx: int | None = None, col: str = "RECEPTOR_ANGLE"
 ) -> u.Quantity:
     """Get the polarization axis from the ASKAP MS. Checks are performed
     to ensure this polarisation axis angle is constant throughout the observation.
@@ -37,7 +38,8 @@ def get_pol_axis(
     """
     _known_cols = ("RECEPTOR_ANGLE", "INSTRUMENT_RECEPTOR_ANGLE")
     if col not in _known_cols:
-        raise ValueError(f"Unknown column {col=}, please use one of {_known_cols}")
+        msg = f"Unknown column {col=}, please use one of {_known_cols}"
+        raise ValueError(msg)
     with table((ms / "FEED").as_posix(), readonly=True, ack=False) as tf:
         ms_feed = tf.getcol(col) * u.rad
         # PAF is at 45deg to feeds
@@ -61,8 +63,7 @@ def beam_from_ms(ms: str) -> int:
     """Work out which beam is in this MS"""
     with table(ms, readonly=True, ack=False) as t:
         vis_feed = t.getcol("FEED1", 0, 1)
-        beam = vis_feed[0]
-    return beam
+        return vis_feed[0]
 
 
 def field_idx_from_ms(ms: str) -> int:
@@ -70,10 +71,9 @@ def field_idx_from_ms(ms: str) -> int:
     with table(f"{ms}/FIELD", readonly=True, ack=False) as field:
         idxs = list(field.SOURCE_ID)
         assert len(idxs) == 1 or all(
-            [idx == idxs[0] for idx in idxs]
+            idx == idxs[0] for idx in idxs
         ), "More than one field in MS"
-        idx = idxs[0]
-    return idx
+        return idxs[0]
 
 
 def field_name_from_ms(ms: str) -> str:
@@ -81,163 +81,162 @@ def field_name_from_ms(ms: str) -> str:
     with table(f"{ms}/FIELD", readonly=True, ack=False) as field:
         names = list(field.NAME)
         assert len(names) == 1, "More than one field in MS"
-        name = names[0]
-    return name
+        return names[0]
 
 
 def wsclean(
     mslist: list,
     use_mpi: bool,
     version: bool = False,
-    j: Optional[int] = None,
-    parallel_gridding: Optional[int] = None,
-    parallel_reordering: Optional[int] = None,
+    j: int | None = None,
+    parallel_gridding: int | None = None,
+    parallel_reordering: int | None = None,
     no_work_on_master: bool = False,
-    mem: Optional[float] = None,
-    abs_mem: Optional[float] = None,
+    mem: float | None = None,
+    abs_mem: float | None = None,
     verbose: bool = False,
     log_time: bool = False,
     quiet: bool = False,
     reorder: bool = False,
     no_reorder: bool = False,
-    temp_dir: Optional[str] = None,
+    temp_dir: str | None = None,
     update_model_required: bool = False,
     no_update_model_required: bool = False,
     no_dirty: bool = False,
     save_first_residual: bool = False,
     save_weights: bool = False,
     save_uv: bool = False,
-    reuse_psf: Optional[str] = None,
-    reuse_dirty: Optional[str] = None,
+    reuse_psf: str | None = None,
+    reuse_dirty: str | None = None,
     apply_primary_beam: bool = False,
     reuse_primary_beam: bool = False,
     use_differential_lofar_beam: bool = False,
-    primary_beam_limit: Optional[float] = None,
-    mwa_path: Optional[str] = None,
+    primary_beam_limit: float | None = None,
+    mwa_path: str | None = None,
     save_psf_pb: bool = False,
-    pb_grid_size: Optional[int] = None,
-    beam_model: Optional[str] = None,
-    beam_mode: Optional[str] = None,
-    beam_normalisation_mode: Optional[str] = None,
+    pb_grid_size: int | None = None,
+    beam_model: str | None = None,
+    beam_mode: str | None = None,
+    beam_normalisation_mode: str | None = None,
     dry_run: bool = False,
-    weight: Optional[str] = None,
-    super_weight: Optional[float] = None,
+    weight: str | None = None,
+    super_weight: float | None = None,
     mf_weighting: bool = False,
     no_mf_weighting: bool = False,
-    weighting_rank_filter: Optional[float] = None,
-    weighting_rank_filter_size: Optional[float] = None,
-    taper_gaussian: Optional[str] = None,
-    taper_tukey: Optional[float] = None,
-    taper_inner_tukey: Optional[float] = None,
-    taper_edge: Optional[float] = None,
-    taper_edge_tukey: Optional[float] = None,
+    weighting_rank_filter: float | None = None,
+    weighting_rank_filter_size: float | None = None,
+    taper_gaussian: str | None = None,
+    taper_tukey: float | None = None,
+    taper_inner_tukey: float | None = None,
+    taper_edge: float | None = None,
+    taper_edge_tukey: float | None = None,
     use_weights_as_taper: bool = False,
     store_imaging_weights: bool = False,
-    name: Optional[str] = None,
-    size: Optional[str] = None,
-    padding: Optional[float] = None,
-    scale: Optional[str] = None,
+    name: str | None = None,
+    size: str | None = None,
+    padding: float | None = None,
+    scale: str | None = None,
     predict: bool = False,
     ws_continue: bool = False,
     subtract_model: bool = False,
-    gridder: Optional[str] = None,
-    channels_out: Optional[int] = None,
-    shift: Optional[str] = None,
+    gridder: str | None = None,
+    channels_out: int | None = None,
+    shift: str | None = None,
     gap_channel_division: bool = False,
-    channel_division_frequencies: Optional[str] = None,
-    nwlayers: Optional[int] = None,
-    nwlayers_factor: Optional[float] = None,
-    nwlayers_for_size: Optional[str] = None,
+    channel_division_frequencies: str | None = None,
+    nwlayers: int | None = None,
+    nwlayers_factor: float | None = None,
+    nwlayers_for_size: str | None = None,
     no_small_inversion: bool = False,
     small_inversion: bool = False,
-    grid_mode: Optional[str] = None,
-    kernel_size: Optional[int] = None,
-    oversampling: Optional[int] = None,
+    grid_mode: str | None = None,
+    kernel_size: int | None = None,
+    oversampling: int | None = None,
     make_psf: bool = False,
     make_psf_only: bool = False,
-    visibility_weighting_mode: Optional[str] = None,
+    visibility_weighting_mode: str | None = None,
     no_normalize_for_weighting: bool = False,
-    baseline_averaging: Optional[float] = None,
-    simulate_noise: Optional[float] = None,
-    simulate_baseline_noise: Optional[str] = None,
-    idg_mode: Optional[str] = None,
-    wgridder_accuracy: Optional[float] = None,
-    aterm_config: Optional[str] = None,
+    baseline_averaging: float | None = None,
+    simulate_noise: float | None = None,
+    simulate_baseline_noise: str | None = None,
+    idg_mode: str | None = None,
+    wgridder_accuracy: float | None = None,
+    aterm_config: str | None = None,
     grid_with_beam: bool = False,
-    beam_aterm_update: Optional[int] = False,
-    aterm_kernel_size: Optional[float] = None,
-    apply_facet_solutions: Optional[str] = None,
+    beam_aterm_update: int | None = False,
+    aterm_kernel_size: float | None = None,
+    apply_facet_solutions: str | None = None,
     apply_facet_beam: bool = False,
-    facet_beam_update: Optional[int] = False,
+    facet_beam_update: int | None = False,
     save_aterms: bool = False,
-    pol: Optional[str] = None,
-    interval: Optional[str] = None,
-    intervals_out: Optional[int] = None,
+    pol: str | None = None,
+    interval: str | None = None,
+    intervals_out: int | None = None,
     even_timesteps: bool = False,
     odd_timesteps: bool = False,
-    channel_range: Optional[str] = None,
-    field: Optional[int] = None,
-    spws: Optional[str] = None,
-    data_column: Optional[str] = None,
-    maxuvw_m: Optional[float] = None,
-    minuvw_m: Optional[float] = None,
-    maxuv_l: Optional[float] = None,
-    minuv_l: Optional[float] = None,
-    maxw: Optional[float] = None,
-    niter: Optional[int] = None,
-    nmiter: Optional[int] = None,
-    threshold: Optional[float] = None,
-    auto_threshold: Optional[float] = None,
-    auto_mask: Optional[float] = None,
-    force_mask_rounds: Optional[int] = None,
+    channel_range: str | None = None,
+    field: int | None = None,
+    spws: str | None = None,
+    data_column: str | None = None,
+    maxuvw_m: float | None = None,
+    minuvw_m: float | None = None,
+    maxuv_l: float | None = None,
+    minuv_l: float | None = None,
+    maxw: float | None = None,
+    niter: int | None = None,
+    nmiter: int | None = None,
+    threshold: float | None = None,
+    auto_threshold: float | None = None,
+    auto_mask: float | None = None,
+    force_mask_rounds: int | None = None,
     local_rms: bool = False,
-    local_rms_window: Optional[float] = False,
-    local_rms_method: Optional[str] = None,
-    gain: Optional[float] = None,
-    mgain: Optional[float] = None,
+    local_rms_window: float | None = False,
+    local_rms_method: str | None = None,
+    gain: float | None = None,
+    mgain: float | None = None,
     join_polarizations: bool = False,
-    link_polarizations: Optional[str] = None,
-    facet_regions: Optional[str] = None,
+    link_polarizations: str | None = None,
+    facet_regions: str | None = None,
     join_channels: bool = False,
-    spectral_correction: Optional[str] = None,
+    spectral_correction: str | None = None,
     no_fast_subminor: bool = False,
     multiscale: bool = False,
-    multiscale_scale_bias: Optional[float] = None,
-    multiscale_max_scales: Optional[int] = None,
-    multiscale_scales: Optional[str] = None,
-    multiscale_shape: Optional[str] = None,
-    multiscale_gain: Optional[float] = None,
-    multiscale_convolution_padding: Optional[float] = None,
+    multiscale_scale_bias: float | None = None,
+    multiscale_max_scales: int | None = None,
+    multiscale_scales: str | None = None,
+    multiscale_shape: str | None = None,
+    multiscale_gain: float | None = None,
+    multiscale_convolution_padding: float | None = None,
     no_multiscale_fast_subminor: bool = False,
-    python_deconvolution: Optional[str] = None,
+    python_deconvolution: str | None = None,
     iuwt: bool = False,
     iuwt_snr_test: bool = False,
     no_iuwt_snr_test: bool = False,
-    moresane_ext: Optional[str] = None,
-    moresane_arg: Optional[str] = None,
-    moresane_sl: Optional[str] = None,
+    moresane_ext: str | None = None,
+    moresane_arg: str | None = None,
+    moresane_sl: str | None = None,
     save_source_list: bool = False,
-    clean_border: Optional[float] = None,
-    fits_mask: Optional[str] = None,
-    casa_mask: Optional[str] = None,
-    horizon_mask: Optional[str] = None,
+    clean_border: float | None = None,
+    fits_mask: str | None = None,
+    casa_mask: str | None = None,
+    horizon_mask: str | None = None,
     no_negative: bool = False,
     negative: bool = False,
     stop_negative: bool = False,
-    fit_spectral_pol: Optional[int] = None,
-    fit_spectral_log_pol: Optional[int] = None,
-    force_spectrum: Optional[str] = None,
-    deconvolution_channels: Optional[int] = None,
+    fit_spectral_pol: int | None = None,
+    fit_spectral_log_pol: int | None = None,
+    force_spectrum: str | None = None,
+    deconvolution_channels: int | None = None,
     squared_channel_joining: bool = False,
-    parallel_deconvolution: Optional[int] = None,
-    deconvolution_threads: Optional[int] = None,
-    restore: Optional[str] = None,
-    restore_list: Optional[str] = None,
-    beam_size: Optional[float] = None,
-    beam_shape: Optional[str] = None,
+    parallel_deconvolution: int | None = None,
+    deconvolution_threads: int | None = None,
+    restore: str | None = None,
+    restore_list: str | None = None,
+    beam_size: float | None = None,
+    beam_shape: str | None = None,
     fit_beam: bool = False,
     no_fit_beam: bool = False,
-    beam_fitting_size: Optional[float] = None,
+    beam_fitting_size: float | None = None,
     theoretic_beam: bool = False,
     circular_beam: bool = False,
     elliptical_beam: bool = False,
@@ -750,10 +749,7 @@ def wsclean(
     mslist = arguments.pop("mslist")
     use_mpi = arguments.pop("use_mpi")
     # Check for MPI
-    if use_mpi:
-        command = "mpirun wsclean-mp"
-    else:
-        command = "wsclean "
+    command = "mpirun wsclean-mp" if use_mpi else "wsclean "
 
     # Check for square channels and multiscale
     if arguments["squared_channel_joining"] and arguments["multiscale"]:

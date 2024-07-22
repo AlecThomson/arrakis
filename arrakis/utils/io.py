@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """I/O utilities"""
 
+from __future__ import annotations
+
 import logging
 import os
 import shlex
@@ -9,7 +11,6 @@ import subprocess as sp
 import warnings
 from glob import glob
 from pathlib import Path
-from typing import Tuple
 
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
@@ -92,7 +93,7 @@ def try_mkdir(dir_path: str, verbose=True):
         logger.info(f"Directory '{dir_path}' exists.")
 
 
-def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:
+def gettable(tabledir: str, keyword: str, verbose=True) -> tuple[Table, str]:
     """Get a table from a directory given a keyword to glob.
 
     Args:
@@ -127,6 +128,7 @@ def _samefile(src, dst):
             return os.path.samefile(src, dst)
         except OSError:
             return False
+    return None
 
 
 def copyfile(src, dst, *, follow_symlinks=True, verbose=True):
@@ -137,7 +139,8 @@ def copyfile(src, dst, *, follow_symlinks=True, verbose=True):
 
     """
     if _samefile(src, dst):
-        raise SameFileError(f"{src!r} and {dst!r} are the same file")
+        msg = f"{src!r} and {dst!r} are the same file"
+        raise SameFileError(msg)
 
     for fn in [src, dst]:
         try:
@@ -148,14 +151,14 @@ def copyfile(src, dst, *, follow_symlinks=True, verbose=True):
         else:
             # XXX What about other special files? (sockets, devices...)
             if stat.S_ISFIFO(st.st_mode):
-                raise SpecialFileError(f"`{fn}` is a named pipe")
+                msg = f"`{fn}` is a named pipe"
+                raise SpecialFileError(msg)
 
     if not follow_symlinks and os.path.islink(src):
         os.symlink(os.readlink(src), dst)
     else:
-        with open(src, "rb") as fsrc:
-            with open(dst, "wb") as fdst:
-                copyfileobj(fsrc, fdst, verbose=verbose)
+        with open(src, "rb") as fsrc, open(dst, "wb") as fdst:
+            copyfileobj(fsrc, fdst, verbose=verbose)
     return dst
 
 

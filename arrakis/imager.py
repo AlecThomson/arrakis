@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Arrkis imager"""
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import logging
@@ -11,11 +13,11 @@ from concurrent.futures import ThreadPoolExecutor
 from glob import glob
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 from typing import NamedTuple as Struct
 
 import astropy.units as u
-import matplotlib
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
@@ -51,7 +53,7 @@ from arrakis.utils.pipeline import (
     workdir_arg_parser,
 )
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -63,9 +65,9 @@ class ImageSet(Struct):
     """Path to the measurement set that was imaged."""
     prefix: str
     """Prefix used for the wsclean output files."""
-    image_lists: Dict[str, List[str]]
+    image_lists: dict[str, list[str]]
     """Dictionary of lists of images. The keys are the polarisations and the values are the list of images for that polarisation."""
-    aux_lists: Optional[Dict[Tuple[str, str], List[str]]] = None
+    aux_lists: dict[tuple[str, str], list[str]] | None = None
     """Dictionary of lists of auxillary images. The keys are a tuple of the polarisation and the image type, and the values are the list of images for that polarisation and image type."""
 
 
@@ -82,13 +84,13 @@ class MFSImage(Struct):
 
 @task(name="Get pol. axis")
 def get_pol_axis_task(
-    ms: Path, feed_idx: Optional[int] = None, col: str = "RECEPTOR_ANGLE"
+    ms: Path, feed_idx: int | None = None, col: str = "RECEPTOR_ANGLE"
 ) -> float:
     return get_pol_axis(ms=ms, feed_idx=feed_idx, col=col).to(u.deg).value
 
 
 @task(name="Merge ImageSets")
-def merge_imagesets(image_sets: List[Optional[ImageSet]]) -> ImageSet:
+def merge_imagesets(image_sets: list[ImageSet | None]) -> ImageSet:
     """Merge a collection of ImageSets into a single ImageSet.
 
     Args:
@@ -134,7 +136,7 @@ def merge_imagesets(image_sets: List[Optional[ImageSet]]) -> ImageSet:
 
 
 def get_mfs_image(
-    prefix_str: str, pol: str, small_size: Tuple[int, int] = (512, 512)
+    prefix_str: str, pol: str, small_size: tuple[int, int] = (512, 512)
 ) -> MFSImage:
     """Get the MFS image from the image set.
 
@@ -181,14 +183,14 @@ def make_validation_plots(prefix: Path, pols: str) -> None:
         mfs_image = get_mfs_image(prefix_str, stokes)
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
         for ax, sub_image, title in zip(axs, mfs_image, ("Image", "Model", "Residual")):
-            sub_image = np.abs(sub_image)
+            abs_sub_image = np.abs(sub_image)
             if title == "Model":
                 norm = ImageNormalize(
-                    sub_image, interval=MinMaxInterval(), stretch=SqrtStretch()
+                    abs_sub_image, interval=MinMaxInterval(), stretch=SqrtStretch()
                 )
             else:
                 norm = ImageNormalize(mfs_image.residual, vmin=0, stretch=SqrtStretch())
-            _ = ax.imshow(sub_image, origin="lower", norm=norm, cmap="cubehelix")
+            _ = ax.imshow(abs_sub_image, origin="lower", norm=norm, cmap="cubehelix")
             ax.set_title(title)
             ax.get_yaxis().set_visible(False)
             ax.get_xaxis().set_visible(False)
@@ -207,7 +209,7 @@ def make_validation_plots(prefix: Path, pols: str) -> None:
         logger.info(f"Uploaded {fig_name} to {uuid}")
 
 
-def get_wsclean(wsclean: Union[Path, str]) -> Path:
+def get_wsclean(wsclean: Path | str) -> Path:
     """Pull wsclean image from dockerhub (or wherver).
 
     Args:
@@ -249,7 +251,7 @@ def cleanup_imageset(purge: bool, image_set: ImageSet) -> None:
     # they were just copied across directly without modification
     if image_set.aux_lists:
         logger.critical("Removing auxillary images. ")
-        for (pol, aux), aux_list in image_set.aux_lists.items():
+        for (pol, _aux), aux_list in image_set.aux_lists.items():
             for aux_image in aux_list:
                 try:
                     logger.critical(f"Removing {aux_image}")
@@ -298,25 +300,25 @@ def image_beam(
     mgain: float = 0.7,
     niter: int = 100_000,
     auto_mask: float = 3,
-    force_mask_rounds: Optional[int] = None,
+    force_mask_rounds: int | None = None,
     auto_threshold: float = 1,
-    gridder: Optional[str] = None,
+    gridder: str | None = None,
     robust: float = -0.5,
     mem: float = 90,
-    absmem: Optional[float] = None,
-    taper: Optional[float] = None,
+    absmem: float | None = None,
+    taper: float | None = None,
     minuv_l: float = 0.0,
-    parallel_deconvolution: Optional[int] = None,
-    nmiter: Optional[int] = None,
+    parallel_deconvolution: int | None = None,
+    nmiter: int | None = None,
     local_rms: bool = False,
-    local_rms_window: Optional[float] = None,
+    local_rms_window: float | None = None,
     multiscale: bool = False,
-    multiscale_scale_bias: Optional[float] = None,
-    multiscale_scales: Optional[str] = "0,2,4,8,16,32,64,128",
+    multiscale_scale_bias: float | None = None,
+    multiscale_scales: str | None = "0,2,4,8,16,32,64,128",
     data_column: str = "CORRECTED_DATA",
     no_mf_weighting: bool = False,
     no_update_model_required: bool = True,
-    beam_fitting_size: Optional[float] = 1.25,
+    beam_fitting_size: float | None = 1.25,
     disable_pol_local_rms: bool = False,
     disable_pol_force_mask_rounds: bool = False,
 ) -> ImageSet:
@@ -436,9 +438,8 @@ def image_beam(
             logger.info(line.rstrip())
             # Catch divergence - look for the string 'KJy' in the output
             if "KJy" in line:
-                raise ValueError(
-                    f"Detected divergence in wsclean output: {line.rstrip()}"
-                )
+                msg = f"Detected divergence in wsclean output: {line.rstrip()}"
+                raise ValueError(msg)
     except CalledProcessError as e:
         logger.error(f"Failed to run wsclean with command: {command}")
         logger.error(f"Stdout: {e.stdout}")
@@ -449,7 +450,7 @@ def image_beam(
     # Purge ms_temp
     shutil.rmtree(ms_temp)
 
-    suffixes: List[str] = ["image", "model", "psf", "residual", "dirty"]
+    suffixes: list[str] = ["image", "model", "psf", "residual", "dirty"]
     if temp_dir_images != out_dir:
         # Copy the images to the output directory
         logger.info(f"Copying images to {out_dir}")
@@ -547,8 +548,8 @@ def make_cube(
     image_set: ImageSet,
     common_beam_pkl: Path,
     pol_angle_deg: float,
-    aux_mode: Optional[str] = None,
-) -> Tuple[Path, Path]:
+    aux_mode: str | None = None,
+) -> tuple[Path, Path]:
     """Make a cube from the images"""
     logger = get_run_logger()
 
@@ -609,10 +610,10 @@ def make_cube(
     new_w_name = new_name.replace(
         f"image.{image_type}", f"weights.{image_type}"
     ).replace(".fits", ".txt")
-    data = dict(
-        Channel=np.arange(len(rmss_arr)),
-        Weight=1 / rmss_arr**2,  # Want inverse variance
-    )
+    data = {
+        "Channel": np.arange(len(rmss_arr)),
+        "Weight": 1 / rmss_arr**2,  # Want inverse variance
+    }
     tab = Table(data)
     tab.write(new_w_name, format="ascii.commented_header", overwrite=True)
 
@@ -620,7 +621,7 @@ def make_cube(
 
 
 @task(name="Get Beam", persist_result=True)
-def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
+def get_beam(image_set: ImageSet, cutoff: float | None) -> Path:
     """Derive a common resolution across all images within a set of ImageSet
 
     Args:
@@ -652,7 +653,8 @@ def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
     logger.info(f"The common beam is: {common_beam=}")
 
     if any([np.isnan(common_beam.major), np.isnan(common_beam.minor)]):
-        raise ValueError("Common beam is NaN, consider raising the cutoff.")
+        msg = "Common beam is NaN, consider raising the cutoff."
+        raise ValueError(msg)
 
     # serialise the beam
     common_beam_pkl = Path(f"beam_{image_hash}.pkl")
@@ -668,8 +670,8 @@ def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
 def smooth_imageset(
     image_set: ImageSet,
     common_beam_pkl: Path,
-    cutoff: Optional[float] = None,
-    aux_mode: Optional[str] = None,
+    cutoff: float | None = None,
+    aux_mode: str | None = None,
 ) -> ImageSet:
     """Smooth all images described within an ImageSet to a desired resolution
 
@@ -694,7 +696,7 @@ def smooth_imageset(
 
     logger.info(f"Smooting {image_set.ms} images")
 
-    images_to_smooth: Dict[str, List[str]]
+    images_to_smooth: dict[str, list[str]]
     if aux_mode is None:
         images_to_smooth = image_set.image_lists
     else:
@@ -738,7 +740,7 @@ def smooth_imageset(
 
 @task(name="Cleanup")
 def cleanup(
-    purge: bool, image_sets: List[ImageSet], ignore_files: Optional[List[Any]] = None
+    purge: bool, image_sets: list[ImageSet], ignore_files: list[Any] | None = None
 ) -> None:
     """Utility to remove all images described by an collection of ImageSets. Internally
     called `cleanup_imageset`.
@@ -751,7 +753,7 @@ def cleanup(
     """
     logger = get_run_logger()
 
-    logger.warn(f"Ignoring files in {ignore_files=}. ")
+    logger.warning(f"Ignoring files in {ignore_files=}. ")
 
     if not purge:
         logger.info("Not purging intermediate files")
@@ -792,7 +794,7 @@ def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
     """
     logger = get_run_logger()
 
-    logger.info(f"Correcting {str(ms)} correlations for wsclean. ")
+    logger.info(f"Correcting {ms!s} correlations for wsclean. ")
 
     fix_ms_corrs(ms=ms, *args, **kwargs)
 
@@ -804,9 +806,9 @@ def main(
     msdir: Path,
     out_dir: Path,
     num_beams: int = 36,
-    temp_dir_images: Optional[Path] = None,
-    temp_dir_wsclean: Optional[Path] = None,
-    cutoff: Optional[float] = None,
+    temp_dir_images: Path | None = None,
+    temp_dir_wsclean: Path | None = None,
+    cutoff: float | None = None,
     robust: float = -0.5,
     pols: str = "IQU",
     nchan: int = 36,
@@ -815,22 +817,22 @@ def main(
     mgain: float = 0.8,
     niter: int = 100_000,
     auto_mask: float = 3,
-    force_mask_rounds: Union[int, None] = None,
+    force_mask_rounds: int | None = None,
     auto_threshold: float = 1,
-    taper: Union[float, None] = None,
+    taper: float | None = None,
     purge: bool = False,
     minuv: float = 0.0,
-    parallel_deconvolution: Optional[int] = None,
-    gridder: Optional[str] = None,
-    nmiter: Optional[int] = None,
+    parallel_deconvolution: int | None = None,
+    gridder: str | None = None,
+    nmiter: int | None = None,
     local_rms: bool = False,
-    local_rms_window: Optional[float] = None,
-    wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest",
-    multiscale: Optional[bool] = None,
-    multiscale_scale_bias: Optional[float] = None,
-    multiscale_scales: Optional[str] = "0,2,4,8,16,32,64,128",
-    absmem: Optional[float] = None,
-    make_residual_cubes: Optional[bool] = False,
+    local_rms_window: float | None = None,
+    wsclean_path: Path | str = "docker://alecthomson/wsclean:latest",
+    multiscale: bool | None = None,
+    multiscale_scale_bias: float | None = None,
+    multiscale_scales: str | None = "0,2,4,8,16,32,64,128",
+    absmem: float | None = None,
+    make_residual_cubes: bool | None = False,
     ms_glob_pattern: str = "scienceData*_averaged_cal.leakage.ms",
     data_column: str = "CORRECTED_DATA",
     skip_fix_ms: bool = False,
@@ -1071,8 +1073,6 @@ def main(
         cleans.append(clean)
 
     logger.info("Imager finished!")
-
-    return
 
 
 def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:

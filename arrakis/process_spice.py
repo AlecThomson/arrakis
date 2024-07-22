@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Arrakis single-field pipeline"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os

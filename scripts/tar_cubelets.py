@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import logging
 import os
@@ -41,18 +42,18 @@ def main(casda_dir: str):
     """
     casda_dir = os.path.abspath(casda_dir)
     if not os.path.exists(casda_dir):
-        raise FileNotFoundError(f"Directory {casda_dir} does not exist")
+        msg = f"Directory {casda_dir} does not exist"
+        raise FileNotFoundError(msg)
     if not os.path.exists(os.path.join(casda_dir, "cubelets")):
-        raise FileNotFoundError(f"Directory {casda_dir} does not contain cubelets/")
+        msg = f"Directory {casda_dir} does not contain cubelets/"
+        raise FileNotFoundError(msg)
 
     cube_list = glob(os.path.join(casda_dir, "cubelets", "*.fits"))
     logger.info(f"{len(cube_list)} cublets to tar...")
-    sources = set(
-        [
-            os.path.basename(cube)[:13]
-            for cube in tqdm(cube_list, desc="Sources", file=TQDM_OUT)
-        ]
-    )
+    sources = {
+        os.path.basename(cube)[:13]
+        for cube in tqdm(cube_list, desc="Sources", file=TQDM_OUT)
+    }
     logger.info(f"...into {len(sources)} sources")
     out_dir = os.path.join(casda_dir, "cubelets_tar")
     os.makedirs(out_dir, exist_ok=True)

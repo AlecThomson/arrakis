@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Produce cutouts from RACS cubes"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import warnings
@@ -8,8 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List, Optional, Set, TypeVar
 from typing import NamedTuple as Struct
+from typing import TypeVar
 
 import astropy.units as u
 import numpy as np
@@ -70,7 +72,7 @@ class CutoutArgs(Struct):
 def cutout_weight(
     image_name: Path,
     source_id: str,
-    cutout_args: Optional[CutoutArgs],
+    cutout_args: CutoutArgs | None,
     field: str,
     stoke: str,
     beam_num: int,
@@ -118,7 +120,7 @@ def cutout_image(
     old_header: fits.Header,
     cube: SpectralCube,
     source_id: str,
-    cutout_args: Optional[CutoutArgs],
+    cutout_args: CutoutArgs | None,
     field: str,
     beam_num: int,
     stoke: str,
@@ -217,7 +219,7 @@ def get_args(
     comps: pd.DataFrame,
     source: pd.Series,
     outdir: Path,
-) -> Optional[CutoutArgs]:
+) -> CutoutArgs | None:
     """Get arguments for cutout function
 
     Args:
@@ -248,7 +250,7 @@ def get_args(
     # Find image size
     ras: u.Quantity = comps.RA.values * u.deg
     decs: u.Quantity = comps.Dec.values * u.deg
-    majs: List[float] = comps.Maj.values * u.arcsec
+    majs: list[float] = comps.Maj.values * u.arcsec
     coords = SkyCoord(ras, decs, frame="icrs")
     padder = np.max(majs)
 
@@ -339,8 +341,8 @@ def worker(
     beam_num: int,
     stoke: str,
     pad: float = 3,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    username: str | None = None,
+    password: str | None = None,
 ):
     _, _, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
@@ -387,16 +389,18 @@ def big_cutout(
     epoch: int,
     field: str,
     pad: float = 3,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-    limit: Optional[int] = None,
-) -> List[pymongo.UpdateOne]:
+    username: str | None = None,
+    password: str | None = None,
+    limit: int | None = None,
+) -> list[pymongo.UpdateOne]:
     wild = f"image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
     images = list(datadir.glob(wild))
     if len(images) == 0:
-        raise Exception(f"No images found matching '{wild}'")
+        msg = f"No images found matching '{wild}'"
+        raise Exception(msg)
     elif len(images) > 1:
-        raise Exception(f"More than one image found matching '{wild}'. Files {images=}")
+        msg = f"More than one image found matching '{wild}'. Files {images=}"
+        raise Exception(msg)
 
     image_name = images[0]
 
@@ -413,7 +417,7 @@ def big_cutout(
         logger.critical(f"Limiting to {limit} islands")
         sources = sources[:limit]
 
-    updates: List[pymongo.UpdateOne] = []
+    updates: list[pymongo.UpdateOne] = []
     with ThreadPoolExecutor() as executor:
         futures = []
         for _, source in sources.iterrows():
@@ -449,13 +453,13 @@ def cutout_islands(
     directory: Path,
     host: str,
     epoch: int,
-    sbid: Optional[int] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    sbid: int | None = None,
+    username: str | None = None,
+    password: str | None = None,
     pad: float = 3,
-    stokeslist: Optional[List[str]] = None,
+    stokeslist: list[str] | None = None,
     dryrun: bool = True,
-    limit: Optional[int] = None,
+    limit: int | None = None,
 ) -> None:
     """Flow to cutout islands in parallel.
 
@@ -501,13 +505,14 @@ def cutout_islands(
             field_col=field_col,
         )
         if not sbid_check:
-            raise ValueError(f"SBID {sbid} does not match field {field}")
+            msg = f"SBID {sbid} does not match field {field}"
+            raise ValueError(msg)
 
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
     if sbid is not None:
         query["$and"].append({f"beams.{field}.SBIDs": sbid})
 
-    unique_beams_nums: Set[int] = set(
+    unique_beams_nums: set[int] = set(
         beams_col.distinct(f"beams.{field}.beam_list", query)
     )
     source_ids = sorted(beams_col.distinct("Source_ID", query))
@@ -530,21 +535,21 @@ def cutout_islands(
     )
 
     beam_source_list = []
-    for i, row in tqdm(beams_df.iterrows()):
+    for _i, row in tqdm(beams_df.iterrows()):
         beam_list = row.beams[field]["beam_list"]
         for b in beam_list:
             beam_source_list.append({"Source_ID": row.Source_ID, "beam": b})
     beam_source_df = pd.DataFrame(beam_source_list)
-    beam_source_df.set_index("beam", inplace=True)
+    beam_source_df = beam_source_df.set_index("beam")
 
     comps_df = pd.DataFrame(
         comp_col.find({"Source_ID": {"$in": source_ids}}).sort("Source_ID")
     )
-    comps_df.set_index("Source_ID", inplace=True)
+    comps_df = comps_df.set_index("Source_ID")
 
     # Create output dir if it doesn't exist
     outdir.mkdir(parents=True, exist_ok=True)
-    cuts: List[pymongo.UpdateOne] = []
+    cuts: list[pymongo.UpdateOne] = []
     for stoke in stokeslist:
         for beam_num in unique_beams_nums:
             results = big_cutout.submit(

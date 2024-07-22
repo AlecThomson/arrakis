@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import annotations
+
 import argparse
 import os
 import subprocess
@@ -18,13 +20,13 @@ def main(indir, outdir):
         link = name.replace(".fits", ".conv.fits")
         cmd = f"ln -s {f} {os.path.abspath(outdir)}/{link}"
         logger.info(cmd)
-        subprocess.run(split(cmd))
+        subprocess.run(split(cmd), check=False)
 
     for f in weights:
         name = os.path.basename(f)
         cmd = f"ln -s {f} {os.path.abspath(outdir)}/{name}"
         logger.info(cmd)
-        subprocess.run(split(cmd))
+        subprocess.run(split(cmd), check=False)
 
 
 def cli():

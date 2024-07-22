@@ -11,6 +11,7 @@
 #  -niter 1000 -save-first-residual -auto-threshold 3 -mgain 0.8 \
 #  -interval 10 11 -size 1024 1024 -scale 1amin \
 #  1052736496-averaged.ms/
+from __future__ import annotations
 
 from functools import partial
 from time import time
@@ -67,8 +68,6 @@ def get_rmsynth_params(
     bees = (-2.0 * 1j * phis_double).astype("complex128")
     rmsf = kay * np.sum(weights * np.exp(np.outer(bees, ays)), 1)
     assert (np.abs(rmsf) <= 1.0).all(), "RMSF is not normalized"
-
-    print(f"{np.abs(rmsf).max()=}")
 
     return RMSynthParams(
         phis=phis,
@@ -232,7 +231,6 @@ def _clean_loop(
 
         # A clean component is "loop-gain * peak_fdf
         cc_scalar = gain * peak_fdf
-        print(f"{np.abs(cc_scalar)=}")
         cc_vec[idx_peak_fdf] += cc_scalar
 
         # At which channel is the cc_scalar located at in the RMSF?
@@ -295,9 +293,7 @@ def proper_rm_clean(
 
     # Calculate the spectrum
     quarr = np.sum(cc_vec[:, np.newaxis] * np.exp(2.0j * np.outer(phis, ays)), axis=0)
-    spec = np.array([quarr.real, quarr.imag]).T
-
-    return spec
+    return np.array([quarr.real, quarr.imag]).T
 
 
 def simple_clean(
@@ -340,9 +336,7 @@ def simple_clean(
     # Update the CC at the peak
     cc_vec[np.argmin(np.abs(phis - peak_phi))] = cc_scalar
     quarr = np.sum(cc_vec[:, np.newaxis] * np.exp(2.0j * np.outer(phis, ays)), axis=0)
-    spec = np.array([quarr.real, quarr.imag]).T
-
-    return spec
+    return np.array([quarr.real, quarr.imag]).T
 
 
 def deconvolve(
@@ -352,12 +346,9 @@ def deconvolve(
     meta: dict,
 ):
     if meta.channels == []:
-        raise ValueError("No channels in meta")
+        msg = "No channels in meta"
+        raise ValueError(msg)
     nchan, npol, height, width = residual.shape
-    print(
-        "Python deconvolve() function was called for "
-        + f"{width} x {height} x {npol} (npol) x {nchan} (chan) dataset"
-    )
 
     # residual and model are numpy arrays with dimensions nchan x npol x height x width
     # psf is a numpy array with dimensions nchan x height x width.
@@ -365,7 +356,8 @@ def deconvolve(
     # This file demonstrates a very simple deconvolution strategy, which doesn't
     # support multiple polarizations:
     if npol != 2:
-        raise NotImplementedError("npol must be 2")
+        msg = "npol must be 2"
+        raise NotImplementedError(msg)
     # If there are channels missing (flagged), they will be set to NaN
     # They're here set to zero to make it easy to calculate the integrated image
     mask_3D = np.isnan(residual)
@@ -377,10 +369,9 @@ def deconvolve(
     freqs = np.array([x.frequency for x in meta.channels])
     weights_3d = np.ones_like(freqs)
     params_3d = get_rmsynth_params(freqs, weights_3d, nsamp=3)
-    tick = time()
+    time()
     # Mask residual with 2D mask
     res_masked = residual[:, ~mask_2D].reshape(nchan, npol, -1)
-    print(f"{res_masked.shape=}")
     # Now reshape to nchan x npol x height*width
     # Only need to CLEAN the unmasked pixels
     fdf_2d = rmsynth2d(
@@ -390,13 +381,9 @@ def deconvolve(
         ays=params_3d.ays,
         phis=params_3d.phis,
     )
-    tock = time()
-    print(f"RMSynth3D took {tock - tick:0.2f} seconds")
+    time()
     integrated_residual_1d = np.sum(np.abs(fdf_2d), axis=0)
     integrated_residual = np.zeros((height, width))
-    print(f"{integrated_residual.shape=}")
-    print(f"{integrated_residual_1d.shape=}")
-    print(f"{integrated_residual[~mask_2D_p].shape=}")
     integrated_residual[~mask_2D_p] = integrated_residual_1d
     np.savetxt("integrated_residual.txt", integrated_residual)
     peak_index = np.unravel_index(
@@ -410,9 +397,6 @@ def deconvolve(
         [meta.major_iter_threshold, meta.final_threshold, mgain_threshold]
     )
 
-    print(
-        f"Starting iteration {meta.iteration_number}, peak={peak_value}, first threshold={first_threshold}"
-    )
     while peak_value > first_threshold and meta.iteration_number < meta.max_iterations:
         y = peak_index[0]
         x = peak_index[1]
@@ -422,7 +406,7 @@ def deconvolve(
         weights = (spectrum_complex.sum(axis=1) > 0).astype(int)
 
         params = get_rmsynth_params(freqs, weights)
-        tick = time()
+        time()
         fdf = rmsynth_1d(
             stokes_q=spectrum_complex[:, 0],
             stokes_u=spectrum_complex[:, 1],
@@ -430,15 +414,14 @@ def deconvolve(
             ays=params.ays,
             phis=params.phis,
         )
-        tock = time()
-        print(f"1D RMSynth took {tock - tick:0.2f} seconds")
+        time()
         # model_spectrum = simple_clean(
         #     phis=params.phis,
         #     fdf=fdf,
         #     ays=params.ays,
         #     fwhm=params.fwhm,
         # )\
-        tick = time()
+        time()
         model_spectrum = proper_rm_clean(
             phis=params.phis,
             phis_double=params.phis_double,
@@ -449,8 +432,7 @@ def deconvolve(
             cutoff=100e-6,
             max_iter=1000,
         )
-        tock = time()
-        print(f"1D RM clean took {tock - tick:0.2f} seconds")
+        time()
         if meta.iteration_number < 10:
             np.savetxt(
                 f"model_spectrum_iter_{meta.iteration_number}.txt", model_spectrum
@@ -473,7 +455,7 @@ def deconvolve(
 
         ######################
         # Update the residual
-        tick = time()
+        time()
         res_masked = residual[:, ~mask_2D].reshape((nchan, npol, -1))
         fdf_2d = rmsynth2d(
             stokes_q=res_masked[:, 0],
@@ -482,8 +464,7 @@ def deconvolve(
             ays=params_3d.ays,
             phis=params_3d.phis,
         )
-        tock = time()
-        print(f"RMSynth3D took {tock - tick:0.2f} seconds")
+        time()
         integrated_residual_1d = np.sum(np.abs(fdf_2d), axis=0)
         integrated_residual = np.zeros((height, width))
         integrated_residual[~mask_2D_p] = integrated_residual_1d
@@ -492,14 +473,10 @@ def deconvolve(
         )
         peak_value = integrated_residual[peak_index]
 
-        print(f"{peak_value=}")
-
         meta.iteration_number = meta.iteration_number + 1
 
-    print(f"Stopped after iteration {meta.iteration_number}, peak={peak_value}")
-
     # Fill a dictionary with values that wsclean expects:
-    result = dict()
+    result = {}
     result["residual"] = residual
     result["model"] = model
     result["level"] = peak_value
@@ -508,5 +485,4 @@ def deconvolve(
         and meta.iteration_number < meta.max_iterations
     )
 
-    print("Finished deconvolve()")
     return result

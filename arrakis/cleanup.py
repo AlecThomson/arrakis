@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """DANGER ZONE: Purge directories of un-needed FITS files."""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import shutil
 import tarfile
 from pathlib import Path
-from typing import List
 
 import astropy.units as u
 import numpy as np
@@ -62,7 +63,8 @@ def make_cutout_tarball(cutdir: Path, overwrite: bool = False) -> Path:
 
     verification = verify_tarball(tarball)
     if not verification:
-        raise RuntimeError(f"Verification of {tarball} failed!")
+        msg = f"Verification of {tarball} failed!"
+        raise RuntimeError(msg)
 
     logger.critical(f"Removing {cutdir}")
     shutil.rmtree(cutdir)
@@ -106,7 +108,7 @@ def main(
     total_file_size = np.sum([p.stat().st_size for p in to_purge_all]) * u.byte
     logger.warning(f"Purging {len(to_purge_all)} files from {datadir}")
     logger.warning(f"Will free {total_file_size.to(u.GB)}")
-    purged: List[Path] = []
+    purged: list[Path] = []
     for to_purge in tqdm(to_purge_all, file=TQDM_OUT, desc="Purging big beams"):
         purged.append(purge_cubelet_beams(to_purge))
     logger.info(f"Files purged: {len(purged)}")

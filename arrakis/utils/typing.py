@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Typing utilities"""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import TypeVar
 

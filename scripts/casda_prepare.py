@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Prepare files for CASDA upload"""
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import logging
@@ -226,7 +228,8 @@ def convert_spectra(
         elif keys[0] == "FDF":
             data = rmtables[keys[2]][keys[1]].values * u.Jy / u.beam / rmsf_unit
         else:
-            raise ValueError(f"Unknown column {col}")
+            msg = f"Unknown column {col}"
+            raise ValueError(msg)
 
         new_col = Column(
             name=col,
@@ -304,7 +307,8 @@ def update_cube(cube: str, cube_dir: str) -> None:
                         ".linmos.ion.edge.linmos.fits", ".linmos.edge.linmos.fits"
                     )
             if not os.path.exists(fname):
-                raise FileNotFoundError(f"Could not find {fname}")
+                msg = f"Could not find {fname}"
+                raise FileNotFoundError(msg)
             data[:, i, :, :] = fits.getdata(
                 fname,
                 memmap=True,
@@ -398,10 +402,7 @@ def write_polspec(table: Table, filename: str, overwrite: bool = False):
                 np.array(tabcol[0])
             )  # get the type of each element in 2D array
             col_format = "Q" + fits.column._convert_record2fits(subtype) + "()"
-        if tabcol.unit is not None:
-            unit = tabcol.unit.to_string()
-        else:
-            unit = ""
+        unit = tabcol.unit.to_string() if tabcol.unit is not None else ""
         pfcol = fits.Column(
             name=tabcol.name, unit=unit, array=tabcol.data, format=col_format
         )
@@ -508,7 +509,8 @@ def main(
         polcat = polcat[:100]
 
     else:
-        raise ValueError(f"Unknown prep_type: {prep_type}")
+        msg = f"Unknown prep_type: {prep_type}"
+        raise ValueError(msg)
 
     casda_dir = os.path.join(data_dir, f"casda_{prep_type}")
     try_mkdir(casda_dir)
@@ -570,7 +572,7 @@ def main(
                 ), f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
 
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)
-        lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
+        lookup = dict(zip(unique_ids, unique_idx))
         with tqdm(total=len(cubes), desc="Sorting cubes", file=TQDM_OUT) as pbar:
 
             def my_sorter(x, lookup=lookup, pbar=pbar):
@@ -585,6 +587,7 @@ def main(
                         idx += i
                         pbar.update(1)
                         return idx
+                return None
 
             sorted_cubes = sorted(cubes, key=my_sorter)
 
@@ -613,7 +616,7 @@ def main(
         ), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
 
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
-        lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
+        lookup = dict(zip(unique_ids, unique_idx))
         with tqdm(total=len(spectra), desc="Sorting spectra", file=TQDM_OUT) as pbar:
 
             def my_sorter(x, lookup=lookup, pbar=pbar):
@@ -663,7 +666,7 @@ def main(
         try_mkdir(spec_dir)
         plots = find_plots(data_dir=data_dir)
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
-        lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
+        lookup = dict(zip(unique_ids, unique_idx))
 
         if prep_type != "full":
             # Drop plots that are not in the cut catalogue

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """JSON utilities"""
 
+from __future__ import annotations
+
 import dataclasses
 import json
 
@@ -23,7 +25,7 @@ class MyEncoder(json.JSONEncoder):
             return int(obj)
         elif isinstance(obj, np.floating):
             return float(obj)
-        elif isinstance(obj, np.complex):
+        elif isinstance(obj, complex):
             return (obj.real, obj.imag)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()

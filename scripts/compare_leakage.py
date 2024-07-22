@@ -13,6 +13,8 @@ x = sin(offset)*cos(angle)/incx + refx
 y = sin(offset)*sin(angle)/incy + refy
 """
 
+from __future__ import annotations
+
 import os
 import warnings
 from glob import glob
@@ -159,7 +161,7 @@ def main(
     island_ids = sorted(beams_col.distinct("Source_ID", beam_query))
     isl_query = {"Source_ID": {"$in": island_ids}}
     beams = pd.DataFrame(list(beams_col.find(isl_query).sort("Source_ID")))
-    beams.set_index("Source_ID", drop=False, inplace=True)
+    beams = beams.set_index("Source_ID", drop=False)
     components = pd.DataFrame(
         list(
             comp_col.find(
@@ -176,12 +178,12 @@ def main(
             ).sort("Source_ID")
         )
     )
-    components.set_index("Source_ID", drop=False, inplace=True)
+    components = components.set_index("Source_ID", drop=False)
     _ = list(components["Gaussian_ID"])
     assert len(set(beams.index)) == len(set(components.index))
 
     outputs = []
-    for i, c in components.iterrows():
+    for _i, c in components.iterrows():
         if snr_cut is not None:
             noise = c.Noise
             signal = c.Total_flux_Gaussian

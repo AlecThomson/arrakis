@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Make validation plots from a catalogue"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 from importlib import resources

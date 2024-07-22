@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 """FITS utilities"""
 
+from __future__ import annotations
+
 import warnings
 from glob import glob
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any
 
 import astropy.units as u
 import numpy as np
@@ -22,7 +24,7 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 
-def head2dict(h: fits.Header) -> Dict[str, Any]:
+def head2dict(h: fits.Header) -> dict[str, Any]:
     """Convert FITS header to a dict.
 
     Writes a cutout, as stored in source_dict, to disk. The file location
@@ -67,10 +69,10 @@ def fix_header(cutout_header: fits.Header, original_header: fits.Header) -> fits
 
 
 def getfreq(
-    cube: Union[str, Path],
-    outdir: Optional[Path] = None,
-    filename: Union[str, Path, None] = None,
-) -> Union[u.Quantity, Tuple[u.Quantity, Path]]:
+    cube: str | Path,
+    outdir: Path | None = None,
+    filename: str | Path | None = None,
+) -> u.Quantity | tuple[u.Quantity, Path]:
     """Get list of frequencies from FITS data.
 
     Gets the frequency list from a given cube. Can optionally save
@@ -176,7 +178,7 @@ def getdata(cubedir="./", tabledir="./", mapdata=None, verbose=True):
     mask = ~(u_cube == 0 * u.jansky / u.beam)
     u_cube = u_cube.with_mask(mask)
 
-    datadict = {
+    return {
         "i_tab": i_tab,
         "i_tab_comp": components,
         "i_taylor": i_taylor,
@@ -191,5 +193,3 @@ def getdata(cubedir="./", tabledir="./", mapdata=None, verbose=True):
         "u_file": ucubes[0],
         "v_file": vcubes[0],
     }
-
-    return datadict

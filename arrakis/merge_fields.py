@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
 
+from __future__ import annotations
+
 import argparse
 import os
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Optional
 
 import pymongo
 from prefect import flow, task
@@ -17,16 +18,13 @@ from arrakis.utils.io import try_mkdir
 
 
 def make_short_name(name: str) -> str:
-    short = os.path.join(
-        os.path.basename(os.path.dirname(name)), os.path.basename(name)
-    )
-    return short
+    return os.path.join(os.path.basename(os.path.dirname(name)), os.path.basename(name))
 
 
 @task(name="Copy singleton island")
 def copy_singleton(
-    beam: dict, field_dict: Dict[str, str], merge_name: str, data_dir: str
-) -> List[pymongo.UpdateOne]:
+    beam: dict, field_dict: dict[str, str], merge_name: str, data_dir: str
+) -> list[pymongo.UpdateOne]:
     """Copy an island within a single field to the merged field
 
     Args:
@@ -43,7 +41,7 @@ def copy_singleton(
     """
     updates = []
     for field, vals in beam["beams"].items():
-        if field not in field_dict.keys():
+        if field not in field_dict:
             continue
         field_dir = field_dict[field]
         try:
@@ -51,7 +49,8 @@ def copy_singleton(
             q_file_old = os.path.join(field_dir, vals["q_file_ion"])
             u_file_old = os.path.join(field_dir, vals["u_file_ion"])
         except KeyError:
-            raise KeyError("Ion files not found. Have you run FRion?")
+            msg = "Ion files not found. Have you run FRion?"
+            raise KeyError(msg)
         new_dir = os.path.join(data_dir, beam["Source_ID"])
 
         try_mkdir(new_dir, verbose=False)
@@ -93,11 +92,11 @@ def copy_singleton(
 
 
 def copy_singletons(
-    field_dict: Dict[str, str],
+    field_dict: dict[str, str],
     data_dir: str,
     beams_col: pymongo.collection.Collection,
     merge_name: str,
-) -> List[pymongo.UpdateOne]:
+) -> list[pymongo.UpdateOne]:
     """Copy islands that don't overlap other fields
 
     Args:
@@ -119,7 +118,7 @@ def copy_singletons(
                     {"n_fields_DR1": 1},
                 ]
             }
-            for field in field_dict.keys()
+            for field in field_dict
         ]
     }
 
@@ -176,7 +175,7 @@ linmos.weightstate      = Corrected
 
 def merge_multiple_field(
     beam: dict, field_dict: dict, merge_name: str, data_dir: str, image: str
-) -> List[pymongo.UpdateOne]:
+) -> list[pymongo.UpdateOne]:
     """Merge an island that overlaps multiple fields
 
     Args:
@@ -197,7 +196,7 @@ def merge_multiple_field(
     u_files_old = []
     updates = []
     for field, vals in beam["beams"].items():
-        if field not in field_dict.keys():
+        if field not in field_dict:
             continue
         field_dir = field_dict[field]
         try:
@@ -205,7 +204,8 @@ def merge_multiple_field(
             q_file_old = os.path.join(field_dir, vals["q_file_ion"])
             u_file_old = os.path.join(field_dir, vals["u_file_ion"])
         except KeyError:
-            raise KeyError("Ion files not found. Have you run FRion?")
+            msg = "Ion files not found. Have you run FRion?"
+            raise KeyError(msg)
         i_files_old.append(i_file_old)
         q_files_old.append(q_file_old)
         u_files_old.append(u_file_old)
@@ -224,12 +224,12 @@ def merge_multiple_field(
 
 @task(name="Merge multiple islands")
 def merge_multiple_fields(
-    field_dict: Dict[str, str],
+    field_dict: dict[str, str],
     data_dir: str,
     beams_col: pymongo.collection.Collection,
     merge_name: str,
     image: str,
-) -> List[pymongo.UpdateOne]:
+) -> list[pymongo.UpdateOne]:
     """Merge multiple islands that overlap multiple fields
 
     Args:
@@ -252,7 +252,7 @@ def merge_multiple_fields(
                     {"n_fields_DR1": {"$gt": 1}},
                 ]
             }
-            for field in field_dict.keys()
+            for field in field_dict
         ]
     }
 
@@ -276,14 +276,14 @@ def merge_multiple_fields(
 
 @flow(name="Merge fields")
 def main(
-    fields: List[str],
-    field_dirs: List[str],
+    fields: list[str],
+    field_dirs: list[str],
     merge_name: str,
     output_dir: str,
     host: str,
     epoch: int,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    username: str | None = None,
+    password: str | None = None,
     yanda="1.3.0",
 ) -> str:
     logger.debug(f"{fields=}")

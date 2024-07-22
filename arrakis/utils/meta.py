@@ -1,5 +1,6 @@
-#!/usr/bin/env python
 """Generic program utilities"""
+
+from __future__ import annotations
 
 import importlib
 import warnings
@@ -36,8 +37,7 @@ def class_for_name(module_name: str, class_name: str) -> object:
     # load the module, will raise ImportError if module cannot be loaded
     m = importlib.import_module(module_name)
     # get the class, will raise AttributeError if class cannot be found
-    c = getattr(m, class_name)
-    return c
+    return getattr(m, class_name)
 
 
 # stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
@@ -45,7 +45,8 @@ def zip_equal(*iterables):
     sentinel = object()
     for combo in zip_longest(*iterables, fillvalue=sentinel):
         if sentinel in combo:
-            raise ValueError("Iterables have different lengths")
+            msg = "Iterables have different lengths"
+            raise ValueError(msg)
         yield combo
 
 
@@ -65,4 +66,6 @@ def yes_or_no(question: str) -> bool:
         elif reply[:1] == "n":
             return False
         else:
-            raise ValueError("Please answer 'y' or 'n'")
+            msg = "Please answer 'y' or 'n'"
+            raise ValueError(msg)
+    return None

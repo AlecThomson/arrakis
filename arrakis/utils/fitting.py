@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """Fitting utilities"""
 
+from __future__ import annotations
+
 import warnings
 from functools import partial
-from typing import Optional, Tuple
 
 import numpy as np
 from astropy.stats import akaike_info_criterion_lsq
@@ -18,7 +19,7 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 
-def fitted_mean(data: np.ndarray, axis: Optional[int] = None) -> float:
+def fitted_mean(data: np.ndarray, axis: int | None = None) -> float:
     """Calculate the mean of a distribution.
 
     Args:
@@ -28,12 +29,13 @@ def fitted_mean(data: np.ndarray, axis: Optional[int] = None) -> float:
         float: Mean.
     """
     if axis is not None:
-        raise NotImplementedError("Axis not implemented")
+        msg = "Axis not implemented"
+        raise NotImplementedError(msg)
     mean, _ = norm.fit(data)
     return mean
 
 
-def fitted_std(data: np.ndarray, axis: Optional[int] = None) -> float:
+def fitted_std(data: np.ndarray, axis: int | None = None) -> float:
     """Calculate the standard deviation of a distribution.
 
     Args:
@@ -43,7 +45,8 @@ def fitted_std(data: np.ndarray, axis: Optional[int] = None) -> float:
         float: Standard deviation.
     """
     if axis is not None:
-        raise NotImplementedError("Axis not implemented")
+        msg = "Axis not implemented"
+        raise NotImplementedError(msg)
     _, std = norm.fit(data)
     return std
 
@@ -62,7 +65,7 @@ def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float
     return np.sum(((model - data) / error) ** 2)
 
 
-def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, int]:
+def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> tuple[float, int, int]:
     """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
     best_aic_idx = int(np.nanargmin(aics))
@@ -254,7 +257,7 @@ def fit_pl(
         # Now find the best model
         best_aic, best_n, best_aic_idx = best_aic_func(
             np.array([save_dict[n]["aics"] for n in range(nterms + 1)]),
-            np.array([n for n in range(nterms + 1)]),
+            np.array(list(range(nterms + 1))),
         )
         logger.debug(f"Best fit: {best_n}, {best_aic}")
         best_p = save_dict[best_n]["params"]
@@ -270,36 +273,36 @@ def fit_pl(
             error=fluxerr[goodchan],
         )
         chi_sq_red = chi_sq / (goodchan.sum() - len(best_p))
-        return dict(
-            best_n=best_n,
-            best_p=best_p,
-            best_e=best_e,
-            best_m=best_m,
-            best_h=best_h,
-            best_l=best_l,
-            best_f=best_f,
-            fit_flag=best_flag,
-            ref_nu=ref_nu,
-            chi_sq=chi_sq,
-            chi_sq_red=chi_sq_red,
-        )
+        return {
+            "best_n": best_n,
+            "best_p": best_p,
+            "best_e": best_e,
+            "best_m": best_m,
+            "best_h": best_h,
+            "best_l": best_l,
+            "best_f": best_f,
+            "fit_flag": best_flag,
+            "ref_nu": ref_nu,
+            "chi_sq": chi_sq,
+            "chi_sq_red": chi_sq_red,
+        }
     except Exception as e:
         logger.critical(f"Failed to fit power law: {e}")
-        return dict(
-            best_n=np.nan,
-            best_p=[np.nan],
-            best_e=[np.nan],
-            best_m=np.ones_like(freq),
-            best_h=np.ones_like(freq),
-            best_l=np.ones_like(freq),
-            best_f=None,
-            fit_flag={
+        return {
+            "best_n": np.nan,
+            "best_p": [np.nan],
+            "best_e": [np.nan],
+            "best_m": np.ones_like(freq),
+            "best_h": np.ones_like(freq),
+            "best_l": np.ones_like(freq),
+            "best_f": None,
+            "fit_flag": {
                 "is_negative": True,
                 "is_not_finite": True,
                 "is_not_normal": True,
                 "is_close_to_zero": True,
             },
-            ref_nu=np.nan,
-            chi_sq=np.nan,
-            chi_sq_red=np.nan,
-        )
+            "ref_nu": np.nan,
+            "chi_sq": np.nan,
+            "chi_sq_red": np.nan,
+        }

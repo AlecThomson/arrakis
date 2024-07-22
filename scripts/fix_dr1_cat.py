@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Post process DR1 catalog"""
 
+from __future__ import annotations
+
 import logging
 import os
 import pickle
@@ -139,7 +141,7 @@ def fix_fields(
         "day": u.d,
     }
     for col in new_tab.colnames:
-        if str(new_tab[col].unit) in dumb_units.keys():
+        if str(new_tab[col].unit) in dumb_units:
             new_unit = dumb_units[str(new_tab[col].unit)]
             logger.debug(f"Fixing {col} unit from {new_tab[col].unit} to {new_unit}")
             new_tab[col].unit = new_unit
@@ -203,7 +205,7 @@ def main(cat: str, survey_dir: Path, epoch: int = 0):
         logger.info(f"Wrote leakage fit to {outfit}")
 
     logger.info(f"Writing corrected catalogue to {outfile}")
-    if ext == ".xml" or ext == ".vot":
+    if ext in (".xml", ".vot"):
         write_votable(fix_flag_tab, outfile)
     else:
         tab.write(outfile, overwrite=True)

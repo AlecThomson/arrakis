@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os
@@ -8,9 +10,8 @@ import warnings
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import Optional
 
-import matplotlib
+import matplotlib as mpl
 import numpy as np
 import pymongo
 from matplotlib import pyplot as plt
@@ -29,7 +30,7 @@ from arrakis.utils.database import (
 )
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -42,7 +43,7 @@ def rmclean1d(
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
-    sbid: Optional[int] = None,
+    sbid: int | None = None,
     savePlots=False,
     rm_verbose=True,
     window=None,
@@ -83,7 +84,8 @@ def rmclean1d(
         logger.debug(f"Checking {f.absolute()}")
         if not f.exists():
             logger.fatal(f"File does not exist: '{f}'.")
-            raise FileNotFoundError(f"File does not exist: '{f}'")
+            msg = f"File does not exist: '{f}'"
+            raise FileNotFoundError(msg)
 
     nBits = 32
     try:
@@ -112,13 +114,9 @@ def rmclean1d(
 
     # Ensure JSON serializable
     for k, v in outdict.items():
-        if isinstance(v, np.float_):
+        if isinstance(v, (np.float64, np.float32)):
             outdict[k] = float(v)
-        elif isinstance(v, np.float32):
-            outdict[k] = float(v)
-        elif isinstance(v, np.int_):
-            outdict[k] = int(v)
-        elif isinstance(v, np.int32):
+        elif isinstance(v, (np.int_, np.int32)):
             outdict[k] = int(v)
         elif isinstance(v, np.ndarray):
             outdict[k] = v.tolist()
@@ -151,7 +149,7 @@ def rmclean3d(
     field: str,
     island: dict,
     outdir: Path,
-    sbid: Optional[int] = None,
+    sbid: int | None = None,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
@@ -218,13 +216,13 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
-    sbid: Optional[int] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    sbid: int | None = None,
+    username: str | None = None,
+    password: str | None = None,
     dimension="1d",
     database=False,
     savePlots=True,
-    limit: Optional[int] = None,
+    limit: int | None = None,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
@@ -271,7 +269,8 @@ def main(
             field_col=field_col,
         )
         if not sbid_check:
-            raise ValueError(f"SBID {sbid} does not match field {field}")
+            msg = f"SBID {sbid} does not match field {field}"
+            raise ValueError(msg)
 
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
     if sbid is not None:
@@ -401,7 +400,8 @@ def main(
             outputs.append(output)
 
     else:
-        raise ValueError(f"Dimension {dimension} not supported.")
+        msg = f"Dimension {dimension} not supported."
+        raise ValueError(msg)
 
     if database:
         logger.info("Updating database...")
