@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """JSON utilities"""
 
 from __future__ import annotations
@@ -23,15 +22,15 @@ class MyEncoder(json.JSONEncoder):
     def default(self, obj):  # pylint: disable=E0202
         if isinstance(obj, np.integer):
             return int(obj)
-        elif isinstance(obj, np.floating):
+        if isinstance(obj, np.floating):
             return float(obj)
-        elif isinstance(obj, complex):
+        if isinstance(obj, complex):
             return (obj.real, obj.imag)
-        elif isinstance(obj, np.ndarray):
+        if isinstance(obj, np.ndarray):
             return obj.tolist()
-        elif isinstance(obj, fits.Header):
+        if isinstance(obj, fits.Header):
             return head2dict(obj)
-        elif dataclasses.is_dataclass(obj):
+        if dataclasses.is_dataclass(obj):
             return dataclasses.asdict(obj)
-        else:
-            return super().default(obj)
+
+        return super().default(obj)

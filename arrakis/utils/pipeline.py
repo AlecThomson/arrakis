@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Pipeline and flow utility functions"""
 
 from __future__ import annotations
@@ -80,7 +79,7 @@ def upload_image_as_artifact_task(
         image_type in SUPPORTED_IMAGE_TYPES
     ), f"{image_path} has type {image_type}, and is not supported. Supported types are {SUPPORTED_IMAGE_TYPES}"
 
-    with open(image_path, "rb") as open_image:
+    with image_path.open("rb") as open_image:
         logger.info(f"Encoding {image_path} in base64")
         image_base64 = base64.b64encode(open_image.read()).decode()
 
@@ -355,10 +354,12 @@ class TqdmProgressBar(ProgressBar):
             loop_runner.run_sync(self.listen)
 
     def _draw_bar(self, remaining, all, **kwargs):
+        _ = kwargs
         update_ct = (all - remaining) - self.tqdm.n
         self.tqdm.update(update_ct)
 
     def _draw_stop(self, **kwargs):
+        _ = kwargs
         self.tqdm.close()
 
 

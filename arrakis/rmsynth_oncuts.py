@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import traceback
 import warnings
 from pathlib import Path
@@ -127,22 +126,21 @@ def rmsynthoncut3d(
     """
     beam = dict(beam_tuple[1])
     iname = island_id
-    ifile = os.path.join(outdir, beam["beams"][field]["i_file"])
+    ifile = outdir / str(beam["beams"][field]["i_file"])
 
     if ion:
-        qfile = os.path.join(outdir, beam["beams"][field]["q_file_ion"])
-        ufile = os.path.join(outdir, beam["beams"][field]["u_file_ion"])
+        qfile = outdir / str(beam["beams"][field]["q_file_ion"])
+        ufile = outdir / str(beam["beams"][field]["u_file_ion"])
     else:
-        qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
-        ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
-    # vfile = beam['beams'][field]['v_file']
+        qfile = outdir / str(beam["beams"][field]["q_file"])
+        ufile = outdir / str(beam["beams"][field]["u_file"])
 
     header: fits.Header
     dataQ: np.ndarray
     dataI: np.ndarray
-    header, dataQ = do_RMsynth_3D.readFitsCube(qfile, rm_verbose)
+    header, dataQ = do_RMsynth_3D.readFitsCube(qfile.as_posix(), rm_verbose)
     header, dataU = do_RMsynth_3D.readFitsCube(ufile, rm_verbose)
-    header, dataI = do_RMsynth_3D.readFitsCube(ifile, rm_verbose)
+    header, dataI = do_RMsynth_3D.readFitsCube(ifile.as_posix(), rm_verbose)
 
     dataQ = np.squeeze(dataQ)
     dataU = np.squeeze(dataU)
@@ -188,7 +186,7 @@ def rmsynthoncut3d(
         headtemplate=header,
         fitRMSF=fitRMSF,
         prefixOut=prefix,
-        outDir=os.path.dirname(ifile),
+        outDir=ifile.parent.as_posix(),
         write_seperate_FDF=True,
         not_rmsf=not_RMSF,
         nBits=32,
@@ -202,17 +200,17 @@ def rmsynthoncut3d(
     if "COMMENT" in head_dict:
         head_dict["COMMENT"] = str(head_dict["COMMENT"])
 
-    outer_dir = os.path.basename(os.path.dirname(ifile))
+    outer_dir = Path(ifile.parent.name)
 
     newvalues = {
         "field": save_name,
         "rm3dfiles": {
-            "FDF_real_dirty": os.path.join(outer_dir, f"{prefix}FDF_real_dirty.fits"),
-            "FDF_im_dirty": os.path.join(outer_dir, f"{prefix}FDF_im_dirty.fits"),
-            "FDF_tot_dirty": os.path.join(outer_dir, f"{prefix}FDF_tot_dirty.fits"),
-            "RMSF_real": os.path.join(outer_dir, f"{prefix}RMSF_real.fits"),
-            "RMSF_tot": os.path.join(outer_dir, f"{prefix}RMSF_tot.fits"),
-            "RMSF_FWHM": os.path.join(outer_dir, f"{prefix}RMSF_FWHM.fits"),
+            "FDF_real_dirty": (outer_dir / f"{prefix}FDF_real_dirty.fits").as_posix(),
+            "FDF_im_dirty": (outer_dir / f"{prefix}FDF_im_dirty.fits").as_posix(),
+            "FDF_tot_dirty": (outer_dir / f"{prefix}FDF_tot_dirty.fits").as_posix(),
+            "RMSF_real": (outer_dir / f"{prefix}RMSF_real.fits").as_posix(),
+            "RMSF_tot": (outer_dir / f"{prefix}RMSF_tot.fits").as_posix(),
+            "RMSF_FWHM": (outer_dir / f"{prefix}RMSF_FWHM.fits").as_posix(),
         },
         "rmsynth3d": True,
         "header": dict(header),
@@ -256,11 +254,11 @@ def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> tuple[np.ndarray]:
     background = np.zeros(cubelet.shape[0]) * np.nan
     noise = np.zeros(cubelet.shape[0]) * np.nan
     for chan, plane in enumerate(data_masked):
-        plane = plane[np.isfinite(plane)]
-        if len(plane) == 0:
+        good_plane = plane[np.isfinite(plane)]
+        if len(good_plane) == 0:
             continue
         clipped_plane = sigma_clip(
-            plane, sigma=3, cenfunc=fitted_mean, stdfunc=fitted_std, maxiters=None
+            good_plane, sigma=3, cenfunc=fitted_mean, stdfunc=fitted_std, maxiters=None
         )
         background[chan], noise[chan] = norm.fit(clipped_plane.compressed())
 
@@ -402,7 +400,7 @@ def fit_stokes_I(
             fit_dict=None,
         )
 
-    elif do_own_fit:
+    if do_own_fit:
         logger.info("Doing own fit")
         fit_dict = fit_pl(freq=freq, flux=iarr, fluxerr=rmsi, nterms=abs(polyOrd))
 
@@ -415,15 +413,14 @@ def fit_stokes_I(
             fit_dict=fit_dict,
         )
 
-    else:
-        return StokesIFitResult(
-            alpha=None,
-            amplitude=None,
-            x_0=None,
-            model_repr=None,
-            modStokesI=None,
-            fit_dict=None,
-        )
+    return StokesIFitResult(
+        alpha=None,
+        amplitude=None,
+        x_0=None,
+        model_repr=None,
+        modStokesI=None,
+        fit_dict=None,
+    )
 
 
 def update_rmtools_dict(
@@ -526,10 +523,10 @@ def rmsynthoncut1d(
     comp = comp_tuple[1]
     beam = dict(beam_tuple[1])
 
-    iname = comp["Source_ID"]
-    cname = comp["Gaussian_ID"]
-    ra = comp["RA"]
-    dec = comp["Dec"]
+    iname = str(comp["Source_ID"])
+    cname = str(comp["Gaussian_ID"])
+    ra = float(comp["RA"])
+    dec = float(comp["Dec"])
     coord = SkyCoord(ra * u.deg, dec * u.deg)
     field_dict = beam["beams"][field]
 
@@ -548,7 +545,7 @@ def rmsynthoncut1d(
             operation = {"$set": {"rm_outputs_1d.$.rmsynth1d": False}}
             return pymongo.UpdateOne(myquery, operation, upsert=True)
 
-    prefix = f"{os.path.dirname(stokes_spectra.i.filename)}/{cname}"
+    prefix = stokes_spectra.i.filename.parent / cname
 
     # Filter by RMS for outlier rejection
     filtered_stokes_spectra = sigma_clip_spectra(stokes_spectra)
@@ -589,8 +586,8 @@ def rmsynthoncut1d(
         data.append(filtered_stokes_spectra.__getattribute__(stokes).rms)
 
     # Run 1D RM-synthesis on the spectra
-    np.savetxt(f"{prefix}.dat", np.vstack(data).T, delimiter=" ")
-    np.savetxt(f"{prefix}_bkg.dat", np.vstack(bkg_data).T, delimiter=" ")
+    np.savetxt(f"{prefix.as_posix()}.dat", np.vstack(data).T, delimiter=" ")
+    np.savetxt(f"{prefix.as_posix()}_bkg.dat", np.vstack(bkg_data).T, delimiter=" ")
 
     try:
         logger.info(f"Using {fit_function} to fit Stokes I")
@@ -610,7 +607,7 @@ def rmsynthoncut1d(
             verbose=rm_verbose,
             debug=debug,
             fit_function=fit_function,
-            prefixOut=prefix,
+            prefixOut=prefix.as_posix(),
         )
     except Exception as err:
         traceback.print_tb(err.__traceback__)
@@ -667,7 +664,7 @@ def rmsynthoncut1d(
         elif isinstance(v, np.bool_):
             mDict[k] = bool(v)
 
-    do_RMsynth_1D.saveOutput(mDict, aDict, prefix, rm_verbose)
+    do_RMsynth_1D.saveOutput(mDict, aDict, prefix.as_posix(), rm_verbose)
 
     myquery = {"Gaussian_ID": cname}
 
@@ -678,15 +675,15 @@ def rmsynthoncut1d(
         head_dict["COMMENT"] = str(head_dict["COMMENT"])
     logger.debug(f"Heading for {cname} is {pformat(head_dict)}")
 
-    outer_dir = os.path.basename(os.path.dirname(filtered_stokes_spectra.i.filename))
+    outer_dir = Path(filtered_stokes_spectra.i.filename.parent.name)
     newvalues = {
         "field": save_name,
         "rm1dfiles": {
-            "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
-            "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
-            "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
-            "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
-            "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
+            "FDF_dirty": (outer_dir / f"{cname}_FDFdirty.dat").as_posix(),
+            "RMSF": (outer_dir / f"{cname}_RMSF.dat").as_posix(),
+            "weights": (outer_dir / f"{cname}_weight.dat").as_posix(),
+            "summary_dat": (outer_dir / f"{cname}_RMsynth.dat").as_posix(),
+            "summary_json": (outer_dir / f"{cname}_RMsynth.json").as_posix(),
         },
         "rmsynth1d": True,
         "header": head_dict,
@@ -744,7 +741,6 @@ def main(
     username: str | None = None,
     password: str | None = None,
     dimension: str = "1d",
-    verbose: bool = True,
     database: bool = False,
     limit: int | None = None,
     savePlots: bool = False,

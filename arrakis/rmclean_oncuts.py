@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import warnings
 from pathlib import Path
 from pprint import pformat
@@ -77,7 +76,7 @@ def rmclean1d(
     weightFile = outdir / f"{rm1dfiles['weights']}"
     rmSynthFile = outdir / f"{rm1dfiles['summary_json']}"
 
-    prefix = os.path.join(os.path.abspath(os.path.dirname(fdfFile)), cname)
+    prefix = (fdfFile.parent.absolute() / cname).as_posix()
 
     # Sanity checks
     for f in [weightFile, fdfFile, rmsfFile, rmSynthFile]:

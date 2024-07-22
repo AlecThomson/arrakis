@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Errors and exceptions"""
 
 from __future__ import annotations

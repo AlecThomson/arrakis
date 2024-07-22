@@ -1,10 +1,8 @@
-#!/usr/bin/env python
 """FITS utilities"""
 
 from __future__ import annotations
 
 import warnings
-from glob import glob
 from pathlib import Path
 from typing import Any
 
@@ -13,11 +11,9 @@ import numpy as np
 from astropy.io import fits
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
-from spectral_cube import SpectralCube
 from spectral_cube.utils import SpectralCubeWarning
 
 from arrakis.logger import logger
-from arrakis.utils.io import gettable
 from FRion.correct import find_freq_axis
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
@@ -119,77 +115,3 @@ def getfreq(
     logger.info(f"Saving to {outfile}")
     np.savetxt(outfile, np.array(freq))
     return freq, outfile
-
-
-def getdata(cubedir="./", tabledir="./", mapdata=None, verbose=True):
-    """Get the spectral and source-finding data.
-
-    Args:
-        cubedir: Directory containing data cubes in FITS format.
-        tabledir: Directory containing Selavy results.
-        mapdata: 2D FITS image which corresponds to Selavy table.
-
-    Kwargs:
-        verbose (bool): Whether to print messages.
-
-    Returns:
-        datadict (dict): Dictionary of necessary astropy tables and
-            Spectral cubes.
-
-    """
-    if cubedir[-1] == "/":
-        cubedir = cubedir[:-1]
-
-    if tabledir[-1] == "/":
-        tabledir = tabledir[:-1]
-    # Glob out the necessary files
-    # Data cubes
-    icubes = glob(f"{cubedir}/image.restored.i.*contcube*linmos.fits")
-    qcubes = glob(f"{cubedir}/image.restored.q.*contcube*linmos.fits")
-    ucubes = glob(f"{cubedir}/image.restored.u.*contcube*linmos.fits")
-    vcubes = glob(f"{cubedir}/image.restored.v.*contcube*linmos.fits")
-
-    cubes = [icubes, qcubes, ucubes, vcubes]
-    # Selavy images
-    selavyfits = mapdata
-    # Get selvay data from VOTab
-    i_tab, voisle = gettable(tabledir, "islands", verbose=verbose)  # Selvay VOTab
-    components, tablename = gettable(tabledir, "components", verbose=verbose)
-
-    logger.info(f"Getting spectral data from: {cubes}\n")
-    logger.info(f"Getting source location data from: {selavyfits}\n")
-
-    # Read data using Spectral cube
-    i_taylor = SpectralCube.read(selavyfits, mode="denywrite")
-    wcs_taylor = WCS(i_taylor.header)
-    i_cube = SpectralCube.read(icubes[0], mode="denywrite")
-    wcs_cube = WCS(i_cube.header)
-    q_cube = SpectralCube.read(qcubes[0], mode="denywrite")
-    u_cube = SpectralCube.read(ucubes[0], mode="denywrite")
-    if len(vcubes) != 0:
-        v_cube = SpectralCube.read(vcubes[0], mode="denywrite")
-    else:
-        v_cube = None
-    # Mask out using Stokes I == 0 -- seems to be the current fill value
-    mask = ~(i_cube == 0 * u.jansky / u.beam)
-    i_cube = i_cube.with_mask(mask)
-    mask = ~(q_cube == 0 * u.jansky / u.beam)
-    q_cube = q_cube.with_mask(mask)
-    mask = ~(u_cube == 0 * u.jansky / u.beam)
-    u_cube = u_cube.with_mask(mask)
-
-    return {
-        "i_tab": i_tab,
-        "i_tab_comp": components,
-        "i_taylor": i_taylor,
-        "wcs_taylor": wcs_taylor,
-        "wcs_cube": wcs_cube,
-        "i_cube": i_cube,
-        "q_cube": q_cube,
-        "u_cube": u_cube,
-        "v_cube": v_cube,
-        "i_file": icubes[0],
-        "q_file": qcubes[0],
-        "u_file": ucubes[0],
-        "v_file": vcubes[0],
-    }

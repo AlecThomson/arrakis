@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Fitting utilities"""
 
 from __future__ import annotations

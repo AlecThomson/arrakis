@@ -5,11 +5,10 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
+from importlib import resources
 from pathlib import Path
 
 import configargparse
-import pkg_resources
 import yaml
 from astropy.time import Time
 from prefect import flow
@@ -31,13 +30,15 @@ from arrakis.validate import validation_parser
 
 
 @flow
-def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
+def process_merge(
+    args: argparse.Namespace, host: str, inter_dir: Path, task_runner
+) -> None:
     """Workflow to merge spectra from overlapping fields together
 
     Args:
         args (Namespace): Parameters to use for this process
         host (str): Address of the mongoDB servicing the processing
-        inter_dir (str): Location to store data from merged fields
+        inter_dir (Path): Location to store data from merged fields
     """
     previous_future = None
     previous_future = (
@@ -146,8 +147,8 @@ def main(args: configargparse.Namespace) -> None:
         args (configargparse.Namespace): Command line arguments.
     """
     if args.dask_config is None:
-        config_dir = pkg_resources.resource_filename("arrakis", "configs")
-        args.dask_config = os.path.join(config_dir, "default.yaml")
+        with resources.path("arrakis", "configs") as config_dir:
+            args.dask_config = config_dir / "default.yaml"
 
     if args.outfile is None:
         args.outfile = f"{args.merge_name}.pipe.test.fits"
@@ -159,16 +160,16 @@ def main(args: configargparse.Namespace) -> None:
     )
 
     args_yaml = yaml.dump(vars(args))
-    args_yaml_f = os.path.abspath(f"{args.merge_name}-config-{Time.now().fits}.yaml")
+    args_yaml_f = Path(f"{args.merge_name}-config-{Time.now().fits}.yaml").absolute()
     logger.info(f"Saving config to '{args_yaml_f}'")
-    with open(args_yaml_f, "w") as f:
+    with args_yaml_f.open("w") as f:
         f.write(args_yaml)
 
     dask_runner = process_spice.create_dask_runner(
-        dask_config=args.dask_config,
+        dask_config=Path(args.dask_config),
     )
 
-    inter_dir = os.path.join(os.path.abspath(args.output_dir), args.merge_name)
+    inter_dir = Path(args.output_dir).absolute() / args.merge_name
 
     process_merge.with_options(
         name=f"Arrakis Merge: {args.merge_name}", task_runner=dask_runner
@@ -198,23 +199,19 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Config file for Dask SlurmCLUSTER.",
     )
 
+    parser.add_argument("--skip_frion", action="store_true", help="Skip cleanup stage.")
     parser.add_argument(
-        "--skip_frion", action="store_true", help="Skip cleanup stage [False]."
+        "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage."
     )
     parser.add_argument(
-        "--skip_rmsynth", action="store_true", help="Skip RM Synthesis stage [False]."
+        "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage."
     )
-    parser.add_argument(
-        "--skip_rmclean", action="store_true", help="Skip RM-CLEAN stage [False]."
-    )
-    parser.add_argument(
-        "--skip_cat", action="store_true", help="Skip catalogue stage [False]."
-    )
+    parser.add_argument("--skip_cat", action="store_true", help="Skip catalogue stage.")
     parser.add_argument(
         "--skip_validate", action="store_true", help="Skip validation stage."
     )
     parser.add_argument(
-        "--skip_cleanup", action="store_true", help="Skip cleanup stage [False]."
+        "--skip_cleanup", action="store_true", help="Skip cleanup stage."
     )
     return pipeline_parser
 

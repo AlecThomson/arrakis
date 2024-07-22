@@ -64,9 +64,9 @@ def test_db(
     ) as dbclient:  # type: pymongo.MongoClient
         try:
             dbclient.list_database_names()
-        except pymongo.errors.ServerSelectionTimeoutError:
+        except pymongo.errors.ServerSelectionTimeoutError as err:
             msg = "Please ensure 'mongod' is running"
-            raise Exception(msg)
+            raise Exception(msg) from err
 
         logger.info("MongoDB connection succesful!")
 

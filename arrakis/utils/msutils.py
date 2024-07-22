@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """MeasurementSet utilities"""
 
 from __future__ import annotations

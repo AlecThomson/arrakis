@@ -63,9 +63,9 @@ def yes_or_no(question: str) -> bool:
         reply = str(input(question + " (y/n): ")).lower().strip()
         if reply[:1] == "y":
             return True
-        elif reply[:1] == "n":
+        if reply[:1] == "n":
             return False
-        else:
-            msg = "Please answer 'y' or 'n'"
-            raise ValueError(msg)
+
+        msg = "Please answer 'y' or 'n'"
+        raise ValueError(msg)
     return None

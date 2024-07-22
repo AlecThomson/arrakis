@@ -289,7 +289,7 @@ def proper_rm_clean(
 
     np.save("fdf_clean.npy", fdf_clean)
     np.save("cc_vec.npy", cc_vec)
-    raise
+    # raise
 
     # Calculate the spectrum
     quarr = np.sum(cc_vec[:, np.newaxis] * np.exp(2.0j * np.outer(phis, ays)), axis=0)

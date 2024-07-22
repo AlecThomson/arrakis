@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
+from typing import Any
 
 import pymongo
 from prefect import flow, task
@@ -23,15 +25,15 @@ def make_short_name(name: str) -> str:
 
 @task(name="Copy singleton island")
 def copy_singleton(
-    beam: dict, field_dict: dict[str, str], merge_name: str, data_dir: str
+    beam: dict[str, Any], field_dict: dict[str, Path], merge_name: str, data_dir: Path
 ) -> list[pymongo.UpdateOne]:
     """Copy an island within a single field to the merged field
 
     Args:
         beam (dict): Beam document
-        field_dict (Dict[str, str]): Field dictionary
+        field_dict (dict[str, Path]): Field dictionary
         merge_name (str): Merged field name
-        data_dir (str): Output directory
+        data_dir (Path): Output directory
 
     Raises:
         KeyError: If ion files not found
@@ -45,25 +47,18 @@ def copy_singleton(
             continue
         field_dir = field_dict[field]
         try:
-            i_file_old = os.path.join(field_dir, vals["i_file"])
-            q_file_old = os.path.join(field_dir, vals["q_file_ion"])
-            u_file_old = os.path.join(field_dir, vals["u_file_ion"])
-        except KeyError:
+            i_file_old = field_dir / str(vals["i_file"])
+            q_file_old = field_dir / str(vals["q_file_ion"])
+            u_file_old = field_dir / str(vals["u_file_ion"])
+        except KeyError as e:
             msg = "Ion files not found. Have you run FRion?"
-            raise KeyError(msg)
-        new_dir = os.path.join(data_dir, beam["Source_ID"])
+            raise KeyError(msg) from e
+        new_dir = data_dir / str(beam["Source_ID"])
+        new_dir.mkdir(exist_ok=True)
 
-        try_mkdir(new_dir, verbose=False)
-
-        i_file_new = os.path.join(new_dir, os.path.basename(i_file_old)).replace(
-            ".fits", ".edge.linmos.fits"
-        )
-        q_file_new = os.path.join(new_dir, os.path.basename(q_file_old)).replace(
-            ".fits", ".edge.linmos.fits"
-        )
-        u_file_new = os.path.join(new_dir, os.path.basename(u_file_old)).replace(
-            ".fits", ".edge.linmos.fits"
-        )
+        i_file_new = (new_dir / i_file_old.name).replace(".fits", ".edge.linmos.fits")
+        q_file_new = (new_dir / q_file_old.name).replace(".fits", ".edge.linmos.fits")
+        u_file_new = (new_dir / u_file_old.name).replace(".fits", ".edge.linmos.fits")
 
         for src, dst in zip(
             [i_file_old, q_file_old, u_file_old], [i_file_new, q_file_new, u_file_new]
@@ -174,7 +169,7 @@ linmos.weightstate      = Corrected
 
 
 def merge_multiple_field(
-    beam: dict, field_dict: dict, merge_name: str, data_dir: str, image: str
+    beam: dict, field_dict: dict, merge_name: str, data_dir: Path, image: str
 ) -> list[pymongo.UpdateOne]:
     """Merge an island that overlaps multiple fields
 
@@ -182,7 +177,7 @@ def merge_multiple_field(
         beam (dict): Beam document
         field_dict (dict): Field dictionary
         merge_name (str): Merged field name
-        data_dir (str): Data directory
+        data_dir (Path): Data directory
         image (str): Yandasoft image
 
     Raises:
@@ -210,7 +205,7 @@ def merge_multiple_field(
         q_files_old.append(q_file_old)
         u_files_old.append(u_file_old)
 
-    new_dir = os.path.join(data_dir, beam["Source_ID"])
+    new_dir = data_dir / beam["Source_ID"]
 
     try_mkdir(new_dir, verbose=False)
 
@@ -277,9 +272,9 @@ def merge_multiple_fields(
 @flow(name="Merge fields")
 def main(
     fields: list[str],
-    field_dirs: list[str],
+    field_dirs: list[Path],
     merge_name: str,
-    output_dir: str,
+    output_dir: Path,
     host: str,
     epoch: int,
     username: str | None = None,
@@ -292,9 +287,8 @@ def main(
         len(fields) == len(field_dirs)
     ), f"List of fields must be the same length as length of field dirs. {len(fields)=},{len(field_dirs)=}"
 
-    field_dict = {
-        field: os.path.join(field_dir, "cutouts")
-        for field, field_dir in zip(fields, field_dirs)
+    field_dict: dict[str, Path] = {
+        field: field_dir / "cutouts" for field, field_dir in zip(fields, field_dirs)
     }
 
     image = get_yanda(version=yanda)
@@ -303,11 +297,11 @@ def main(
         host=host, epoch=epoch, username=username, password=password
     )
 
-    output_dir = os.path.abspath(output_dir)
-    inter_dir = os.path.join(output_dir, merge_name)
-    try_mkdir(inter_dir)
-    data_dir = os.path.join(inter_dir, "cutouts")
-    try_mkdir(data_dir)
+    output_dir = output_dir.absolute()
+    inter_dir = output_dir / merge_name
+    inter_dir.mkdir(exist_ok=True)
+    data_dir = inter_dir / "cutouts"
+    data_dir.mkdir(exist_ok=True)
 
     singleton_updates = copy_singletons(
         field_dict=field_dict,
@@ -368,14 +362,14 @@ def merge_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--datadirs",
-        type=str,
+        type=Path,
         nargs="+",
         help="Directories containing cutouts (in subdir outdir/cutouts)..",
     )
 
     parser.add_argument(
         "--output_dir",
-        type=str,
+        type=Path,
         help="Path to save merged data (in output_dir/merge_name/cutouts)",
     )
     parser.add_argument(
