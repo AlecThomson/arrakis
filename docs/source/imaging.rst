@@ -26,8 +26,8 @@ This can be run using:
                        [--multiscale] [--multiscale_scale_bias MULTISCALE_SCALE_BIAS] [--multiscale_scales MULTISCALE_SCALES] [--absmem ABSMEM] [--make_residual_cubes] [--ms_glob_pattern MS_GLOB_PATTERN] [--data_column DATA_COLUMN] [--no_mf_weighting] [--skip_fix_ms]
                        [--num_beams NUM_BEAMS] [--disable_pol_local_rms] [--disable_pol_force_mask_rounds] [--hosted-wsclean HOSTED_WSCLEAN | --local_wsclean LOCAL_WSCLEAN]
                        msdir datadir
-    
-        
+
+
         mmm   mmm   mmm   mmm   mmm
         )-(   )-(   )-(   )-(   )-(
        ( S ) ( P ) ( I ) ( C ) ( E )
@@ -38,17 +38,17 @@ This can be run using:
        ( R )   ( A )   ( C )   ( S )
        |   |   |   |   |   |   |   |
        |___|   |___|   |___|   |___|
-    
+
         Arrkis imager
-        
-    
+
+
     options:
       -h, --help            show this help message and exit
       --hosted-wsclean HOSTED_WSCLEAN
                             Docker or Singularity image for wsclean (default: docker://alecthomson/wsclean:latest)
       --local_wsclean LOCAL_WSCLEAN
                             Path to local wsclean Singularity image (default: None)
-    
+
     imaging arguments:
       msdir                 Directory containing MS files
       --temp_dir_wsclean TEMP_DIR_WSCLEAN
@@ -96,7 +96,7 @@ This can be run using:
                             Disable local RMS for polarisation images (default: False)
       --disable_pol_force_mask_rounds
                             Disable force mask rounds for polarisation images (default: False)
-    
+
     workdir arguments:
       datadir               Directory to create/find full-size images and 'cutout' directory
 
