@@ -8,13 +8,13 @@ import tarfile
 from pathlib import Path
 from typing import List
 
-from arrakis.utils.io import verify_tarball
 import astropy.units as u
 import numpy as np
 from prefect import flow, get_run_logger, task
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
+from arrakis.utils.io import verify_tarball
 from arrakis.utils.pipeline import generic_parser, logo_str
 
 logger.setLevel(logging.INFO)

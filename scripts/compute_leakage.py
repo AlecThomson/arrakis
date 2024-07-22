@@ -5,12 +5,11 @@ import astropy
 import astropy.units as units
 import matplotlib.pyplot as plt
 import numpy as np
+from arrakis.logger import TqdmToLogger, logger
+from arrakis.utils.database import get_db
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
 from tqdm.auto import tqdm, trange
-
-from arrakis.logger import TqdmToLogger, logger
-from arrakis.utils.database import get_db
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 

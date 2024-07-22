@@ -8,9 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List
+from typing import List, Optional, Set, TypeVar
 from typing import NamedTuple as Struct
-from typing import Optional, Set, TypeVar
 
 import astropy.units as u
 import numpy as np

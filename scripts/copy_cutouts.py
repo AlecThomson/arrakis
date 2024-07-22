@@ -1,11 +1,11 @@
 import argparse
 import os
 
-import copy_data
-import spica
-
 from arrakis.logger import logger, logging
 from arrakis.utils.io import try_mkdir
+
+import copy_data
+import spica
 
 logger.setLevel(logging.INFO)
 

@@ -6,10 +6,9 @@ import tarfile
 from glob import glob
 
 import dask
+from arrakis.logger import TqdmToLogger, logger
 from dask import delayed
 from tqdm.auto import tqdm
-
-from arrakis.logger import TqdmToLogger, logger
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 

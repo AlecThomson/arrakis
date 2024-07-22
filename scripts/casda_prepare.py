@@ -16,6 +16,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import polspectra
+from arrakis.logger import TqdmToLogger, logger
+from arrakis.makecat import write_votable
+from arrakis.utils.io import try_mkdir, try_symlink
+from arrakis.utils.pipeline import chunk_dask
 from astropy.io import fits
 from astropy.table import Column, Table
 from astropy.units.core import get_current_unit_registry
@@ -27,11 +31,6 @@ from prefect_dask import get_dask_client
 from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm
-
-from arrakis.logger import TqdmToLogger, logger
-from arrakis.makecat import write_votable
-from arrakis.utils.io import try_mkdir, try_symlink
-from arrakis.utils.pipeline import chunk_dask
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 

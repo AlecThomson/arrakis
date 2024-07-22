@@ -3,12 +3,12 @@
 
 import logging
 import os
+import shlex
 import stat
+import subprocess as sp
 import warnings
 from glob import glob
 from pathlib import Path
-import shlex
-import subprocess as sp
 from typing import Tuple
 
 from astropy.table import Table
@@ -137,7 +137,7 @@ def copyfile(src, dst, *, follow_symlinks=True, verbose=True):
 
     """
     if _samefile(src, dst):
-        raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+        raise SameFileError(f"{src!r} and {dst!r} are the same file")
 
     for fn in [src, dst]:
         try:
@@ -148,7 +148,7 @@ def copyfile(src, dst, *, follow_symlinks=True, verbose=True):
         else:
             # XXX What about other special files? (sockets, devices...)
             if stat.S_ISFIFO(st.st_mode):
-                raise SpecialFileError("`%s` is a named pipe" % fn)
+                raise SpecialFileError(f"`{fn}` is a named pipe")
 
     if not follow_symlinks and os.path.islink(src):
         os.symlink(os.readlink(src), dst)

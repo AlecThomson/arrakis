@@ -352,7 +352,7 @@ class TqdmProgressBar(ProgressBar):
         start=True,
         **tqdm_kwargs,
     ):
-        super(TqdmProgressBar, self).__init__(keys, scheduler, interval, complete)
+        super().__init__(keys, scheduler, interval, complete)
         self.tqdm = tqdm(keys, **tqdm_kwargs)
         self.loop = loop or IOLoop()
 

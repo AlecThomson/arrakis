@@ -9,9 +9,8 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple
 
 import astropy.units as u
 import numpy as np

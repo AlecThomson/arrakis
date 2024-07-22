@@ -7,9 +7,8 @@ from pprint import pformat
 from typing import Optional
 
 import pymongo
-from pymongo.database import Database
-
 from arrakis.logger import logger
+from pymongo.database import Database
 
 logger.setLevel(logging.INFO)
 

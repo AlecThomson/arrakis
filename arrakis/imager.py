@@ -2,43 +2,42 @@
 """Arrkis imager"""
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import logging
 import os
 import pickle
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from glob import glob
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple, Union
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple, Union
 
-from arrakis.utils.meta import my_ceil
 import astropy.units as u
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
 from astropy.visualization import (
-    SqrtStretch,
     ImageNormalize,
     MinMaxInterval,
+    SqrtStretch,
 )
 from fitscube import combine_fits
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
-import matplotlib.pyplot as plt
-import matplotlib
 from prefect import flow, get_run_logger, task
 from racs_tools import beamcon_2D
-from spython.main import Client as sclient
 from skimage.transform import resize
+from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.io import parse_env_path
+from arrakis.utils.meta import my_ceil
 from arrakis.utils.msutils import (
     beam_from_ms,
     field_idx_from_ms,

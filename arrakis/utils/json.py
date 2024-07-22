@@ -32,4 +32,4 @@ class MyEncoder(json.JSONEncoder):
         elif dataclasses.is_dataclass(obj):
             return dataclasses.asdict(obj)
         else:
-            return super(MyEncoder, self).default(obj)
+            return super().default(obj)

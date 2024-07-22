@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Logging module for arrakis"""
 
 import argparse
@@ -24,7 +23,7 @@ class TqdmToLogger(io.StringIO):
     buf = ""
 
     def __init__(self, logger, level=None):
-        super(TqdmToLogger, self).__init__()
+        super().__init__()
         self.logger = logger
         self.level = level or logging.INFO
 

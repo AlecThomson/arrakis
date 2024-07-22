@@ -7,13 +7,13 @@ import os
 import warnings
 from pathlib import Path
 from pprint import pformat
-from typing import Optional
 from shutil import copyfile
+from typing import Optional
 
-import numpy as np
-from matplotlib import pyplot as plt
 import matplotlib
+import numpy as np
 import pymongo
+from matplotlib import pyplot as plt
 from prefect import flow, task
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D

@@ -6,12 +6,11 @@ import os
 from pathlib import Path
 
 import numpy as np
+from arrakis.logger import TqdmToLogger, logger
+from arrakis.makecat import fix_blank_units, replace_nans, vot
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from tqdm.auto import tqdm
-
-from arrakis.logger import TqdmToLogger, logger
-from arrakis.makecat import fix_blank_units, replace_nans, vot
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
