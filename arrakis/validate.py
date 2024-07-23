@@ -234,9 +234,22 @@ def plot_leakage(
     hi_i_tab["stokesU_frac"] = hi_i_tab["stokesU"] / hi_i_tab["stokesI"]
     leakage_dict = {}
     for stokes in "QU":
-        leakage_dict[stokes] = make_binned_map(
-            hi_i_tab, f"stokes{stokes}_frac", npix=npix, bins=bins, map_size=map_size
-        )
+        try:
+            leakage_dict[stokes] = make_binned_map(
+                hi_i_tab,
+                f"stokes{stokes}_frac",
+                npix=npix,
+                bins=bins,
+                map_size=map_size,
+            )
+        except Exception as e:
+            logger.error(f"Error in making binned map for {stokes}: {e}")
+            leakage_dict[stokes] = BinnedMap(
+                np.full((bins, bins), np.nan),
+                np.linspace(-4, 4, bins),
+                np.linspace(-4, 4, bins),
+                WCS(),
+            )
 
     per_subplot_kw = {
         stokes: {"projection": val.wcs} for stokes, val in leakage_dict.items()
