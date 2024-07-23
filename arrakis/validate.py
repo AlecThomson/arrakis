@@ -248,7 +248,7 @@ def plot_leakage(
                 np.full((bins, bins), np.nan),
                 np.linspace(-4, 4, bins),
                 np.linspace(-4, 4, bins),
-                WCS(),
+                None,
             )
 
     per_subplot_kw = {
@@ -267,6 +267,8 @@ def plot_leakage(
         sharey=True,
     )
     for stokes, ax in ax_dict.items():
+        if leakage_dict[stokes].wcs is None:
+            continue
         data = leakage_dict[stokes].data
         xc = leakage_dict[stokes].xc
         yc = leakage_dict[stokes].yc
