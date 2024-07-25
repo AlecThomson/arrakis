@@ -383,7 +383,8 @@ def write_polspec(table: Table, filename: str, overwrite: bool = False):
         filename : str
             Name and relative path of the file to save to.
         overwrite : bool [False]
-            Overwrite the file if it already exists?"""
+    Overwrite the file if it already exists?
+    """
     # This is going to be complicated, because the automatic write algorithm
     # doesn't like variable length arrays. pyfits can support it, it just
     # needs a little TLC to get it into the correct format.
