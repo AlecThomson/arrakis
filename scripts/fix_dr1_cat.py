@@ -22,7 +22,6 @@ from astropy.table import Column, Table
 from astropy.time import Time
 from astropy.units import cds
 from rmtable import RMTable
-
 from spica import SPICA
 
 

@@ -122,7 +122,7 @@ tar_cubelets = { reference="scripts/tar_cubelets.py", type="file"}
 create_mongodb = { reference="scripts/create_mongodb.py", type="file"}
 
 [tool.ruff]
-src = ["arrakis", "scripts", "tests"]
+src = ["arrakis"]
 
 [tool.ruff.lint]
 extend-select = [
@@ -159,7 +159,8 @@ isort.required-imports = ["from __future__ import annotations"]
 # typing-modules = ["cutout_fits._compat.typing"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["T20"]
+"tests/**" = ["ALL"]
+"scripts/**" = ["ALL"]
 "noxfile.py" = ["T20"]
 # Ignore all rules for wsclean
 "arrakis/wsclean_rmsynth.py" = ["ALL"]

@@ -6,12 +6,11 @@ import subprocess as sb
 from glob import glob
 from pathlib import Path
 
+import copy_data
 import numpy as np
 from arrakis.logger import logger, logging
 from arrakis.utils.io import try_mkdir
 from astropy.table import Table
-
-import copy_data
 
 logger.setLevel(logging.INFO)
 

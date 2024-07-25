@@ -15,7 +15,6 @@ import astropy.units as u
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
-from FRion import correct, predict
 from prefect import flow, task
 from tqdm.auto import tqdm
 
@@ -28,6 +27,7 @@ from arrakis.utils.database import (
 )
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
+from FRion import correct, predict
 
 logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)

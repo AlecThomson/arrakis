@@ -1,5 +1,4 @@
-"""
-The interpolation works as follows:
+"""The interpolation works as follows:
 Take pixels offsets x,y from reference pixel in input image, multiply by
 axis increments to get offx and offy.
 

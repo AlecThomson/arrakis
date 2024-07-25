@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-"""
-Parallel Hello World
-"""
+"""Parallel Hello World"""
 
 from __future__ import annotations
 
