@@ -64,7 +64,7 @@ dependencies = [
     "RMTable>=1.2.1",
     "RM-Tools>=1.4.2",
     "PolSpectra>=1.1.0",
-    "fixms>=0.2.6",
+    "fixms>=0.2.9",
     "fitscube>=0.3",
     "psycopg2-binary",
     "sqlalchemy",
