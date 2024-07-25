@@ -1,125 +1,173 @@
-[tool.poetry]
-name = "arrakis"
-version = "0.0.0" # A placeholder
-description = "Processing the SPICE."
-homepage = "https://research.csiro.au/racs/"
-repository = "https://github.com/AlecThomson/arrakis"
-documentation = "https://arrakis.readthedocs.io/en/latest/"
-authors = ["Alec Thomson", "Tim Galvin"]
-license = "BSD-3-Clause"
-readme = "README.md"
-classifiers=[
-    "License :: OSI Approved :: BSD License",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering :: Astronomy",
-    "Development Status :: 3 - Alpha",
-]
-packages = [
-    { include = "arrakis"},
-]
-
-include = [
-    {path='arrakis/configs/*', format=['sdist','wheel']},
-]
-
-[tool.poetry.dependencies]
-python = ">=3.8"
-astropy = ">=5"
-bilby = "*"
-ConfigArgParse = "*"
-dask = "*"
-distributed = {git="https://github.com/AlecThomson/distributed", branch="drainclose"}
-dask_jobqueue = {version=">=0.8.3", optional=true}
-dask_mpi = "*"
-FRion = ">=1.1.3"
-h5py = "*"
-ipython = "*"
-matplotlib = ">=3.8"
-numba = "*"
-numba_progress = "*"
-pandas = ">=2"
-psutil = "*"
-pymongo = "*"
-pymultinest = "*"
-pytest = "*"
-python_casacore = "*"
-RACS-tools = ">=3.0.5"
-radio_beam = "*"
-RMextract = {git = "https://github.com/lofar-astron/RMextract", optional=true}
-schwimmbad = "*"
-scipy = "*"
-spectral_cube = ">=0.6.3"
-spython = "*"
-tqdm = "*"
-vorbin = "*"
-graphviz = "*"
-bokeh = "<3"
-prefect = ">=2"
-prefect-dask = "*"
-RMTable = ">=1.2.1"
-RM-Tools = ">=1.4.2"
-PolSpectra = ">=1.1.0"
-setuptools = "*"
-fixms = ">=0.2.6"
-fitscube = ">=0.3"
-psycopg2-binary = "*"
-sqlalchemy = "*"
-scikit-image = ">=0.23"
-
-[tool.poetry.dev-dependencies]
-black = ">=23"
-flake8 = ">=5"
-isort = ">=5"
-mypy = ">=1"
-pre-commit = ">=3.2"
-
-[tool.poetry.extras]
-docs = [
-    "sphinx",
-    "sphinx_rtd_theme",
-    "sphinx-book-theme",
-    "sphinx-autoapi",
-    "m2r2",
-    "numpydoc",
-    "sphinxcontrib-mermaid",
-]
-RMextract = ["RMextract"]
-jobqueue = ["dask_jobqueue"]
-
-[tool.poetry-dynamic-versioning]
-enable = true
-
 [build-system]
-requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0", "numpy"]
-build-backend = "poetry_dynamic_versioning.backend"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.poetry.scripts]
+
+[project]
+name = "arrakis"
+authors = [
+  { name = "Alec Thomson", email = "alec.thomson@csiro.au" },
+  { name = "Tim Galvin", email = "tim.galvin@csiro.au" },
+]
+description = "Processing the SPICE."
+readme = "README.md"
+license.file = "LICENSE"
+requires-python = ">=3.10, <3.11"
+classifiers = [
+  "Development Status :: 1 - Planning",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+  "Typing :: Typed",
+]
+dynamic = ["version"]
+dependencies = [
+    "numpy>=1.26.4",
+    "astropy>=5",
+    "bilby",
+    "ConfigArgParse",
+    "dask",
+    "distributed @ git+https://github.com/AlecThomson/distributed@drainclose",
+    "FRion>=1.1.3",
+    "h5py",
+    "ipython",
+    "matplotlib>=3.8",
+    "numba",
+    "numba_progress",
+    "pandas>=2",
+    "psutil",
+    "pymongo",
+    "pymultinest",
+    "pytest",
+    "python_casacore",
+    "RACS-tools>=3.0.5",
+    "radio_beam",
+    "scipy",
+    "spectral_cube>=0.6.3",
+    "spython",
+    "tqdm",
+    "vorbin",
+    "graphviz",
+    "bokeh<3",
+    "prefect>=2",
+    "prefect-dask",
+    "RMTable>=1.2.1",
+    "RM-Tools>=1.4.2",
+    "PolSpectra>=1.1.0",
+    "fixms>=0.2.6",
+    "fitscube>=0.3",
+    "psycopg2-binary",
+    "sqlalchemy",
+    "scikit-image>=0.23",
+    "setuptools",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest >=6",
+  "pytest-cov >=3",
+]
+dev = [
+  "pytest >=6",
+  "pytest-cov >=3",
+]
+docs = [
+  "sphinx",
+  "sphinx_rtd_theme",
+  "sphinx-book-theme",
+  "sphinx-autoapi",
+  "m2r2",
+  "numpydoc",
+  "sphinxcontrib-mermaid",
+]
+mpi = [
+  "dask_mpi",
+  "mpi4py",
+]
+
+jobqueue = [
+  "dask_jobqueue >=0.8.3",
+]
+
+ion = [
+  "RMextract>=0.5.0",
+]
+
+[project.urls]
+Homepage = "https://research.csiro.au/racs/"
+Repository = "https://github.com/AlecThomson/arrakis"
+"Bug Tracker" = "https://github.com/AlecThomson/arrakis/issues"
+Discussions = "https://github.com/AlecThomson/arrakis/discussions"
+Changelog = "https://github.com/AlecThomson/arrakis/releases"
+Documentation = "https://arrakis.readthedocs.io"
+
+[project.scripts]
 spice_init = "arrakis.init_database:cli"
 spice_process = "arrakis.process_spice:cli"
 spice_region = "arrakis.process_region:cli"
 spice_cat = "arrakis.makecat:cli"
 spice_image = "arrakis.imager:cli"
 
-# Misc scripts
-casda_prepare = { reference="scripts/casda_prepare.py", type="file"}
-check_cutout = { reference="scripts/check_cutout.py", type="file"}
-compare_leakage = { reference="scripts/compare_leakage.py", type="file"}
-compute_leakage = { reference="scripts/compute_leakage.py", type="file"}
-copy_cutouts_askap = { reference="scripts/copy_cutouts_askap.py", type="file"}
-copy_cutouts = { reference="scripts/copy_cutouts.py", type="file"}
-copy_data = { reference="scripts/copy_data.py", type="file"}
-find_row = { reference="scripts/find_row.py", type="file"}
-find_sbid = { reference="scripts/find_sbid.py", type="file"}
-fix_dr1_cat = { reference="scripts/fix_dr1_cat.py", type="file"}
-fix_src_cat = { reference="scripts/fix_src_cat.py", type="file"}
-hello_mpi_world = { reference="scripts/hello_mpi_world.py", type="file"}
-make_links = { reference="scripts/make_links.py", type="file"}
-spica = { reference="scripts/spica.py", type="file"}
-tar_cubelets = { reference="scripts/tar_cubelets.py", type="file"}
-create_mongodb = { reference="scripts/create_mongodb.py", type="file"}
+[tool.hatch]
+version.source = "vcs"
+build.hooks.vcs.version-file = "arrakis/_version.py"
+metadata.allow-direct-references = true
+
+[tool.hatch.envs.default]
+features = ["test"]
+scripts.test = "pytest {args}"
+
+[tool.hatch.build.targets.wheel]
+packages = ["arrakis"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = [
+  "error",
+]
+log_cli_level = "INFO"
+testpaths = [
+  "tests",
+]
+
+
+[tool.coverage]
+run.source = ["arrakis"]
+report.exclude_also = [
+  '\.\.\.',
+  'if typing.TYPE_CHECKING:',
+]
+
+[tool.mypy]
+files = ["arrakis", "tests"]
+python_version = "3.8"
+warn_unused_configs = true
+strict = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+warn_unreachable = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = "arrakis.*"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = "astropy.*"
+ignore_missing_imports = true
 
 [tool.ruff]
 src = ["arrakis"]
@@ -156,7 +204,7 @@ ignore = [
 ]
 isort.required-imports = ["from __future__ import annotations"]
 # Uncomment if using a _compat.typing backport
-# typing-modules = ["cutout_fits._compat.typing"]
+# typing-modules = ["fitscube._compat.typing"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ALL"]
@@ -169,3 +217,21 @@ isort.required-imports = ["from __future__ import annotations"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+
+[tool.pylint]
+py-version = "3.8"
+ignore-paths = [".*/_version.py"]
+reports.output-format = "colorized"
+similarities.ignore-imports = "yes"
+messages_control.disable = [
+  "design",
+  "fixme",
+  "line-too-long",
+  "missing-module-docstring",
+  "missing-function-docstring",
+  "wrong-import-position",
+]
+
+[tool.codespell]
+ignore-words-list = "datas"

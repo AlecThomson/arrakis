@@ -1,0 +1,171 @@
+[tool.poetry]
+name = "arrakis"
+version = "0.0.0" # A placeholder
+description = "Processing the SPICE."
+homepage = "https://research.csiro.au/racs/"
+repository = "https://github.com/AlecThomson/arrakis"
+documentation = "https://arrakis.readthedocs.io/en/latest/"
+authors = ["Alec Thomson", "Tim Galvin"]
+license = "BSD-3-Clause"
+readme = "README.md"
+classifiers=[
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Development Status :: 3 - Alpha",
+]
+packages = [
+    { include = "arrakis"},
+]
+
+include = [
+    {path='arrakis/configs/*', format=['sdist','wheel']},
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+astropy = ">=5"
+bilby = "*"
+ConfigArgParse = "*"
+dask = "*"
+distributed = {git="https://github.com/AlecThomson/distributed", branch="drainclose"}
+dask_jobqueue = {version=">=0.8.3", optional=true}
+dask_mpi = "*"
+FRion = ">=1.1.3"
+h5py = "*"
+ipython = "*"
+matplotlib = ">=3.8"
+numba = "*"
+numba_progress = "*"
+pandas = ">=2"
+psutil = "*"
+pymongo = "*"
+pymultinest = "*"
+pytest = "*"
+python_casacore = "*"
+RACS-tools = ">=3.0.5"
+radio_beam = "*"
+RMextract = {git = "https://github.com/lofar-astron/RMextract", optional=true}
+schwimmbad = "*"
+scipy = "*"
+spectral_cube = ">=0.6.3"
+spython = "*"
+tqdm = "*"
+vorbin = "*"
+graphviz = "*"
+bokeh = "<3"
+prefect = ">=2"
+prefect-dask = "*"
+RMTable = ">=1.2.1"
+RM-Tools = ">=1.4.2"
+PolSpectra = ">=1.1.0"
+setuptools = "*"
+fixms = ">=0.2.6"
+fitscube = ">=0.3"
+psycopg2-binary = "*"
+sqlalchemy = "*"
+scikit-image = ">=0.23"
+
+[tool.poetry.dev-dependencies]
+black = ">=23"
+flake8 = ">=5"
+isort = ">=5"
+mypy = ">=1"
+pre-commit = ">=3.2"
+
+[tool.poetry.extras]
+docs = [
+    "sphinx",
+    "sphinx_rtd_theme",
+    "sphinx-book-theme",
+    "sphinx-autoapi",
+    "m2r2",
+    "numpydoc",
+    "sphinxcontrib-mermaid",
+]
+RMextract = ["RMextract"]
+jobqueue = ["dask_jobqueue"]
+
+[tool.poetry-dynamic-versioning]
+enable = true
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0", "numpy"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+[tool.poetry.scripts]
+spice_init = "arrakis.init_database:cli"
+spice_process = "arrakis.process_spice:cli"
+spice_region = "arrakis.process_region:cli"
+spice_cat = "arrakis.makecat:cli"
+spice_image = "arrakis.imager:cli"
+
+# Misc scripts
+casda_prepare = { reference="scripts/casda_prepare.py", type="file"}
+check_cutout = { reference="scripts/check_cutout.py", type="file"}
+compare_leakage = { reference="scripts/compare_leakage.py", type="file"}
+compute_leakage = { reference="scripts/compute_leakage.py", type="file"}
+copy_cutouts_askap = { reference="scripts/copy_cutouts_askap.py", type="file"}
+copy_cutouts = { reference="scripts/copy_cutouts.py", type="file"}
+copy_data = { reference="scripts/copy_data.py", type="file"}
+find_row = { reference="scripts/find_row.py", type="file"}
+find_sbid = { reference="scripts/find_sbid.py", type="file"}
+fix_dr1_cat = { reference="scripts/fix_dr1_cat.py", type="file"}
+fix_src_cat = { reference="scripts/fix_src_cat.py", type="file"}
+hello_mpi_world = { reference="scripts/hello_mpi_world.py", type="file"}
+make_links = { reference="scripts/make_links.py", type="file"}
+spica = { reference="scripts/spica.py", type="file"}
+tar_cubelets = { reference="scripts/tar_cubelets.py", type="file"}
+create_mongodb = { reference="scripts/create_mongodb.py", type="file"}
+
+[tool.ruff]
+src = ["arrakis"]
+
+[tool.ruff.lint]
+extend-select = [
+  "B",        # flake8-bugbear
+  "I",        # isort
+  "ARG",      # flake8-unused-arguments
+  "C4",       # flake8-comprehensions
+  "EM",       # flake8-errmsg
+  "ICN",      # flake8-import-conventions
+  # "G",        # flake8-logging-format
+  "PGH",      # pygrep-hooks
+  "PIE",      # flake8-pie
+  "PL",       # pylint
+  "PT",       # flake8-pytest-style
+  "PTH",      # flake8-use-pathlib
+  "RET",      # flake8-return
+  "RUF",      # Ruff-specific
+  "SIM",      # flake8-simplify
+  "T20",      # flake8-print
+  "UP",       # pyupgrade
+  "YTT",      # flake8-2020
+  "EXE",      # flake8-executable
+  "NPY",      # NumPy specific rules
+  "PD",       # pandas-vet
+  "D",        # flake8-docstrings
+]
+ignore = [
+  "PLR09",    # Too many <...>
+  "PLR2004",  # Magic value used in comparison
+  "ISC001",   # Conflicts with formatter
+]
+isort.required-imports = ["from __future__ import annotations"]
+# Uncomment if using a _compat.typing backport
+# typing-modules = ["cutout_fits._compat.typing"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ALL"]
+"scripts/**" = ["ALL"]
+"noxfile.py" = ["T20"]
+"docs/**" = ["ALL"]
+"submit/**" = ["ALL"]
+# Ignore all rules for wsclean
+"arrakis/wsclean_rmsynth.py" = ["ALL"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
