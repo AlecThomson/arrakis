@@ -100,7 +100,7 @@ def find_images(
 
     assert len(image_list) == len(weight_list), "Unequal number of weights and images"
 
-    for im, wt in zip(image_list, weight_list):
+    for im, wt in zip(image_list, weight_list, strict=False):
         assert (
             im.parent.name == wt.parent.name
         ), "Image and weight are in different areas!"

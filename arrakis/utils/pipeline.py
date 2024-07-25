@@ -332,7 +332,7 @@ class TqdmProgressBar(ProgressBar):
 def tqdm_dask(futures_in: distributed.Future, **kwargs) -> None:
     """Tqdm for Dask futures."""
     futures = futures_of(futures_in)
-    if not isinstance(futures, (set, list)):
+    if not isinstance(futures, set | list):
         futures = [futures]
     TqdmProgressBar(futures, **kwargs)
 

@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
-from typing import Callable
 from typing import NamedTuple as Struct
 from urllib.error import URLError
 
@@ -15,7 +15,6 @@ import astropy.units as u
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
-from FRion import correct, predict
 from prefect import flow, task
 from tqdm.auto import tqdm
 
@@ -28,6 +27,7 @@ from arrakis.utils.database import (
 )
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
+from FRion import correct, predict
 
 logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
@@ -439,7 +439,7 @@ def main(
     frion_results = []
     assert len(islands) == len(beams_cor), "Islands and beams must be the same length"
     for island, beam in tqdm(
-        zip(islands, beams_cor),
+        zip(islands, beams_cor, strict=False),
         desc="Submitting tasks",
         file=TQDM_OUT,
         total=len(islands),

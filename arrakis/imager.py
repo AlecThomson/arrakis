@@ -205,7 +205,9 @@ def make_validation_plots(prefix: Path, pols: str) -> None:
     for stokes in pols:
         mfs_image = get_mfs_image(prefix_str, stokes)
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-        for ax, sub_image, title in zip(axs, mfs_image, ("Image", "Model", "Residual")):
+        for ax, sub_image, title in zip(
+            axs, mfs_image, ("Image", "Model", "Residual"), strict=False
+        ):
             abs_sub_image = np.abs(sub_image)
             if title == "Model":
                 norm = ImageNormalize(
@@ -951,7 +953,9 @@ def main(
         ms_list_fixed.append(ms_fix)
         pol_angles.append(pol_angle_deg)
 
-    for ms, ms_fix, pol_angle_deg in zip(mslist, ms_list_fixed, pol_angles):
+    for ms, ms_fix, pol_angle_deg in zip(
+        mslist, ms_list_fixed, pol_angles, strict=False
+    ):
         # Image with wsclean
         # split out stokes I and QUV
         if "I" in pols:

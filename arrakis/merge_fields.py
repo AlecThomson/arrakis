@@ -68,7 +68,9 @@ def copy_singleton(
         u_file_new = (new_dir / u_file_old.name).with_suffix(".edge.linmos.fits")
 
         for src, dst in zip(
-            [i_file_old, q_file_old, u_file_old], [i_file_new, q_file_new, u_file_new]
+            [i_file_old, q_file_old, u_file_old],
+            [i_file_new, q_file_new, u_file_new],
+            strict=False,
         ):
             copyfile(src, dst)
             src_weight = (
@@ -229,7 +231,9 @@ def merge_multiple_field(
 
     try_mkdir(new_dir, verbose=False)
 
-    for stokes, imlist in zip(["I", "Q", "U"], [i_files_old, q_files_old, u_files_old]):
+    for stokes, imlist in zip(
+        ["I", "Q", "U"], [i_files_old, q_files_old, u_files_old], strict=False
+    ):
         parset_file = genparset(imlist, stokes, new_dir)
         update = linmos.fn(parset_file, merge_name, image)
         updates.append(update)
@@ -324,7 +328,8 @@ def main(
     ), f"List of fields must be the same length as length of field dirs. {len(fields)=},{len(field_dirs)=}"
 
     field_dict: dict[str, Path] = {
-        field: field_dir / "cutouts" for field, field_dir in zip(fields, field_dirs)
+        field: field_dir / "cutouts"
+        for field, field_dir in zip(fields, field_dirs, strict=False)
     }
 
     image = get_yanda(version=yanda)

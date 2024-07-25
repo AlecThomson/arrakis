@@ -11,10 +11,10 @@ import numpy as np
 from astropy.io import fits
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
-from FRion.correct import find_freq_axis
 from spectral_cube.utils import SpectralCubeWarning
 
 from arrakis.logger import logger
+from FRion.correct import find_freq_axis
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)
 warnings.simplefilter("ignore", category=AstropyWarning)

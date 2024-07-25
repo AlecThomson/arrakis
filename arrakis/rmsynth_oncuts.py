@@ -692,9 +692,9 @@ def rmsynthoncut1d(
 
     # Ensure JSON serializable
     for k, v in mDict.items():
-        if isinstance(v, (np.float64, np.float32)):
+        if isinstance(v, np.float64 | np.float32):
             mDict[k] = float(v)
-        elif isinstance(v, (np.int_, np.int32)):
+        elif isinstance(v, np.int_ | np.int32):
             mDict[k] = int(v)
         elif isinstance(v, np.ndarray):
             mDict[k] = v.tolist()
@@ -998,7 +998,11 @@ def main(
         logger.info(f"Running RMsynth on {n_comp} components")
         outputs = []
         for comp_tuple, beam_tuple in tqdm(
-            zip(components.iterrows(), beams.loc[components.Source_ID].iterrows()),
+            zip(
+                components.iterrows(),
+                beams.loc[components.Source_ID].iterrows(),
+                strict=False,
+            ),
             total=n_comp,
             desc="Submitting RMsynth 1D jobs",
             file=TQDM_OUT,
@@ -1033,7 +1037,7 @@ def main(
         logger.info(f"Running RMsynth on {n_island} islands")
         outputs = []
         for island_id, beam_tuple in tqdm(
-            zip(island_ids, beams.loc[island_ids].iterrows()),
+            zip(island_ids, beams.loc[island_ids].iterrows(), strict=False),
             total=n_island,
             desc="Submitting RMsynth 3D jobs",
             file=TQDM_OUT,

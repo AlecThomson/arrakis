@@ -301,7 +301,12 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> list[dict]:
 
     beam_list: list[dict] = []
     for _i, (val, idx) in enumerate(
-        tqdm(zip(vals, ixs), total=len(vals), desc="Getting beams", file=TQDM_OUT)
+        tqdm(
+            zip(vals, ixs, strict=False),
+            total=len(vals),
+            desc="Getting beams",
+            file=TQDM_OUT,
+        )
     ):
         beam_dict = {}
         name = mastercat[val]["Source_Name"]

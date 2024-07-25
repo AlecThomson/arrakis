@@ -411,6 +411,7 @@ def plot_rm(
         ("NVSS", "SPASS"),
         (nvss_tab, spass_tab),
         (ax_dict["N"], ax_dict["S"]),
+        strict=False,
     ):
         ax.set_title(label)
         racs_match, other_match = cross_match(good_tab, other_cat, radius=60 * u.arcsec)

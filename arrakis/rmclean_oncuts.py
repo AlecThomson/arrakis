@@ -115,9 +115,9 @@ def rmclean1d(
 
     # Ensure JSON serializable
     for k, v in outdict.items():
-        if isinstance(v, (np.float64, np.float32)):
+        if isinstance(v, np.float64 | np.float32):
             outdict[k] = float(v)
-        elif isinstance(v, (np.int_, np.int32)):
+        elif isinstance(v, np.int_ | np.int32):
             outdict[k] = int(v)
         elif isinstance(v, np.ndarray):
             outdict[k] = v.tolist()

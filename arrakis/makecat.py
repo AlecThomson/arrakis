@@ -7,9 +7,9 @@ import argparse
 import logging
 import time
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
-from typing import Callable
 
 import astropy.units as u
 import dask.dataframe as dd
@@ -287,7 +287,7 @@ def sigma_add_fix[TableLike](tab: TableLike) -> TableLike:
 
     med, std = np.zeros_like(s_Q), np.zeros_like(s_Q)
     for i, (_s_Q, _scale_Q, _s_U, _scale_U) in tqdm(
-        enumerate(zip(s_Q, scale_Q, s_U, scale_U)),
+        enumerate(zip(s_Q, scale_Q, s_U, scale_U, strict=False)),
         total=len(s_Q),
         desc="Calculating sigma_add",
         file=TQDM_OUT,
@@ -440,7 +440,7 @@ def get_fit_func(
         rasterized=True,
     )
     plt.plot(bins_c, meds, alpha=1, c=color, label="Median", linewidth=2)
-    for s, ls in zip((1, 2), ("--", ":")):
+    for s, ls in zip((1, 2), ("--", ":"), strict=False):
         for r in ("ups", "los"):
             plt.plot(
                 bins_c,
@@ -682,7 +682,7 @@ def get_alpha(cat: TableLike) -> SpectralIndices:
     alphas_err = []
     betas = []
     betas_err = []
-    for c, c_err in zip(coefs_str, coefs_err_str):
+    for c, c_err in zip(coefs_str, coefs_err_str, strict=False):
         coefs = c.split(",")
         coefs_err = c_err.split(",")
         # alpha is the 2nd last coefficient
@@ -1101,6 +1101,7 @@ def main(
                 columns_possum.input_sources,
                 columns_possum.input_names,
                 columns_possum.output_units,
+                strict=False,
             ),
             total=len(columns_possum.output_cols),
             desc="Making table by column",
