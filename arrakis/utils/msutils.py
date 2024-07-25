@@ -1,4 +1,4 @@
-"""MeasurementSet utilities"""
+"""MeasurementSet utilities."""
 
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 def get_pol_axis(
     ms: Path, feed_idx: int | None = None, col: str = "RECEPTOR_ANGLE"
 ) -> u.Quantity:
-    """Get the polarization axis from the ASKAP MS. Checks are performed
-    to ensure this polarisation axis angle is constant throughout the observation.
+    """Get the polarization axis from the ASKAP MS.
 
+    Checks are performed to ensure this polarisation axis angle is constant throughout the observation.
 
     Args:
         ms (Path): The path to the measurement set that will be inspected
@@ -59,14 +59,14 @@ def get_pol_axis(
 
 
 def beam_from_ms(ms: str) -> int:
-    """Work out which beam is in this MS"""
+    """Work out which beam is in this MS."""
     with table(ms, readonly=True, ack=False) as t:
         vis_feed = t.getcol("FEED1", 0, 1)
         return vis_feed[0]
 
 
 def field_idx_from_ms(ms: str) -> int:
-    """Get the field from MS metadata"""
+    """Get the field from MS metadata."""
     with table(f"{ms}/FIELD", readonly=True, ack=False) as field:
         idxs = list(field.SOURCE_ID)
         assert len(idxs) == 1 or all(
@@ -76,7 +76,7 @@ def field_idx_from_ms(ms: str) -> int:
 
 
 def field_name_from_ms(ms: str) -> str:
-    """Get the field name from MS metadata"""
+    """Get the field name from MS metadata."""
     with table(f"{ms}/FIELD", readonly=True, ack=False) as field:
         names = list(field.NAME)
         assert len(names) == 1, "More than one field in MS"
@@ -241,8 +241,10 @@ def wsclean(
     elliptical_beam: bool = False,
 ) -> str:
     """Construct a wsclean command.
+
     If False or None is passed as a parameter, the parameter is not included
     in the command (i.e. wsclean will assume a default value).
+
     Args:
         mslist (list): List of MSs to be processed.
         use_mpi (bool): Use wsclean-mp for parallel processing.
@@ -740,10 +742,10 @@ def wsclean(
             bmin will be set to bmaj. Defaults to False.
         elliptical_beam (bool, optional): Allow the beam to be elliptical.
             Default. Defaults to False.
+
     Returns:
         str: WSClean command
     """
-
     arguments = copy.deepcopy(locals())
     mslist = arguments.pop("mslist")
     use_mpi = arguments.pop("use_mpi")

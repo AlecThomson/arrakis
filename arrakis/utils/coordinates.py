@@ -1,4 +1,4 @@
-"""Coordinate utilities"""
+"""Coordinate utilities."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def deg_to_dms(deg: float) -> dms_tuple:
 
 
 def coord_to_string(coord: SkyCoord) -> tuple[str, str]:
-    """Convert coordinate to string without astropy
+    """Convert coordinate to string without astropy.
 
     Args:
         coord (SkyCoord): Coordinate

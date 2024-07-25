@@ -1,4 +1,4 @@
-"""Fitting utilities"""
+"""Fitting utilities."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ def fitted_mean(data: np.ndarray, axis: int | None = None) -> float:
 
     Args:
         data (np.ndarray): Data array.
+        axis (int | None, optional): Axis to calculate along. Defaults to None.
 
     Returns:
         float: Mean.
@@ -39,6 +40,7 @@ def fitted_std(data: np.ndarray, axis: int | None = None) -> float:
 
     Args:
         data (np.ndarray): Data array.
+        axis (int | None, optional): Axis to calculate along. Defaults to None.
 
     Returns:
         float: Standard deviation.

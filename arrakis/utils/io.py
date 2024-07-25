@@ -1,4 +1,4 @@
-"""I/O utilities"""
+"""I/O utilities."""
 
 from __future__ import annotations
 
@@ -23,7 +23,15 @@ TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 def verify_tarball(
     tarball: str | Path,
-):
+) -> bool:
+    """Verify a tarball.
+
+    Args:
+        tarball (str | Path): Path to tarball.
+
+    Returns:
+        bool: If tarball is valid.
+    """
     cmd = f"tar -tvf {tarball}"
     logger.info(f"Verifying tarball {tarball}")
     popen = sp.Popen(shlex.split(cmd), stderr=sp.PIPE)
@@ -48,25 +56,22 @@ def parse_env_path(env_path: PathLike) -> Path:
     return Path(os.path.expandvars(env_path))
 
 
-def rsync(src, tgt):
+def rsync(src: str | Path, tgt: str | Path):
+    """Rsync a source to a target.
+
+    Args:
+        src (str | Path): Source path
+        tgt (str | Path): Target path
+    """
     os.system(f"rsync -rPvh {src} {tgt}")
 
 
-def prsync(wild_src: str, tgt: str, ncores: int):
-    os.system(f"ls -d {wild_src} | xargs -n 1 -P {ncores} -I% rsync -rvh % {tgt}")
-
-
-def try_symlink(src: str, dst: str):
-    """Create symlink if it doesn't exist
+def prsync(wild_src: str, tgt: str | Path, ncores: int):
+    """Parallel rsync a source to a target.
 
     Args:
-        src (str): Source path
-        dst (str): Destination path
-        verbose (bool, optional): Verbose output. Defaults to True.
+        wild_src (str): Wildcard source path
+        tgt (str | Path): Target path
+        ncores (int): Number of cores
     """
-    # Create output dir if it doesn't exist
-    try:
-        os.symlink(src, dst)
-        logger.info(f"Made symlink '{dst}'.")
-    except FileExistsError:
-        logger.info(f"Symlink '{dst}' exists.")
+    os.system(f"ls -d {wild_src} | xargs -n 1 -P {ncores} -I% rsync -rvh % {tgt}")

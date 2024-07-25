@@ -1,4 +1,4 @@
-"""Errors and exceptions"""
+"""Errors and exceptions."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 
 class Error(OSError):
-    pass
+    """Base class for all exceptions raised by this module."""
 
 
 class SameFileError(Error):
@@ -20,18 +20,16 @@ class SameFileError(Error):
 
 
 class SpecialFileError(OSError):
-    """Raised when trying to do a kind of operation (e.g. copying) which is
-    not supported on a special file (e.g. a named pipe)"""
+    """Raised when trying to do a kind of operation (e.g. copying) which is not supported on a special file (e.g. a named pipe)."""
 
 
 class ExecError(OSError):
-    """Raised when a command could not be executed"""
+    """Raised when a command could not be executed."""
 
 
 class ReadError(OSError):
-    """Raised when an archive cannot be read"""
+    """Raised when an archive cannot be read."""
 
 
 class RegistryError(Exception):
-    """Raised when a registry operation with the archiving
-    and unpacking registeries fails"""
+    """Raised when a registry operation with the archiving and unpacking registeries fails."""

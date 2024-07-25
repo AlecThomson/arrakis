@@ -25,11 +25,10 @@ TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 # @task(name="Purge cublets")
 def purge_cubelet_beams(filepath: Path) -> Path:
-    """Clean up beam images
+    """Clean up beam images.
 
     Args:
-        workdir (str): Directory containing images
-        stoke (str): Stokes parameter
+        filepath (Path): Path to the beam image
     """
     # Clean up beam images
     logger.critical(f"Removing {filepath}")
@@ -40,10 +39,11 @@ def purge_cubelet_beams(filepath: Path) -> Path:
 
 @task(name="Make cutout tarball")
 def make_cutout_tarball(cutdir: Path, overwrite: bool = False) -> Path:
-    """Make a tarball of the cutouts directory
+    """Make a tarball of the cutouts directory.
 
     Args:
         cutdir (Path): Directory containing cutouts
+        overwrite (bool): Overwrite existing tarball
 
     Returns:
         Path: Path to the tarball
@@ -76,13 +76,12 @@ def main(
     datadir: Path,
     overwrite: bool = False,
 ) -> None:
-    """Clean up beam images flow
+    """Clean up beam images flow.
 
     Args:
         datadir (Path): Directory with sub dir 'cutouts'
         overwrite (bool): Overwrite existing tarball
     """
-
     cutdir = datadir / "cutouts"
 
     # First, make a tarball of the cutouts
@@ -117,6 +116,14 @@ def main(
 
 
 def cleanup_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Create a parser for the cleanup stage.
+
+    Args:
+        parent_parser (bool, optional): If a parent parser. Defaults to False.
+
+    Returns:
+        argparse.ArgumentParser: The parser
+    """
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -144,7 +151,7 @@ def cleanup_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
 
 def cli():
-    """Command-line interface"""
+    """Command-line interface."""
     gen_parser = generic_parser(parent_parser=True)
     clean_parser = cleanup_parser(parent_parser=True)
     parser = argparse.ArgumentParser(

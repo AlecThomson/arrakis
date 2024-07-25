@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Merge multiple RACS fields"""
+"""Merge multiple RACS fields."""
 
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
@@ -19,15 +18,23 @@ from arrakis.utils.database import get_db, test_db
 from arrakis.utils.io import try_mkdir
 
 
-def make_short_name(name: str) -> str:
-    return os.path.join(os.path.basename(os.path.dirname(name)), os.path.basename(name))
+def make_short_name(name: Path) -> str:
+    """Make a short name for a file.
+
+    Args:
+        name (Path): File name
+
+    Returns:
+        str: Short name
+    """
+    return (Path(name.parent.name) / name.name).as_posix()
 
 
 @task(name="Copy singleton island")
 def copy_singleton(
     beam: dict[str, Any], field_dict: dict[str, Path], merge_name: str, data_dir: Path
 ) -> list[pymongo.UpdateOne]:
-    """Copy an island within a single field to the merged field
+    """Copy an island within a single field to the merged field.
 
     Args:
         beam (dict): Beam document
@@ -56,19 +63,23 @@ def copy_singleton(
         new_dir = data_dir / str(beam["Source_ID"])
         new_dir.mkdir(exist_ok=True)
 
-        i_file_new = (new_dir / i_file_old.name).replace(".fits", ".edge.linmos.fits")
-        q_file_new = (new_dir / q_file_old.name).replace(".fits", ".edge.linmos.fits")
-        u_file_new = (new_dir / u_file_old.name).replace(".fits", ".edge.linmos.fits")
+        i_file_new = (new_dir / i_file_old.name).with_suffix(".edge.linmos.fits")
+        q_file_new = (new_dir / q_file_old.name).with_suffix(".edge.linmos.fits")
+        u_file_new = (new_dir / u_file_old.name).with_suffix(".edge.linmos.fits")
 
         for src, dst in zip(
             [i_file_old, q_file_old, u_file_old], [i_file_new, q_file_new, u_file_new]
         ):
             copyfile(src, dst)
-            src_weight = src.replace(".image.restored.", ".weights.").replace(
-                ".ion", ""
+            src_weight = (
+                src.as_posix()
+                .replace(".image.restored.", ".weights.")
+                .replace(".ion", "")
             )
-            dst_weight = dst.replace(".image.restored.", ".weights.").replace(
-                ".ion", ""
+            dst_weight = (
+                dst.as_posix()
+                .replace(".image.restored.", ".weights.")
+                .replace(".ion", "")
             )
             copyfile(src_weight, dst_weight)
 
@@ -92,7 +103,7 @@ def copy_singletons(
     beams_col: pymongo.collection.Collection,
     merge_name: str,
 ) -> list[pymongo.UpdateOne]:
-    """Copy islands that don't overlap other fields
+    """Copy islands that don't overlap other fields.
 
     Args:
         field_dict (Dict[str, str]): Field dictionary
@@ -134,23 +145,32 @@ def copy_singletons(
 
 
 def genparset(
-    old_ims: list,
+    old_ims: list[Path],
     stokes: str,
-    new_dir: str,
-) -> str:
-    imlist = "[" + ",".join([im.replace(".fits", "") for im in old_ims]) + "]"
-    weightlist = f"[{','.join([im.replace('.fits', '').replace('.image.restored.','.weights.').replace('.ion','') for im in old_ims])}]"
+    new_dir: Path,
+) -> Path:
+    """Generate a linmos parset file.
 
-    im_outname = os.path.join(new_dir, os.path.basename(old_ims[0])).replace(
-        ".fits", ".edge.linmos"
-    )
+    Args:
+        old_ims (list[Path]): Old images
+        stokes (str): Stokes parameter
+        new_dir (Path): Output directory
+
+    Returns:
+        Path: Path to parset file
+    """
+    imlist = "[" + ",".join([im.with_suffix("").as_posix() for im in old_ims]) + "]"
+    weightlist = f"[{','.join([im.with_suffix("").as_posix().replace('.image.restored.','.weights.').replace('.ion','') for im in old_ims])}]"
+
+    im_outname = (new_dir / old_ims[0].name).with_suffix(".edge.linmos").as_posix()
     wt_outname = (
-        os.path.join(new_dir, os.path.basename(old_ims[0]))
-        .replace(".fits", ".edge.linmos")
+        (new_dir / old_ims[0].name)
+        .with_suffix(".edge.linmos")
+        .as_posix()
         .replace(".image.restored.", ".weights.")
     )
 
-    parset_file = os.path.join(new_dir, f"edge_linmos_{stokes}.in")
+    parset_file = new_dir / f"edge_linmos_{stokes}.in"
     parset = f"""# LINMOS parset
 linmos.names            = {imlist}
 linmos.weights          = {weightlist}
@@ -162,16 +182,16 @@ linmos.weighttype       = FromWeightImages
 linmos.weightstate      = Corrected
 """
 
-    with open(parset_file, "w") as f:
+    with parset_file.open("w") as f:
         f.write(parset)
 
     return parset_file
 
 
 def merge_multiple_field(
-    beam: dict, field_dict: dict, merge_name: str, data_dir: Path, image: str
+    beam: dict, field_dict: dict[str, Path], merge_name: str, data_dir: Path, image: str
 ) -> list[pymongo.UpdateOne]:
-    """Merge an island that overlaps multiple fields
+    """Merge an island that overlaps multiple fields.
 
     Args:
         beam (dict): Beam document
@@ -186,21 +206,21 @@ def merge_multiple_field(
     Returns:
         List[pymongo.UpdateOne]: Database updates
     """
-    i_files_old = []
-    q_files_old = []
-    u_files_old = []
+    i_files_old: list[Path] = []
+    q_files_old: list[Path] = []
+    u_files_old: list[Path] = []
     updates = []
     for field, vals in beam["beams"].items():
         if field not in field_dict:
             continue
         field_dir = field_dict[field]
         try:
-            i_file_old = os.path.join(field_dir, vals["i_file"])
-            q_file_old = os.path.join(field_dir, vals["q_file_ion"])
-            u_file_old = os.path.join(field_dir, vals["u_file_ion"])
-        except KeyError:
+            i_file_old = field_dir / str(vals["i_file"])
+            q_file_old = field_dir / str(vals["q_file_ion"])
+            u_file_old = field_dir / str(vals["u_file_ion"])
+        except KeyError as e:
             msg = "Ion files not found. Have you run FRion?"
-            raise KeyError(msg)
+            raise KeyError(msg) from e
         i_files_old.append(i_file_old)
         q_files_old.append(q_file_old)
         u_files_old.append(u_file_old)
@@ -225,7 +245,7 @@ def merge_multiple_fields(
     merge_name: str,
     image: str,
 ) -> list[pymongo.UpdateOne]:
-    """Merge multiple islands that overlap multiple fields
+    """Merge multiple islands that overlap multiple fields.
 
     Args:
         field_dict (Dict[str, str]): Field dictionary
@@ -281,6 +301,22 @@ def main(
     password: str | None = None,
     yanda="1.3.0",
 ) -> str:
+    """Merge multiple RACS fields.
+
+    Args:
+        fields (list[str]): List of field names.
+        field_dirs (list[Path]): List of field directories.
+        merge_name (str): Name of the merged field.
+        output_dir (Path): Output directory.
+        host (str): MongoDB host.
+        epoch (int): Epoch.
+        username (str | None, optional): MongoDB username. Defaults to None.
+        password (str | None, optional): MongoDB password. Defaults to None.
+        yanda (str, optional): Yandasoft version. Defaults to "1.3.0".
+
+    Returns:
+        str: Intermediate directory
+    """
     logger.debug(f"{fields=}")
 
     assert (
@@ -335,6 +371,15 @@ def main(
 
 
 def merge_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Merge parser.
+
+    Args:
+        parent_parser (bool, optional): Whether this is a parent parser. Defaults to False.
+
+    Returns:
+        argparse.ArgumentParser: Merge parser
+
+    """
     # Help string to be shown using the -h option
     descStr = """
     Mosaic RACS beam fields with linmos.
@@ -398,8 +443,7 @@ def merge_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
 
 def cli():
-    """Command-line interface"""
-
+    """Command-line interface."""
     m_parser = merge_parser(parent_parser=True)
     lin_parser = linmos_parser(parent_parser=True)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Arrakis multi-field pipeline"""
+"""Arrakis multi-field pipeline."""
 
 from __future__ import annotations
 
@@ -33,12 +33,13 @@ from arrakis.validate import validation_parser
 def process_merge(
     args: argparse.Namespace, host: str, inter_dir: Path, task_runner
 ) -> None:
-    """Workflow to merge spectra from overlapping fields together
+    """Workflow to merge spectra from overlapping fields together.
 
     Args:
         args (Namespace): Parameters to use for this process
         host (str): Address of the mongoDB servicing the processing
         inter_dir (Path): Location to store data from merged fields
+        task_runner (TaskRunner): Task runner to use for this process
     """
     previous_future = None
     previous_future = (
@@ -141,7 +142,7 @@ def process_merge(
 
 
 def main(args: configargparse.Namespace) -> None:
-    """Main script
+    """Main script.
 
     Args:
         args (configargparse.Namespace): Command line arguments.
@@ -177,6 +178,14 @@ def main(args: configargparse.Namespace) -> None:
 
 
 def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Pipeline parser.
+
+    Args:
+        parent_parser (bool, optional): Parent parser. Defaults to False.
+
+    Returns:
+        argparse.ArgumentParser: Pipeline parser
+    """
     descStr = f"""
     {logo_str}
     Arrakis regional pipeline.
@@ -217,7 +226,7 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
 
 def cli():
-    """Command-line interface"""
+    """Command-line interface."""
     # Help string to be shown using the -h option
 
     # Parse the command line options

@@ -1,4 +1,4 @@
-"""JSON utilities"""
+"""JSON utilities."""
 
 from __future__ import annotations
 
@@ -20,6 +20,15 @@ class MyEncoder(json.JSONEncoder):
     """
 
     def default(self, obj):  # pylint: disable=E0202
+        """Custom JSON encoder.
+
+        Args:
+            obj (Any): Object to encode.
+
+        Returns:
+            Any: Encoded object.
+
+        """
         if isinstance(obj, np.integer):
             return int(obj)
         if isinstance(obj, np.floating):

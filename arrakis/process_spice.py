@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Arrakis single-field pipeline"""
+"""Arrakis single-field pipeline."""
 
 from __future__ import annotations
 
@@ -33,12 +33,15 @@ from arrakis.validate import validation_parser
 
 
 @flow(name="Combining+Synthesis on Arrakis")
-def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
-    """Workflow to process the SPICE-RACS data
+def process_spice(
+    args: configargparse.Namespace, host: str, task_runner: BaseTaskRunner
+) -> None:
+    """Workflow to process the SPICE-RACS data.
 
     Args:
         args (configargparse.Namespace): Configuration parameters for this run
         host (str): Host address of the mongoDB.
+        task_runner (BaseTaskRunner): Task runner for the workflow.
     """
     outfile = f"{args.field}.pipe.test.fits" if args.outfile is None else args.outfile
 
@@ -199,8 +202,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
 
 
 def save_args(args: configargparse.Namespace) -> Path:
-    """Helper function to create a record of the input configuration arguments that
-    govern the pipeline instance
+    """Helper function to create a record of the input configuration arguments that govern the pipeline instance.
 
     Args:
         args (configargparse.Namespace): Supplied arguments for the Arrakis pipeline instance
@@ -221,7 +223,7 @@ def create_dask_runner(
     dask_config: Path | None,
     overload: bool = False,
 ) -> DaskTaskRunner:
-    """Create a DaskTaskRunner
+    """Create a DaskTaskRunner.
 
     Args:
         dask_config (Path | None): Configuraiton file for the DaskTaskRunner
@@ -260,7 +262,7 @@ def create_dask_runner(
 
 
 def main(args: configargparse.Namespace) -> None:
-    """Main script
+    """Main script.
 
     Args:
         args (configargparse.Namespace): Command line arguments.
@@ -351,6 +353,15 @@ def main(args: configargparse.Namespace) -> None:
 
 
 def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Create the parser for the pipeline.
+
+    Args:
+        parent_parser (bool, optional): If this is a parent parser. Defaults to False.
+
+    Returns:
+        argparse.ArgumentParser: The parser for the pipeline.
+
+    """
     descStr = f"""
     {logo_str}
 
@@ -408,7 +419,7 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
 
 def cli():
-    """Command-line interface"""
+    """Command-line interface."""
     # Help string to be shown using the -h option
 
     pipe_parser = pipeline_parser(parent_parser=True)

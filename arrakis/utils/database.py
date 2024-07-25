@@ -1,4 +1,4 @@
-"""Database utilities"""
+"""Database utilities."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 
 def validate_sbid_field_pair(field_name: str, sbid: int, field_col: Collection) -> bool:
-    """Validate field and sbid pair
+    """Validate field and sbid pair.
 
     Args:
         field_name (str): Field name.
@@ -38,7 +38,7 @@ def validate_sbid_field_pair(field_name: str, sbid: int, field_col: Collection) 
 def test_db(
     host: str, username: str | None = None, password: str | None = None
 ) -> bool:
-    """Test connection to MongoDB
+    """Test connection to MongoDB.
 
     Args:
         host (str): Mongo host IP.
@@ -79,10 +79,11 @@ def get_db(
     username: str | None = None,
     password: str | None = None,
 ) -> tuple[Collection, Collection, Collection]:
-    """Get MongoDBs
+    """Get MongoDBs.
 
     Args:
         host (str): Mongo host IP.
+        epoch (int): Epoch number.
         username (str, optional): Username. Defaults to None.
         password (str, optional): Password. Defaults to None.
 
@@ -104,10 +105,11 @@ def get_db(
 
 
 def get_field_db(host: str, epoch: int, username=None, password=None) -> Collection:
-    """Get MongoDBs
+    """Get MongoDBs.
 
     Args:
         host (str): Mongo host IP.
+        epoch (int): Epoch.
         username (str, optional): Username. Defaults to None.
         password (str, optional): Password. Defaults to None.
 
@@ -126,10 +128,11 @@ def get_field_db(host: str, epoch: int, username=None, password=None) -> Collect
 
 
 def get_beam_inf_db(host: str, epoch: int, username=None, password=None) -> Collection:
-    """Get MongoDBs
+    """Get MongoDBs.
 
     Args:
         host (str): Mongo host IP.
+        epoch (int): Epoch number.
         username (str, optional): Username. Defaults to None.
         password (str, optional): Password. Defaults to None.
 

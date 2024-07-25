@@ -1,4 +1,4 @@
-"""Plotting utilities"""
+"""Plotting utilities."""
 
 from __future__ import annotations
 
@@ -15,13 +15,14 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 def latexify(fig_width=None, fig_height=None, columns=1):
     """Set up matplotlib's RC params for LaTeX plotting.
+
     Call this before plotting a figure.
 
-    Parameters
-    ----------
-    fig_width : float, optional, inches
-    fig_height : float,  optional, inches
-    columns : {1, 2}
+    Args:
+        fig_width (float, optional): Figure width. Defaults to None.
+        fig_height (float, optional): Figure height. Defaults to None.
+        columns (int, optional): Number of columns. Defaults
+
     """
     from math import sqrt
 

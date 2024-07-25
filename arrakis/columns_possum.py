@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Column names from RM-tools to catalogue
+"""Column names from RM-tools to catalogue.
 
 @author: cvaneck
 """

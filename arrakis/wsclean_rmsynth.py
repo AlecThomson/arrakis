@@ -23,7 +23,7 @@ from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 
 
-class RMSynthParams(NamedTuple):
+class RMSynthParams(Struct):
     phis: np.ndarray
     phis_double: np.ndarray
     lsq: np.ndarray
@@ -313,7 +313,6 @@ def simple_clean(
     Returns:
         np.ndarray: Spectrum
     """
-
     # Fit to PI
     fdf_p = np.abs(fdf)
     sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))

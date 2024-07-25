@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run RM-CLEAN on cutouts in parallel"""
+"""Run RM-CLEAN on cutouts in parallel."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 class Spectrum(Struct):
-    """Single spectrum"""
+    """Single spectrum."""
 
     data: np.ndarray
     """The spectrum data"""
@@ -64,7 +64,7 @@ class Spectrum(Struct):
 
 
 class StokesSpectra(Struct):
-    """Multi Stokes spectra"""
+    """Multi Stokes spectra."""
 
     i: Spectrum
     """The Stokes I spectrum"""
@@ -75,7 +75,17 @@ class StokesSpectra(Struct):
 
 
 class StokesIFitResult(Struct):
-    """Stokes I fit results"""
+    """Stokes I fit results.
+
+    Attributes:
+        alpha (float | None): The alpha parameter of the fit
+        amplitude (float | None): The amplitude parameter of the fit
+        x_0 (float | None): The x_0 parameter of the fit
+        model_repr (str | None): The model representation of the fit
+        modStokesI (np.ndarray | None): The model Stokes I spectrum
+        fit_dict (dict | None): The dictionary of the fit results
+
+    """
 
     alpha: float | None
     """The alpha parameter of the fit"""
@@ -108,21 +118,26 @@ def rmsynthoncut3d(
     rm_verbose: bool = False,
     ion: bool = False,
 ) -> pymongo.UpdateOne:
-    """3D RM-synthesis
+    """3D RM-synthesis.
 
     Args:
-        island_id (str): RACS Island ID
-        freq (list): Frequencies in Hz
-        host (str): Host of MongoDB
-        field (str): RACS field ID
-        database (bool, optional): Update MongoDB. Defaults to False.
-        phiMax_radm2 (float, optional): Max Faraday depth. Defaults to None.
-        dPhi_radm2 (float, optional): Faraday dpeth channel width. Defaults to None.
-        nSamples (int, optional): Samples acorss RMSF. Defaults to 5.
-        weightType (str, optional): Weighting type. Defaults to 'variance'.
-        fitRMSF (bool, optional): Fit RMSF. Defaults to False.
-        not_RMSF (bool, optional): Skip calculation of RMSF. Defaults to False.
-        rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
+        island_id (str): Island ID
+        beam_tuple (tuple[str, pd.Series]): Beam tuple
+        outdir (Path): Output directory
+        freq (np.ndarray): Frequencies in Hz
+        field (str): Field name
+        sbid (int | None, optional): SBID. Defaults to None.
+        phiMax_radm2 (float | None, optional): Maximum Faraday depth. Defaults to None.
+        dPhi_radm2 (float | None, optional): Faraday depth spacing. Defaults to None.
+        nSamples (int, optional): Number of RMSF samples. Defaults to 5.
+        weightType (str, optional): Weight type. Defaults to "variance".
+        fitRMSF (bool, optional): Fit the RMSF. Defaults to True.
+        not_RMSF (bool, optional): Ignore the RMSF. Defaults to False.
+        rm_verbose (bool, optional): Verbose output (RM-Tools). Defaults to False.
+        ion (bool, optional): Use ion files. Defaults to False.
+
+    Returns:
+        pymongo.UpdateOne: MongoDB update operation
     """
     beam = dict(beam_tuple[1])
     iname = island_id
@@ -223,7 +238,7 @@ def rmsynthoncut3d(
 
 
 def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> tuple[np.ndarray]:
-    """Background and noise estimation on a cubelet
+    """Background and noise estimation on a cubelet.
 
     Args:
         cubelet (np.ndarray): 3D array of data
@@ -273,7 +288,7 @@ def extract_single_spectrum(
     field_dict: dict,
     outdir: Path,
 ) -> Spectrum:
-    """Extract a single spectrum from a cubelet"""
+    """Extract a single spectrum from a cubelet."""
     key = f"{stokes}_file_ion" if ion and stokes in ("q", "u") else f"{stokes}_file"
     filename = outdir / field_dict[key]
     with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
@@ -311,7 +326,7 @@ def extract_all_spectra(
     field_dict: dict,
     outdir: Path,
 ) -> StokesSpectra:
-    """Extract spectra from cubelets"""
+    """Extract spectra from cubelets."""
     return StokesSpectra(
         *[
             extract_single_spectrum(
@@ -329,7 +344,7 @@ def extract_all_spectra(
 def sigma_clip_spectra(
     stokes_spectra: StokesSpectra,
 ) -> StokesSpectra:
-    """Sigma clip spectra
+    """Sigma clip spectra.
 
     Find outliers in the RMS spectra and set them to NaN
 
@@ -375,6 +390,21 @@ def fit_stokes_I(
     rmsi: np.ndarray | None = None,
     polyOrd: int | None = None,
 ) -> StokesIFitResult:
+    """Fit stokes I spectrum.
+
+    Args:
+        freq (np.ndarray): Frequencies in Hz
+        coord (SkyCoord): Component coordinate
+        tt0 (str | None, optional): Path to TT0 image. Defaults to None.
+        tt1 (str | None, optional): Path to TT1 image. Defaults to None.
+        do_own_fit (bool, optional): Peform own fit (not RM-Tools). Defaults to False.
+        iarr (np.ndarray | None, optional): Stokes I array. Defaults to None.
+        rmsi (np.ndarray | None, optional): Stokes I rms array. Defaults to None.
+        polyOrd (int | None, optional): Polynomial order. Defaults to None.
+
+    Returns:
+        StokesIFitResult: alpha, amplitude, x_0, model_repr, modStokesI, fit_dict
+    """
     if tt0 and tt1:
         mfs_i_0 = fits.getdata(tt0, memmap=True)
         mfs_i_1 = fits.getdata(tt1, memmap=True)
@@ -427,7 +457,7 @@ def update_rmtools_dict(
     mDict: dict,
     fit_dict: dict,
 ) -> dict:
-    """Update the RM-Tools dictionary with the fit results from the Stokes I fit
+    """Update the RM-Tools dictionary with the fit results from the Stokes I fit.
 
     Args:
         mDict (dict): The RM-Tools dictionary
@@ -496,27 +526,34 @@ def rmsynthoncut1d(
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> pymongo.UpdateOne:
-    """1D RM synthesis
+    """1D RM-synthesis.
 
     Args:
-        comp_id (str): RACS component ID
-        outdir (str): Output directory
-        freq (list): Frequencies in Hz
-        host (str): MongoDB host
-        field (str): RACS field
-        sbid (int, optional): SBID. Defaults to None.
-        database (bool, optional): Update MongoDB. Defaults to False.
-        polyOrd (int, optional): Order of fit to I. Defaults to 3.
-        phiMax_radm2 (float, optional): Max FD. Defaults to None.
-        dPhi_radm2 (float, optional): Delta FD. Defaults to None.
-        nSamples (int, optional): Samples across RMSF. Defaults to 5.
-        weightType (str, optional): Weight type. Defaults to 'variance'.
-        fitRMSF (bool, optional): Fit RMSF. Defaults to False.
+        comp_tuple (tuple[str, pd.Series]): Component tuple
+        beam_tuple (tuple[str, pd.Series]): Beam tuple
+        outdir (Path): Output directory
+        freq (np.ndarray): Frequencies in Hz
+        field (str): Field name
+        sbid (int | None, optional): SBID. Defaults to None.
+        polyOrd (int, optional): Polynomial order. Defaults to 3.
+        phiMax_radm2 (float | None, optional): Max faraday depth. Defaults to None.
+        dPhi_radm2 (float | None, optional): Faraday depth spacing. Defaults to None.
+        nSamples (int, optional): Number of RMSF samples. Defaults to 5.
+        weightType (str, optional): Weight type. Defaults to "variance".
+        fitRMSF (bool, optional): Fit the RMSF. Defaults to True.
         noStokesI (bool, optional): Ignore Stokes I. Defaults to False.
         showPlots (bool, optional): Show plots. Defaults to False.
         savePlots (bool, optional): Save plots. Defaults to False.
-        debug (bool, optional): Turn on debug plots. Defaults to False.
-        rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
+        debug (bool, optional): Turn on debug output (RM-Tools). Defaults to False.
+        rm_verbose (bool, optional): Turn on verbose output (RM-Tools). Defaults to False.
+        fit_function (str, optional): Type of fit function. Defaults to "log".
+        tt0 (str | None, optional): Path to TT0 image. Defaults to None.
+        tt1 (str | None, optional): Path to TT1 image. Defaults to None.
+        ion (bool, optional): If ion files are used. Defaults to False.
+        do_own_fit (bool, optional): Do own fit (not RM-Tools). Defaults to False.
+
+    Returns:
+        pymongo.UpdateOne: MongoDB update operation
     """
     logger.setLevel(logging.INFO)
     save_name = field if sbid is None else f"{field}_{sbid}"
@@ -761,7 +798,7 @@ def main(
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> None:
-    """Run RMsynth on cutouts flow
+    """Run RMsynth on cutouts flow.
 
     Args:
         field (str): RACS field
@@ -1036,6 +1073,14 @@ def main(
 
 
 def rm_common_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Create an argument parser for common RM-synthesis arguments.
+
+    Args:
+        parent_parser (bool, optional): If a parent parser. Defaults to False.
+
+    Returns:
+        argparse.ArgumentParser: The argument parser
+    """
     common_parser = argparse.ArgumentParser(
         formatter_class=UltimateHelpFormatter,
         add_help=not parent_parser,
@@ -1057,6 +1102,14 @@ def rm_common_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
 
 def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Create an argument parser for RM-synthesis.
+
+    Args:
+        parent_parser (bool, optional): If a parent parser. Defaults to False.
+
+    Returns:
+        argparse.ArgumentParser: The argument parser
+    """
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -1160,8 +1213,7 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
 
 def cli():
-    """Command-line interface"""
-
+    """Command-line interface."""
     from astropy.utils.exceptions import AstropyWarning
 
     warnings.simplefilter("ignore", category=AstropyWarning)

@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""Arrkis imager"""
+"""Arrkis imager."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import logging
-import os
 import pickle
 import shutil
 from concurrent.futures import ThreadPoolExecutor
-from glob import glob
 from pathlib import Path
 from subprocess import CalledProcessError
 from typing import Any
@@ -59,20 +57,35 @@ TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 class ImageSet(Struct):
-    """Container to organise files related to t he imaging of a measurement set."""
+    """Container to organise files related to t he imaging of a measurement set.
+
+    Attributes:
+        ms (Path): Path to the measurement set that was imaged.
+        prefix (str): Prefix used for the wsclean output files.
+        image_lists (dict[str, list[Path]]): Dictionary of lists of images. The keys are the polarisations and the values are the list of images for that polarisation.
+        aux_lists (dict[tuple[str, str], list[Path]]): Dictionary of lists of auxillary images. The keys are a tuple of the polarisation and the image type, and the values are the list of images for that polarisation and image type.
+
+    """
 
     ms: Path
     """Path to the measurement set that was imaged."""
     prefix: str
     """Prefix used for the wsclean output files."""
-    image_lists: dict[str, list[str]]
+    image_lists: dict[str, list[Path]]
     """Dictionary of lists of images. The keys are the polarisations and the values are the list of images for that polarisation."""
-    aux_lists: dict[tuple[str, str], list[str]] | None = None
+    aux_lists: dict[tuple[str, str], list[Path]] | None = None
     """Dictionary of lists of auxillary images. The keys are a tuple of the polarisation and the image type, and the values are the list of images for that polarisation and image type."""
 
 
 class MFSImage(Struct):
-    """Representation of a multi-frequency synthesis image."""
+    """Representation of a multi-frequency synthesis image.
+
+    Attributes:
+        image (np.ndarray): The image data.
+        model (np.ndarray): The model data.
+        residual (np.ndarray): The residual data.
+
+    """
 
     image: np.ndarray
     """The image data."""
@@ -86,6 +99,16 @@ class MFSImage(Struct):
 def get_pol_axis_task(
     ms: Path, feed_idx: int | None = None, col: str = "RECEPTOR_ANGLE"
 ) -> float:
+    """Get the polarisation axis angle from the measurement set.
+
+    Args:
+        ms (Path): Path to the measurement set.
+        feed_idx (int | None, optional): Feed index. Defaults to None.
+        col (str, optional): Receptor column. Defaults to "RECEPTOR_ANGLE".
+
+    Returns:
+        float: Polarisation axis angle in degrees.
+    """
     return get_pol_axis(ms=ms, feed_idx=feed_idx, col=col).to(u.deg).value
 
 
@@ -117,8 +140,8 @@ def merge_imagesets(image_sets: list[ImageSet | None]) -> ImageSet:
             image_set.prefix == prefix
         ), f"{image_set.prefix=} does not match {prefix=}"
 
-    image_lists = {}
-    aux_lists = {}
+    image_lists: dict[str, Path] = {}
+    aux_lists: dict[tuple[str, str], list[Path]] = {}
 
     for image_set in image_sets:
         for pol, images in image_set.image_lists.items():
@@ -213,7 +236,7 @@ def get_wsclean(wsclean: Path | str) -> Path:
     """Pull wsclean image from dockerhub (or wherver).
 
     Args:
-        version (str, optional): wsclean image tag. Defaults to "3.1".
+        wsclean (Path | str): Path to wsclean image or dockerhub image.
 
     Returns:
         Path: Path to wsclean image.
@@ -225,7 +248,7 @@ def get_wsclean(wsclean: Path | str) -> Path:
 
 
 def cleanup_imageset(purge: bool, image_set: ImageSet) -> None:
-    """Delete images associated with an input ImageSet
+    """Delete images associated with an input ImageSet.
 
     Args:
         purge (bool): Whether files will be deleted or skipped.
@@ -242,22 +265,16 @@ def cleanup_imageset(purge: bool, image_set: ImageSet) -> None:
         logger.critical(f"Removing {pol=} images for {image_set.ms}")
         for image in image_list:
             logger.critical(f"Removing {image}")
-            try:
-                os.remove(image)
-            except FileNotFoundError:
-                logger.critical(f"{image} not available for deletion. ")
+            image.unlink(missing_ok=True)
 
     # The aux images are the same between the native images and the smoothed images,
     # they were just copied across directly without modification
     if image_set.aux_lists:
         logger.critical("Removing auxillary images. ")
-        for (pol, _aux), aux_list in image_set.aux_lists.items():
+        for (_pol, _aux), aux_list in image_set.aux_lists.items():
             for aux_image in aux_list:
-                try:
-                    logger.critical(f"Removing {aux_image}")
-                    os.remove(aux_image)
-                except FileNotFoundError:
-                    logger.critical(f"{aux_image} not available for deletion. ")
+                logger.critical(f"Removing {aux_image}")
+                aux_image.unlink(missing_ok=True)
 
     return
 
@@ -322,7 +339,7 @@ def image_beam(
     disable_pol_local_rms: bool = False,
     disable_pol_force_mask_rounds: bool = False,
 ) -> ImageSet:
-    """Image a single beam"""
+    """Image a single beam."""
     logger = get_run_logger()
     # Evaluate the temp directory if a ENV variable is used
     temp_dir_images = parse_env_path(temp_dir_images)
@@ -491,14 +508,15 @@ def image_beam(
         # Update the prefix
         prefix = out_dir / prefix.name
 
-    prefix_str = prefix.resolve().as_posix()
+    prefix_base = prefix.name
+    prefix_dir = prefix.parent
 
     # Check rms of image to check for divergence
     for pol in pols:
-        mfs_image = (
-            f"{prefix_str}-MFS-image.fits"
+        mfs_image = prefix_dir / (
+            f"{prefix_base}-MFS-image.fits"
             if len(pols) == 1
-            else f"{prefix_str}-MFS-{pol}-image.fits"
+            else f"{prefix_base}-MFS-{pol}-image.fits"
         )
         rms = mad_std(fits.getdata(mfs_image), ignore_nan=True)
         if rms > 1:
@@ -508,25 +526,25 @@ def image_beam(
             )
 
     # Get images
-    image_lists = {}
-    aux_lists = {}
+    image_lists: dict[str, Path] = {}
+    aux_lists: dict[tuple[str, str], list[Path]] = {}
     aux_suffixes = suffixes[1:]
     for pol in pols:
         imglob = (
-            f"{prefix_str}-*[0-9]-image.fits"
+            f"{prefix_base}-*[0-9]-image.fits"
             if len(pols) == 1
-            else f"{prefix_str}-*[0-9]-{pol}-image.fits"
+            else f"{prefix_base}-*[0-9]-{pol}-image.fits"
         )
-        image_list = sorted(glob(imglob))
+        image_list = sorted(prefix_dir.glob(imglob))
         image_lists[pol] = image_list
 
         logger.info(f"Found {len(image_list)} images for {pol=} {ms}.")
 
         for aux in aux_suffixes:
             aux_list = (
-                sorted(glob(f"{prefix_str}-*[0-9]-{aux}.fits"))
+                sorted(prefix_dir.glob(f"{prefix_base}-*[0-9]-{aux}.fits"))
                 if len(pols) == 1 or aux == "psf"
-                else sorted(glob(f"{prefix_str}-*[0-9]-{pol}-{aux}.fits"))
+                else sorted(prefix_dir.glob(f"{prefix_base}-*[0-9]-{pol}-{aux}.fits"))
             )
             aux_lists[(pol, aux)] = aux_list
 
@@ -534,7 +552,7 @@ def image_beam(
 
     logger.info("Constructing ImageSet")
     image_set = ImageSet(
-        ms=ms, prefix=prefix_str, image_lists=image_lists, aux_lists=aux_lists
+        ms=ms, prefix=prefix_base, image_lists=image_lists, aux_lists=aux_lists
     )
 
     logger.debug(f"{image_set=}")
@@ -550,7 +568,7 @@ def make_cube(
     pol_angle_deg: float,
     aux_mode: str | None = None,
 ) -> tuple[Path, Path]:
-    """Make a cube from the images"""
+    """Make a cube from the images."""
     logger = get_run_logger()
 
     logger.info(f"Creating cube for {pol=} {image_set.ms=}")
@@ -586,16 +604,16 @@ def make_cube(
 
     # Create a cube name
     old_name = image_list[0]
-    out_dir = os.path.dirname(old_name)
-    old_base = os.path.basename(old_name)
+    out_dir = old_name.parent
+    old_base = old_name.name
     new_base = old_base
     b_idx = new_base.find("beam") + len("beam") + 2
     sub = new_base[b_idx:]
     new_base = new_base.replace(sub, ".conv.fits")
     new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
-    new_name = os.path.join(out_dir, new_base)
+    new_name = out_dir / new_base
     # Deserialise beam
-    with open(common_beam_pkl, "rb") as f:
+    with common_beam_pkl.open("rb") as f:
         common_beam = pickle.load(f)
     new_header = common_beam.attach_to_header(new_header)
     fits.writeto(new_name, data_cube, new_header, overwrite=True)
@@ -607,9 +625,9 @@ def make_cube(
     # 0 1234.5
     # 1 6789.0
     # etc.
-    new_w_name = new_name.replace(
-        f"image.{image_type}", f"weights.{image_type}"
-    ).replace(".fits", ".txt")
+    new_w_name = Path(
+        new_name.as_posix().replace(f"image.{image_type}", f"weights.{image_type}")
+    ).with_suffix(".txt")
     data = {
         "Channel": np.arange(len(rmss_arr)),
         "Weight": 1 / rmss_arr**2,  # Want inverse variance
@@ -622,11 +640,11 @@ def make_cube(
 
 @task(name="Get Beam", persist_result=True)
 def get_beam(image_set: ImageSet, cutoff: float | None) -> Path:
-    """Derive a common resolution across all images within a set of ImageSet
+    """Derive a common resolution across all images within a set of ImageSet.
 
     Args:
         image_set (ImageSet): ImageSet that a common resolution will be derived for
-        cuttoff (float, optional): The maximum major axis of the restoring beam that is allowed when
+        cutoff (float, optional): The maximum major axis of the restoring beam that is allowed when
         searching for the lowest common beam. Images whose restoring beam's major acis is larger than
         this are ignored. Defaults to None.
 
@@ -659,7 +677,7 @@ def get_beam(image_set: ImageSet, cutoff: float | None) -> Path:
     # serialise the beam
     common_beam_pkl = Path(f"beam_{image_hash}.pkl")
 
-    with open(common_beam_pkl, "wb") as f:
+    with common_beam_pkl.open("wb") as f:
         logger.info(f"Creating {common_beam_pkl}")
         pickle.dump(common_beam, f)
 
@@ -673,14 +691,15 @@ def smooth_imageset(
     cutoff: float | None = None,
     aux_mode: str | None = None,
 ) -> ImageSet:
-    """Smooth all images described within an ImageSet to a desired resolution
+    """Smooth all images described within an ImageSet to a desired resolution.
 
     Args:
         image_set (ImageSet): Container whose image_list will be convolved to common resolution
         common_beam_pkl (Path): Location of pickle file with beam description
         cutoff (Optional[float], optional): PSF cutoff passed to the beamcon_2D worker. Defaults to None.
-        aux_model (Optional[str], optional): The image type in the `aux_lists` property of `image_set` that contains the images to smooth. If
+        aux_mode (Optional[str], optional): The image type in the `aux_lists` property of `image_set` that contains the images to smooth. If
         not set then the `image_lists` property of `image_set` is used. Defaults to None.
+
     Returns:
         ImageSet: A copy of `image_set` pointing to the smoothed images. Note the `aux_images` property is not carried forward.
     """
@@ -688,7 +707,7 @@ def smooth_imageset(
     logger = get_run_logger()
 
     # Deserialise the beam
-    with open(common_beam_pkl, "rb") as f:
+    with common_beam_pkl.open("rb") as f:
         logger.info(f"Loading common beam from {common_beam_pkl}")
         common_beam = pickle.load(f)
 
@@ -742,8 +761,9 @@ def smooth_imageset(
 def cleanup(
     purge: bool, image_sets: list[ImageSet], ignore_files: list[Any] | None = None
 ) -> None:
-    """Utility to remove all images described by an collection of ImageSets. Internally
-    called `cleanup_imageset`.
+    """Utility to remove all images described by an collection of ImageSets.
+
+    Internally called `cleanup_imageset`.
 
     Args:
         purge (bool): Whether files are actually removed or skipped.
@@ -767,8 +787,7 @@ def cleanup(
 
 @task(name="Fix MeasurementSet Directions")
 def fix_ms(ms: Path) -> Path:
-    """Apply the corrections to the FEED table of a measurement set that
-    is required for the ASKAP measurement sets.
+    """Apply the corrections to the FEED table of a measurement set that is required for the ASKAP measurement sets.
 
     Args:
         ms (Path): Path to the measurement set to fix.
@@ -782,12 +801,14 @@ def fix_ms(ms: Path) -> Path:
 
 @task(name="Fix MeasurementSet Correlations")
 def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
-    """Applies a correction to raw telescope polarisation products to rotate them
-    to the wsclean espected form. This is essentially related to the third-axis of
-    ASKAP and reorientating its 'X' and 'Y's.
+    """Applies a correction to raw telescope polarisation products to rotate them to the wsclean espected form.
+
+    This is essentially related to the third-axis of ASKAP and reorientating its 'X' and 'Y's.
 
     Args:
         ms (Path): Path to the measurement set to be corrected.
+        *args: Additional arguments to pass to the correction function.
+        **kwargs: Additional keyword arguments to pass to the correction function.
 
     Returns:
         Path: Path of the measurementt set containing the corrections.
@@ -796,7 +817,7 @@ def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
 
     logger.info(f"Correcting {ms!s} correlations for wsclean. ")
 
-    fix_ms_corrs(ms=ms, *args, **kwargs)
+    fix_ms_corrs(ms, *args, **kwargs)
 
     return ms
 
@@ -840,7 +861,7 @@ def main(
     disable_pol_local_rms: bool = False,
     disable_pol_force_mask_rounds: bool = False,
 ):
-    """Arrakis imager flow
+    """Arrakis imager flow.
 
     Args:
         msdir (Path): Path to the directory containing the MS files.
@@ -880,7 +901,6 @@ def main(
         disable_pol_local_rms (bool, optional): Disable local RMS for polarisation images. Defaults to False.
         disable_pol_force_mask_rounds (bool, optional): Disable force mask rounds for polarisation images. Defaults to False.
     """
-
     simage = get_wsclean(wsclean=wsclean_path)
 
     logger.info(f"Searching {msdir} for MS matching {ms_glob_pattern}.")
@@ -1084,7 +1104,6 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     Returns:
         argparse.ArgumentParser: Arguments required for the imager routine
     """
-
     # Help string to be shown using the -h option
     descStr = f"""
     {logo_str}
@@ -1303,7 +1322,7 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
 
 def cli():
-    """Command-line interface"""
+    """Command-line interface."""
     im_parser = imager_parser(parent_parser=True)
     work_parser = workdir_arg_parser(parent_parser=True)
 

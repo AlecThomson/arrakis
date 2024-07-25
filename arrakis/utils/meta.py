@@ -1,4 +1,4 @@
-"""Generic program utilities"""
+"""Generic program utilities."""
 
 from __future__ import annotations
 
@@ -15,17 +15,35 @@ warnings.simplefilter("ignore", category=AstropyWarning)
 
 
 # From https://stackoverflow.com/questions/58065055/floor-and-ceil-with-number-of-decimals#:~:text=The%20function%20np.,a%20number%20with%20zero%20decimals.
-def my_ceil(a, precision=0):
+def my_ceil[T](a: T, precision=0) -> T:
+    """Ceil a number to a given precision.
+
+    Args:
+        a (T): A numeric value to ceil
+        precision (int, optional): Precision of ceil. Defaults to 0.
+
+    Returns:
+        T: The ceil of a number
+    """
     return np.true_divide(np.ceil(a * 10**precision), 10**precision)
 
 
-def my_floor(a, precision=0):
+def my_floor[T](a: T, precision=0) -> T:
+    """Floor a number to a given precision.
+
+    Args:
+        a (T): A numeric value to floor
+        precision (int, optional): Precision of floor. Defaults to 0.
+
+    Returns:
+        T: The floor of a number.
+    """
     return np.true_divide(np.floor(a * 10**precision), 10**precision)
 
 
 # From https://stackoverflow.com/questions/1176136/convert-string-to-python-class-object
 def class_for_name(module_name: str, class_name: str) -> object:
-    """Returns a class object given a module name and class name
+    """Returns a class object given a module name and class name.
 
     Args:
         module_name (str): Module name
@@ -42,6 +60,17 @@ def class_for_name(module_name: str, class_name: str) -> object:
 
 # stolen from https://stackoverflow.com/questions/32954486/zip-iterators-asserting-for-equal-length-in-python
 def zip_equal(*iterables):
+    """Zip iterables and assert they are the same length.
+
+    Args:
+        *iterables: Iterables to zip
+
+    Yields:
+        tuple: Zipped iterables
+
+    Raises:
+        ValueError: If iterables have different lengths
+    """
     sentinel = object()
     for combo in zip_longest(*iterables, fillvalue=sentinel):
         if sentinel in combo:
@@ -51,7 +80,7 @@ def zip_equal(*iterables):
 
 
 def yes_or_no(question: str) -> bool:
-    """Ask a yes or no question via input()
+    """Ask a yes or no question via input().
 
     Args:
         question (str): Question to ask

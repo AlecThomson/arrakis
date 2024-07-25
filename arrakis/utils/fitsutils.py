@@ -1,4 +1,4 @@
-"""FITS utilities"""
+"""FITS utilities."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def head2dict(h: fits.Header) -> dict[str, Any]:
 
 
 def fix_header(cutout_header: fits.Header, original_header: fits.Header) -> fits.Header:
-    """Make cutout header the same as original header
+    """Make cutout header the same as original header.
 
     Args:
         cutout_header (fits.Header): Cutout header

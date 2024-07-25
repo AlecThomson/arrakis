@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Produce cutouts from RACS cubes"""
+"""Produce cutouts from RACS cubes."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ T = TypeVar("T")
 
 
 class CutoutArgs(Struct):
-    """Arguments for cutout function"""
+    """Arguments for cutout function."""
 
     """Name of the source"""
     ra_left: float
@@ -78,6 +78,20 @@ def cutout_weight(
     beam_num: int,
     dryrun=False,
 ) -> pymongo.UpdateOne:
+    """Cutout the weight image.
+
+    Args:
+        image_name (Path): Image name
+        source_id (str): Source ID
+        cutout_args (CutoutArgs | None): Cutout arguments
+        field (str): Field name
+        stoke (str): Stokes parameter
+        beam_num (int): Beam number
+        dryrun (bool, optional): If doing a dryrun. Defaults to False.
+
+    Returns:
+        pymongo.UpdateOne: Update query
+    """
     # Update database
     myquery = {"Source_ID": source_id}
 
@@ -220,12 +234,11 @@ def get_args(
     source: pd.Series,
     outdir: Path,
 ) -> CutoutArgs | None:
-    """Get arguments for cutout function
+    """Get arguments for cutout function.
 
     Args:
         comps (pd.DataFrame): List of mongo entries for RACS components in island
-        beam (Dict): Mongo entry for the RACS beam
-        island_id (str): RACS island ID
+        source (pd.Series): Mongo entry for RACS island
         outdir (Path): Input directory
 
     Raises:
@@ -235,7 +248,6 @@ def get_args(
     Returns:
         List[CutoutArgs]: List of cutout arguments for cutout function
     """
-
     logger.setLevel(logging.INFO)
 
     island_id = source.Source_ID
@@ -248,9 +260,9 @@ def get_args(
     outdir.mkdir(parents=True, exist_ok=True)
 
     # Find image size
-    ras: u.Quantity = comps.RA.values * u.deg
-    decs: u.Quantity = comps.Dec.values * u.deg
-    majs: list[float] = comps.Maj.values * u.arcsec
+    ras: u.Quantity = comps.RA.to_numpy() * u.deg
+    decs: u.Quantity = comps.Dec.to_numpy() * u.deg
+    majs: u.Quantity = comps.Maj.to_numpy() * u.arcsec
     coords = SkyCoord(ras, decs, frame="icrs")
     padder = np.max(majs)
 
@@ -343,7 +355,29 @@ def worker(
     pad: float = 3,
     username: str | None = None,
     password: str | None = None,
-):
+) -> list[pymongo.UpdateOne]:
+    """Cutout worker.
+
+    Args:
+        host (str): MongoDB host
+        epoch (int): Epoch
+        source (pd.Series): Source dataframe
+        comps (pd.DataFrame): Components dataframe
+        outdir (Path): Output directory
+        image_name (Path): Image name
+        data_in_mem (np.ndarray): Pre-read image data
+        old_header (fits.Header): Old header
+        cube (SpectralCube): Cube
+        field (str): Field name
+        beam_num (int): Beam number
+        stoke (str): Stokes parameter
+        pad (float, optional): PSF padding. Defaults to 3.
+        username (str | None, optional): MongoDB username. Defaults to None.
+        password (str | None, optional): MongoDB password. Defaults to None.
+
+    Returns:
+        list[pymongo.UpdateOne]: List of update queries
+    """
     _, _, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
@@ -393,14 +427,38 @@ def big_cutout(
     password: str | None = None,
     limit: int | None = None,
 ) -> list[pymongo.UpdateOne]:
+    """Make cutouts in parallel.
+
+    Args:
+        sources (pd.DataFrame): Source dataframe
+        comps (pd.DataFrame): Components dataframe
+        beam_num (int): Beam number
+        stoke (str): Stokes parameter
+        datadir (Path): Directory with images
+        outdir (Path): Output directory
+        host (str): MongoDB host
+        epoch (int): Epoch
+        field (str): Field name
+        pad (float, optional): PSF padding. Defaults to 3.
+        username (str | None, optional): MongoDB username. Defaults to None.
+        password (str | None, optional): MondoDB password. Defaults to None.
+        limit (int | None, optional): Limit number of sources. Defaults to None.
+
+    Raises:
+        FileNotFoundError: If no images found
+        FileExistsError: If more than one image found
+
+    Returns:
+        list[pymongo.UpdateOne]: List of update queries
+    """
     wild = f"image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
     images = list(datadir.glob(wild))
     if len(images) == 0:
         msg = f"No images found matching '{wild}'"
-        raise Exception(msg)
-    elif len(images) > 1:
+        raise FileNotFoundError(msg)
+    if len(images) > 1:
         msg = f"More than one image found matching '{wild}'. Files {images=}"
-        raise Exception(msg)
+        raise FileExistsError(msg)
 
     image_name = images[0]
 
@@ -467,12 +525,15 @@ def cutout_islands(
         field (str): RACS field name.
         directory (Path): Directory to store cutouts.
         host (str): MongoDB host.
+        epoch (int): RACS epoch.
+        sbid (int, optional): SBID. Defaults to None.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
         verbose (bool, optional): Verbose output. Defaults to True.
         pad (int, optional): Number of beamwidths to pad cutouts. Defaults to 3.
         stokeslist (List[str], optional): Stokes parameters to cutout. Defaults to None.
         dryrun (bool, optional): Do everything except write FITS files. Defaults to True.
+        limit (int, optional): Limit to this many islands. Defaults to None.
     """
     if stokeslist is None:
         stokeslist = ["I", "Q", "U", "V"]
@@ -580,7 +641,7 @@ def cutout_islands(
 
 
 def main(args: argparse.Namespace) -> None:
-    """Main script
+    """Main script.
 
     Args:
         args (argparse.Namespace): Command-line args
@@ -604,6 +665,14 @@ def main(args: argparse.Namespace) -> None:
 
 
 def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Cutout parser.
+
+    Args:
+        parent_parser (bool, optional): Parent parser. Defaults to False.
+
+    Returns:
+        argparse.ArgumentParser: Argument parser
+    """
     descStr = f"""
     {logo_str}
 
@@ -612,8 +681,8 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     If Stokes V is present, it will be squished into RMS spectra.
 
     To use with MPI:
-       mpirun -n $NPROCS python -u cutout.py $cubedir $tabledir
-       $outdir --mpi
+        mpirun -n $NPROCS python -u cutout.py $cubedir $tabledir
+        $outdir --mpi
     """
 
     # Parse the command line options
@@ -640,7 +709,7 @@ def cutout_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
 
 def cli() -> None:
-    """Command-line interface"""
+    """Command-line interface."""
     gen_parser = generic_parser(parent_parser=True)
     work_parser = workdir_arg_parser(parent_parser=True)
     cut_parser = cutout_parser(parent_parser=True)

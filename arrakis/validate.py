@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Make validation plots from a catalogue"""
+"""Make validation plots from a catalogue."""
 
 from __future__ import annotations
 
@@ -30,7 +30,13 @@ logger.setLevel(logging.INFO)
 
 
 class GriddedMap(Struct):
-    """Gridded catalogue data"""
+    """Gridded catalogue data.
+
+    Attributes:
+        data (np.ndarray): Gridded data
+        wcs (WCS): WCS of the gridded data
+
+    """
 
     data: np.ndarray
     """Gridded data"""
@@ -39,7 +45,15 @@ class GriddedMap(Struct):
 
 
 class BinnedMap(Struct):
-    """Binned catalogue data"""
+    """Binned catalogue data.
+
+    Attributes:
+        data (np.ndarray): Binned data
+        xc (np.ndarray): X bin centres
+        yc (np.ndarray): Y bin centres
+        wcs (WCS): WCS of the b
+
+    """
 
     data: np.ndarray
     """Binned data"""
@@ -54,6 +68,17 @@ class BinnedMap(Struct):
 def make_gridded_map(
     tab: Table, column: str, npix: int = 512, map_size: u.Quantity = 8 * u.deg
 ) -> GriddedMap:
+    """Make a gridded map from a table.
+
+    Args:
+        tab (Table): The table.
+        column (str): Reference column.
+        npix (int, optional): Number of pixels. Defaults to 512.
+        map_size (u.Quantity, optional): Angular size of map. Defaults to 8*u.deg.
+
+    Returns:
+        GriddedMap: data, wcs
+    """
     logger.info(f"Making gridded map for {column}")
     coords = SkyCoord(ra=tab["ra"], dec=tab["dec"], unit="deg")
     coarse_shape = (npix, npix)
@@ -105,6 +130,14 @@ def make_gridded_map(
 
 
 def filter_then_median(arr: T) -> T:
+    """Filter then median.
+
+    Args:
+        arr (T): Array of data.
+
+    Returns:
+        T: Filtered then medianed data.
+    """
     arr_clip = sigma_clip(
         arr, maxiters=None, sigma=3, cenfunc=np.nanmedian, stdfunc=mad_std
     )
@@ -118,6 +151,18 @@ def make_binned_map(
     npix: int = 512,
     map_size: u.Quantity = 8 * u.deg,
 ) -> BinnedMap:
+    """Make a binned map from a table.
+
+    Args:
+        tab (Table): The table.
+        column (str): Reference column.
+        bins (int, optional): Number of bins. Defaults to 15.
+        npix (int, optional): Number of pixels. Defaults to 512.
+        map_size (u.Quantity, optional): Angular size of map. Defaults to 8*u.deg.
+
+    Returns:
+        BinnedMap: data, xc, yc, wcs
+    """
     logger.info(f"Making binned map for {column}")
     coords = SkyCoord(ra=tab["ra"], dec=tab["dec"], unit="deg")
     coarse_shape = (npix, npix)
@@ -159,6 +204,16 @@ def plot_rms_bkg(
     npix: int = 512,
     map_size: u.Quantity = 8 * u.deg,
 ) -> Figure:
+    """Make RMS and background plots.
+
+    Args:
+        tab (Table): Catalogue table.
+        npix (int, optional): Number of pixels. Defaults to 512.
+        map_size (u.Quantity, optional): Angular size of map. Defaults to 8*u.deg.
+
+    Returns:
+        Figure: The RMS and background plot.
+    """
     err_bkg_dict = {}
     for stokes in "IQU":
         err_bkg_dict[stokes] = {}
@@ -230,6 +285,18 @@ def plot_leakage(
     npix: int = 512,
     map_size: u.Quantity = 8 * u.deg,
 ) -> Figure:
+    """Make a leakage plot.
+
+    Args:
+        tab (Table): Catalogue table.
+        snr_cut (float, optional): SNR cut. Defaults to 50.
+        bins (int, optional): Number of bins. Defaults to 11.
+        npix (int, optional): Number of pixels. Defaults to 512.
+        map_size (u.Quantity, optional): Angular size of map. Defaults to 8*u.deg.
+
+    Returns:
+        Figure: The leakage plot.
+    """
     hi_i_tab = tab[tab["stokesI"] / tab["stokesI_err"] > snr_cut]
     hi_i_tab["stokesQ_frac"] = hi_i_tab["stokesQ"] / hi_i_tab["stokesI"]
     hi_i_tab["stokesU_frac"] = hi_i_tab["stokesU"] / hi_i_tab["stokesI"]
@@ -278,7 +345,17 @@ def plot_leakage(
 
 def cross_match(
     my_tab: Table, other_tab: Table, radius: u.Quantity = 1 * u.arcsec
-) -> Table:
+) -> tuple[Table, Table]:
+    """Cross-match two tables.
+
+    Args:
+        my_tab (Table): Our table.
+        other_tab (Table): Their table.
+        radius (u.Quantity, optional): Radius of crossmastch. Defaults to 1*u.arcsec.
+
+    Returns:
+        tuple[Table, Table]: Our matches, their matches.
+    """
     my_coords = SkyCoord(ra=my_tab["ra"], dec=my_tab["dec"], unit="deg")
     other_coords = SkyCoord(ra=other_tab["ra"], dec=other_tab["dec"], unit="deg")
     idx, d2d, _ = my_coords.match_to_catalog_sky(other_coords)
@@ -294,6 +371,16 @@ def plot_rm(
     npix: int = 512,
     map_size: u.Quantity = 8 * u.deg,
 ) -> Figure:
+    """RM bubble plot.
+
+    Args:
+        tab (Table): Catalogue table.
+        npix (int, optional): Number of pixels in gridded map. Defaults to 512.
+        map_size (u.Quantity, optional): Angular size of gridded map. Defaults to 8*u.deg.
+
+    Returns:
+        Figure: Bubble plot figure.
+    """
     good_idx = (
         (~tab["snr_flag"])
         & (~tab["leakage_flag"])
@@ -435,7 +522,16 @@ def main(
     map_size: float = 8,
     snr_cut: float = 50,
     bins: int = 11,
-):
+) -> None:
+    """Validation flow.
+
+    Args:
+        catalogue_path (Path): Path to the catalogue.
+        npix (int, optional): Number of pixels in gridded maps. Defaults to 512.
+        map_size (float, optional): Size of gridded maps in degrees. Defaults to 8.
+        snr_cut (float, optional): SNR cut for maps. Defaults to 50.
+        bins (int, optional): Number of bins in gridded maps. Defaults to 11.
+    """
     outdir = catalogue_path.parent
     tab = Table.read(catalogue_path)
 
@@ -490,6 +586,14 @@ def main(
 
 
 def validation_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
+    """Parse validation arguments.
+
+    Args:
+        parent_parser (bool, optional): If this is a parent parser. Defaults to False.
+
+    Returns:
+        argparse.ArgumentParser: The parser
+    """
     descStr = f"""
     {logo_str}
     Arrakis:
@@ -517,7 +621,8 @@ def validation_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     return val_parser
 
 
-def cli():
+def cli() -> None:
+    """Command-line interface."""
     catalogue_parser = cat_parser(parent_parser=True)
     val_parser = validation_parser(parent_parser=True)
     parser = argparse.ArgumentParser(

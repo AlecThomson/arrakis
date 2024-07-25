@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the Arrakis database"""
+"""Create the Arrakis database."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> Table:
-    """Find RACS beams that contain a given source position
+    """Find RACS beams that contain a given source position.
 
     Args:
         ra (float): RA of source in degrees.
@@ -46,8 +46,9 @@ def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> 
 
 
 def ndix_unique(x: np.ndarray) -> tuple[np.ndarray, list[np.ndarray]]:
-    """Find the N-dimensional array of indices of the unique values in x
-    From https://stackoverflow.com/questions/54734545/indices-of-unique-values-in-array
+    """Find the N-dimensional array of indices of the unique values in x.
+
+    From https://stackoverflow.com/questions/54734545/indices-of-unique-values-in-array.
 
     Args:
         x (np.ndarray): Array of values.
@@ -68,7 +69,7 @@ def ndix_unique(x: np.ndarray) -> tuple[np.ndarray, list[np.ndarray]]:
 def cat2beams(
     mastercat: Table, database: Table, max_sep: float = 1
 ) -> tuple[np.ndarray, np.ndarray, Angle]:
-    """Find the separations between sources in the master catalogue and the RACS beams
+    """Find the separations between sources in the master catalogue and the RACS beams.
 
     Args:
         mastercat (Table): Master catalogue table.
@@ -100,7 +101,7 @@ def source_database(
     username: str | None = None,
     password: str | None = None,
 ) -> tuple[InsertManyResult, InsertManyResult]:
-    """Insert sources into the database
+    """Insert sources into the database.
 
     Following https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
 
@@ -108,6 +109,7 @@ def source_database(
         islandcat (Table): Island catalogue table.
         compcat (Table): Component catalogue table.
         host (str): MongoDB host IP.
+        epoch (int): RACS epoch number.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo host. Defaults to None.
 
@@ -121,7 +123,7 @@ def source_database(
     if isinstance(df_i["Source_ID"][0], bytes):
         logger.info("Decoding strings!")
         str_df = df_i.select_dtypes([object])
-        str_df = str_df.stack().str.decode("utf-8").unstack()
+        str_df = str_df.melt().str.decode("utf-8").pivot_table()
         for col in str_df:
             df_i[col] = str_df[col]
 
@@ -148,7 +150,7 @@ def source_database(
     if isinstance(df_c["Source_ID"][0], bytes):
         logger.info("Decoding strings!")
         str_df = df_c.select_dtypes([object])
-        str_df = str_df.stack().str.decode("utf-8").unstack()
+        str_df = str_df.melt().str.decode("utf-8").pivot_table()
         for col in str_df:
             df_c[col] = str_df[col]
 
@@ -179,9 +181,10 @@ def beam_database(
     username: str | None = None,
     password: str | None = None,
 ) -> InsertManyResult:
-    """Insert beams into the database
+    """Insert beams into the database.
 
     Args:
+        database_path (Path): Path to RACS database.
         islandcat (Table): Island catalogue table.
         host (str): MongoDB host IP.
         username (str, optional): Mongo username. Defaults to None.
@@ -218,9 +221,10 @@ def beam_database(
 
 
 def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
-    """Get the RACS catalogue for a given epoch
+    """Get the RACS catalogue for a given epoch.
 
     Args:
+        survey_dir (Path): Path to RACS database.
         epoch (int, optional): Epoch number. Defaults to 0.
 
     Returns:
@@ -262,11 +266,12 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
 
 
 def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> list[dict]:
-    """Get beams from the master catalogue
+    """Get beams from the master catalogue.
 
     Args:
         mastercat (Table): Master catalogue table.
         database (Table): RACS database table.
+        epoch (int, optional): RACS epoch number. Defaults to 0.
 
     Returns:
         List[Dict]: List of beam dictionaries.
@@ -294,7 +299,7 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> list[dict]:
         fields,
     )
 
-    beam_list = []
+    beam_list: list[dict] = []
     for _i, (val, idx) in enumerate(
         tqdm(zip(vals, ixs), total=len(vals), desc="Getting beams", file=TQDM_OUT)
     ):
@@ -304,10 +309,10 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> list[dict]:
         beams = database[seps[0][idx.astype(int)]]
         for _j, field in enumerate(np.unique(beams["FIELD_NAME"])):
             ndx = beams["FIELD_NAME"] == field
-            field = field.replace("_test4_1.05_", "_") if epoch == 0 else field
+            correct_field = field.replace("_test4_1.05_", "_") if epoch == 0 else field
             beam_dict.update(
                 {
-                    field: {
+                    correct_field: {
                         "beam_list": list(beams["BEAM_NUM"][ndx]),
                         "SBIDs": list(np.unique(beams["SBID"][ndx])),
                         "DR1": bool(np.unique(in_dr1[seps[0][idx.astype(int)]][ndx])),
@@ -335,7 +340,7 @@ def beam_inf(
     username: str | None = None,
     password: str | None = None,
 ) -> InsertManyResult:
-    """Get the beam information"""
+    """Get the beam information."""
     tabs: list[Table] = []
     for row in tqdm(database, desc="Reading beam info", file=TQDM_OUT):
         try:
@@ -378,7 +383,7 @@ def read_racs_database(
     epoch: int,
     table: str,
 ) -> Table:
-    """Read the RACS database from CSVs or postgresql
+    """Read the RACS database from CSVs or postgresql.
 
     Args:
         survey_dir (Path): Path to RACS database (i.e. 'askap_surveys/racs' repo).
@@ -415,7 +420,7 @@ def field_database(
     username: str | None = None,
     password: str | None = None,
 ) -> tuple[InsertManyResult, InsertManyResult]:
-    """Reset and load the field database
+    """Reset and load the field database.
 
     Args:
         survey_dir (Path): Path to RACS database (i.e. 'askap_surveys/racs' repo).
@@ -432,8 +437,8 @@ def field_database(
         database["COMMENT"] = database["COMMENT"].astype(str)
     # Remove rows with SBID < 0
     database = database[database["SBID"] >= 0]
-    df = database.to_pandas()
-    field_list_dict = df.to_dict("records")
+    database_df = database.to_pandas()
+    field_list_dict = database_df.to_dict("records")
     logger.info("Loading fields into mongo...")
     field_col = get_field_db(
         host=host, epoch=epoch, username=username, password=password
@@ -472,12 +477,13 @@ def main(
     epochs: list[int] = 0,
     force: bool = False,
 ) -> None:
-    """Main script
+    """Main script.
 
     Args:
         load (bool, optional): Load the database. Defaults to False.
         islandcat (Union[str, None], optional): Island catalogue. Defaults to None.
         compcat (Union[str, None], optional): Component catalogue. Defaults to None.
+        database_path (Union[Path, None], optional): Path to RACS database. Defaults to None.
         host (str, optional): Mongo host. Defaults to "localhost".
         username (Union[str, None], optional): Mongo username. Defaults to None.
         password (Union[str, None], optional): Mongo password. Defaults to None.
@@ -570,7 +576,7 @@ def main(
 
 
 def cli():
-    """Command-line interface"""
+    """Command-line interface."""
     import argparse
 
     # Help string to be shown using the -h option
