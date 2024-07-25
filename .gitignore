@@ -146,3 +146,4 @@ setup.py.bak
 
 # Test data
 test/data/testdb/*
+.nox
