@@ -163,6 +163,7 @@ isort.required-imports = ["from __future__ import annotations"]
 "scripts/**" = ["ALL"]
 "noxfile.py" = ["T20"]
 "docs/**" = ["ALL"]
+"submit/**" = ["ALL"]
 # Ignore all rules for wsclean
 "arrakis/wsclean_rmsynth.py" = ["ALL"]
 
