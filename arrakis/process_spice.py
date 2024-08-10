@@ -13,6 +13,7 @@ from astropy.time import Time
 from prefect import flow
 from prefect.task_runners import BaseTaskRunner
 from prefect_dask import DaskTaskRunner
+import shutil
 
 from arrakis import (
     cleanup,
@@ -31,7 +32,7 @@ from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 from arrakis.validate import validation_parser
 
 
-@flow(name="Combining+Synthesis on Arrakis")
+@flow(name="Combining+Synthesis on Arrakis", retries=3, retry_delay_seconds=600)
 def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
     """Workflow to process the SPICE-RACS data
 
@@ -40,6 +41,11 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
         host (str): Host address of the mongoDB.
     """
     outfile = f"{args.field}.pipe.test.fits" if args.outfile is None else args.outfile
+
+    cutout_dir = Path(args.datadir) / "cutouts"
+    if cutout_dir.exists() and not args.skip_cutout:
+        logger.warning(f"Cutout directory '{cutout_dir}' exists! Purging...")
+        shutil.rmtree(cutout_dir)
 
     previous_future = None
     previous_future = (
