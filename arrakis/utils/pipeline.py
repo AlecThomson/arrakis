@@ -22,7 +22,9 @@ from dask.distributed import get_client
 from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner
-from prefect import task
+from prefect import task, Task
+from prefect.concurrency.sync import rate_limit
+from prefect.futures import PrefectFuture
 from prefect.artifacts import create_markdown_artifact
 from prefect_dask import get_dask_client
 from spectral_cube.utils import SpectralCubeWarning
@@ -52,6 +54,21 @@ logo_str = """
    |___|   |___|   |___|   |___|
 
 """
+
+
+def submit_task_with_rate_limit(task: Task, *args, **kwargs) -> PrefectFuture:
+    """Submit a task with rate limiting
+
+    Args:
+        task (Task): Task to submit
+        *args: Arguments to pass to the task
+        **kwargs: Keyword arguments to pass to the task
+
+    Returns:
+        PrefectFuture: Future object
+    """
+    rate_limit("settle-right-down", occupy=1)
+    return task.submit(*args, **kwargs)
 
 
 # Stolen from Flint
