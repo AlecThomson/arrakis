@@ -3,6 +3,7 @@
 
 import argparse
 import logging
+import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -195,6 +196,11 @@ def cutout_image(
     # Add source name to header for CASDA
     fixed_header["OBJECT"] = source_id
     if not dryrun:
+        if outfile.exists():
+            time.sleep(1)
+            outfile.unlink(missing_ok=True)
+            time.sleep(1)
+
         fits.writeto(
             outfile,
             sub_data,
