@@ -6,6 +6,8 @@ import logging
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+import os
+import multiprocessing as mp
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
@@ -420,8 +422,10 @@ def big_cutout(
         logger.critical(f"Limiting to {limit} islands")
         sources = sources[:limit]
 
+    # Check for slurm cpus
+    max_workers = int(os.environ.get("SLURM_CPUS_PER_TASK", mp.cpu_count()))
     updates: List[pymongo.UpdateOne] = []
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for _, source in sources.iterrows():
             futures.append(
