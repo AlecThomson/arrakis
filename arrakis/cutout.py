@@ -346,6 +346,7 @@ def make_cutout(
     pad: float = 3,
     username: Optional[str] = None,
     password: Optional[str] = None,
+    dryrun: bool = False,
 ):
     _, _, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
@@ -367,7 +368,7 @@ def make_cutout(
         beam_num=beam_num,
         stoke=stoke,
         pad=pad,
-        dryrun=False,
+        dryrun=dryrun,
     )
     weight_update = cutout_weight(
         image_name=image_name,
@@ -376,7 +377,7 @@ def make_cutout(
         field=field,
         beam_num=beam_num,
         stoke=stoke,
-        dryrun=False,
+        dryrun=dryrun,
     )
     return [image_update, weight_update]
 
@@ -396,6 +397,7 @@ def big_cutout(
     username: Optional[str] = None,
     password: Optional[str] = None,
     limit: Optional[int] = None,
+    dryrun: bool = False,
 ) -> List[pymongo.UpdateOne]:
     wild = f"image.restored.{stoke.lower()}*contcube*beam{beam_num:02}.conv.fits"
     images = list(datadir.glob(wild))
@@ -444,6 +446,7 @@ def big_cutout(
                     pad=pad,
                     username=username,
                     password=password,
+                    dryrun=dryrun,
                 )
             )
         for future in tqdm(futures, file=TQDM_OUT, desc=f"Cutting {image_name}"):
@@ -570,6 +573,7 @@ def cutout_islands(
                 username=username,
                 password=password,
                 limit=limit,
+                dryrun=dryrun,
             )
             cuts.append(results)
 
