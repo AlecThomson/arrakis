@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2024-09-03
+### What's Changed
+Mostly bits to help out a filesystem being sad
+* Threadlock cutout writes to prevent dumb errors on Lustre (and maybe elsewhere?)
+* Copy holography file to a $MEMDIR if it exists
+* Allow validation plots to fail gracefully
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.3.11...v2.4.0
+
 ## [2.3.11] - 2024-07-15
 ### What's Changed
 * Fix l,m calculation for tile offsets (including rotation)
