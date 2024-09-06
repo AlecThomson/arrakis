@@ -382,7 +382,12 @@ def make_cutout(
     return [image_update, weight_update]
 
 
-@task(name="Cutout from big cube", retries=3, retry_delay_seconds=[1, 10, 100])
+@task(
+    name="Cutout from big cube",
+    retries=3,
+    retry_delay_seconds=[1, 10, 100],
+    persist_result=True,
+)
 def big_cutout(
     sources: pd.DataFrame,
     comps: pd.DataFrame,
