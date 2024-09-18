@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2024-09-18
+##$ What's Changed
+* Divergence by @AlecThomson in https://github.com/AlecThomson/arrakis/pull/79
+* Update some imager plots
+
+**Full Changelog**: https://github.com/AlecThomson/arrakis/compare/v2.4.0...v2.4.1
+
 ## [2.4.0] - 2024-09-03
 ### What's Changed
 Mostly bits to help out a filesystem being sad
