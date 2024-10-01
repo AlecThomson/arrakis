@@ -158,67 +158,71 @@ def plot_rms_bkg(
     npix: int = 512,
     map_size: u.Quantity = 8 * u.deg,
 ) -> Figure:
-    err_bkg_dict = {}
-    for stokes in "IQU":
-        err_bkg_dict[stokes] = {}
-        for thing in ("err", "bkg"):
-            err_bkg_dict[stokes][thing] = make_gridded_map(
-                tab, f"stokes{stokes}_{thing}", npix=npix, map_size=map_size
-            )
-    mapping = {
-        "I": ("I", "err"),
-        "i": ("I", "bkg"),
-        "Q": ("Q", "err"),
-        "q": ("Q", "bkg"),
-        "U": ("U", "err"),
-        "u": ("U", "bkg"),
-    }
-    per_subplot_kw = {
-        key: {"projection": err_bkg_dict[stokes][thing].wcs}
-        for key, (stokes, thing) in mapping.items()
-    }
-    fig, ax_dict = plt.subplot_mosaic(
-        """
-        IQU
-        iqu
-        """,
-        figsize=(24, 13),
-        per_subplot_kw=per_subplot_kw,
-        subplot_kw={
-            "aspect": "equal",
-        },
-        sharex=True,
-        sharey=True,
-    )
-    for key, ax in ax_dict.items():
-        stokes, thing = mapping[key]
-        data = err_bkg_dict[stokes][thing].data
-        if thing == "err":
-            im = ax.imshow(
-                data * 1e6,
-                origin="lower",
-                cmap="YlOrRd",
-                norm=plt.cm.colors.LogNorm(vmin=1e2, vmax=1e3),
-            )
-        else:
-            im = ax.imshow(
-                data * 1e6, origin="lower", cmap="coolwarm", vmin=-300, vmax=300
-            )
-        ax.set(xlabel="RA", ylabel="Dec")
-        ax.grid()
-        overlay = ax.get_coords_overlay("galactic")
-        overlay.grid(color="tab:blue", ls="dashed", alpha=0.6)
-        overlay[0].tick_params(colors="tab:blue")
-        overlay[1].tick_params(colors="tab:blue")
-        overlay[0].set_axislabel("$l$", color="tab:blue")
-        overlay[1].set_axislabel("$b$", color="tab:blue")
-        fig.colorbar(im, ax=ax, label="$\mu$Jy/beam", shrink=0.7, pad=0.15)
-        ax.set_title(
-            f"Stokes {stokes} {thing} - med: {np.nanmedian(data * 1e6):0.1f}$\pm${np.nanstd(data * 1e6):0.1f} $\mu$Jy/beam\n - min: {np.nanmin(data * 1e6):0.1f} $\mu$Jy/beam",
-            pad=50,
+    try:
+        err_bkg_dict = {}
+        for stokes in "IQU":
+            err_bkg_dict[stokes] = {}
+            for thing in ("err", "bkg"):
+                err_bkg_dict[stokes][thing] = make_gridded_map(
+                    tab, f"stokes{stokes}_{thing}", npix=npix, map_size=map_size
+                )
+        mapping = {
+            "I": ("I", "err"),
+            "i": ("I", "bkg"),
+            "Q": ("Q", "err"),
+            "q": ("Q", "bkg"),
+            "U": ("U", "err"),
+            "u": ("U", "bkg"),
+        }
+        per_subplot_kw = {
+            key: {"projection": err_bkg_dict[stokes][thing].wcs}
+            for key, (stokes, thing) in mapping.items()
+        }
+        fig, ax_dict = plt.subplot_mosaic(
+            """
+            IQU
+            iqu
+            """,
+            figsize=(24, 13),
+            per_subplot_kw=per_subplot_kw,
+            subplot_kw={
+                "aspect": "equal",
+            },
+            sharex=True,
+            sharey=True,
         )
+        for key, ax in ax_dict.items():
+            stokes, thing = mapping[key]
+            data = err_bkg_dict[stokes][thing].data
+            if thing == "err":
+                im = ax.imshow(
+                    data * 1e6,
+                    origin="lower",
+                    cmap="YlOrRd",
+                    norm=plt.cm.colors.LogNorm(vmin=1e2, vmax=1e3),
+                )
+            else:
+                im = ax.imshow(
+                    data * 1e6, origin="lower", cmap="coolwarm", vmin=-300, vmax=300
+                )
+            ax.set(xlabel="RA", ylabel="Dec")
+            ax.grid()
+            overlay = ax.get_coords_overlay("galactic")
+            overlay.grid(color="tab:blue", ls="dashed", alpha=0.6)
+            overlay[0].tick_params(colors="tab:blue")
+            overlay[1].tick_params(colors="tab:blue")
+            overlay[0].set_axislabel("$l$", color="tab:blue")
+            overlay[1].set_axislabel("$b$", color="tab:blue")
+            fig.colorbar(im, ax=ax, label="$\mu$Jy/beam", shrink=0.7, pad=0.15)
+            ax.set_title(
+                f"Stokes {stokes} {thing} - med: {np.nanmedian(data * 1e6):0.1f}$\pm${np.nanstd(data * 1e6):0.1f} $\mu$Jy/beam\n - min: {np.nanmin(data * 1e6):0.1f} $\mu$Jy/beam",
+                pad=50,
+            )
 
-    return fig
+        return fig
+    except Exception as e:
+        logger.error(f"Error in making rms and bkg plot: {e}")
+        return plt.figure()
 
 
 @task(name="leakage plot")
@@ -229,65 +233,69 @@ def plot_leakage(
     npix: int = 512,
     map_size: u.Quantity = 8 * u.deg,
 ) -> Figure:
-    hi_i_tab = tab[tab["stokesI"] / tab["stokesI_err"] > snr_cut]
-    hi_i_tab["stokesQ_frac"] = hi_i_tab["stokesQ"] / hi_i_tab["stokesI"]
-    hi_i_tab["stokesU_frac"] = hi_i_tab["stokesU"] / hi_i_tab["stokesI"]
-    leakage_dict = {}
-    for stokes in "QU":
-        try:
-            leakage_dict[stokes] = make_binned_map(
-                hi_i_tab,
-                f"stokes{stokes}_frac",
-                npix=npix,
-                bins=bins,
-                map_size=map_size,
-            )
-        except Exception as e:
-            logger.error(f"Error in making binned map for {stokes}: {e}")
-            leakage_dict[stokes] = BinnedMap(
-                np.full((bins, bins), np.nan),
-                np.linspace(-4, 4, bins),
-                np.linspace(-4, 4, bins),
-                None,
-            )
+    try:
+        hi_i_tab = tab[tab["stokesI"] / tab["stokesI_err"] > snr_cut]
+        hi_i_tab["stokesQ_frac"] = hi_i_tab["stokesQ"] / hi_i_tab["stokesI"]
+        hi_i_tab["stokesU_frac"] = hi_i_tab["stokesU"] / hi_i_tab["stokesI"]
+        leakage_dict = {}
+        for stokes in "QU":
+            try:
+                leakage_dict[stokes] = make_binned_map(
+                    hi_i_tab,
+                    f"stokes{stokes}_frac",
+                    npix=npix,
+                    bins=bins,
+                    map_size=map_size,
+                )
+            except Exception as e:
+                logger.error(f"Error in making binned map for {stokes}: {e}")
+                leakage_dict[stokes] = BinnedMap(
+                    np.full((bins, bins), np.nan),
+                    np.linspace(-4, 4, bins),
+                    np.linspace(-4, 4, bins),
+                    None,
+                )
 
-    per_subplot_kw = {
-        stokes: {"projection": val.wcs} for stokes, val in leakage_dict.items()
-    }
-    fig, ax_dict = plt.subplot_mosaic(
-        """
-        QU
-        """,
-        figsize=(16, 8),
-        per_subplot_kw=per_subplot_kw,
-        subplot_kw={
-            "aspect": "equal",
-        },
-        sharex=True,
-        sharey=True,
-    )
-    for stokes, ax in ax_dict.items():
-        if leakage_dict[stokes].wcs is None:
-            continue
-        data = leakage_dict[stokes].data
-        xc = leakage_dict[stokes].xc
-        yc = leakage_dict[stokes].yc
-        im = ax.pcolormesh(xc, yc, data, cmap="RdBu_r", vmin=-0.05, vmax=0.05)
-        ax.set(xlabel="RA", ylabel="Dec")
-        ax.grid()
-        overlay = ax.get_coords_overlay("galactic")
-        overlay.grid(color="tab:blue", ls="dashed", alpha=0.6)
-        overlay[0].tick_params(colors="tab:blue")
-        overlay[1].tick_params(colors="tab:blue")
-        overlay[0].set_axislabel("$l$", color="tab:blue")
-        overlay[1].set_axislabel("$b$", color="tab:blue")
-        fig.colorbar(im, ax=ax, label="Fraction", shrink=0.7, pad=0.15)
-        ax.set_title(
-            f"Stokes {stokes}/I (binned) - absmed: {np.nanmedian(np.abs(data))*100:0.1f}$\pm${np.nanstd(np.abs(data))*100:0.1f}%",
-            pad=50,
+        per_subplot_kw = {
+            stokes: {"projection": val.wcs} for stokes, val in leakage_dict.items()
+        }
+        fig, ax_dict = plt.subplot_mosaic(
+            """
+            QU
+            """,
+            figsize=(16, 8),
+            per_subplot_kw=per_subplot_kw,
+            subplot_kw={
+                "aspect": "equal",
+            },
+            sharex=True,
+            sharey=True,
         )
+        for stokes, ax in ax_dict.items():
+            if leakage_dict[stokes].wcs is None:
+                continue
+            data = leakage_dict[stokes].data
+            xc = leakage_dict[stokes].xc
+            yc = leakage_dict[stokes].yc
+            im = ax.pcolormesh(xc, yc, data, cmap="RdBu_r", vmin=-0.05, vmax=0.05)
+            ax.set(xlabel="RA", ylabel="Dec")
+            ax.grid()
+            overlay = ax.get_coords_overlay("galactic")
+            overlay.grid(color="tab:blue", ls="dashed", alpha=0.6)
+            overlay[0].tick_params(colors="tab:blue")
+            overlay[1].tick_params(colors="tab:blue")
+            overlay[0].set_axislabel("$l$", color="tab:blue")
+            overlay[1].set_axislabel("$b$", color="tab:blue")
+            fig.colorbar(im, ax=ax, label="Fraction", shrink=0.7, pad=0.15)
+            ax.set_title(
+                f"Stokes {stokes}/I (binned) - absmed: {np.nanmedian(np.abs(data))*100:0.1f}$\pm${np.nanstd(np.abs(data))*100:0.1f}%",
+                pad=50,
+            )
 
-    return fig
+        return fig
+    except Exception as e:
+        logger.error(f"Error in making leakage plot: {e}")
+        return plt.figure()
 
 
 def cross_match(
@@ -308,138 +316,144 @@ def plot_rm(
     npix: int = 512,
     map_size: u.Quantity = 8 * u.deg,
 ) -> Figure:
-    good_idx = (
-        (~tab["snr_flag"])
-        & (~tab["leakage_flag"])
-        & (~tab["channel_flag"])
-        & (~tab["stokesI_fit_flag"])
-        & (~tab["local_rm_flag"])
-    )
+    try:
+        good_idx = (
+            (~tab["snr_flag"])
+            & (~tab["leakage_flag"])
+            & (~tab["channel_flag"])
+            & (~tab["stokesI_fit_flag"])
+            & (~tab["local_rm_flag"])
+        )
 
-    good_tab = tab[good_idx]
+        good_tab = tab[good_idx]
 
-    nvss_path = resources.files("arrakis.data") / "Taylor2009.fits.zip"
-    nvss_tab = Table.read(nvss_path, format="fits")
-    spass_path = resources.files("arrakis.data") / "Schnitzeler2019.fits.zip"
-    spass_tab = Table.read(spass_path, format="fits")
+        nvss_path = resources.files("arrakis.data") / "Taylor2009.fits.zip"
+        nvss_tab = Table.read(nvss_path, format="fits")
+        spass_path = resources.files("arrakis.data") / "Schnitzeler2019.fits.zip"
+        spass_tab = Table.read(spass_path, format="fits")
 
-    rm_gridded = make_gridded_map(good_tab, "rm", npix=npix, map_size=map_size)
+        rm_gridded = make_gridded_map(good_tab, "rm", npix=npix, map_size=map_size)
 
-    fig, ax_dict = plt.subplot_mosaic(
-        """
-        MNS
-        """,
-        figsize=(16, 4),
-        per_subplot_kw={
-            "M": {"projection": rm_gridded.wcs},
-        },
-    )
-    for label, other_cat, ax in zip(
-        ("NVSS", "SPASS"),
-        (nvss_tab, spass_tab),
-        (ax_dict["N"], ax_dict["S"]),
-    ):
-        ax.set_title(label)
-        racs_match, other_match = cross_match(good_tab, other_cat, radius=60 * u.arcsec)
-        if len(racs_match) == 0:
-            # Hide axes
-            ax.axis("off")
-            ax.text(
-                x=0.5,
-                y=0.5,
-                s=f"No {label} matches",
-                transform=ax.transAxes,
-                ha="center",
-                va="center",
+        fig, ax_dict = plt.subplot_mosaic(
+            """
+            MNS
+            """,
+            figsize=(16, 4),
+            per_subplot_kw={
+                "M": {"projection": rm_gridded.wcs},
+            },
+        )
+        for label, other_cat, ax in zip(
+            ("NVSS", "SPASS"),
+            (nvss_tab, spass_tab),
+            (ax_dict["N"], ax_dict["S"]),
+        ):
+            ax.set_title(label)
+            racs_match, other_match = cross_match(
+                good_tab, other_cat, radius=60 * u.arcsec
             )
-            continue
-        _ = ax.errorbar(
-            racs_match["rm"],
-            other_match["rm"],
-            xerr=racs_match["rm_err"] * 5,
-            yerr=other_match["rm_err"] * 5,
-            fmt="o",
-            label="$\pm 5 \sigma$",
+            if len(racs_match) == 0:
+                # Hide axes
+                ax.axis("off")
+                ax.text(
+                    x=0.5,
+                    y=0.5,
+                    s=f"No {label} matches",
+                    transform=ax.transAxes,
+                    ha="center",
+                    va="center",
+                )
+                continue
+            _ = ax.errorbar(
+                racs_match["rm"],
+                other_match["rm"],
+                xerr=racs_match["rm_err"] * 5,
+                yerr=other_match["rm_err"] * 5,
+                fmt="o",
+                label="$\pm 5 \sigma$",
+            )
+            abs_max_val = np.nanmax(
+                (np.abs(np.concatenate([racs_match["rm"], other_match["rm"]])))
+            )
+            ax.plot(
+                [-abs_max_val, abs_max_val],
+                [-abs_max_val, abs_max_val],
+                color="k",
+                ls="--",
+            )
+            ax.legend()
+
+            ax.set(
+                xlabel=f"RACS  / {u.rad/u.m**2:latex_inline}",
+                ylabel=f"{label} / {u.rad/u.m**2:latex_inline}",
+                aspect="equal",
+            )
+        _ = ax_dict["M"].imshow(
+            rm_gridded.data * np.nan,
+            origin="lower",
+            cmap="coolwarm",
+            vmin=-100,
+            vmax=100,
         )
-        abs_max_val = np.nanmax(
-            (np.abs(np.concatenate([racs_match["rm"], other_match["rm"]])))
-        )
-        ax.plot(
-            [-abs_max_val, abs_max_val],
-            [-abs_max_val, abs_max_val],
-            color="k",
-            ls="--",
-        )
-        ax.legend()
 
-        ax.set(
-            xlabel=f"RACS  / {u.rad/u.m**2:latex_inline}",
-            ylabel=f"{label} / {u.rad/u.m**2:latex_inline}",
-            aspect="equal",
-        )
-    _ = ax_dict["M"].imshow(
-        rm_gridded.data * np.nan,
-        origin="lower",
-        cmap="coolwarm",
-        vmin=-100,
-        vmax=100,
-    )
+        def rm_scaler(rm: np.ndarray) -> np.ndarray:
+            # Scale the RM value by 2
+            return 2 * np.abs(rm)
 
-    def rm_scaler(rm: np.ndarray) -> np.ndarray:
-        # Scale the RM value by 2
-        return 2 * np.abs(rm)
+        pos_idx = good_tab["rm"] > 0
+        neg_idx = good_tab["rm"] < 0
 
-    pos_idx = good_tab["rm"] > 0
-    neg_idx = good_tab["rm"] < 0
-
-    _ = ax_dict["M"].scatter(
-        good_tab["ra"][pos_idx],
-        good_tab["dec"][pos_idx],
-        edgecolor="tab:red",
-        s=rm_scaler(good_tab["rm"][pos_idx]),
-        facecolor="none",
-        transform=ax_dict["M"].get_transform("world"),
-        linewidths=1,
-    )
-
-    _ = ax_dict["M"].scatter(
-        good_tab["ra"][neg_idx],
-        good_tab["dec"][neg_idx],
-        edgecolor="tab:blue",
-        s=rm_scaler(good_tab["rm"][neg_idx]),
-        facecolor="none",
-        transform=ax_dict["M"].get_transform("world"),
-        linewidths=1,
-    )
-
-    for rm in [-100, -10, +10, 100]:
         _ = ax_dict["M"].scatter(
-            np.nan,
-            np.nan,
-            edgecolor="tab:blue" if rm < 0 else "tab:red",
-            s=rm_scaler(rm),
+            good_tab["ra"][pos_idx],
+            good_tab["dec"][pos_idx],
+            edgecolor="tab:red",
+            s=rm_scaler(good_tab["rm"][pos_idx]),
             facecolor="none",
             transform=ax_dict["M"].get_transform("world"),
-            label=rf"{rm}",
             linewidths=1,
         )
 
-    ax_dict["M"].legend()
+        _ = ax_dict["M"].scatter(
+            good_tab["ra"][neg_idx],
+            good_tab["dec"][neg_idx],
+            edgecolor="tab:blue",
+            s=rm_scaler(good_tab["rm"][neg_idx]),
+            facecolor="none",
+            transform=ax_dict["M"].get_transform("world"),
+            linewidths=1,
+        )
 
-    ax_dict["M"].set(xlabel="RA", ylabel="Dec")
-    ax_dict["M"].grid()
-    overlay = ax_dict["M"].get_coords_overlay("galactic")
-    overlay.grid(color="tab:blue", ls="dashed", alpha=0.6)
-    overlay[0].tick_params(colors="tab:blue")
-    overlay[1].tick_params(colors="tab:blue")
-    overlay[0].set_axislabel("$l$", color="tab:blue")
-    overlay[1].set_axislabel("$b$", color="tab:blue")
-    ax_dict["M"].set_title("RM bubble", pad=50)
-    fig.suptitle(
-        "rotation measure",
-        y=1.1,
-    )
-    return fig
+        for rm in [-100, -10, +10, 100]:
+            _ = ax_dict["M"].scatter(
+                np.nan,
+                np.nan,
+                edgecolor="tab:blue" if rm < 0 else "tab:red",
+                s=rm_scaler(rm),
+                facecolor="none",
+                transform=ax_dict["M"].get_transform("world"),
+                label=rf"{rm}",
+                linewidths=1,
+            )
+
+        ax_dict["M"].legend()
+
+        ax_dict["M"].set(xlabel="RA", ylabel="Dec")
+        ax_dict["M"].grid()
+        overlay = ax_dict["M"].get_coords_overlay("galactic")
+        overlay.grid(color="tab:blue", ls="dashed", alpha=0.6)
+        overlay[0].tick_params(colors="tab:blue")
+        overlay[1].tick_params(colors="tab:blue")
+        overlay[0].set_axislabel("$l$", color="tab:blue")
+        overlay[1].set_axislabel("$b$", color="tab:blue")
+        ax_dict["M"].set_title("RM bubble", pad=50)
+        fig.suptitle(
+            "rotation measure",
+            y=1.1,
+        )
+        return fig
+    except Exception as e:
+        logger.error(f"Error in making RM plot: {e}")
+        return plt.figure()
 
 
 @flow(name="Validation")
