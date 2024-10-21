@@ -279,6 +279,7 @@ def run_wsclean_singuarlity(
     out_dir: Path,
     root_dir: Path,
 ) -> None:
+    logger = get_run_logger()
     logger.info(f"Running wsclean with command: {command}")
     try:
         output = sclient.execute(
