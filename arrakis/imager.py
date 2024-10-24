@@ -306,7 +306,7 @@ def run_wsclean_singuarlity(
         raise e
 
 
-@task(name="Image Beam", persist_result=True)
+@task(name="Image Beam", persist_result=True, retries=1)
 def image_beam(
     ms: Path,
     field_idx: int,
@@ -775,7 +775,7 @@ def cleanup(
     """
     logger = get_run_logger()
 
-    logger.warn(f"Ignoring files in {ignore_files=}. ")
+    logger.warning(f"Ignoring files in {ignore_files=}. ")
 
     if not purge:
         logger.info("Not purging intermediate files")
@@ -919,6 +919,9 @@ def main(
     logger.info(f"Using {temp_dir_wsclean} as temp directory for WSClean")
 
     if temp_dir_images is None:
+        # Don't allow purge if temp_dir_images is None
+        logger.warning("No temp directory for images specified, disabling purge.")
+        purge = False
         temp_dir_images = out_dir
     logger.info(f"Using {temp_dir_images} as temp directory for images")
 
