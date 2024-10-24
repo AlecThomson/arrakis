@@ -306,7 +306,7 @@ def run_wsclean_singuarlity(
         raise e
 
 
-@task(name="Image Beam", persist_result=True, retries=1)
+@task(name="Image Beam", persist_result=True)
 def image_beam(
     ms: Path,
     field_idx: int,
