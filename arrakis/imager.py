@@ -514,6 +514,9 @@ def image_beam(
         # Update the prefix
         prefix = out_dir / prefix.name
 
+        # Remove the temp directory
+        shutil.rmtree(temp_dir_images)
+
     prefix_str = prefix.resolve().as_posix()
 
     # Check rms of image to check for divergence
