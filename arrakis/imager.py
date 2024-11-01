@@ -165,7 +165,7 @@ def get_mfs_image(
     return MFSImage(image=small_image, model=small_model, residual=small_residual)
 
 
-@task(name="Make Validation Plots")
+@task(name="Make Validation Plots", persist_result=True)
 def make_validation_plots(prefix: Path, pols: str) -> None:
     """Make validation plots for the images.
 
