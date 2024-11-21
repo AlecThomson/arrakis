@@ -571,10 +571,7 @@ def cutout_islands(
             if isinstance(sources, pd.Series):
                 sources = pd.DataFrame(sources).T
 
-            else:
-                continue
-
-            results = big_cutout.fn(
+            results = big_cutout.submit(
                 sources=sources,
                 comps=comps,
                 beam_num=beam_num,
