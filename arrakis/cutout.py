@@ -566,11 +566,17 @@ def cutout_islands(
         for beam_num in unique_beams_nums:
             # Force the DataFrame type in the rare case of a single
             # source / component in a beam
-            results = big_cutout.submit(
-                sources=pd.DataFrame(beam_source_df.loc[beam_num]),
-                comps=pd.DataFrame(
-                    comps_df.loc[beam_source_df.loc[beam_num].Source_ID]
-                ),
+            sources = beam_source_df.loc[beam_num]
+            comps = comps_df.loc[sources.Source_ID]
+            if isinstance(sources, pd.Series):
+                sources = pd.DataFrame(sources).T
+
+            else:
+                continue
+
+            results = big_cutout.fn(
+                sources=sources,
+                comps=comps,
                 beam_num=beam_num,
                 stoke=stoke,
                 datadir=directory,
