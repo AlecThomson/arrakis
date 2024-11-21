@@ -564,9 +564,13 @@ def cutout_islands(
     cuts: List[pymongo.UpdateOne] = []
     for stoke in stokeslist:
         for beam_num in unique_beams_nums:
+            # Force the DataFrame type in the rare case of a single
+            # source / component in a beam
             results = big_cutout.submit(
-                sources=beam_source_df.loc[beam_num],
-                comps=comps_df.loc[beam_source_df.loc[beam_num].Source_ID],
+                sources=pd.DataFrame(beam_source_df.loc[beam_num]),
+                comps=pd.DataFrame(
+                    comps_df.loc[beam_source_df.loc[beam_num].Source_ID]
+                ),
                 beam_num=beam_num,
                 stoke=stoke,
                 datadir=directory,
