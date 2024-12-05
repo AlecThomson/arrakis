@@ -359,10 +359,15 @@ def sigma_clip_spectra(
     for spectrum in stokes_spectra:
         filtered_data = spectrum.data.copy()
         filtered_data[filter_idx] = np.nan
+        filtered_rms = spectrum.rms.copy()
+        # Set the RMS to NaN where the data is NaN!
+        filtered_rms[filter_idx] = np.nan
+        filtered_bkg = spectrum.bkg.copy()
+        filtered_bkg[filter_idx] = np.nan
         filtered_spectrum = Spectrum(
             data=filtered_data,
-            rms=spectrum.rms,
-            bkg=spectrum.bkg,
+            rms=filtered_rms,
+            bkg=filtered_bkg,
             filename=spectrum.filename,
             header=spectrum.header,
         )
