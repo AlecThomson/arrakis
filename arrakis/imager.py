@@ -676,7 +676,7 @@ def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
     # Create a unique hash for the beam log filename
     image_hash = hashlib.md5("".join(image_list).encode()).hexdigest()
 
-    common_beam, _ = beamcon_2D.getmaxbeam(files=image_list, cutoff=cutoff)
+    common_beam, _ = beamcon_2D.get_common_beam(files=image_list, cutoff=cutoff)
 
     logger.info(f"The common beam is: {common_beam=}")
 
@@ -742,7 +742,7 @@ def smooth_imageset(
             for img in pol_images:
                 logger.info(f"Smoothing {img}")
                 last_result = executor.submit(
-                    beamcon_2D.worker,
+                    beamcon_2D.beamcon_2d_on_fits,
                     file=img,
                     outdir=None,
                     new_beam=common_beam,

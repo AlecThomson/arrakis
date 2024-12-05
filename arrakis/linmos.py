@@ -123,21 +123,18 @@ def smooth_images(
     """
     smooth_dict: Dict[str, ImagePaths] = {}
     for stoke, image_list in image_dict.items():
-        infiles: List[str] = []
+        infiles: List[Path] = []
         for im in image_list.images:
             if im.suffix == ".fits":
-                infiles.append(im.resolve().as_posix())
-        datadict = beamcon_3D.main(
-            infile=[im.resolve().as_posix() for im in image_list.images],
+                infiles.append(im.resolve())
+        _, _, output_files = beamcon_3D.smooth_fits_cube(
+            infiles_list=infiles,
             uselogs=False,
             mode="total",
             conv_mode="robust",
             suffix="cres",
         )
-        smooth_files: List[Path] = []
-        for key, val in datadict.items():
-            smooth_files.append(Path(val["outfile"]))
-        smooth_dict[stoke] = ImagePaths(smooth_files, image_list.weights)
+        smooth_dict[stoke] = ImagePaths(output_files, image_list.weights)
 
     return smooth_dict
 
