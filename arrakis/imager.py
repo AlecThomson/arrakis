@@ -596,7 +596,12 @@ def make_cube(
     new_name = Path(out_dir) / new_base
 
     # First combine images into cubes
-    _ = combine_fits(file_list=image_list, out_cube=new_name, create_blanks=True)
+    _ = combine_fits(
+        file_list=image_list,
+        out_cube=new_name,
+        create_blanks=True,
+        overwrite=True,
+    )
     with fits.open(new_name, mode="denywrite", memmap=True) as hdu_list:
         new_header = hdu_list[0].header
         data_cube = hdu_list[0].data
@@ -675,8 +680,26 @@ def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
 
     # Create a unique hash for the beam log filename
     image_hash = hashlib.md5("".join(image_list).encode()).hexdigest()
+    try:
+        common_beam, _ = beamcon_2D.get_common_beam(files=image_list, cutoff=cutoff)
+    except Exception as e:
+        import traceback
+        import sys
 
-    common_beam, _ = beamcon_2D.get_common_beam(files=image_list, cutoff=cutoff)
+        tbe = traceback.TracebackException.from_exception(e)
+        logger.error(f"Local {''.join(tbe.format())}")
+        f = sys.exc_info()[2].tb_frame
+        f = f.f_back
+        while f is not None:
+            tbe.stack.append(
+                traceback.FrameSummary(
+                    f.f_code.co_filename, f.f_lineno, f.f_code.co_name
+                )
+            )
+            f = f.f_back
+
+        logger.error(f"Full {''.join(tbe.format())}")
+        raise e
 
     logger.info(f"The common beam is: {common_beam=}")
 
@@ -743,7 +766,7 @@ def smooth_imageset(
                 logger.info(f"Smoothing {img}")
                 last_result = executor.submit(
                     beamcon_2D.beamcon_2d_on_fits,
-                    file=img,
+                    file=Path(img),
                     outdir=None,
                     new_beam=common_beam,
                     conv_mode="robust",
