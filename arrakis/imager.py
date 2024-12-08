@@ -580,14 +580,31 @@ def make_cube(
     logger = get_run_logger()
 
     logger.info(f"Creating cube for {pol=} {image_set.ms=}")
-    image_list = image_set.image_lists[pol]
+    image_list = [Path(i) for i in image_set.image_lists[pol]]
 
     image_type = "restored" if aux_mode is None else aux_mode
 
+    # Create a cube name
+    old_name = image_list[0]
+    out_dir = os.path.dirname(old_name)
+    old_base = os.path.basename(old_name)
+    new_base = old_base
+    b_idx = new_base.find("beam") + len("beam") + 2
+    sub = new_base[b_idx:]
+    new_base = new_base.replace(sub, ".conv.fits")
+    new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
+    new_name = Path(out_dir) / new_base
+
     # First combine images into cubes
-    hdu_list, freqs = combine_fits(file_list=image_list, create_blanks=True)
-    new_header = hdu_list[0].header
-    data_cube = hdu_list[0].data
+    _ = combine_fits(
+        file_list=image_list,
+        out_cube=new_name,
+        create_blanks=True,
+        overwrite=True,
+    )
+    with fits.open(new_name, mode="denywrite", memmap=True) as hdu_list:
+        new_header = hdu_list[0].header
+        data_cube = hdu_list[0].data
 
     # Add pol angle to header
     new_header["INSTRUMENT_RECEPTOR_ANGLE"] = (
@@ -610,16 +627,6 @@ def make_cube(
     # Calculate rms noise
     rmss_arr = mad_std(data_cube, axis=(1, 2, 3), ignore_nan=True)
 
-    # Create a cube name
-    old_name = image_list[0]
-    out_dir = os.path.dirname(old_name)
-    old_base = os.path.basename(old_name)
-    new_base = old_base
-    b_idx = new_base.find("beam") + len("beam") + 2
-    sub = new_base[b_idx:]
-    new_base = new_base.replace(sub, ".conv.fits")
-    new_base = new_base.replace("image", f"image.{image_type}.{pol.lower()}")
-    new_name = os.path.join(out_dir, new_base)
     # Deserialise beam
     with open(common_beam_pkl, "rb") as f:
         common_beam = pickle.load(f)
@@ -633,9 +640,9 @@ def make_cube(
     # 0 1234.5
     # 1 6789.0
     # etc.
-    new_w_name = new_name.replace(
-        f"image.{image_type}", f"weights.{image_type}"
-    ).replace(".fits", ".txt")
+    new_w_name = Path(
+        new_name.as_posix().replace(f"image.{image_type}", f"weights.{image_type}")
+    ).with_suffix(".txt")
     data = dict(
         Channel=np.arange(len(rmss_arr)),
         Weight=1 / rmss_arr**2,  # Want inverse variance
@@ -673,8 +680,26 @@ def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
 
     # Create a unique hash for the beam log filename
     image_hash = hashlib.md5("".join(image_list).encode()).hexdigest()
+    try:
+        common_beam, _ = beamcon_2D.get_common_beam(files=image_list, cutoff=cutoff)
+    except Exception as e:
+        import traceback
+        import sys
 
-    common_beam, _ = beamcon_2D.getmaxbeam(files=image_list, cutoff=cutoff)
+        tbe = traceback.TracebackException.from_exception(e)
+        logger.error(f"Local {''.join(tbe.format())}")
+        f = sys.exc_info()[2].tb_frame
+        f = f.f_back
+        while f is not None:
+            tbe.stack.append(
+                traceback.FrameSummary(
+                    f.f_code.co_filename, f.f_lineno, f.f_code.co_name
+                )
+            )
+            f = f.f_back
+
+        logger.error(f"Full {''.join(tbe.format())}")
+        raise e
 
     logger.info(f"The common beam is: {common_beam=}")
 
@@ -740,8 +765,8 @@ def smooth_imageset(
             for img in pol_images:
                 logger.info(f"Smoothing {img}")
                 last_result = executor.submit(
-                    beamcon_2D.worker,
-                    file=img,
+                    beamcon_2D.beamcon_2d_on_fits,
+                    file=Path(img),
                     outdir=None,
                     new_beam=common_beam,
                     conv_mode="robust",
