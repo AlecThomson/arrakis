@@ -34,7 +34,7 @@ dask = "*"
 distributed = {git="https://github.com/AlecThomson/distributed", branch="drainclose"}
 dask_jobqueue = {version=">=0.8.3", optional=true}
 dask_mpi = "*"
-FRion = ">=1.1.4"
+FRion = ">=1.1.5"
 h5py = "*"
 ipython = "*"
 matplotlib = ">=3.8"
