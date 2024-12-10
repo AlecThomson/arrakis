@@ -1174,7 +1174,7 @@ def main(
     # Replace all infs with nans
     for col in rmtab.colnames:
         # Check if column is a float
-        if type(rmtab[col][0]) == np.float_:
+        if isinstance(rmtab[col][0], np.float_):
             rmtab[col][np.isinf(rmtab[col])] = np.nan
 
     # Convert all mJy to Jy
