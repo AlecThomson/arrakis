@@ -92,9 +92,9 @@ def upload_image_as_artifact_task(
     """
     image_type = image_path.suffix.replace(".", "")
     assert image_path.exists(), f"{image_path} does not exist"
-    assert (
-        image_type in SUPPORTED_IMAGE_TYPES
-    ), f"{image_path} has type {image_type}, and is not supported. Supported types are {SUPPORTED_IMAGE_TYPES}"
+    assert image_type in SUPPORTED_IMAGE_TYPES, (
+        f"{image_path} has type {image_type}, and is not supported. Supported types are {SUPPORTED_IMAGE_TYPES}"
+    )
 
     with open(image_path, "rb") as open_image:
         logger.info(f"Encoding {image_path} in base64")

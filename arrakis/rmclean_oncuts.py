@@ -66,9 +66,9 @@ def rmclean1d(
     logger.debug(f"Working on {comp}")
     save_name = field if sbid is None else f"{field}_{sbid}"
 
-    assert (
-        comp["rm_outputs_1d"]["field"] == save_name
-    ), f"Field mismatch - expected {save_name} got {comp['rm_outputs_1d']['field']}"
+    assert comp["rm_outputs_1d"]["field"] == save_name, (
+        f"Field mismatch - expected {save_name} got {comp['rm_outputs_1d']['field']}"
+    )
 
     rm1dfiles = comp["rm_outputs_1d"]["rm1dfiles"]
     fdfFile = outdir / f"{rm1dfiles['FDF_dirty']}"
@@ -175,9 +175,9 @@ def rmclean3d(
     prefix = f"{iname}_"
     rm3dfiles = island["rm_outputs_3d"]["rm3dfiles"]
     save_name = field if sbid is None else f"{field}_{sbid}"
-    assert (
-        island["rm_outputs_3d"]["field"] == save_name
-    ), f"Field mismatch - expected {save_name} got {island['rm_outputs_3d']['field']}"
+    assert island["rm_outputs_3d"]["field"] == save_name, (
+        f"Field mismatch - expected {save_name} got {island['rm_outputs_3d']['field']}"
+    )
 
     cleanFDF, ccArr, iterCountArr, residFDF, headtemp = do_RMclean_3D.run_rmclean(
         fitsFDF=(outdir / rm3dfiles["FDF_real_dirty"]).as_posix(),

@@ -536,9 +536,9 @@ def main(
         cubes = find_cubes(data_dir=data_dir)
         # Check if we have a cube for each source
         try:
-            assert len(cubes) == len(
-                set(polcat["source_id"])
-            ), "Number of cubes does not match number of sources"
+            assert len(cubes) == len(set(polcat["source_id"])), (
+                "Number of cubes does not match number of sources"
+            )
         except AssertionError:
             logger.warning(
                 f"Found {len(cubes)} cubes, expected {len(set(polcat['source_id']))}"
@@ -566,9 +566,9 @@ def main(
                 with open(outf, "w") as f:
                     for rid in rem_ids:
                         f.write(f"{rid}\n")
-                assert (
-                    len(cubes) == len(set(polcat["source_id"]))
-                ), f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
+                assert len(cubes) == len(set(polcat["source_id"])), (
+                    f"Number of cubes does not match number of sources -- {len(cubes)=} and {len(set(polcat['source_id']))=}"
+                )
 
         unique_ids, unique_idx = np.unique(polcat["source_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -609,9 +609,9 @@ def main(
                 cat_ids.append(cat_id)
             in_idx = np.isin(cat_ids, polcat["cat_id"])
             spectra = list(np.array(spectra)[in_idx])
-        assert len(spectra) == len(
-            polcat
-        ), f"{len(spectra)=} and {len(polcat)=}"  # Sanity check
+        assert len(spectra) == len(polcat), (
+            f"{len(spectra)=} and {len(polcat)=}"
+        )  # Sanity check
 
         unique_ids, unique_idx = np.unique(polcat["cat_id"], return_index=True)
         lookup = {sid: i for sid, i in zip(unique_ids, unique_idx)}
@@ -678,9 +678,9 @@ def main(
             in_idx = np.isin(cat_ids, polcat["cat_id"])
             plots = list(np.array(plots)[in_idx])
 
-        assert (
-            len(plots) == len(polcat) * 3
-        ), f"{len(plots)=} and {len(polcat)=}"  # Sanity check
+        assert len(plots) == len(polcat) * 3, (
+            f"{len(plots)=} and {len(polcat)=}"
+        )  # Sanity check
 
         with tqdm(total=len(plots), desc="Sorting plots", file=TQDM_OUT) as pbar:
 

@@ -110,12 +110,12 @@ def merge_imagesets(image_sets: List[Optional[ImageSet]]) -> ImageSet:
     prefix = image_sets[0].prefix
 
     for image_set in image_sets:
-        assert (
-            image_set.ms.name == ms.name
-        ), f"{image_set.ms.name=} does not match {ms.name=}"
-        assert (
-            image_set.prefix == prefix
-        ), f"{image_set.prefix=} does not match {prefix=}"
+        assert image_set.ms.name == ms.name, (
+            f"{image_set.ms.name=} does not match {ms.name=}"
+        )
+        assert image_set.prefix == prefix, (
+            f"{image_set.prefix=} does not match {prefix=}"
+        )
 
     image_lists = {}
     aux_lists = {}
@@ -936,9 +936,9 @@ def main(
     logger.info(f"Searching {msdir} for MS matching {ms_glob_pattern}.")
     mslist = sorted(msdir.glob(ms_glob_pattern))
 
-    assert (
-        (len(mslist) > 0) & (len(mslist) == num_beams)
-    ), f"Incorrect number of MS files found: {len(mslist)} / {num_beams} - glob pattern: {ms_glob_pattern}"
+    assert (len(mslist) > 0) & (len(mslist) == num_beams), (
+        f"Incorrect number of MS files found: {len(mslist)} / {num_beams} - glob pattern: {ms_glob_pattern}"
+    )
 
     logger.info(f"Will image {len(mslist)} MS files in {msdir} to {out_dir}")
     cleans = []

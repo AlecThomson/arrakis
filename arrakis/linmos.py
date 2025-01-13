@@ -79,9 +79,9 @@ def find_images(
     image_list: List[Path] = []
     for bm in list(set(field_beams["beam_list"])):  # Ensure list of beams is unique!
         imfile = Path(field_beams[f"{stoke.lower()}_beam{bm}_image_file"])
-        assert (
-            imfile.parent.name == src_name
-        ), f"Looking in wrong directory! '{imfile.parent.name}'"
+        assert imfile.parent.name == src_name, (
+            f"Looking in wrong directory! '{imfile.parent.name}'"
+        )
         new_imfile = datadir.resolve() / imfile
         image_list.append(new_imfile)
     image_list = sorted(image_list)
@@ -92,9 +92,9 @@ def find_images(
     weight_list: List[Path] = []
     for bm in list(set(field_beams["beam_list"])):  # Ensure list of beams is unique!
         wgtsfile = Path(field_beams[f"{stoke.lower()}_beam{bm}_weight_file"])
-        assert (
-            wgtsfile.parent.name == src_name
-        ), f"Looking in wrong directory! '{wgtsfile.parent.name}'"
+        assert wgtsfile.parent.name == src_name, (
+            f"Looking in wrong directory! '{wgtsfile.parent.name}'"
+        )
         new_wgtsfile = datadir.resolve() / wgtsfile
         weight_list.append(new_wgtsfile)
     weight_list = sorted(weight_list)
@@ -102,9 +102,9 @@ def find_images(
     assert len(image_list) == len(weight_list), "Unequal number of weights and images"
 
     for im, wt in zip(image_list, weight_list):
-        assert (
-            im.parent.name == wt.parent.name
-        ), "Image and weight are in different areas!"
+        assert im.parent.name == wt.parent.name, (
+            "Image and weight are in different areas!"
+        )
 
     return ImagePaths(image_list, weight_list)
 
@@ -185,8 +185,8 @@ def genparset(
 
     first_image = image_paths.images[0].resolve().with_suffix("").as_posix()
     first_weight = image_paths.weights[0].resolve().with_suffix("").as_posix()
-    linmos_image_str = f"{first_image[:first_image.find('beam')]}linmos"
-    linmos_weight_str = f"{first_weight[:first_weight.find('beam')]}linmos"
+    linmos_image_str = f"{first_image[: first_image.find('beam')]}linmos"
+    linmos_weight_str = f"{first_weight[: first_weight.find('beam')]}linmos"
 
     parset_file = os.path.join(parset_dir, f"linmos_{stoke}.in")
     parset = f"""linmos.names            = {image_string}

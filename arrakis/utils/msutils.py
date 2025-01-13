@@ -69,9 +69,9 @@ def field_idx_from_ms(ms: str) -> int:
     """Get the field from MS metadata"""
     with table(f"{ms}/FIELD", readonly=True, ack=False) as field:
         idxs = list(field.SOURCE_ID)
-        assert len(idxs) == 1 or all(
-            [idx == idxs[0] for idx in idxs]
-        ), "More than one field in MS"
+        assert len(idxs) == 1 or all([idx == idxs[0] for idx in idxs]), (
+            "More than one field in MS"
+        )
         idx = idxs[0]
     return idx
 
@@ -766,6 +766,6 @@ def wsclean(
         elif value:
             if "ws_" in key:  # Catch for ws_continue command
                 key.replace("ws_", "")
-            command += f" -{key.replace('_','-')} {value}"
+            command += f" -{key.replace('_', '-')} {value}"
     command += f" {' '.join(mslist)}"
     return command
