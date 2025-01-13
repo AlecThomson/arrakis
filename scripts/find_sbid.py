@@ -110,8 +110,8 @@ def main(
     if not cal and not science and not weight:
         logger.info(f"DB info for RACS_{name}:\n")
         for i, row in enumerate(sub_tab):
-            logger.info(f"{space}CAL SBID {i+1}: {row['CAL_SBID']}")
-            logger.info(f"{space}Science SBID {i+1}: {row['SBID']}\n")
+            logger.info(f"{space}CAL SBID {i + 1}: {row['CAL_SBID']}")
+            logger.info(f"{space}Science SBID {i + 1}: {row['SBID']}\n")
 
 
 def cli():
