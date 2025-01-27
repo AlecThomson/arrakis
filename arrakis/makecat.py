@@ -217,9 +217,9 @@ def flag_blended_components(cat: TableLike) -> TableLike:
     )
     # Sanity check - no single-component sources should be flagged
     assert np.array_equal(is_blended.index.values, cat["cat_id"].data), "Index mismatch"
-    assert not any(
-        cat["is_blended_flag"] & (cat["N_Gaus"] == 1)
-    ), "Single-component sources cannot be flagged as blended."
+    assert not any(cat["is_blended_flag"] & (cat["N_Gaus"] == 1)), (
+        "Single-component sources cannot be flagged as blended."
+    )
     if "index" in cat.colnames:
         cat.remove_column("index")
     return cat
@@ -507,7 +507,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
                 if "Not enough S/N in the whole set of pixels." not in str(e):
                     raise e
                 logger.warning(
-                    f"Failed with target number of RMs per bin of {target_sn}. Trying again with {target_sn-10}"
+                    f"Failed with target number of RMs per bin of {target_sn}. Trying again with {target_sn - 10}"
                 )
                 target_sn -= 10
         else:
@@ -943,7 +943,7 @@ def main(
     query = {"$and": [{f"beams.{field}": {"$exists": True}}]}
     all_island_ids = sorted(beams_col.distinct("Source_ID", query))
     tock = time.time()
-    logger.info(f"Finished beams collection query - {tock-tick:.2f}s")
+    logger.info(f"Finished beams collection query - {tock - tick:.2f}s")
 
     logger.info("Starting component collection query")
     tick = time.time()
@@ -1023,7 +1023,7 @@ def main(
     # )
     comps_df.set_index("Source_ID", inplace=True)
     tock = time.time()
-    logger.info(f"Finished component collection query - {tock-tick:.2f}s")
+    logger.info(f"Finished component collection query - {tock - tick:.2f}s")
     logger.info(f"Found {len(comps_df)} components to catalogue. ")
 
     logger.info("Starting island collection query")
@@ -1031,7 +1031,7 @@ def main(
     islands_df = pd.DataFrame(island_col.find({"Source_ID": {"$in": all_island_ids}}))
     islands_df.set_index("Source_ID", inplace=True)
     tock = time.time()
-    logger.info(f"Finished island collection query - {tock-tick:.2f}s")
+    logger.info(f"Finished island collection query - {tock - tick:.2f}s")
 
     if len(comps_df) == 0:
         logger.error("No components found for this field.")
