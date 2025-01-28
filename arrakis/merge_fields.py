@@ -145,7 +145,7 @@ def genparset(
     new_dir: str,
 ) -> str:
     imlist = "[" + ",".join([im.replace(".fits", "") for im in old_ims]) + "]"
-    weightlist = f"[{','.join([im.replace('.fits', '').replace('.image.restored.','.weights.').replace('.ion','') for im in old_ims])}]"
+    weightlist = f"[{','.join([im.replace('.fits', '').replace('.image.restored.', '.weights.').replace('.ion', '') for im in old_ims])}]"
 
     im_outname = os.path.join(new_dir, os.path.basename(old_ims[0])).replace(
         ".fits", ".edge.linmos"
@@ -288,9 +288,9 @@ def main(
 ) -> str:
     logger.debug(f"{fields=}")
 
-    assert (
-        len(fields) == len(field_dirs)
-    ), f"List of fields must be the same length as length of field dirs. {len(fields)=},{len(field_dirs)=}"
+    assert len(fields) == len(field_dirs), (
+        f"List of fields must be the same length as length of field dirs. {len(fields)=},{len(field_dirs)=}"
+    )
 
     field_dict = {
         field: os.path.join(field_dir, "cutouts")

@@ -241,7 +241,7 @@ def main(field, datadir, username="admin", password=None):
         ax[0, i].imshow(q, origin="lower", vmin=-lim, vmax=lim, cmap=plt.cm.coolwarm)
         ax[0, i].axis("off")
         ax[0, i].invert_xaxis()
-        ax[0, i].set_title(f"{f/1e6:0.1f}MHz")
+        ax[0, i].set_title(f"{f / 1e6:0.1f}MHz")
         ax[1, i].imshow(
             u,
             origin="lower",

@@ -288,7 +288,7 @@ def plot_leakage(
             overlay[1].set_axislabel("$b$", color="tab:blue")
             fig.colorbar(im, ax=ax, label="Fraction", shrink=0.7, pad=0.15)
             ax.set_title(
-                f"Stokes {stokes}/I (binned) - absmed: {np.nanmedian(np.abs(data))*100:0.1f}$\pm${np.nanstd(np.abs(data))*100:0.1f}%",
+                f"Stokes {stokes}/I (binned) - absmed: {np.nanmedian(np.abs(data)) * 100:0.1f}$\pm${np.nanstd(np.abs(data)) * 100:0.1f}%",
                 pad=50,
             )
 
@@ -384,8 +384,8 @@ def plot_rm(
             ax.legend()
 
             ax.set(
-                xlabel=f"RACS  / {u.rad/u.m**2:latex_inline}",
-                ylabel=f"{label} / {u.rad/u.m**2:latex_inline}",
+                xlabel=f"RACS  / {u.rad / u.m**2:latex_inline}",
+                ylabel=f"{label} / {u.rad / u.m**2:latex_inline}",
                 aspect="equal",
             )
         _ = ax_dict["M"].imshow(
