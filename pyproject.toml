@@ -31,9 +31,9 @@ dependencies = [
     "astropy>=5",
     "bilby",
     "ConfigArgParse",
-    "dask[complete]",
+    "dask[dataframe]",
     "distributed @ git+https://github.com/AlecThomson/distributed@drainclose",
-    "dask_jobqueue>=0.8.3",
+    "dask_jobqueue",
     "dask_mpi",
     "FRion>=1.1.5",
     "h5py",
@@ -96,6 +96,7 @@ docs = [
 [tool.hatch]
 version.source = "vcs"
 build.hooks.vcs.version-file = "arrakis/_version.py"
+metadata.allow-direct-references = true
 
 
 [project.scripts]
