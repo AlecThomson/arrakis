@@ -163,7 +163,7 @@ linmos.names            = {imlist}
 linmos.weights          = {weightlist}
 linmos.imagetype        = fits
 linmos.outname          = {im_outname}
-linmos.outweight        = {wt_outname}
+linmos.outweigh        = {wt_outname}
 # For ASKAPsoft>1.3.0
 linmos.weighttype       = FromWeightImages
 linmos.weightstate      = Corrected

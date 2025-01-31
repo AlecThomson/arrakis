@@ -86,7 +86,7 @@ for field in ${SPICA[*]}
         cal_sbid=`find_sbid.py $field --cal`
         data_dir=/group/ja3/athomson/spica
 
-        # Image dirctory
+        # Image directory
         cd $data_dir
 
         srun -n 3 --export=ALL processSPICE $field $data_dir/$cal_sbid/RACS_test4_1.05_$field --config $config --savePlots --tt0 $tt0_dir/RACS_test4_1.05_$field.fits --tt1 $tt1_dir/RACS_test4_1.05_$field.fits --use_mpi --skip_cutout --skip_linmos --skip_frion --skip_rmsynth --skip_rmclean

@@ -35,7 +35,7 @@ class ReadError(OSError):
 
 class RegistryError(Exception):
     """Raised when a registry operation with the archiving
-    and unpacking registeries fails"""
+    and unpacking registries fails"""
 
 
 class DivergenceError(Exception):

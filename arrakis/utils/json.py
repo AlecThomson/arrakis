@@ -13,7 +13,7 @@ from arrakis.utils.fitsutils import head2dict
 
 
 class MyEncoder(json.JSONEncoder):
-    """Cutom JSON encorder.
+    """Custom JSON encoder.
 
     Parses the data stored in source_dict to JSON without
     errors.

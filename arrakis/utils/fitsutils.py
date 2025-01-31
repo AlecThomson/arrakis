@@ -101,7 +101,7 @@ def getfreq(
 
     # Two problems. The default 'UTC' stored in 'TIMESYS' is
     # incompatible with the TIME_SCALE checks in astropy.
-    # Deleting or coverting to lower case fixes it. Second
+    # Deleting or converting to lower case fixes it. Second
     # problem, the OBSGEO keywords prompts astropy to apply
     # a velocity correction, but no SPECSYS has been defined.
     for k in ["TIMESYS", "OBSGEO-X", "OBSGEO-Y", "OBSGEO-Z"]:

@@ -34,10 +34,10 @@ def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> 
         ra (float): RA of source in degrees.
         dec (float): DEC of source in degrees.
         database (dict): RACS database table.
-        max_sep (float, optional): Maximum seperation of source to beam centre in degrees. Defaults to 1.
+        max_sep (float, optional): Maximum separation of source to beam centre in degrees. Defaults to 1.
 
     Returns:
-        Table: Subset of RACS databsae table containing beams that contain the source.
+        Table: Subset of RACS database table containing beams that contain the source.
     """
     c1 = SkyCoord(database["RA_DEG"] * u.deg, database["DEC_DEG"] * u.deg, frame="icrs")
     c2 = SkyCoord(ra * u.deg, dec * u.deg, frame="icrs")
@@ -74,7 +74,7 @@ def cat2beams(
     Args:
         mastercat (Table): Master catalogue table.
         database (Table): RACS database table.
-        max_sep (float, optional): Maxium source separation in degrees. Defaults to 1.
+        max_sep (float, optional): Maximum source separation in degrees. Defaults to 1.
 
     Returns:
         Tuple[np.ndarray, np.ndarray, Angle]: Output of astropy.coordinates.search_around_sky
@@ -206,7 +206,7 @@ def beam_database(
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
     )
-    delete_res = beams_col.delete_many({})  # Delete previous databas
+    delete_res = beams_col.delete_many({})  # Delete previous database
     logger.warning(f"Deleted {delete_res.deleted_count} documents from beam collection")
     insert_res = beams_col.insert_many(json_data)
     count = beams_col.count_documents({})
@@ -274,7 +274,7 @@ def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> list[dict]:
         List[Dict]: List of beam dictionaries.
 
     """
-    # Get seperations on sky
+    # Get separations on sky
     seps = cat2beams(mastercat, database, max_sep=1)
     vals, ixs = ndix_unique(seps[1])
 

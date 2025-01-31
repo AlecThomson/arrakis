@@ -17,7 +17,7 @@ skip_cleanup: false #Skip cleanup stage [False]. (default: False)
 
 # # generic null arguments:
 # sbid: null #SBID of observation. (default: None)
-stokes: [I,Q,U] # List of Stokes parameters to image (default: ['I', 'Q', 'U'])
+stokes: [I, Q, U] # List of Stokes parameters to image (default: ['I', 'Q', 'U'])
 epoch: 0 # Epoch of observation. (default: 0)
 # host: null # Host of mongodb (probably $hostname -i). (default: None)
 # username: null # Username of mongodb. (default: None)

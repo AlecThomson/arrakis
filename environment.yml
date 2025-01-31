@@ -1,36 +1,36 @@
 name: arrakis310
 channels:
-- astropy
-- conda-forge
-- defaults
-- pkgw-forge
+  - astropy
+  - conda-forge
+  - defaults
+  - pkgw-forge
 dependencies:
-- python=3.10
-- pip
-- future
-- numpy
-- scipy
-- pandas
-- matplotlib>=3.8
-- setuptools
-- ipython
-- astropy>=4.3
-- dask
-- dask-jobqueue
-- distributed
-- prefect
-- python-graphviz
-- bokeh
-- pymongo
-- mongodb
-- fitsio
-- casacore
-- casa-data
-- sphinx
-- numpydoc
-- sphinx-autoapi
-- m2r2
-- gfortran
-- numba
-- pip:
-  - .[RMextract]
+  - python=3.10
+  - pip
+  - future
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib>=3.8
+  - setuptools
+  - ipython
+  - astropy>=4.3
+  - dask
+  - dask-jobqueue
+  - distributed
+  - prefect
+  - python-graphviz
+  - bokeh
+  - pymongo
+  - mongodb
+  - fitsio
+  - casacore
+  - casa-data
+  - sphinx
+  - numpydoc
+  - sphinx-autoapi
+  - m2r2
+  - gfortran
+  - numba
+  - pip:
+      - .[RMextract]

@@ -68,7 +68,7 @@ class ImageSet(Struct):
     image_lists: dict[str, list[str]]
     """Dictionary of lists of images. The keys are the polarisations and the values are the list of images for that polarisation."""
     aux_lists: dict[tuple[str, str], list[str]] | None = None
-    """Dictionary of lists of auxillary images. The keys are a tuple of the polarisation and the image type, and the values are the list of images for that polarisation and image type."""
+    """Dictionary of lists of auxiliary images. The keys are a tuple of the polarisation and the image type, and the values are the list of images for that polarisation and image type."""
 
 
 class MFSImage(Struct):
@@ -242,7 +242,7 @@ def cleanup_imageset(purge: bool, image_set: ImageSet) -> None:
     # The aux images are the same between the native images and the smoothed images,
     # they were just copied across directly without modification
     if image_set.aux_lists:
-        logger.critical("Removing auxillary images. ")
+        logger.critical("Removing auxiliary images. ")
         for (pol, aux), aux_list in image_set.aux_lists.items():
             for aux_image in aux_list:
                 try:
@@ -686,19 +686,19 @@ def get_beam(image_set: ImageSet, cutoff: float | None) -> Path:
         import sys
         import traceback
 
-        tbe = traceback.TracebackException.from_exception(e)
-        logger.error(f"Local {''.join(tbe.format())}")
+        the = traceback.TracebackException.from_exception(e)
+        logger.error(f"Local {''.join(the.format())}")
         f = sys.exc_info()[2].tb_frame
         f = f.f_back
         while f is not None:
-            tbe.stack.append(
+            the.stack.append(
                 traceback.FrameSummary(
                     f.f_code.co_filename, f.f_lineno, f.f_code.co_name
                 )
             )
             f = f.f_back
 
-        logger.error(f"Full {''.join(tbe.format())}")
+        logger.error(f"Full {''.join(the.format())}")
         raise e
 
     logger.info(f"The common beam is: {common_beam=}")
@@ -744,7 +744,7 @@ def smooth_imageset(
 
     logger.info(f"{common_beam=}")
 
-    logger.info(f"Smooting {image_set.ms} images")
+    logger.info(f"Smoothing {image_set.ms} images")
 
     images_to_smooth: dict[str, list[str]]
     if aux_mode is None:
@@ -833,7 +833,7 @@ def fix_ms(ms: Path) -> Path:
 @task(name="Fix MeasurementSet Correlations")
 def fix_ms_askap_corrs(ms: Path, *args, **kwargs) -> Path:
     """Applies a correction to raw telescope polarisation products to rotate them
-    to the wsclean espected form. This is essentially related to the third-axis of
+    to the wsclean expected form. This is essentially related to the third-axis of
     ASKAP and reorientating its 'X' and 'Y's.
 
     Args:
@@ -910,7 +910,7 @@ def main(
         force_mask_rounds (Union[int, None], optional): WSClean force mask rounds (requires modified WSClean). Defaults to None.
         auto_threshold (float, optional): WSClean auto threshold (in SNR). Defaults to 1.
         taper (Union[float, None], optional): WSClean taper (in arcsec). Defaults to None.
-        purge (bool, optional): Purge auxillary files after imaging. Defaults to False.
+        purge (bool, optional): Purge auxiliary files after imaging. Defaults to False.
         minuv (float, optional): WSClean minuv-l. Defaults to 0.0.
         parallel_deconvolution (Optional[int], optional): WSClean parallel deconvolution. Defaults to None.
         gridder (Optional[str], optional): WSClean gridder. Defaults to None.
@@ -963,7 +963,7 @@ def main(
 
     cube_aux_modes = (None, "residual") if make_residual_cubes else (None,)
 
-    # Image_sets will be a containter that represents the output wsclean image products
+    # Image_sets will be a container that represents the output wsclean image products
     # produced for each beam. A single ImageSet is a container for a single beam.
     ms_list_fixed = []
     pol_angles = []

@@ -225,7 +225,7 @@ def create_dask_runner(
     """Create a DaskTaskRunner
 
     Args:
-        dask_config (str): Configuraiton file for the DaskTaskRunner
+        dask_config (str): Configuration file for the DaskTaskRunner
         overload (bool, optional): Overload the options for threadded work. Defaults to False.
 
     Returns:

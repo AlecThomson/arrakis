@@ -48,7 +48,7 @@ def test_db(
 
 
     Returns:
-        bool: True if connection succesful
+        bool: True if connection successful
 
     Raises:
         Exception: If connection fails.
@@ -67,7 +67,7 @@ def test_db(
         except pymongo.errors.ServerSelectionTimeoutError:
             raise Exception("Please ensure 'mongod' is running")
 
-        logger.info("MongoDB connection succesful!")
+        logger.info("MongoDB connection successful!")
 
     return True
 

@@ -276,7 +276,7 @@ def main(
         epoch (int): Epoch of observation
         sbid (int, optional): SBID of observation. Defaults to None.
         username (str, optional): Mongo username. Defaults to None.
-        password (str, optional): Mongo passwrod. Defaults to None.
+        password (str, optional): Mongo password. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
         ionex_server (str, optional): IONEX server. Defaults to "ftp://ftp.aiub.unibe.ch/CODE/".
         ionex_proxy_server (str, optional): Proxy server. Defaults to None.

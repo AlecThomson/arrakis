@@ -58,7 +58,9 @@ class SpectralIndices(NamedTuple):
     betas_err: np.ndarray
 
 
-def combinate(data: ArrayLike) -> tuple[ArrayLike, ArrayLike]:
+def combinate(  # codespell:ignore[combinate]
+    data: ArrayLike,
+) -> tuple[ArrayLike, ArrayLike]:
     """Return all combinations of data with itself
 
     Args:
@@ -228,7 +230,7 @@ def flag_blended_components(cat: TableLike) -> TableLike:
 
 
 def lognorm_from_percentiles(x1, p1, x2, p2):
-    """Return a log-normal distribuion X parametrized by:
+    """Return a log-normal distribution X parametrized by:
 
     P(X < p1) = x1
     P(X < p2) = x2
@@ -325,7 +327,7 @@ def get_fit_func(
 
     Args:
         tab (TableLike): Catalogue to fit
-        nbins (int, optional): Number of bins along seperation axis. Defaults to 21.
+        nbins (int, optional): Number of bins along separation axis. Defaults to 21.
 
     Returns:
         Callable: 3rd order polynomial fit.
@@ -611,7 +613,7 @@ def cuts_and_flags(
     m2_flag = cat["rm_width"] > cat["rmsf_fwhm"]
     cat.add_column(Column(data=m2_flag, name="complex_M2_CC_flag"))
 
-    # Flag RMs which are very diffent from RMs nearby
+    # Flag RMs which are very different from RMs nearby
     # Set up voronoi bins, trying to obtain 50 sources per bin
     goodI = ~cat["stokesI_fit_flag"] & ~cat["channel_flag"]
     goodL = goodI & ~cat["leakage_flag"] & (cat["snr_polint"] > 5)
@@ -676,7 +678,7 @@ def get_integration_time(cat: RMTable, field_col: Collection, sbid: int | None =
     if sbid is not None:
         query["$and"].append({"SBID": sbid})
         query["$and"].remove({"FIELD_NAME": {"$in": unique_field_names}})
-        # Get the singlular field name
+        # Get the singular field name
         field_names = [
             field_col.find_one({"SBID": sbid}, {"FIELD_NAME": 1})["FIELD_NAME"]
         ] * len(field_names)
@@ -1139,7 +1141,7 @@ def main(
     # Add epoch
     rmtab.add_column(Column(data=rmtab["start_time"] + (tints / 2), name="epoch"))
 
-    # Get Galatic coords
+    # Get Galactic coords
     glon, glat = RMTable.calculate_missing_coordinates_column(
         rmtab["ra"].to(u.deg), rmtab["dec"].to(u.deg), to_galactic=True
     )
@@ -1195,7 +1197,7 @@ def main(
     rmtab.add_missing_columns()
     rmtab.verify_standard_strings()
     rmtab.verify_limits()
-    # Readd complex test
+    # Re-add complex test
     rmtab["complex_test"] = "sigma_add OR Second moment"
     # Add main ID
     rmtab["cat_id"].meta["ucd"] = "meta.id;meta.main"

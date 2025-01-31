@@ -1,7 +1,7 @@
-sphinx_rtd_theme
-sphinx-book-theme
-sphinx-autoapi
-numpydoc
-myst_parser
-sphinxcontrib-mermaid
 -e ./
+myst_parser
+numpydoc
+sphinx-autoapi
+sphinx-book-theme
+sphinx_rtd_theme
+sphinxcontrib-mermaid

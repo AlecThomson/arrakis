@@ -18,7 +18,7 @@ After cloning this repo, please run: ::
     # or - if you have mamba:
     mamba env create
 
-This will install the python dependencies and the command-line scrips into a conda environment called `arrakis310`, which can be activated by: ::
+This will install the python dependencies and the command-line scripts into a conda environment called `arrakis310`, which can be activated by: ::
 
     conda activate arrakis310
 

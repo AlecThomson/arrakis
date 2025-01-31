@@ -119,7 +119,7 @@ def rmsynthoncut3d(
         database (bool, optional): Update MongoDB. Defaults to False.
         phiMax_radm2 (float, optional): Max Faraday depth. Defaults to None.
         dPhi_radm2 (float, optional): Faraday dpeth channel width. Defaults to None.
-        nSamples (int, optional): Samples acorss RMSF. Defaults to 5.
+        nSamples (int, optional): Samples across RMSF. Defaults to 5.
         weightType (str, optional): Weighting type. Defaults to 'variance'.
         fitRMSF (bool, optional): Fit RMSF. Defaults to False.
         not_RMSF (bool, optional): Skip calculation of RMSF. Defaults to False.

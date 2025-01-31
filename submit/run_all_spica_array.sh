@@ -68,7 +68,7 @@ zernike=/group/askap/athomson/projects/arrakis/leakages_bak/${weight_pad}_zernik
 data_dir=/group/ja3/athomson/spica
 config=/group/askap/athomson/projects/arrakis/spica/spica_config.txt
 
-# Image dirctory
+# Image directory
 cd $data_dir
 
 # Make a copy of this sbatch file for posterity

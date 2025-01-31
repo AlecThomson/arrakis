@@ -129,7 +129,7 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
         # if row_idx%100==0:
         # 	logger.info('Processing row %d of %d'%(row_idx,len(pair_dist)))
 
-        # idxs of poitns within d degs
+        # idxs of points within d degs
         idxs_of_points_in_aperture = np.argwhere(row < d)
         # collect data points for sources in aperture
         q_of_points_in_aperture = q[idxs_of_points_in_aperture]

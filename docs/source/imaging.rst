@@ -5,7 +5,7 @@ Imaging
 
     MeasurementSets produced by the ASKAPsoft pipeline need modification before using tools like WSClean. This can be done using `FixMS <https://fixms.readthedocs.io/>`_, which is called internally by *Arrakis*.
 
-*Arrakis* provides an interface to the `WSClean <https://wsclean.readthedocs.io/en/latest/>`_ imaging software, with convencince functions for imaging mutliple ASKAP beams simultaneously. There are two main interaces for running the imaging pipeline:
+*Arrakis* provides an interface to the `WSClean <https://wsclean.readthedocs.io/en/latest/>`_ imaging software, with convencince functions for imaging multiple ASKAP beams simultaneously. There are two main interfaces for running the imaging pipeline:
 
 The `spice_image` CLI and API
 ===================================
@@ -26,8 +26,8 @@ This can be run using:
                        [--multiscale] [--multiscale_scale_bias MULTISCALE_SCALE_BIAS] [--multiscale_scales MULTISCALE_SCALES] [--absmem ABSMEM] [--make_residual_cubes] [--ms_glob_pattern MS_GLOB_PATTERN] [--data_column DATA_COLUMN] [--no_mf_weighting] [--skip_fix_ms]
                        [--num_beams NUM_BEAMS] [--disable_pol_local_rms] [--disable_pol_force_mask_rounds] [--hosted-wsclean HOSTED_WSCLEAN | --local_wsclean LOCAL_WSCLEAN]
                        msdir datadir
-    
-        
+
+
         mmm   mmm   mmm   mmm   mmm
         )-(   )-(   )-(   )-(   )-(
        ( S ) ( P ) ( I ) ( C ) ( E )
@@ -38,17 +38,17 @@ This can be run using:
        ( R )   ( A )   ( C )   ( S )
        |   |   |   |   |   |   |   |
        |___|   |___|   |___|   |___|
-    
+
         Arrkis imager
-        
-    
+
+
     options:
       -h, --help            show this help message and exit
       --hosted-wsclean HOSTED_WSCLEAN
                             Docker or Singularity image for wsclean (default: docker://alecthomson/wsclean:latest)
       --local_wsclean LOCAL_WSCLEAN
                             Path to local wsclean Singularity image (default: None)
-    
+
     imaging arguments:
       msdir                 Directory containing MS files
       --temp_dir_wsclean TEMP_DIR_WSCLEAN
@@ -96,7 +96,7 @@ This can be run using:
                             Disable local RMS for polarisation images (default: False)
       --disable_pol_force_mask_rounds
                             Disable force mask rounds for polarisation images (default: False)
-    
+
     workdir arguments:
       datadir               Directory to create/find full-size images and 'cutout' directory
 
@@ -108,14 +108,10 @@ You may instead prefer to use the Python API, which is more flexible and allows 
     from prefect.task_runners import SequentialTaskRunner
     from arrakis.imager import main as imager_flow
 
-    def main(...):
 
+    def main():
         task_runner = SequentialTaskRunner()
-        imager_flow.with_options(
-            task_runner=task_runner
-        )(
-            ... # Add your arguments here
-        )
+        imager_flow.with_options(task_runner=task_runner)(...)  # Add your arguments here
 
 
 You can find the full list of arguments in the API docs here: :py:mod:`arrakis.imager.main`.
@@ -124,7 +120,7 @@ You can find the full list of arguments in the API docs here: :py:mod:`arrakis.i
 The `spice_process` CLI
 =====================================
 
-It is also possible to run just the imaging part of the pipeline using a the `spice_process` command line tool, as described in :ref:`Running the pipeline`. You will need to envoke the argument `--imager_only`, along with the other imaging arguments. This will run the imaging pipeline in parallel, using the Dask task runner defined in your config file of choice. Here is an example pipeline config for only imaging:
+It is also possible to run just the imaging part of the pipeline using a the `spice_process` command line tool, as described in :ref:`Running the pipeline`. You will need to invoke the argument `--imager_only`, along with the other imaging arguments. This will run the imaging pipeline in parallel, using the Dask task runner defined in your config file of choice. Here is an example pipeline config for only imaging:
 
 .. code-block:: yaml
 

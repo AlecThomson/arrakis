@@ -9,7 +9,7 @@ This package utilises a number of third-party libraries. Please acknowledge thes
 
 List of third party libraries:
 
-* `Numpy <https://numpy.org/>`_
+* `numpy <https://numpy.org/>`_
 * `SciPy <https://www.scipy.org/>`_
 * `Matplotlib <https://matplotlib.org/>`_
 * `Astropy <https://www.astropy.org/>`_

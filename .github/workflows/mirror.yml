@@ -3,15 +3,15 @@ on: [push]
 jobs:
   mirror:
     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v3
-#         with:
-#           fetch-depth: 0
-#       - uses: yesolutions/mirror-action@master
-#         with:
-#           REMOTE: 'https://bitbucket.csiro.au/scm/spice/spiceracs.git'
-#           GIT_USERNAME: tho822@csiro.au
-#           GIT_PASSWORD: ${{ secrets.GIT_PASSWORD }}
+    #     steps:
+    #       - uses: actions/checkout@v3
+    #         with:
+    #           fetch-depth: 0
+    #       - uses: yesolutions/mirror-action@master
+    #         with:
+    #           REMOTE: 'https://bitbucket.csiro.au/scm/spice/spiceracs.git'
+    #           GIT_USERNAME: tho822@csiro.au
+    #           GIT_PASSWORD: ${{ secrets.GIT_PASSWORD }}
     steps:
       - uses: actions/checkout@v3
         with:

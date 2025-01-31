@@ -55,7 +55,7 @@ def rmclean1d(
         comp (dict): Mongo entry for component.
         outdir (str): Output directory.
         cutoff (float, optional): CLEAN cutouff (in sigma). Defaults to -3.
-        maxIter (int, optional): Maximum CLEAN interation. Defaults to 10000.
+        maxIter (int, optional): Maximum CLEAN iteration. Defaults to 10000.
         gain (float, optional): CLEAN gain. Defaults to 0.1.
         savePlots (bool, optional): Save CLEAN plots. Defaults to False.
         rm_verbose (bool, optional): Verbose RM-CLEAN. Defaults to True.

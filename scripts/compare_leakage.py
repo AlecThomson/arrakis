@@ -240,7 +240,7 @@ def cli():
         "datadir",
         metavar="datadir",
         type=str,
-        help="Directory containing data cutout direcory (in datadir/cutouts).",
+        help="Directory containing data cutout directory (in datadir/cutouts).",
     )
 
     parser.add_argument("--holofile", type=str, help="Path to holography image")

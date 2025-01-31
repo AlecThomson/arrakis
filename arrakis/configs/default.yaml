@@ -1,13 +1,13 @@
 # Set up for local mahine
 cluster_class: "distributed.LocalCluster"
 cluster_kwargs:
-    cores: 1
-    processes: 1
-    name: 'spice-worker'
-    memory: "8GB"
+  cores: 1
+  processes: 1
+  name: "spice-worker"
+  memory: "8GB"
 adapt_kwargs:
-    minimum: 1
-    maximum: 8
-    wait_count: 20
-    target_duration: "300s"
-    interval: "30s"
+  minimum: 1
+  maximum: 8
+  wait_count: 20
+  target_duration: "300s"
+  interval: "30s"

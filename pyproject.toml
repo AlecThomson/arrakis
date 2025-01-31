@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "arrakis"
 authors = [
-    {name="Alec Thomson"}, 
+    {name="Alec Thomson"},
     {name="Tim Galvin"},
 ]
 description = "Processing the SPICE."

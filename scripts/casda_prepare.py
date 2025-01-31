@@ -339,7 +339,7 @@ def find_cubes(data_dir: str = ".") -> list:
     """Find Stokes I image cubelets in a directory
 
     Args:
-        data_dir (str, optional): Data containg cutouts directory. Defaults to ".".
+        data_dir (str, optional): Data containing cutouts directory. Defaults to ".".
 
     Returns:
         list: List of cubelets
@@ -461,7 +461,7 @@ def find_plots(data_dir: str = ".") -> list:
     """Find plots in a directory
 
     Args:
-        data_dir (str, optional): Data containg cutouts directory. Defaults to ".".
+        data_dir (str, optional): Data containing cutouts directory. Defaults to ".".
 
     Returns:
         list: List of plots

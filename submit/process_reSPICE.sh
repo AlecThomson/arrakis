@@ -32,7 +32,7 @@ tt1_dir=/group/askap/athomson/projects/RACS/CI1_mosaic_1.0
 data_dir=/askapbuffer/processing/len067/arrakis
 config=/group/askap/athomson/projects/arrakis/spica/spica_config.txt
 
-# Image dirctory
+# Image directory
 cd $data_dir
 
 # Make a copy of this sbatch file for posterity

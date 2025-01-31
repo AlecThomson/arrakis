@@ -27,7 +27,7 @@ def get_pol_axis(
 
     Args:
         ms (Path): The path to the measurement set that will be inspected
-        feed_idx (Optional[int], optional): Specify the entery in the FEED
+        feed_idx (Optional[int], optional): Specify the entry in the FEED
         table of `ms` to return. This might be required when a subset of a
         measurement set has been extracted from an observation with a varying
         orientation.
@@ -404,7 +404,7 @@ def wsclean(
         padding (float, optional): Pad images by the given factor during
             inversion to avoid aliasing. Default: 1.2 (=20%). Defaults to None.
         scale (str, optional): Scale of a pixel. Default unit is degrees, but
-            can be specificied, e.g. -scale 20asec. Default: 0.01deg.
+            can be specified, e.g. -scale 20asec. Default: 0.01deg.
             Defaults to None.
         predict (bool, optional): Only perform a single prediction for an
             existing image. Doesn't do any imaging or cleaning. The input
@@ -455,7 +455,7 @@ def wsclean(
             <1%. Default: on. Defaults to False.
         grid_mode (str, optional): Kernel and mode used for gridding:
             kb = Kaiser-Bessel (default with 7 pixels), nn = nearest neighbour
-            (no kernel), more options: rect, kb-no-sinc, gaus, bn. Default: kb.
+            (no kernel), more options: rect, kb-no-sinc, gauss, bn. Default: kb.
             Defaults to None.
         kernel_size (int, optional): Gridding antialiasing kernel size.
             Default: 7. Defaults to None.
@@ -560,7 +560,7 @@ def wsclean(
             Defaults to None.
         maxw (float, optional): Do not grid visibilities with a w-value
             higher than the given percentage of the max w, to save speed.
-            Default: grid everythin. Defaults to None.
+            Default: grid everything. Defaults to None.
         niter (int, optional): Maximum number of clean iterations to perform.
             Default: 0 (=no cleaning). Defaults to None.
         nmiter (int, optional): Maximum number of major clean
@@ -650,11 +650,11 @@ def wsclean(
         iuwt (bool, optional): Use the IUWT deconvolution algorithm.
             Defaults to False.
         iuwt_snr_test (bool, optional): Stop IUWT when the SNR decreases.
-            This might help limitting divergence, but can occasionally also
+            This might help limiting divergence, but can occasionally also
             stop the algorithm too early. Default: no SNR test.
             Defaults to False.
         no_iuwt_snr_test (bool, optional): Do not stop IUWT when the SNR
-            decreases. This might help limitting divergence, but can
+            decreases. This might help limiting divergence, but can
             occasionally also stop the algorithm too early.
             Default: no SNR test. Defaults to False.
         moresane_ext (str, optional): Use the MoreSane deconvolution algorithm,
@@ -724,7 +724,7 @@ def wsclean(
             -beam-shape <size> <size> 0. Defaults to None.
         beam_shape (str, optional): Set the FWHM beam shape for restoring the
             clean components. Defaults units for maj and min are arcsec, and
-            degrees for PA. Can be overriden,
+            degrees for PA. Can be overridden,
             e.g. '-beam-shape 1amin 1amin 3deg'.
             Default: shape of PSF. Defaults to None.
         fit_beam (bool, optional): Determine beam shape by fitting the PSF
