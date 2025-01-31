@@ -31,8 +31,9 @@ astropy = ">=5"
 bilby = "*"
 ConfigArgParse = "*"
 dask = "*"
+dask-expr = "*"
 distributed = {git="https://github.com/AlecThomson/distributed", branch="drainclose"}
-dask_jobqueue = {version=">=0.8.3", optional=true}
+dask_jobqueue = ">=0.8.3"
 dask_mpi = "*"
 FRion = ">=1.1.5"
 h5py = "*"
