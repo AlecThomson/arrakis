@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """Fitting utilities"""
 
+from __future__ import annotations
+
 import warnings
 from functools import partial
-from typing import Optional, Tuple
 
 import numpy as np
 from astropy.stats import akaike_info_criterion_lsq
@@ -18,7 +19,7 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 
-def fitted_mean(data: np.ndarray, axis: Optional[int] = None) -> float:
+def fitted_mean(data: np.ndarray, axis: int | None = None) -> float:
     """Calculate the mean of a distribution.
 
     Args:
@@ -33,7 +34,7 @@ def fitted_mean(data: np.ndarray, axis: Optional[int] = None) -> float:
     return mean
 
 
-def fitted_std(data: np.ndarray, axis: Optional[int] = None) -> float:
+def fitted_std(data: np.ndarray, axis: int | None = None) -> float:
     """Calculate the standard deviation of a distribution.
 
     Args:
@@ -62,7 +63,7 @@ def chi_squared(model: np.ndarray, data: np.ndarray, error: np.ndarray) -> float
     return np.sum(((model - data) / error) ** 2)
 
 
-def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> Tuple[float, int, int]:
+def best_aic_func(aics: np.ndarray, n_param: np.ndarray) -> tuple[float, int, int]:
     """Find the best AIC for a set of AICs using Occam's razor."""
     # Find the best AIC
     best_aic_idx = int(np.nanargmin(aics))

@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """Database utilities"""
 
+from __future__ import annotations
+
 import warnings
-from typing import Optional, Tuple, Union
 
 import pymongo
 from astropy.utils.exceptions import AstropyWarning
@@ -27,7 +28,7 @@ def validate_sbid_field_pair(field_name: str, sbid: int, field_col: Collection) 
         bool: If field name and sbid pair is valid.
     """
     logger.info(f"Validating field name and SBID pair: {field_name}, {sbid}")
-    field_data: Optional[dict] = field_col.find_one({"SBID": sbid})
+    field_data: dict | None = field_col.find_one({"SBID": sbid})
     if field_data is None:
         raise ValueError(f"SBID {sbid} not found in database")
 
@@ -35,7 +36,7 @@ def validate_sbid_field_pair(field_name: str, sbid: int, field_col: Collection) 
 
 
 def test_db(
-    host: str, username: Union[str, None] = None, password: Union[str, None] = None
+    host: str, username: str | None = None, password: str | None = None
 ) -> bool:
     """Test connection to MongoDB
 
@@ -74,9 +75,9 @@ def test_db(
 def get_db(
     host: str,
     epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
-) -> Tuple[Collection, Collection, Collection]:
+    username: str | None = None,
+    password: str | None = None,
+) -> tuple[Collection, Collection, Collection]:
     """Get MongoDBs
 
     Args:

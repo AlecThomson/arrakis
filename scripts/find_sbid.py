@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
 from pathlib import Path
 
-from astropy.table import Table
-
 from arrakis.logger import logger, logging
+from astropy.table import Table
 
 logger.setLevel(logging.INFO)
 

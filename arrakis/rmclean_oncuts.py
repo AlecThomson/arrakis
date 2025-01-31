@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """Run RM-synthesis on cutouts in parallel"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os
 import warnings
 from pathlib import Path
 from pprint import pformat
-from typing import Optional
 from shutil import copyfile
 
+import matplotlib as mpl
 import numpy as np
-from matplotlib import pyplot as plt
-import matplotlib
 import pymongo
+from matplotlib import pyplot as plt
 from prefect import flow, task
 from RMtools_1D import do_RMclean_1D
 from RMtools_3D import do_RMclean_3D
@@ -29,7 +30,7 @@ from arrakis.utils.database import (
 )
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -42,7 +43,7 @@ def rmclean1d(
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
-    sbid: Optional[int] = None,
+    sbid: int | None = None,
     savePlots=False,
     rm_verbose=True,
     window=None,
@@ -112,7 +113,7 @@ def rmclean1d(
 
     # Ensure JSON serializable
     for k, v in outdict.items():
-        if isinstance(v, np.float_):
+        if isinstance(v, np.float64):
             outdict[k] = float(v)
         elif isinstance(v, np.float32):
             outdict[k] = float(v)
@@ -151,7 +152,7 @@ def rmclean3d(
     field: str,
     island: dict,
     outdir: Path,
-    sbid: Optional[int] = None,
+    sbid: int | None = None,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,
@@ -218,13 +219,13 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
-    sbid: Optional[int] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    sbid: int | None = None,
+    username: str | None = None,
+    password: str | None = None,
     dimension="1d",
     database=False,
     savePlots=True,
-    limit: Optional[int] = None,
+    limit: int | None = None,
     cutoff: float = -3,
     maxIter=10000,
     gain=0.1,

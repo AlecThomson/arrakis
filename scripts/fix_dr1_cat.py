@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Post process DR1 catalog"""
 
+from __future__ import annotations
+
 import logging
 import os
 import pickle
@@ -8,13 +10,6 @@ from pathlib import Path
 
 import astropy.units as u
 import numpy as np
-from astropy.coordinates import SkyCoord
-from astropy.table import Column, Table
-from astropy.time import Time
-from astropy.units import cds
-from rmtable import RMTable
-from spica import SPICA
-
 from arrakis.logger import logger
 from arrakis.makecat import (
     compute_local_rm_flag,
@@ -22,6 +17,12 @@ from arrakis.makecat import (
     is_leakage,
     write_votable,
 )
+from astropy.coordinates import SkyCoord
+from astropy.table import Column, Table
+from astropy.time import Time
+from astropy.units import cds
+from rmtable import RMTable
+from spica import SPICA
 
 
 def fix_fields(

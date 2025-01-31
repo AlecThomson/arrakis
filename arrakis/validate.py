@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """Make validation plots from a catalogue"""
+
+from __future__ import annotations
 
 import argparse
 import logging
+from importlib import resources
 from pathlib import Path
 from typing import NamedTuple as Struct
-from importlib import resources
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -373,7 +374,7 @@ def plot_rm(
                 label="$\pm 5 \sigma$",
             )
             abs_max_val = np.nanmax(
-                (np.abs(np.concatenate([racs_match["rm"], other_match["rm"]])))
+                np.abs(np.concatenate([racs_match["rm"], other_match["rm"]]))
             )
             ax.plot(
                 [-abs_max_val, abs_max_val],

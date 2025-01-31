@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Make an Arrakis catalogue"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os
@@ -8,7 +10,7 @@ import time
 import warnings
 from pathlib import Path
 from pprint import pformat
-from typing import Callable, NamedTuple, Optional, Tuple, Union
+from typing import Callable, NamedTuple
 
 import astropy.units as u
 import dask.dataframe as dd
@@ -56,7 +58,7 @@ class SpectralIndices(NamedTuple):
     betas_err: np.ndarray
 
 
-def combinate(data: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
+def combinate(data: ArrayLike) -> tuple[ArrayLike, ArrayLike]:
     """Return all combinations of data with itself
 
     Args:
@@ -318,7 +320,7 @@ def get_fit_func(
     degree: int = 2,
     do_plot: bool = False,
     high_snr_cut: float = 30.0,
-) -> Tuple[Callable, plt.Figure]:
+) -> tuple[Callable, plt.Figure]:
     """Fit an envelope to define leakage sources
 
     Args:
@@ -456,6 +458,7 @@ def compute_local_rm_flag(good_cat: Table, big_cat: Table) -> Table:
     try:
 
         def sn_func(index, signal=None, noise=None):
+            _, _ = signal, noise  # eat the unused variables
             try:
                 sn = len(np.array(index))
             except TypeError:
@@ -658,9 +661,7 @@ def get_alpha(cat: TableLike) -> SpectralIndices:
 
 
 @task(name="Get integration times")
-def get_integration_time(
-    cat: RMTable, field_col: Collection, sbid: Optional[int] = None
-):
+def get_integration_time(cat: RMTable, field_col: Collection, sbid: int | None = None):
     logger.warning("Will be stripping the trailing field character prefix. ")
     field_names = [
         name[:-1] if name[-1] in ("A", "B") else name for name in list(cat["tile_id"])
@@ -897,14 +898,14 @@ def main(
     field: str,
     host: str,
     epoch: int,
-    sbid: Optional[int] = None,
+    sbid: int | None = None,
     leakage_degree: int = 4,
     leakage_bins: int = 16,
     leakage_snr: float = 30.0,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    username: str | None = None,
+    password: str | None = None,
     verbose: bool = True,
-    outfile: Union[str, None] = None,
+    outfile: str | None = None,
 ) -> None:
     """Make a catalogue from the Arrakis database flow
 
@@ -1174,7 +1175,7 @@ def main(
     # Replace all infs with nans
     for col in rmtab.colnames:
         # Check if column is a float
-        if isinstance(rmtab[col][0], np.float_):
+        if isinstance(rmtab[col][0], np.float64):
             rmtab[col][np.isinf(rmtab[col])] = np.nan
 
     # Convert all mJy to Jy

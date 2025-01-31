@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Run RM-CLEAN on cutouts in parallel"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os
@@ -9,12 +11,10 @@ import warnings
 from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
-from typing import List
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple, Union
 
 import astropy.units as u
-import matplotlib
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -44,7 +44,7 @@ from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -78,30 +78,30 @@ class StokesSpectra(Struct):
 class StokesIFitResult(Struct):
     """Stokes I fit results"""
 
-    alpha: Optional[float]
+    alpha: float | None
     """The alpha parameter of the fit"""
-    amplitude: Optional[float]
+    amplitude: float | None
     """The amplitude parameter of the fit"""
-    x_0: Optional[float]
+    x_0: float | None
     """The x_0 parameter of the fit"""
-    model_repr: Optional[str]
+    model_repr: str | None
     """The model representation of the fit"""
-    modStokesI: Optional[np.ndarray]
+    modStokesI: np.ndarray | None
     """The model Stokes I spectrum"""
-    fit_dict: Optional[dict]
+    fit_dict: dict | None
     """The dictionary of the fit results"""
 
 
 @task(name="3D RM-synthesis")
 def rmsynthoncut3d(
     island_id: str,
-    beam_tuple: Tuple[str, pd.Series],
+    beam_tuple: tuple[str, pd.Series],
     outdir: Path,
     freq: np.ndarray,
     field: str,
-    sbid: Optional[int] = None,
-    phiMax_radm2: Optional[float] = None,
-    dPhi_radm2: Optional[float] = None,
+    sbid: int | None = None,
+    phiMax_radm2: float | None = None,
+    dPhi_radm2: float | None = None,
     nSamples: int = 5,
     weightType: str = "variance",
     fitRMSF: bool = True,
@@ -224,7 +224,7 @@ def rmsynthoncut3d(
     )
 
 
-def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> Tuple[np.ndarray]:
+def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> tuple[np.ndarray]:
     """Background and noise estimation on a cubelet
 
     Args:
@@ -344,7 +344,7 @@ def sigma_clip_spectra(
     Returns:
         StokesSpectra: The filtered Stokes spectra
     """
-    filter_list: List[np.ndarry] = []
+    filter_list: list[np.ndarry] = []
     for spectrum in stokes_spectra:
         rms_filter = sigma_clip(
             spectrum.rms,
@@ -355,7 +355,7 @@ def sigma_clip_spectra(
         filter_list.append(rms_filter.mask)
     filter_idx = np.any(filter_list, axis=0)
 
-    filtered_data_list: List[Spectrum] = []
+    filtered_data_list: list[Spectrum] = []
     for spectrum in stokes_spectra:
         filtered_data = spectrum.data.copy()
         filtered_data[filter_idx] = np.nan
@@ -378,12 +378,12 @@ def sigma_clip_spectra(
 def fit_stokes_I(
     freq: np.ndarray,
     coord: SkyCoord,
-    tt0: Optional[str] = None,
-    tt1: Optional[str] = None,
+    tt0: str | None = None,
+    tt1: str | None = None,
     do_own_fit: bool = False,
-    iarr: Optional[np.ndarray] = None,
-    rmsi: Optional[np.ndarray] = None,
-    polyOrd: Optional[int] = None,
+    iarr: np.ndarray | None = None,
+    rmsi: np.ndarray | None = None,
+    polyOrd: int | None = None,
 ) -> StokesIFitResult:
     if tt0 and tt1:
         mfs_i_0 = fits.getdata(tt0, memmap=True)
@@ -484,15 +484,15 @@ def update_rmtools_dict(
 
 @task(name="1D RM-synthesis")
 def rmsynthoncut1d(
-    comp_tuple: Tuple[str, pd.Series],
-    beam_tuple: Tuple[str, pd.Series],
+    comp_tuple: tuple[str, pd.Series],
+    beam_tuple: tuple[str, pd.Series],
     outdir: Path,
     freq: np.ndarray,
     field: str,
-    sbid: Optional[int] = None,
+    sbid: int | None = None,
     polyOrd: int = 3,
-    phiMax_radm2: Optional[float] = None,
-    dPhi_radm2: Optional[float] = None,
+    phiMax_radm2: float | None = None,
+    dPhi_radm2: float | None = None,
     nSamples: int = 5,
     weightType: str = "variance",
     fitRMSF: bool = True,
@@ -502,8 +502,8 @@ def rmsynthoncut1d(
     debug: bool = False,
     rm_verbose: bool = False,
     fit_function: str = "log",
-    tt0: Optional[str] = None,
-    tt1: Optional[str] = None,
+    tt0: str | None = None,
+    tt1: str | None = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> pymongo.UpdateOne:
@@ -666,7 +666,7 @@ def rmsynthoncut1d(
 
     # Ensure JSON serializable
     for k, v in mDict.items():
-        if isinstance(v, np.float_):
+        if isinstance(v, np.float64):
             mDict[k] = float(v)
         elif isinstance(v, np.float32):
             mDict[k] = float(v)
@@ -752,18 +752,17 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
-    sbid: Optional[int] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    sbid: int | None = None,
+    username: str | None = None,
+    password: str | None = None,
     dimension: str = "1d",
-    verbose: bool = True,
     database: bool = False,
-    limit: Union[int, None] = None,
+    limit: int | None = None,
     savePlots: bool = False,
     weightType: str = "variance",
     fitRMSF: bool = True,
-    phiMax_radm2: Union[float, None] = None,
-    dPhi_radm2: Union[float, None] = None,
+    phiMax_radm2: float | None = None,
+    dPhi_radm2: float | None = None,
     nSamples: int = 5,
     polyOrd: int = 3,
     noStokesI: bool = False,
@@ -772,8 +771,8 @@ def main(
     rm_verbose: bool = False,
     debug: bool = False,
     fit_function: str = "log",
-    tt0: Optional[str] = None,
-    tt1: Optional[str] = None,
+    tt0: str | None = None,
+    tt1: str | None = None,
     ion: bool = False,
     do_own_fit: bool = False,
 ) -> None:

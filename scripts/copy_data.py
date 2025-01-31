@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
 import os
 from glob import glob
 from pathlib import Path
 from shutil import SameFileError, copyfile
 
-from astropy.table import Table
-
 from arrakis.logger import logger
 from arrakis.utils.io import prsync, rsync, try_mkdir
 from arrakis.utils.meta import yes_or_no
+from astropy.table import Table
 
 
 def main(

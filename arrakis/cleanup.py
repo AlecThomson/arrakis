@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """DANGER ZONE: Purge directories of un-needed FITS files."""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import shutil
 import tarfile
 from pathlib import Path
-from typing import List
 
-from arrakis.utils.io import verify_tarball
 import astropy.units as u
 import numpy as np
 from prefect import flow, get_run_logger, task
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
+from arrakis.utils.io import verify_tarball
 from arrakis.utils.pipeline import generic_parser, logo_str
 
 logger.setLevel(logging.INFO)
@@ -106,7 +107,7 @@ def main(
     total_file_size = np.sum([p.stat().st_size for p in to_purge_all]) * u.byte
     logger.warning(f"Purging {len(to_purge_all)} files from {datadir}")
     logger.warning(f"Will free {total_file_size.to(u.GB)}")
-    purged: List[Path] = []
+    purged: list[Path] = []
     for to_purge in tqdm(to_purge_all, file=TQDM_OUT, desc="Purging big beams"):
         purged.append(purge_cubelet_beams(to_purge))
     logger.info(f"Files purged: {len(purged)}")

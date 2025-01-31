@@ -13,6 +13,8 @@ x = sin(offset)*cos(angle)/incx + refx
 y = sin(offset)*sin(angle)/incy + refy
 """
 
+from __future__ import annotations
+
 import os
 import warnings
 from glob import glob
@@ -22,20 +24,19 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from arrakis.linmos import gen_seps
+from arrakis.logger import logger, logging
+from arrakis.utils.database import get_db
+from arrakis.utils.fitsutils import getfreq
+from arrakis.utils.pipeline import chunk_dask, logo_str
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from dask import delayed
 
-from arrakis.linmos import gen_seps
-from arrakis.logger import logger, logging
-from arrakis.utils.database import get_db
-from arrakis.utils.fitsutils import getfreq
-from arrakis.utils.pipeline import chunk_dask, logo_str
 
-
-def make_plot(data, comp, imfile):
+def make_plot(data, comp):
     fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(10, 10))
     fig.suptitle(f"{comp['Gaussian_ID']} leakage")
     for i, s in enumerate(["q", "u"]):
@@ -63,7 +64,7 @@ def make_plot(data, comp, imfile):
 
 
 @delayed
-def interpolate(field, comp, beams, cutdir, septab, holofile, verbose=True):
+def interpolate(field, comp, beams, cutdir, septab, holofile):
     beam = beams["beams"][field]
 
     ra = comp["RA"]

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Plotting utilities"""
 
+from __future__ import annotations
+
 import warnings
 
 from astropy.utils.exceptions import AstropyWarning
@@ -24,7 +26,7 @@ def latexify(fig_width=None, fig_height=None, columns=1):
     """
     from math import sqrt
 
-    import matplotlib
+    import matplotlib as mpl
 
     # code adapted from http://www.scipy.org/Cookbook/Matplotlib/LaTeX_Examples
     # Width and max height in inches for IEEE journals taken from
@@ -63,4 +65,4 @@ def latexify(fig_width=None, fig_height=None, columns=1):
         "font.family": "serif",
     }
 
-    matplotlib.rcParams.update(params)
+    mpl.rcParams.update(params)

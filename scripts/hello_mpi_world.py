@@ -3,6 +3,8 @@
 Parallel Hello World
 """
 
+from __future__ import annotations
+
 import sys
 
 from mpi4py import MPI
@@ -13,9 +15,8 @@ def main():
     rank = MPI.COMM_WORLD.Get_rank()
     name = MPI.Get_processor_name()
 
-    sys.stdout.write(
-        "Hello, World! I am process %d of %d on %s.\n" % (rank, size, name)
-    )
+    msg = f"Hello, World! I am process {rank} of {size} on {name}.\n"
+    sys.stdout.write(msg)
 
 
 def cli():

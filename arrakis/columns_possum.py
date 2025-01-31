@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Column names from RM-tools to catalogue
 
@@ -13,6 +12,7 @@ Column names from RM-tools to catalogue
 #     header (from FITS header), meta (from meta data)
 # dict key or column name in pipeline
 # unit (string)
+from __future__ import annotations
 
 import astropy.units as u
 from astropy.units import cds

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import logging
 import os
@@ -6,10 +7,9 @@ import tarfile
 from glob import glob
 
 import dask
+from arrakis.logger import TqdmToLogger, logger
 from dask import delayed
 from tqdm.auto import tqdm
-
-from arrakis.logger import TqdmToLogger, logger
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 

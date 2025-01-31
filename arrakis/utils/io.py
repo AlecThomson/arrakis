@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 """I/O utilities"""
 
+from __future__ import annotations
+
 import logging
 import os
-import stat
-import warnings
-from glob import glob
-from pathlib import Path
 import shlex
+import stat
 import subprocess as sp
-from typing import Tuple
+import warnings
+from pathlib import Path
 
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
@@ -61,13 +61,12 @@ def prsync(wild_src: str, tgt: str, ncores: int):
     os.system(f"ls -d {wild_src} | xargs -n 1 -P {ncores} -I% rsync -rvh % {tgt}")
 
 
-def try_symlink(src: str, dst: str, verbose=True):
+def try_symlink(src: str, dst: str):
     """Create symlink if it doesn't exist
 
     Args:
         src (str): Source path
         dst (str): Destination path
-        verbose (bool, optional): Verbose output. Defaults to True.
     """
     # Create output dir if it doesn't exist
     try:
@@ -77,12 +76,11 @@ def try_symlink(src: str, dst: str, verbose=True):
         logger.info(f"Symlink '{dst}' exists.")
 
 
-def try_mkdir(dir_path: str, verbose=True):
+def try_mkdir(dir_path: str):
     """Create directory if it doesn't exist
 
     Args:
         dir_path (str): Path to directory
-        verbose (bool, optional): Verbose output. Defaults to True.
     """
     # Create output dir if it doesn't exist
     try:
@@ -92,7 +90,7 @@ def try_mkdir(dir_path: str, verbose=True):
         logger.info(f"Directory '{dir_path}' exists.")
 
 
-def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:
+def gettable(tabledir: str, keyword: str) -> tuple[Table, str]:
     """Get a table from a directory given a keyword to glob.
 
     Args:
@@ -103,10 +101,9 @@ def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:
     Returns:
         Tuple[Table, str]: Table and it's file location.
     """
-    if tabledir[-1] == "/":
-        tabledir = tabledir[:-1]
+    table_path = Path(tabledir)
     # Glob out the necessary files
-    files = glob(f"{tabledir}/*.{keyword}*.xml")  # Selvay VOTab
+    files = list(table_path.glob(f"*.{keyword}*.xml"))  # Selvay VOTab
     filename = files[0]
     logger.info(f"Getting table data from {filename}...")
 
@@ -117,7 +114,7 @@ def gettable(tabledir: str, keyword: str, verbose=True) -> Tuple[Table, str]:
     str_df = str_df.stack().str.decode("utf-8").unstack()
     for col in str_df:
         table[col] = str_df[col]
-    return table, filename
+    return table, filename.as_posix()
 
 
 def _samefile(src, dst):
@@ -137,7 +134,7 @@ def copyfile(src, dst, *, follow_symlinks=True, verbose=True):
 
     """
     if _samefile(src, dst):
-        raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+        raise SameFileError(f"{src!r} and {dst!r} are the same file")
 
     for fn in [src, dst]:
         try:
@@ -148,7 +145,7 @@ def copyfile(src, dst, *, follow_symlinks=True, verbose=True):
         else:
             # XXX What about other special files? (sockets, devices...)
             if stat.S_ISFIFO(st.st_mode):
-                raise SpecialFileError("`%s` is a named pipe" % fn)
+                raise SpecialFileError(f"`{fn}` is a named pipe")
 
     if not follow_symlinks and os.path.islink(src):
         os.symlink(os.readlink(src), dst)

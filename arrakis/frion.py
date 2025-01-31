@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """Correct for the ionosphere in parallel"""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os
 from pathlib import Path
 from pprint import pformat
-from typing import Callable, Dict, List
+from typing import Callable
 from typing import NamedTuple as Struct
-from typing import Optional, Union
 from urllib.error import URLError
 
 import astropy.units as u
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
-from FRion import correct, predict
 from prefect import flow, task
 from tqdm.auto import tqdm
 
@@ -28,6 +28,7 @@ from arrakis.utils.database import (
 )
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
+from FRion import correct, predict
 
 logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
@@ -47,7 +48,7 @@ class FrionResults(Struct):
 
 @task(name="FRion correction")
 def correct_worker(
-    beam: Dict, outdir: str, field: str, prediction: Prediction, island: dict
+    beam: dict, outdir: str, field: str, prediction: Prediction, island: dict
 ) -> pymongo.UpdateOne:
     """Apply FRion corrections to a single island
 
@@ -89,18 +90,17 @@ def correct_worker(
 
 @task(name="FRion predction")
 def predict_worker(
-    island: Dict,
+    island: dict,
     field: str,
-    beam: Dict,
+    beam: dict,
     start_time: Time,
     end_time: Time,
     freq: np.ndarray,
     cutdir: Path,
-    plotdir: Path,
     server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
     prefix: str = "",
-    formatter: Optional[Union[str, Callable]] = None,
-    proxy_server: Optional[str] = None,
+    formatter: str | Callable | None = None,
+    proxy_server: str | None = None,
     pre_download: bool = False,
 ) -> Prediction:
     """Make FRion prediction for a single island
@@ -199,7 +199,7 @@ def predict_worker(
 
 
 @task(name="Index beams")
-def index_beams(island: dict, beams: List[dict]) -> dict:
+def index_beams(island: dict, beams: list[dict]) -> dict:
     island_id = island["Source_ID"]
     beam_idx = [i for i, b in enumerate(beams) if b["Source_ID"] == island_id][0]
     beam = beams[beam_idx]
@@ -220,8 +220,8 @@ def serial_loop(
     plotdir: Path,
     ionex_server: str,
     ionex_prefix: str,
-    ionex_proxy_server: Optional[str],
-    ionex_formatter: Optional[Union[str, Callable]],
+    ionex_proxy_server: str | None,
+    ionex_formatter: str | Callable | None,
     ionex_predownload: bool,
 ) -> FrionResults:
     prediction = predict_worker.fn(
@@ -256,16 +256,16 @@ def main(
     outdir: Path,
     host: str,
     epoch: int,
-    sbid: Optional[int] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    sbid: int | None = None,
+    username: str | None = None,
+    password: str | None = None,
     database=False,
     ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
     ionex_prefix: str = "codg",
-    ionex_proxy_server: Optional[str] = None,
-    ionex_formatter: Optional[Union[str, Callable]] = "ftp.aiub.unibe.ch",
+    ionex_proxy_server: str | None = None,
+    ionex_formatter: str | Callable | None = "ftp.aiub.unibe.ch",
     ionex_predownload: bool = False,
-    limit: Optional[int] = None,
+    limit: int | None = None,
 ):
     """FRion flow
 

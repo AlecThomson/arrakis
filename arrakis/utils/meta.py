@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 """Generic program utilities"""
 
+from __future__ import annotations
+
 import importlib
 import warnings
 from itertools import zip_longest
 
-from astropy.utils.exceptions import AstropyWarning
 import numpy as np
+from astropy.utils.exceptions import AstropyWarning
 from spectral_cube.utils import SpectralCubeWarning
 
 warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=True)

@@ -1,43 +1,45 @@
 #!/usr/bin/env python3
 """Arrkis imager"""
 
+from __future__ import annotations
+
 import argparse
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import logging
 import os
 import pickle
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from glob import glob
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import Any, Dict, List
+from typing import Any
 from typing import NamedTuple as Struct
-from typing import Optional, Tuple, Union
 
-from arrakis.utils.meta import my_ceil
 import astropy.units as u
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.table import Table
 from astropy.visualization import (
-    SqrtStretch,
     ImageNormalize,
+    SqrtStretch,
 )
 from fitscube import combine_fits
 from fixms.fix_ms_corrs import fix_ms_corrs
 from fixms.fix_ms_dir import fix_ms_dir
-import matplotlib.pyplot as plt
-import matplotlib
 from prefect import flow, get_run_logger, task
 from racs_tools import beamcon_2D
-from spython.main import Client as sclient
 from skimage.transform import resize
+from spython.main import Client as sclient
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
+from arrakis.utils.exceptions import DivergenceError
 from arrakis.utils.io import parse_env_path
+from arrakis.utils.meta import my_ceil
 from arrakis.utils.msutils import (
     beam_from_ms,
     field_idx_from_ms,
@@ -51,9 +53,7 @@ from arrakis.utils.pipeline import (
     workdir_arg_parser,
 )
 
-from arrakis.utils.exceptions import DivergenceError
-
-matplotlib.use("Agg")
+mpl.use("Agg")
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -65,9 +65,9 @@ class ImageSet(Struct):
     """Path to the measurement set that was imaged."""
     prefix: str
     """Prefix used for the wsclean output files."""
-    image_lists: Dict[str, List[str]]
+    image_lists: dict[str, list[str]]
     """Dictionary of lists of images. The keys are the polarisations and the values are the list of images for that polarisation."""
-    aux_lists: Optional[Dict[Tuple[str, str], List[str]]] = None
+    aux_lists: dict[tuple[str, str], list[str]] | None = None
     """Dictionary of lists of auxillary images. The keys are a tuple of the polarisation and the image type, and the values are the list of images for that polarisation and image type."""
 
 
@@ -84,13 +84,13 @@ class MFSImage(Struct):
 
 @task(name="Get pol. axis")
 def get_pol_axis_task(
-    ms: Path, feed_idx: Optional[int] = None, col: str = "RECEPTOR_ANGLE"
+    ms: Path, feed_idx: int | None = None, col: str = "RECEPTOR_ANGLE"
 ) -> float:
     return get_pol_axis(ms=ms, feed_idx=feed_idx, col=col).to(u.deg).value
 
 
 @task(name="Merge ImageSets")
-def merge_imagesets(image_sets: List[Optional[ImageSet]]) -> ImageSet:
+def merge_imagesets(image_sets: list[ImageSet | None]) -> ImageSet:
     """Merge a collection of ImageSets into a single ImageSet.
 
     Args:
@@ -136,7 +136,7 @@ def merge_imagesets(image_sets: List[Optional[ImageSet]]) -> ImageSet:
 
 
 def get_mfs_image(
-    prefix_str: str, pol: str, small_size: Tuple[int, int] = (512, 512)
+    prefix_str: str, pol: str, small_size: tuple[int, int] = (512, 512)
 ) -> MFSImage:
     """Get the MFS image from the image set.
 
@@ -201,7 +201,7 @@ def make_validation_plots(prefix: Path, pols: str) -> None:
         logger.info(f"Uploaded {fig_name} to {uuid}")
 
 
-def get_wsclean(wsclean: Union[Path, str]) -> Path:
+def get_wsclean(wsclean: Path | str) -> Path:
     """Pull wsclean image from dockerhub (or wherver).
 
     Args:
@@ -325,25 +325,25 @@ def image_beam(
     mgain: float = 0.7,
     niter: int = 100_000,
     auto_mask: float = 3,
-    force_mask_rounds: Optional[int] = None,
+    force_mask_rounds: int | None = None,
     auto_threshold: float = 1,
-    gridder: Optional[str] = None,
+    gridder: str | None = None,
     robust: float = -0.5,
     mem: float = 90,
-    absmem: Optional[float] = None,
-    taper: Optional[float] = None,
+    absmem: float | None = None,
+    taper: float | None = None,
     minuv_l: float = 0.0,
-    parallel_deconvolution: Optional[int] = None,
-    nmiter: Optional[int] = None,
+    parallel_deconvolution: int | None = None,
+    nmiter: int | None = None,
     local_rms: bool = False,
-    local_rms_window: Optional[float] = None,
+    local_rms_window: float | None = None,
     multiscale: bool = False,
-    multiscale_scale_bias: Optional[float] = None,
-    multiscale_scales: Optional[str] = "0,2,4,8,16,32,64,128",
+    multiscale_scale_bias: float | None = None,
+    multiscale_scales: str | None = "0,2,4,8,16,32,64,128",
     data_column: str = "CORRECTED_DATA",
     no_mf_weighting: bool = False,
     no_update_model_required: bool = True,
-    beam_fitting_size: Optional[float] = 1.25,
+    beam_fitting_size: float | None = 1.25,
     disable_pol_local_rms: bool = False,
     disable_pol_force_mask_rounds: bool = False,
 ) -> ImageSet:
@@ -473,7 +473,7 @@ def image_beam(
     # Purge ms_temp
     shutil.rmtree(ms_temp)
 
-    suffixes: List[str] = ["image", "model", "psf", "residual", "dirty"]
+    suffixes: list[str] = ["image", "model", "psf", "residual", "dirty"]
     if temp_dir_images != out_dir:
         # Copy the images to the output directory
         logger.info(f"Copying images to {out_dir}")
@@ -574,8 +574,8 @@ def make_cube(
     image_set: ImageSet,
     common_beam_pkl: Path,
     pol_angle_deg: float,
-    aux_mode: Optional[str] = None,
-) -> Tuple[Path, Path]:
+    aux_mode: str | None = None,
+) -> tuple[Path, Path]:
     """Make a cube from the images"""
     logger = get_run_logger()
 
@@ -654,7 +654,7 @@ def make_cube(
 
 
 @task(name="Get Beam", persist_result=True)
-def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
+def get_beam(image_set: ImageSet, cutoff: float | None) -> Path:
     """Derive a common resolution across all images within a set of ImageSet
 
     Args:
@@ -683,8 +683,8 @@ def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
     try:
         common_beam, _ = beamcon_2D.get_common_beam(files=image_list, cutoff=cutoff)
     except Exception as e:
-        import traceback
         import sys
+        import traceback
 
         tbe = traceback.TracebackException.from_exception(e)
         logger.error(f"Local {''.join(tbe.format())}")
@@ -720,8 +720,8 @@ def get_beam(image_set: ImageSet, cutoff: Optional[float]) -> Path:
 def smooth_imageset(
     image_set: ImageSet,
     common_beam_pkl: Path,
-    cutoff: Optional[float] = None,
-    aux_mode: Optional[str] = None,
+    cutoff: float | None = None,
+    aux_mode: str | None = None,
 ) -> ImageSet:
     """Smooth all images described within an ImageSet to a desired resolution
 
@@ -746,7 +746,7 @@ def smooth_imageset(
 
     logger.info(f"Smooting {image_set.ms} images")
 
-    images_to_smooth: Dict[str, List[str]]
+    images_to_smooth: dict[str, list[str]]
     if aux_mode is None:
         images_to_smooth = image_set.image_lists
     else:
@@ -790,7 +790,7 @@ def smooth_imageset(
 
 @task(name="Cleanup")
 def cleanup(
-    purge: bool, image_sets: List[ImageSet], ignore_files: Optional[List[Any]] = None
+    purge: bool, image_sets: list[ImageSet], ignore_files: list[Any] | None = None
 ) -> None:
     """Utility to remove all images described by an collection of ImageSets. Internally
     called `cleanup_imageset`.
@@ -856,9 +856,9 @@ def main(
     msdir: Path,
     out_dir: Path,
     num_beams: int = 36,
-    temp_dir_images: Optional[Path] = None,
-    temp_dir_wsclean: Optional[Path] = None,
-    cutoff: Optional[float] = None,
+    temp_dir_images: Path | None = None,
+    temp_dir_wsclean: Path | None = None,
+    cutoff: float | None = None,
     robust: float = -0.5,
     pols: str = "IQU",
     nchan: int = 36,
@@ -867,22 +867,22 @@ def main(
     mgain: float = 0.8,
     niter: int = 100_000,
     auto_mask: float = 3,
-    force_mask_rounds: Union[int, None] = None,
+    force_mask_rounds: int | None = None,
     auto_threshold: float = 1,
-    taper: Union[float, None] = None,
+    taper: float | None = None,
     purge: bool = False,
     minuv: float = 0.0,
-    parallel_deconvolution: Optional[int] = None,
-    gridder: Optional[str] = None,
-    nmiter: Optional[int] = None,
+    parallel_deconvolution: int | None = None,
+    gridder: str | None = None,
+    nmiter: int | None = None,
     local_rms: bool = False,
-    local_rms_window: Optional[float] = None,
-    wsclean_path: Union[Path, str] = "docker://alecthomson/wsclean:latest",
-    multiscale: Optional[bool] = None,
-    multiscale_scale_bias: Optional[float] = None,
-    multiscale_scales: Optional[str] = "0,2,4,8,16,32,64,128",
-    absmem: Optional[float] = None,
-    make_residual_cubes: Optional[bool] = False,
+    local_rms_window: float | None = None,
+    wsclean_path: Path | str = "docker://alecthomson/wsclean:latest",
+    multiscale: bool | None = None,
+    multiscale_scale_bias: float | None = None,
+    multiscale_scales: str | None = "0,2,4,8,16,32,64,128",
+    absmem: float | None = None,
+    make_residual_cubes: bool | None = False,
     ms_glob_pattern: str = "scienceData*_averaged_cal.leakage.ms",
     data_column: str = "CORRECTED_DATA",
     skip_fix_ms: bool = False,

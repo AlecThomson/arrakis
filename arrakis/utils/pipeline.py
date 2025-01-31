@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Pipeline and flow utility functions"""
 
+from __future__ import annotations
+
 import argparse
 import base64
 import logging
@@ -9,7 +11,6 @@ import subprocess
 import time
 import warnings
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
 from uuid import UUID
 
 import astropy.units as u
@@ -22,10 +23,10 @@ from dask.distributed import get_client
 from distributed.client import futures_of
 from distributed.diagnostics.progressbar import ProgressBar
 from distributed.utils import LoopRunner
-from prefect import task, Task
+from prefect import Task, task
+from prefect.artifacts import create_markdown_artifact
 from prefect.concurrency.sync import rate_limit
 from prefect.futures import PrefectFuture
-from prefect.artifacts import create_markdown_artifact
 from prefect_dask import get_dask_client
 from spectral_cube.utils import SpectralCubeWarning
 from tornado.ioloop import IOLoop
@@ -74,7 +75,7 @@ def submit_task_with_rate_limit(task: Task, *args, **kwargs) -> PrefectFuture:
 # Stolen from Flint
 @task(name="Upload image as artifact")
 def upload_image_as_artifact_task(
-    image_path: Path, description: Optional[str] = None
+    image_path: Path, description: str | None = None
 ) -> UUID:
     """Create and submit a markdown artifact tracked by prefect for an
     input image. Currently supporting png formatted images.
@@ -277,8 +278,8 @@ class performance_report_prefect:
 
 
 def inspect_client(
-    client: Union[distributed.Client, None] = None,
-) -> Tuple[str, int, int, u.Quantity, int, u.Quantity]:
+    client: distributed.Client | None = None,
+) -> tuple[str, int, int, u.Quantity, int, u.Quantity]:
     """_summary_
 
     Args:
@@ -328,9 +329,7 @@ def chunk_dask(
     return chunk_outputs
 
 
-def delayed_to_da(
-    list_of_delayed: List[Delayed], chunk: Union[int, None] = None
-) -> da.Array:
+def delayed_to_da(list_of_delayed: list[Delayed], chunk: int | None = None) -> da.Array:
     """Convert list of delayed arrays to a dask array
 
     Args:
@@ -369,7 +368,7 @@ class TqdmProgressBar(ProgressBar):
         start=True,
         **tqdm_kwargs,
     ):
-        super(TqdmProgressBar, self).__init__(keys, scheduler, interval, complete)
+        super().__init__(keys, scheduler, interval, complete)
         self.tqdm = tqdm(keys, **tqdm_kwargs)
         self.loop = loop or IOLoop()
 
@@ -378,10 +377,12 @@ class TqdmProgressBar(ProgressBar):
             loop_runner.run_sync(self.listen)
 
     def _draw_bar(self, remaining, all, **kwargs):
+        _ = kwargs
         update_ct = (all - remaining) - self.tqdm.n
         self.tqdm.update(update_ct)
 
     def _draw_stop(self, **kwargs):
+        _ = kwargs
         self.tqdm.close()
 
 

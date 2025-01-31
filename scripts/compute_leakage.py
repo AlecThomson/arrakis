@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
 
 import astropy
 import astropy.units as units
 import matplotlib.pyplot as plt
 import numpy as np
+from arrakis.logger import TqdmToLogger, logger
+from arrakis.utils.database import get_db
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
 from tqdm.auto import tqdm, trange
-
-from arrakis.logger import TqdmToLogger, logger
-from arrakis.utils.database import get_db
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -156,10 +157,8 @@ def makesurf(start, stop, field, datadir, save_plots=True, data=None):
     u_estimates_arr = np.array(u_estimates)
     _ = np.array(p_estimates)
 
-    logger.info(
-        "\nThe mean number of points in each aperture of %.2f degs was %d\n"
-        % (d, np.nanmean(num_points_in_aperture_list))
-    )
+    msg = f"The mean number of points in each aperture of {d:.2f} degs was {np.nanmean(num_points_in_aperture_list)}"
+    logger.info(msg)
 
     # plot results
     fig = plt.figure(figsize=(10, 10))

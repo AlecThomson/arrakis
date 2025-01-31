@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Merge multiple RACS fields"""
 
+from __future__ import annotations
+
 import argparse
 import os
 from pprint import pformat
 from shutil import copyfile
-from typing import Dict, List, Optional
 
 import pymongo
 from prefect import flow, task
@@ -25,8 +26,8 @@ def make_short_name(name: str) -> str:
 
 @task(name="Copy singleton island")
 def copy_singleton(
-    beam: dict, field_dict: Dict[str, str], merge_name: str, data_dir: str
-) -> List[pymongo.UpdateOne]:
+    beam: dict, field_dict: dict[str, str], merge_name: str, data_dir: str
+) -> list[pymongo.UpdateOne]:
     """Copy an island within a single field to the merged field
 
     Args:
@@ -93,11 +94,11 @@ def copy_singleton(
 
 
 def copy_singletons(
-    field_dict: Dict[str, str],
+    field_dict: dict[str, str],
     data_dir: str,
     beams_col: pymongo.collection.Collection,
     merge_name: str,
-) -> List[pymongo.UpdateOne]:
+) -> list[pymongo.UpdateOne]:
     """Copy islands that don't overlap other fields
 
     Args:
@@ -176,7 +177,7 @@ linmos.weightstate      = Corrected
 
 def merge_multiple_field(
     beam: dict, field_dict: dict, merge_name: str, data_dir: str, image: str
-) -> List[pymongo.UpdateOne]:
+) -> list[pymongo.UpdateOne]:
     """Merge an island that overlaps multiple fields
 
     Args:
@@ -224,12 +225,12 @@ def merge_multiple_field(
 
 @task(name="Merge multiple islands")
 def merge_multiple_fields(
-    field_dict: Dict[str, str],
+    field_dict: dict[str, str],
     data_dir: str,
     beams_col: pymongo.collection.Collection,
     merge_name: str,
     image: str,
-) -> List[pymongo.UpdateOne]:
+) -> list[pymongo.UpdateOne]:
     """Merge multiple islands that overlap multiple fields
 
     Args:
@@ -276,14 +277,14 @@ def merge_multiple_fields(
 
 @flow(name="Merge fields")
 def main(
-    fields: List[str],
-    field_dirs: List[str],
+    fields: list[str],
+    field_dirs: list[str],
     merge_name: str,
     output_dir: str,
     host: str,
     epoch: int,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    username: str | None = None,
+    password: str | None = None,
     yanda="1.3.0",
 ) -> str:
     logger.debug(f"{fields=}")

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Create the Arrakis database"""
 
+from __future__ import annotations
+
 import json
 import logging
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -45,7 +46,7 @@ def source2beams(ra: float, dec: float, database: Table, max_sep: float = 1) -> 
     return beams
 
 
-def ndix_unique(x: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
+def ndix_unique(x: np.ndarray) -> tuple[np.ndarray, list[np.ndarray]]:
     """Find the N-dimensional array of indices of the unique values in x
     From https://stackoverflow.com/questions/54734545/indices-of-unique-values-in-array
 
@@ -67,7 +68,7 @@ def ndix_unique(x: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
 
 def cat2beams(
     mastercat: Table, database: Table, max_sep: float = 1
-) -> Tuple[np.ndarray, np.ndarray, Angle]:
+) -> tuple[np.ndarray, np.ndarray, Angle]:
     """Find the separations between sources in the master catalogue and the RACS beams
 
     Args:
@@ -98,9 +99,9 @@ def source_database(
     compcat: Table,
     host: str,
     epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
-) -> Tuple[InsertManyResult, InsertManyResult]:
+    username: str | None = None,
+    password: str | None = None,
+) -> tuple[InsertManyResult, InsertManyResult]:
     """Insert sources into the database
 
     Following https://medium.com/analytics-vidhya/how-to-upload-a-pandas-dataframe-to-mongodb-ffa18c0953c1
@@ -177,8 +178,8 @@ def beam_database(
     islandcat: Table,
     host: str,
     epoch: int,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
+    username: str | None = None,
+    password: str | None = None,
 ) -> InsertManyResult:
     """Insert beams into the database
 
@@ -262,7 +263,7 @@ def get_catalogue(survey_dir: Path, epoch: int = 0) -> Table:
     return racs_fields
 
 
-def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> List[Dict]:
+def get_beams(mastercat: Table, database: Table, epoch: int = 0) -> list[dict]:
     """Get beams from the master catalogue
 
     Args:
@@ -333,11 +334,11 @@ def beam_inf(
     survey_dir: Path,
     host: str,
     epoch: int,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    username: str | None = None,
+    password: str | None = None,
 ) -> InsertManyResult:
     """Get the beam information"""
-    tabs: List[Table] = []
+    tabs: list[Table] = []
     for row in tqdm(database, desc="Reading beam info", file=TQDM_OUT):
         try:
             tab = read_racs_database(
@@ -412,9 +413,9 @@ def field_database(
     survey_dir: Path,
     host: str,
     epoch: int,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> Tuple[InsertManyResult, InsertManyResult]:
+    username: str | None = None,
+    password: str | None = None,
+) -> tuple[InsertManyResult, InsertManyResult]:
     """Reset and load the field database
 
     Args:
@@ -462,14 +463,14 @@ def field_database(
 
 def main(
     load: bool = False,
-    islandcat: Optional[str] = None,
-    compcat: Optional[str] = None,
-    database_path: Optional[Path] = None,
+    islandcat: str | None = None,
+    compcat: str | None = None,
+    database_path: Path | None = None,
     host: str = "localhost",
-    username: Optional[str] = None,
-    password: Optional[str] = None,
+    username: str | None = None,
+    password: str | None = None,
     field: bool = False,
-    epochs: List[int] = 0,
+    epochs: list[int] = 0,
     force: bool = False,
 ) -> None:
     """Main script

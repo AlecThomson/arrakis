@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Prepare files for CASDA upload"""
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import logging
@@ -16,6 +18,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import polspectra
+from arrakis.logger import TqdmToLogger, logger
+from arrakis.makecat import write_votable
+from arrakis.utils.io import try_mkdir, try_symlink
+from arrakis.utils.pipeline import chunk_dask
 from astropy.io import fits
 from astropy.table import Column, Table
 from astropy.units.core import get_current_unit_registry
@@ -27,11 +33,6 @@ from prefect_dask import get_dask_client
 from radio_beam import Beam
 from spectral_cube.cube_utils import convert_bunit
 from tqdm.auto import tqdm
-
-from arrakis.logger import TqdmToLogger, logger
-from arrakis.makecat import write_votable
-from arrakis.utils.io import try_mkdir, try_symlink
-from arrakis.utils.pipeline import chunk_dask
 
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
@@ -481,7 +482,6 @@ def main(
     do_convert_plots: bool = False,
     verbose: bool = False,
     batch_size: int = 10,
-    outdir=None,
 ):
     """Main function"""
     # Re-register astropy units

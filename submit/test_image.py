@@ -6,6 +6,7 @@
 # SBATCH --cpus-per-task=1
 # SBATCH --account=OD-217087
 # SBATCH --qos=express
+from __future__ import annotations
 
 import logging
 from pathlib import Path

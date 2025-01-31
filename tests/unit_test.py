@@ -1,5 +1,7 @@
 """Tests for functions."""
 
+from __future__ import annotations
+
 import unittest
 
 # Test functions within arrakis.rmsyth_oncuts

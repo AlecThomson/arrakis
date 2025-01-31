@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """Coordinate utilities"""
 
+from __future__ import annotations
+
 import warnings
-from typing import Tuple
 
 from astropy.coordinates import SkyCoord
 from astropy.coordinates.angles import dms_tuple, hms_tuple
@@ -47,7 +48,7 @@ def deg_to_dms(deg: float) -> dms_tuple:
     return dms_tuple(degree, minute, seconds)
 
 
-def coord_to_string(coord: SkyCoord) -> Tuple[str, str]:
+def coord_to_string(coord: SkyCoord) -> tuple[str, str]:
     """Convert coordinate to string without astropy
 
     Args:

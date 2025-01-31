@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import shlex
 import subprocess as sb
@@ -6,10 +8,9 @@ from pathlib import Path
 
 import copy_data
 import numpy as np
-from astropy.table import Table
-
 from arrakis.logger import logger, logging
 from arrakis.utils.io import try_mkdir
+from astropy.table import Table
 
 logger.setLevel(logging.INFO)
 

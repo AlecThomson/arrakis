@@ -1,15 +1,15 @@
 #!/usr/bin/env python
+from __future__ import annotations
+
 import argparse
 import logging
 import subprocess as sp
 from pathlib import Path
 from pprint import pformat
-from typing import Optional
 
 import pymongo
-from pymongo.database import Database
-
 from arrakis.logger import logger
+from pymongo.database import Database
 
 logger.setLevel(logging.INFO)
 
@@ -22,7 +22,7 @@ def start_mongod(
     dbpath: Path,
     logpath: Path,
     host: str = "localhost",
-    port: Optional[int] = None,
+    port: int | None = None,
     auth: bool = False,
 ):
     cmd = f"mongod --fork --dbpath {dbpath} --logpath {logpath} --bind_ip {host}"
@@ -87,7 +87,7 @@ def create_or_update_user(
 def create_admin_user(
     host: str,
     password: str,
-    port: Optional[int] = None,
+    port: int | None = None,
     username: str = "admin",
 ):
     logger.info(f"Creating admin user {username} on {host}:{port}")
@@ -105,7 +105,7 @@ def create_admin_user(
 def create_read_only_user(
     host: str,
     password: str,
-    port: Optional[int] = None,
+    port: int | None = None,
     username: str = "reader",
 ):
     logger.info(f"Creating read-only user {username} on {host}:{port}")
@@ -125,9 +125,9 @@ def main(
     admin_password: str,
     reader_password: str,
     host: str = "localhost",
-    port: Optional[int] = None,
-    admin_username: Optional[str] = "admin",
-    reader_username: Optional[str] = "reader",
+    port: int | None = None,
+    admin_username: str | None = "admin",
+    reader_username: str | None = "reader",
 ):
     logpath = dbpath.parent / "mongod.log"
     start_mongod(
