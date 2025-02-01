@@ -158,3 +158,29 @@ ignore = [
     "ISC001",  # Conflicts with formatter
 ]
 isort.required-imports = ["from __future__ import annotations"]
+
+
+[tool.mypy]
+files = ["arrakis"]
+python_version = "3.10"
+# warn_unused_configs = true
+# strict = true
+# enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+# warn_unreachable = true
+# disallow_untyped_defs = false
+# disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_calls = false
+disallow_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+strict = false
+
+# [[tool.mypy.overrides]]
+# module = "arrakis.*"
+# disallow_untyped_defs = true
+# disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["astropy.*", "casacore.*",]
+ignore_missing_imports = true

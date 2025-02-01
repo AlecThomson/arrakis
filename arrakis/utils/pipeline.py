@@ -97,7 +97,7 @@ def upload_image_as_artifact_task(
         f"{image_path} has type {image_type}, and is not supported. Supported types are {SUPPORTED_IMAGE_TYPES}"
     )
 
-    with open(image_path, "rb") as open_image:
+    with image_path.open("rb") as open_image:
         logger.info(f"Encoding {image_path} in base64")
         image_base64 = base64.b64encode(open_image.read()).decode()
 

@@ -104,12 +104,12 @@ def merge_imagesets(image_sets: list[ImageSet | None]) -> ImageSet:
     logger.info(f"Merging {len(image_sets)} ImageSets.")
 
     # Remove any None values
-    image_sets = [image_set for image_set in image_sets if image_set is not None]
+    image_sets_list = [image_set for image_set in image_sets if image_set is not None]
 
-    ms = image_sets[0].ms
-    prefix = image_sets[0].prefix
+    ms = image_sets_list[0].ms
+    prefix = image_sets_list[0].prefix
 
-    for image_set in image_sets:
+    for image_set in image_sets_list:
         assert image_set.ms.name == ms.name, (
             f"{image_set.ms.name=} does not match {ms.name=}"
         )
@@ -120,7 +120,7 @@ def merge_imagesets(image_sets: list[ImageSet | None]) -> ImageSet:
     image_lists = {}
     aux_lists = {}
 
-    for image_set in image_sets:
+    for image_set in image_sets_list:
         for pol, images in image_set.image_lists.items():
             if pol not in image_lists:
                 image_lists[pol] = []
@@ -368,7 +368,7 @@ def image_beam(
     logger.info(f"Copying {ms} to {ms_temp}")
     shutil.copytree(ms, ms_temp, dirs_exist_ok=True)
 
-    # Catch mis-matched args
+    # Catch mismatched args
     if not local_rms:
         logger.warning(
             f"Local RMS is disabled. Setting local_rms_window to None. Was set to {local_rms_window}."

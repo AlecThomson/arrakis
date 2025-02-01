@@ -786,6 +786,7 @@ def replace_nans(filename: str):
     Args:
         filename (str): File name
     """
+    _ = filename
     pass
     # with open(filename, "r") as f:
     #     xml = f.read()

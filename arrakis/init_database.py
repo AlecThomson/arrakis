@@ -470,7 +470,7 @@ def main(
     username: str | None = None,
     password: str | None = None,
     field: bool = False,
-    epochs: list[int] = 0,
+    epochs: list[int] = [0],
     force: bool = False,
 ) -> None:
     """Main script

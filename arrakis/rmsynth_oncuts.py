@@ -224,7 +224,9 @@ def rmsynthoncut3d(
     )
 
 
-def cubelet_bane(cubelet: np.ndarray, header: fits.Header) -> tuple[np.ndarray]:
+def cubelet_bane(
+    cubelet: np.ndarray, header: fits.Header
+) -> tuple[np.ndarray, np.ndarray]:
     """Background and noise estimation on a cubelet
 
     Args:
@@ -534,10 +536,10 @@ def rmsynthoncut1d(
     comp = comp_tuple[1]
     beam = dict(beam_tuple[1])
 
-    iname = comp["Source_ID"]
-    cname = comp["Gaussian_ID"]
-    ra = comp["RA"]
-    dec = comp["Dec"]
+    iname = str(comp["Source_ID"])
+    cname = str(comp["Gaussian_ID"])
+    ra = float(comp["RA"])
+    dec = float(comp["Dec"])
     coord = SkyCoord(ra * u.deg, dec * u.deg)
     field_dict = beam["beams"][field]
 
@@ -556,7 +558,7 @@ def rmsynthoncut1d(
             operation = {"$set": {"rm_outputs_1d.$.rmsynth1d": False}}
             return pymongo.UpdateOne(myquery, operation, upsert=True)
 
-    prefix = f"{os.path.dirname(stokes_spectra.i.filename)}/{cname}"
+    prefix = (stokes_spectra.i.filename.parent / cname).as_posix()
 
     # Filter by RMS for outlier rejection
     filtered_stokes_spectra = sigma_clip_spectra(stokes_spectra)
@@ -690,15 +692,15 @@ def rmsynthoncut1d(
         head_dict["COMMENT"] = str(head_dict["COMMENT"])
     logger.debug(f"Heading for {cname} is {pformat(head_dict)}")
 
-    outer_dir = os.path.basename(os.path.dirname(filtered_stokes_spectra.i.filename))
+    outer_dir = filtered_stokes_spectra.i.filename.parent
     newvalues = {
         "field": save_name,
         "rm1dfiles": {
-            "FDF_dirty": os.path.join(outer_dir, f"{cname}_FDFdirty.dat"),
-            "RMSF": os.path.join(outer_dir, f"{cname}_RMSF.dat"),
-            "weights": os.path.join(outer_dir, f"{cname}_weight.dat"),
-            "summary_dat": os.path.join(outer_dir, f"{cname}_RMsynth.dat"),
-            "summary_json": os.path.join(outer_dir, f"{cname}_RMsynth.json"),
+            "FDF_dirty": (outer_dir / f"{cname}_FDFdirty.dat").as_posix(),
+            "RMSF": (outer_dir / f"{cname}_RMSF.dat").as_posix(),
+            "weights": (outer_dir / f"{cname}_weight.dat").as_posix(),
+            "summary_dat": (outer_dir / f"{cname}_RMsynth.dat").as_posix(),
+            "summary_json": (outer_dir / f"{cname}_RMsynth.json").as_posix(),
         },
         "rmsynth1d": True,
         "header": head_dict,
