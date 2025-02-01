@@ -382,7 +382,6 @@ def main(
         end_time=end_time,
         freq=freq.to(u.Hz).value,
         cutdir=cutdir,
-        plotdir=plotdir,
         server=ionex_server,
         prefix=ionex_prefix,
         proxy_server=ionex_proxy_server,
