@@ -16,6 +16,7 @@ import astropy.units as u
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
+from FRion import correct, predict
 from prefect import flow, task
 from tqdm.auto import tqdm
 
@@ -28,7 +29,6 @@ from arrakis.utils.database import (
 )
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
-from FRion import correct, predict
 
 logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
@@ -48,7 +48,11 @@ class FrionResults(Struct):
 
 @task(name="FRion correction")
 def correct_worker(
-    beam: dict, outdir: str, field: str, prediction: Prediction, island: dict
+    beam: dict,
+    outdir: Path,
+    field: str,
+    prediction: Prediction,
+    island: dict,
 ) -> pymongo.UpdateOne:
     """Apply FRion corrections to a single island
 
@@ -64,17 +68,22 @@ def correct_worker(
     """
     predict_file = prediction.predict_file
     island_id = island["Source_ID"]
-    qfile = os.path.join(outdir, beam["beams"][field]["q_file"])
-    ufile = os.path.join(outdir, beam["beams"][field]["u_file"])
+    qfile = outdir / str(beam["beams"][field]["q_file"])
+    ufile = outdir / str(beam["beams"][field]["u_file"])
 
-    qout = beam["beams"][field]["q_file"].replace(".fits", ".ion.fits")
-    uout = beam["beams"][field]["u_file"].replace(".fits", ".ion.fits")
+    qout = str(beam["beams"][field]["q_file"]).replace(".fits", ".ion.fits")
+    uout = str(beam["beams"][field]["u_file"]).replace(".fits", ".ion.fits")
 
-    qout_f = os.path.join(outdir, qout)
-    uout_f = os.path.join(outdir, uout)
+    qout_f = outdir / qout
+    uout_f = outdir / uout
 
     correct.apply_correction_to_files(
-        qfile, ufile, predict_file, qout_f, uout_f, overwrite=True
+        Qfile=qfile.as_posix(),
+        Ufile=ufile.as_posix(),
+        predictionfile=predict_file,
+        Qoutfile=qout_f.as_posix(),
+        Uoutfile=uout_f.as_posix(),
+        overwrite=True,
     )
 
     myquery = {"Source_ID": island_id}
@@ -217,7 +226,6 @@ def serial_loop(
     end_time: Time,
     freq_hz_array: np.ndarray,
     cutdir: Path,
-    plotdir: Path,
     ionex_server: str,
     ionex_prefix: str,
     ionex_proxy_server: str | None,
@@ -232,7 +240,6 @@ def serial_loop(
         end_time=end_time,
         freq=freq_hz_array,
         cutdir=cutdir,
-        plotdir=plotdir,
         server=ionex_server,
         prefix=ionex_prefix,
         proxy_server=ionex_proxy_server,
@@ -259,14 +266,14 @@ def main(
     sbid: int | None = None,
     username: str | None = None,
     password: str | None = None,
-    database=False,
+    database: bool = False,
     ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
     ionex_prefix: str = "codg",
     ionex_proxy_server: str | None = None,
     ionex_formatter: str | Callable | None = "ftp.aiub.unibe.ch",
     ionex_predownload: bool = False,
     limit: int | None = None,
-):
+) -> None:
     """FRion flow
 
     Args:
@@ -399,7 +406,6 @@ def main(
             end_time=end_time,
             freq_hz_array=freq.to(u.Hz).value,
             cutdir=cutdir,
-            plotdir=plotdir,
             ionex_server=ionex_server,
             ionex_prefix=ionex_prefix,
             ionex_proxy_server=ionex_proxy_server,

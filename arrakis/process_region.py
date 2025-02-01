@@ -219,7 +219,7 @@ def pipeline_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     return pipeline_parser
 
 
-def cli():
+def cli() -> None:
     """Command-line interface"""
     # Help string to be shown using the -h option
 

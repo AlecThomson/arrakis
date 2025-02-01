@@ -55,7 +55,7 @@ def copy_singleton(
             raise KeyError("Ion files not found. Have you run FRion?")
         new_dir = os.path.join(data_dir, beam["Source_ID"])
 
-        try_mkdir(new_dir, verbose=False)
+        try_mkdir(new_dir)
 
         i_file_new = os.path.join(new_dir, os.path.basename(i_file_old)).replace(
             ".fits", ".edge.linmos.fits"
@@ -213,7 +213,7 @@ def merge_multiple_field(
 
     new_dir = os.path.join(data_dir, beam["Source_ID"])
 
-    try_mkdir(new_dir, verbose=False)
+    try_mkdir(new_dir)
 
     for stokes, imlist in zip(["I", "Q", "U"], [i_files_old, q_files_old, u_files_old]):
         parset_file = genparset(imlist, stokes, new_dir)

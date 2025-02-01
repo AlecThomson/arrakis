@@ -24,16 +24,18 @@ class TqdmToLogger(io.StringIO):
     level = None
     buf = ""
 
-    def __init__(self, logger, level=None):
+    def __init__(self, logger: logging.Logger | None, level: int | None = None) -> None:
         super().__init__()
         self.logger = logger
         self.level = level or logging.INFO
 
-    def write(self, buf):
+    def write(self, buf: str) -> int:
         self.buf = buf.strip("\r\n\t ")
+        return len(buf)
 
-    def flush(self):
-        self.logger.log(self.level, self.buf)
+    def flush(self) -> None:
+        if self.logger is not None and isinstance(self.level, int):
+            self.logger.log(self.level, self.buf)
 
 
 # Create formatter
@@ -58,7 +60,7 @@ class CustomFormatter(logging.Formatter):
         logging.CRITICAL: f"{bold_red}SPICE-%(levelname)s{reset} {format_str}",
     }
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt, "%Y-%m-%d %H:%M:%S")
         return formatter.format(record)
