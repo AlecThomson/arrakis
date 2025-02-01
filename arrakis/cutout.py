@@ -483,7 +483,6 @@ def cutout_islands(
         host (str): MongoDB host.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
-        verbose (bool, optional): Verbose output. Defaults to True.
         pad (int, optional): Number of beamwidths to pad cutouts. Defaults to 3.
         stokeslist (List[str], optional): Stokes parameters to cutout. Defaults to None.
         dryrun (bool, optional): Do everything except write FITS files. Defaults to True.
@@ -605,7 +604,6 @@ def main(args: argparse.Namespace) -> None:
 
     Args:
         args (argparse.Namespace): Command-line args
-        verbose (bool, optional): Verbose output. Defaults to True.
     """
     cutout_islands.with_options(task_runner=ConcurrentTaskRunner)(
         field=args.field,

@@ -116,7 +116,6 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             username=args.username,
             password=args.password,
             dimension=args.dimension,
-            verbose=args.verbose,
             database=args.database,
             limit=args.limit,
             savePlots=args.save_plots,
@@ -171,7 +170,6 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             sbid=args.sbid,
             username=args.username,
             password=args.password,
-            verbose=args.verbose,
             outfile=outfile,
         )
         if not args.skip_cat

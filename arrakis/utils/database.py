@@ -44,7 +44,6 @@ def test_db(
         host (str): Mongo host IP.
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
-        verbose (bool, optional): Verbose output. Defaults to True.
 
 
     Returns:

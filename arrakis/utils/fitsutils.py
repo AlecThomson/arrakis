@@ -85,7 +85,6 @@ def getfreq(
         filename (str): Name of frequency list file. Requires 'outdir'
             to also be specified.
 
-        verbose (bool): Whether to print messages.
 
     Returns:
         freq (list): Frequencies of each channel in the input cube.

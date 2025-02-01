@@ -237,7 +237,6 @@ def linmos(
         fieldname (str): Name of RACS field.
         image (str): Name of Yandasoft image.
         holofile (Path): Path to the holography file to include in the bind list.
-        verbose (bool, optional): Verbose output. Defaults to False.
 
     Raises:
         Exception: If LINMOS fails.

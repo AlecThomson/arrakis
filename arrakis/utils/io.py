@@ -57,7 +57,6 @@ def gettable(tabledir: str, keyword: str) -> tuple[Table, str]:
     Args:
         tabledir (str): Directory.
         keyword (str): Keyword to glob for.
-        verbose (bool, optional): Verbose output. Defaults to True.
 
     Returns:
         Tuple[Table, str]: Table and it's file location.

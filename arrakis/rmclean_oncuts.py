@@ -241,7 +241,6 @@ def main(
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
         dimension (str, optional): Which dimension to run RM-CLEAN. Defaults to "1d".
-        verbose (bool, optional): Verbose output. Defaults to True.
         database (bool, optional): Update database. Defaults to False.
         savePlots (bool, optional): Save plots. Defaults to True.
         validate (bool, optional): Run validation. Defaults to False.

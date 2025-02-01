@@ -789,7 +789,6 @@ def main(
         username (Union[str, None], optional): MongoDB username. Defaults to None.
         password (Union[str, None], optional): MongoDB password. Defaults to None.
         dimension (str, optional): RMsynth dimension. Defaults to "1d".
-        verbose (bool, optional): Verbose output. Defaults to True.
         database (bool, optional): Update MongoDB. Defaults to False.
         do_validate (bool, optional): Validate RMsynth. Defaults to False.
         limit (Union[int, None], optional): Limit number of components. Defaults to None.
@@ -1223,7 +1222,6 @@ def cli():
         username=args.username,
         password=args.password,
         dimension=args.dimension,
-        verbose=verbose,
         database=args.database,
         limit=args.limit,
         savePlots=args.save_plots,

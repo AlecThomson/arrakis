@@ -66,7 +66,6 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             username=args.username,
             password=args.password,
             dimension=args.dimension,
-            verbose=args.verbose,
             database=args.database,
             limit=args.limit,
             savePlots=args.save_plots,
@@ -120,7 +119,6 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             epoch=args.epoch,
             username=args.username,
             password=args.password,
-            verbose=args.verbose,
             outfile=args.outfile,
         )
         if not args.skip_cat
