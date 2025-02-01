@@ -17,7 +17,7 @@ import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
 from FRion import correct, predict
-from prefect import flow, task
+from prefect import flow, get_run_logger, task
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
@@ -122,7 +122,6 @@ def predict_worker(
         end_time (Time): End time of the observation
         freq (np.ndarray): Array of frequencies with units
         cutdir (str): Cutout directory
-        plotdir (str): Plot directory
 
     Returns:
         Tuple[str, pymongo.UpdateOne]: FRion prediction file and pymongo update query
@@ -291,12 +290,10 @@ def main(
         ionex_predownload (bool, optional): Pre-download IONEX files. Defaults to False.
         limit (int, optional): Limit to number of islands. Defaults to None.
     """
+    logger = get_run_logger()
     # Query database for data
     outdir = outdir.absolute()
     cutdir = outdir / "cutouts"
-
-    plotdir = cutdir / "plots"
-    plotdir.mkdir(parents=True, exist_ok=True)
 
     beams_col, island_col, comp_col = get_db(
         host=host, epoch=epoch, username=username, password=password
