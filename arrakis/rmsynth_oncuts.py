@@ -40,6 +40,7 @@ from arrakis.utils.database import (
     test_db,
     validate_sbid_field_pair,
 )
+from arrakis.utils.exceptions import FitsError
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.fitting import fit_pl, fitted_mean, fitted_std
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
@@ -283,10 +284,14 @@ def extract_single_spectrum(
     else:
         key = f"{stokes}_file"
     filename = outdir / field_dict[key]
-    with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
-        hdu = hdulist[0]
-        data = np.squeeze(hdu.data)
-        header = hdu.header
+    try:
+        with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
+            hdu = hdulist[0]
+            data = np.squeeze(hdu.data)
+            header = hdu.header
+    except Exception as e:
+        msg = f"Error opening {filename}"
+        raise FitsError(msg) from e
 
     bkg, rms = cubelet_bane(data, header)
     rms[np.isnan(rms)] = np.nanmedian(rms)

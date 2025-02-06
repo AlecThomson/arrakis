@@ -907,7 +907,6 @@ def main(
     leakage_snr: float = 30.0,
     username: str | None = None,
     password: str | None = None,
-    verbose: bool = True,
     outfile: str | None = None,
 ) -> None:
     """Make a catalogue from the Arrakis database flow
@@ -917,7 +916,6 @@ def main(
         host (str): MongoDB host IP
         username (str, optional): Mongo username. Defaults to None.
         password (str, optional): Mongo password. Defaults to None.
-        verbose (bool, optional): Verbose output. Defaults to True.
         outfile (str, optional): Output file name. Defaults to None.
         cat_format (str, optional): Type of catalogue .e.g. fits. Defaults to None.
     """
@@ -1054,7 +1052,6 @@ def main(
             ),
             total=len(columns_possum.output_cols),
             desc="Making table by column",
-            disable=not verbose,
             file=TQDM_OUT,
         ),
     ):
@@ -1309,7 +1306,6 @@ def cli():
         leakage_snr=args.leakage_snr,
         username=args.username,
         password=args.password,
-        verbose=verbose,
         outfile=args.outfile,
     )
 

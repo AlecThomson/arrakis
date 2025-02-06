@@ -40,3 +40,7 @@ class RegistryError(Exception):
 
 class DivergenceError(Exception):
     """Raised when a divergence is detected"""
+
+
+class FitsError(Exception):
+    """Raised when a FITS file cannot be read"""
