@@ -958,6 +958,8 @@ def main(
                     "$elemMatch": {
                         "$and": [
                             {"field": save_name},
+                            {"rmsynth1d": True},
+                            {"rmclean1d": True},
                             {"rmsynth_summary": {"$exists": True}},
                             {"rmclean_summary": {"$exists": True}},
                         ],
