@@ -32,13 +32,6 @@ repos:
       - id: rst-directive-colons
       - id: rst-inline-touching-normal
 
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: "v4.0.0-alpha.8"
-    hooks:
-      - id: prettier
-        types_or: [yaml, markdown, html, css, scss, javascript, json]
-        args: [--prose-wrap=always]
-
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.9.6"
     hooks:
@@ -46,10 +39,10 @@ repos:
         args: ["--fix", "--show-fixes"]
       - id: ruff-format
 
-  - repo: https://github.com/codespell-project/codespell
-    rev: "v2.4.1"
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.29.10
     hooks:
-      - id: codespell
+      - id: typos
 
   - repo: local
     hooks:

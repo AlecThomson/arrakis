@@ -193,7 +193,7 @@ def genparset(
 linmos.weights          = {weight_string}
 linmos.imagetype        = fits
 linmos.outname          = {linmos_image_str}
-linmos.outweight        = {linmos_weight_str} # codespell:ignore outweight
+linmos.outweight        = {linmos_weight_str}
 # For ASKAPsoft>1.3.0
 linmos.useweightslog    = true
 linmos.weighttype       = Combined

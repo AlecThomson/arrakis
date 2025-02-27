@@ -184,3 +184,7 @@ strict = false
 [[tool.mypy.overrides]]
 module = ["astropy.*", "casacore.*",]
 ignore_missing_imports = true
+
+[tool.typos]
+# ignore outweight
+default.extend-ignore-words-re = ["outweight"]
