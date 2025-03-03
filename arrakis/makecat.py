@@ -58,7 +58,7 @@ class SpectralIndices(NamedTuple):
     betas_err: np.ndarray
 
 
-def combinate(  # codespell:ignore[combinate]
+def combine(  # codespell:ignore[combine]
     data: ArrayLike,
 ) -> tuple[ArrayLike, ArrayLike]:
     """Return all combinations of data with itself
@@ -69,8 +69,8 @@ def combinate(  # codespell:ignore[combinate]
     Returns:
         Tuple[ArrayLike, ArrayLike]: Data_1 matched with Data_2
     """
-    ix, iy = np.triu_indices(data.shape[0], k=1)
-    idx = np.vstack((ix, iy)).T
+    ix, it = np.triu_indices(data.shape[0], k=1)
+    idx = np.vstack((ix, it)).T
     dx, dy = data[idx].swapaxes(0, 1)
     return dx, dy
 
@@ -684,7 +684,7 @@ def get_integration_time(cat: RMTable, field_col: Collection, sbid: int | None =
         ] * len(field_names)
         unique_field_names = list(set(field_names))
 
-    reutrn_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1, "SBID": 1}
+    return_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1, "SBID": 1}
 
     doc_count = field_col.count_documents(query)
 
@@ -699,7 +699,7 @@ def get_integration_time(cat: RMTable, field_col: Collection, sbid: int | None =
         else:
             logger.warning("Using SELECT=0 instead.")
 
-    field_data = list(field_col.find(query, reutrn_vals))
+    field_data = list(field_col.find(query, return_vals))
     tint_df = pd.DataFrame(field_data)
     tint_df.set_index("FIELD_NAME", inplace=True, drop=False)
 
@@ -1033,7 +1033,7 @@ def main(
 
     rmtab = RMTable()
     # Add items to main cat using RMtable standard
-    for j, [name, typ, src, col, unit] in enumerate(
+    for j, [name, typo, src, col, unit] in enumerate(
         tqdm(
             zip(
                 columns_possum.output_cols,
@@ -1067,7 +1067,7 @@ def main(
                     except KeyError as e:
                         logger.error(f"Island {src_id} does not have {col}")
                         raise e
-            new_col = Column(data=data, name=name, dtype=typ, unit=unit)
+            new_col = Column(data=data, name=name, dtype=typo, unit=unit)
             rmtab.add_column(new_col)
 
         if src == "synth":
@@ -1076,13 +1076,13 @@ def main(
                     data += [comp["rmclean_summary"][col]]
                 except KeyError:
                     data += [comp["rmsynth_summary"][col]]
-            new_col = Column(data=data, name=name, dtype=typ, unit=unit)
+            new_col = Column(data=data, name=name, dtype=typo, unit=unit)
             rmtab.add_column(new_col)
 
         if src == "header":
             for src_id, comp in comps_df.iterrows():
                 data += [comp["header"][col]]
-            new_col = Column(data=data, name=name, dtype=typ, unit=unit)
+            new_col = Column(data=data, name=name, dtype=typo, unit=unit)
             rmtab.add_column(new_col)
 
     for selcol in tqdm(

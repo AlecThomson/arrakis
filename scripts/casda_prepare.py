@@ -514,7 +514,7 @@ def main(
     casda_dir = os.path.join(data_dir, f"casda_{prep_type}")
     try_mkdir(casda_dir)
 
-    # Link catalgoue to casda directory
+    # Link catalogue to casda directory
     cat_dir = os.path.join(casda_dir, "catalogues")
     try_mkdir(cat_dir)
     if prep_type != "full":
