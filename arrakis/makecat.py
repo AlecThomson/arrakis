@@ -1143,11 +1143,16 @@ def main(
         name="pos_err",
     )
 
+    if outfile is not None:
+        catalogue_name = Path(outfile).stem
+    else:
+        catalogue_name = None
+
     # Add common columns
     rmtab["rm_method"] = "RM Synthesis - Fractional polarization"
     rmtab["telescope"] = "ASKAP"
     rmtab["pol_bias"] = "2012PASA...29..214G"
-    rmtab["catalog"] = "Arrakis-DR1"
+    rmtab["catalog"] = catalogue_name
     rmtab["ionosphere"] = "FRion"
     rmtab["flux_type"] = "Peak"
     rmtab["aperture"] = 0 * u.deg
