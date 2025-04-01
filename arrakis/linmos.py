@@ -7,6 +7,7 @@ import argparse
 import logging
 import os
 import shlex
+import uuid
 import warnings
 from glob import glob
 from pathlib import Path
@@ -206,7 +207,9 @@ linmos.weightstate      = Inherent
         if mem_dir is not None:
             logger.info(f"Copying holography file to {mem_dir}")
             mem_path = Path(mem_dir)
-            holo_copy = mem_path / holofile.name
+            holofile_name = str(uuid.uuid1()) + ".fits"
+            logger.info(f"Copying holography file to {holofile_name}")
+            holo_copy = mem_path / holofile_name
             if not holo_copy.exists():
                 copyfile(holofile, holo_copy)
             holofile = holo_copy
