@@ -317,7 +317,7 @@ def main(
         merge_name=merge_name,
     )
 
-    mutilple_updates = merge_multiple_fields(
+    multiple_updates = merge_multiple_fields(
         field_dict=field_dict,
         data_dir=data_dir,
         beams_col=beams_col,
@@ -326,7 +326,7 @@ def main(
     )
 
     singleton_comp = [f.result() for f in singleton_updates]
-    multiple_comp = [f.result() for f in mutilple_updates]
+    multiple_comp = [f.result() for f in multiple_updates]
 
     for m in multiple_comp:
         m._doc["$set"].update({f"beams.{merge_name}.DR1": True})

@@ -190,7 +190,7 @@ def rmsynthoncut3d(
         fitRMSF=fitRMSF,
         prefixOut=prefix,
         outDir=os.path.dirname(ifile),
-        write_seperate_FDF=True,
+        write_separate_FDF=True,
         not_rmsf=not_RMSF,
         nBits=32,
         verbose=rm_verbose,
