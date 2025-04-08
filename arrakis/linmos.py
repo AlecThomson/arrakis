@@ -11,7 +11,6 @@ import warnings
 from glob import glob
 from pathlib import Path
 from pprint import pformat
-from shutil import copyfile
 from typing import NamedTuple as Struct
 
 import astropy.units as u
@@ -202,15 +201,6 @@ linmos.weightstate      = Inherent
 
     if holofile is not None:
         logger.info(f"Using holography file {holofile} -- setting removeleakge to true")
-        mem_dir = os.getenv("MEMDIR", None)
-        if mem_dir is not None:
-            logger.info(f"Copying holography file to {mem_dir}")
-            mem_path = Path(mem_dir)
-            holo_copy = mem_path / holofile.name
-            if not holo_copy.exists():
-                copyfile(holofile, holo_copy)
-            holofile = holo_copy
-
         parset += f"""
 linmos.primarybeam      = ASKAP_PB
 linmos.primarybeam.ASKAP_PB.image = {holofile.resolve().as_posix()}
