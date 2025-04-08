@@ -384,7 +384,7 @@ Corresponds with DR1 paper.
 
 - `submit/casda_pre_prep.sh`
 - `submit/casda_prep_test.sh`
-- ASKAP RACS database as a submodule (changes how `init_databse.py` ingests
+- ASKAP RACS database as a submodule (changes how `init_database.py` ingests
   data)
 
 ## [0.2.0] - 2019-12-01
