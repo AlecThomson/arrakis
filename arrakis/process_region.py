@@ -83,7 +83,7 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             fit_function=args.fit_function,
             tt0=args.tt0,
             tt1=args.tt1,
-            ion=False,
+            ion=False,  # Always False as we don't do Frion twice
             do_own_fit=args.do_own_fit,
         )
         if not args.skip_rmsynth

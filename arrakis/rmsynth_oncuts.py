@@ -283,7 +283,14 @@ def extract_single_spectrum(
         key = f"{stokes}_file_ion"
     else:
         key = f"{stokes}_file"
-    filename = outdir / field_dict[key]
+
+    file_stem = field_dict.get(key)
+    if file_stem is None:
+        msg = f"Key {key} not found in database entry. Check if previous step was run."
+        raise ValueError(msg)
+    else:
+        file_stem = str(file_stem)
+    filename = outdir / file_stem
     try:
         with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
             hdu = hdulist[0]

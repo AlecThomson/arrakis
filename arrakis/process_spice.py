@@ -133,7 +133,7 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             fit_function=args.fit_function,
             tt0=args.tt0,
             tt1=args.tt1,
-            ion=True,
+            ion=True if not args.skip_frion else False,
             do_own_fit=args.do_own_fit,
         )
         if not args.skip_rmsynth
