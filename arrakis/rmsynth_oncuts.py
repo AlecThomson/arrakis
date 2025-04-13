@@ -287,7 +287,7 @@ def extract_single_spectrum(
     file_stem = field_dict.get(key)
     if file_stem is None:
         msg = f"Key {key} not found in database entry. Check if previous step was run."
-        raise ValueError(f"Key {key} not found in field_dict")
+        raise ValueError(msg)
     else:
         file_stem = str(file_stem)
     filename = outdir / file_stem
