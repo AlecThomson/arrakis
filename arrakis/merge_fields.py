@@ -5,28 +5,28 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
 
 import pymongo
 from prefect import flow, task
+from prefect.futures import PrefectFuture, Sync
+from pymongo.collection import Collection
 
 from arrakis.linmos import get_yanda, linmos, linmos_parser
 from arrakis.logger import UltimateHelpFormatter, logger
 from arrakis.utils.database import get_db, test_db
-from arrakis.utils.io import try_mkdir
 
 
-def make_short_name(name: str) -> str:
-    short = os.path.join(
-        os.path.basename(os.path.dirname(name)), os.path.basename(name)
-    )
-    return short
+def make_short_name(name: str | Path) -> str:
+    p = Path(name)
+    return str(Path(p.parent.name) / p.name)
 
 
 @task(name="Copy singleton island")
 def copy_singleton(
-    beam: dict, field_dict: dict[str, str], merge_name: str, data_dir: str
+    beam: dict, field_dict: dict[str, str], merge_name: str, data_dir: Path
 ) -> list[pymongo.UpdateOne]:
     """Copy an island within a single field to the merged field
 
@@ -42,41 +42,37 @@ def copy_singleton(
     Returns:
         List[pymongo.UpdateOne]: Database updates
     """
-    updates = []
+    updates: list[pymongo.UpdateOne] = []
     for field, vals in beam["beams"].items():
         if field not in field_dict.keys():
             continue
-        field_dir = field_dict[field]
+        field_dir = Path(field_dict[field])
         try:
-            i_file_old = os.path.join(field_dir, vals["i_file"])
-            q_file_old = os.path.join(field_dir, vals["q_file_ion"])
-            u_file_old = os.path.join(field_dir, vals["u_file_ion"])
+            q_file_old = field_dir / str(vals["q_file_ion"])
+            i_file_old = field_dir / str(vals["i_file"])
+            u_file_old = field_dir / str(vals["u_file_ion"])
         except KeyError:
             raise KeyError("Ion files not found. Have you run FRion?")
-        new_dir = os.path.join(data_dir, beam["Source_ID"])
+        new_dir = data_dir / str(beam["Source_ID"])
+        new_dir.mkdir(exist_ok=True)
 
-        try_mkdir(new_dir)
-
-        i_file_new = os.path.join(new_dir, os.path.basename(i_file_old)).replace(
-            ".fits", ".edge.linmos.fits"
-        )
-        q_file_new = os.path.join(new_dir, os.path.basename(q_file_old)).replace(
-            ".fits", ".edge.linmos.fits"
-        )
-        u_file_new = os.path.join(new_dir, os.path.basename(u_file_old)).replace(
-            ".fits", ".edge.linmos.fits"
-        )
+        i_file_new = (new_dir / i_file_old.name).with_suffix(".edge.linmos.fits")
+        q_file_new = (new_dir / q_file_old.name).with_suffix(".edge.linmos.fits")
+        u_file_new = (new_dir / u_file_old.name).with_suffix(".edge.linmos.fits")
 
         for src, dst in zip(
-            [i_file_old, q_file_old, u_file_old], [i_file_new, q_file_new, u_file_new]
+            [i_file_old, q_file_old, u_file_old],
+            [i_file_new, q_file_new, u_file_new],
         ):
             copyfile(src, dst)
-            src_weight = src.replace(".image.restored.", ".weights.").replace(
-                ".ion", ""
+
+            src_weight = Path(
+                str(src).replace(".image.restored.", ".weights.").replace(".ion", "")
             )
-            dst_weight = dst.replace(".image.restored.", ".weights.").replace(
-                ".ion", ""
+            dst_weight = Path(
+                str(dst).replace(".image.restored.", ".weights.").replace(".ion", "")
             )
+
             copyfile(src_weight, dst_weight)
 
         query = {"Source_ID": beam["Source_ID"]}
@@ -95,10 +91,10 @@ def copy_singleton(
 
 def copy_singletons(
     field_dict: dict[str, str],
-    data_dir: str,
-    beams_col: pymongo.collection.Collection,
+    data_dir: Path,
+    beams_col: Collection,
     merge_name: str,
-) -> list[pymongo.UpdateOne]:
+) -> list[PrefectFuture[list[pymongo.UpdateOne], Sync]]:
     """Copy islands that don't overlap other fields
 
     Args:
@@ -128,7 +124,7 @@ def copy_singletons(
     big_beams = list(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
-    updates = []
+    updates: list[PrefectFuture[list[pymongo.UpdateOne], Sync]] = []
     for beam in big_beams:
         update = copy_singleton.submit(
             beam=beam,
@@ -141,42 +137,41 @@ def copy_singletons(
 
 
 def genparset(
-    old_ims: list,
+    old_ims: list[Path],
     stokes: str,
-    new_dir: str,
-) -> str:
-    imlist = "[" + ",".join([im.replace(".fits", "") for im in old_ims]) + "]"
-    weightlist = f"[{','.join([im.replace('.fits', '').replace('.image.restored.', '.weights.').replace('.ion', '') for im in old_ims])}]"
+    new_dir: Path,
+) -> Path:
+    imlist = "[" + ",".join([im.stem for im in old_ims]) + "]"
+    weightlist = f"[{','.join([im.stem.replace('.image.restored.', '.weights.').replace('.ion', '') for im in old_ims])}]"
 
-    im_outname = os.path.join(new_dir, os.path.basename(old_ims[0])).replace(
-        ".fits", ".edge.linmos"
-    )
+    first_image_name = old_ims[0].name
+    im_outname = (new_dir / first_image_name).with_suffix(".edge.linmos")
+
     wt_outname = (
-        os.path.join(new_dir, os.path.basename(old_ims[0]))
-        .replace(".fits", ".edge.linmos")
-        .replace(".image.restored.", ".weights.")
-    )
+        new_dir / first_image_name.replace(".image.restored.", ".weights.")
+    ).with_suffix(".edge.linmos")
 
-    parset_file = os.path.join(new_dir, f"edge_linmos_{stokes}.in")
+    parset_file = new_dir / f"edge_linmos_{stokes}.in"
     parset = f"""# LINMOS parset
 linmos.names            = {imlist}
 linmos.weights          = {weightlist}
 linmos.imagetype        = fits
-linmos.outname          = {im_outname}
-linmos.outweigh        = {wt_outname}
+linmos.outname          = {im_outname.as_posix()}
+linmos.outweight        = {wt_outname.as_posix()}
 # For ASKAPsoft>1.3.0
 linmos.weighttype       = FromWeightImages
 linmos.weightstate      = Corrected
 """
 
-    with open(parset_file, "w") as f:
+    with parset_file.open("w") as f:
         f.write(parset)
 
     return parset_file
 
 
+@task(name="Merge multiple islands")
 def merge_multiple_field(
-    beam: dict, field_dict: dict, merge_name: str, data_dir: str, image: str
+    beam: dict, field_dict: dict, merge_name: str, data_dir: Path, image: str
 ) -> list[pymongo.UpdateOne]:
     """Merge an island that overlaps multiple fields
 
@@ -193,44 +188,45 @@ def merge_multiple_field(
     Returns:
         List[pymongo.UpdateOne]: Database updates
     """
-    i_files_old = []
-    q_files_old = []
-    u_files_old = []
-    updates = []
+    i_files_old: list[Path] = []
+    q_files_old: list[Path] = []
+    u_files_old: list[Path] = []
+    updates: list[pymongo.UpdateOne] = []
     for field, vals in beam["beams"].items():
         if field not in field_dict.keys():
             continue
-        field_dir = field_dict[field]
+        field_dir = Path(field_dict[field])
         try:
-            i_file_old = os.path.join(field_dir, vals["i_file"])
-            q_file_old = os.path.join(field_dir, vals["q_file_ion"])
-            u_file_old = os.path.join(field_dir, vals["u_file_ion"])
+            i_file_old = field_dir / str(vals["i_file"])
+            q_file_old = field_dir / str(vals["q_file_ion"])
+            u_file_old = field_dir / str(vals["u_file_ion"])
         except KeyError:
             raise KeyError("Ion files not found. Have you run FRion?")
         i_files_old.append(i_file_old)
         q_files_old.append(q_file_old)
         u_files_old.append(u_file_old)
 
-    new_dir = os.path.join(data_dir, beam["Source_ID"])
+    new_dir = data_dir / str(beam["Source_ID"])
 
-    try_mkdir(new_dir)
+    new_dir.mkdir(exist_ok=True)
 
     for stokes, imlist in zip(["I", "Q", "U"], [i_files_old, q_files_old, u_files_old]):
         parset_file = genparset(imlist, stokes, new_dir)
-        update = linmos.fn(parset_file, merge_name, image)
+        update: pymongo.UpdateOne = linmos.fn(
+            parset=parset_file.as_posix(), fieldname=merge_name, image=image
+        )
         updates.append(update)
 
     return updates
 
 
-@task(name="Merge multiple islands")
 def merge_multiple_fields(
     field_dict: dict[str, str],
-    data_dir: str,
-    beams_col: pymongo.collection.Collection,
+    data_dir: Path,
+    beams_col: Collection,
     merge_name: str,
     image: str,
-) -> list[pymongo.UpdateOne]:
+) -> list[PrefectFuture[list[pymongo.UpdateOne], Sync]]:
     """Merge multiple islands that overlap multiple fields
 
     Args:
@@ -261,7 +257,7 @@ def merge_multiple_fields(
     big_beams = list(
         beams_col.find({"Source_ID": {"$in": island_ids}}).sort("Source_ID")
     )
-    updates = []
+    updates: list[PrefectFuture[list[pymongo.UpdateOne], Sync]] = []
     for beam in big_beams:
         update = merge_multiple_field.submit(
             beam=beam,
@@ -278,15 +274,15 @@ def merge_multiple_fields(
 @flow(name="Merge fields")
 def main(
     fields: list[str],
-    field_dirs: list[str],
+    field_dirs: list[Path],
     merge_name: str,
-    output_dir: str,
+    output_dir: Path,
     host: str,
     epoch: int,
     username: str | None = None,
     password: str | None = None,
     yanda="1.3.0",
-) -> str:
+) -> Path:
     logger.debug(f"{fields=}")
 
     assert len(fields) == len(field_dirs), (
@@ -304,11 +300,11 @@ def main(
         host=host, epoch=epoch, username=username, password=password
     )
 
-    output_dir = os.path.abspath(output_dir)
-    inter_dir = os.path.join(output_dir, merge_name)
-    try_mkdir(inter_dir)
-    data_dir = os.path.join(inter_dir, "cutouts")
-    try_mkdir(data_dir)
+    output_dir = output_dir.absolute()
+    inter_dir = output_dir / merge_name
+    inter_dir.mkdir(parents=True, exist_ok=True)
+    data_dir = inter_dir / "cutouts"
+    data_dir.mkdir(parents=True, exist_ok=True)
 
     singleton_updates = copy_singletons(
         field_dict=field_dict,
@@ -325,8 +321,12 @@ def main(
         image=image,
     )
 
-    singleton_comp = [f.result() for f in singleton_updates]
-    multiple_comp = [f.result() for f in multiple_updates]
+    singleton_comp_list = [f.result() for f in singleton_updates]
+    multiple_comp_list = [f.result() for f in multiple_updates]
+
+    # Flatten list of lists
+    singleton_comp = [x for xs in singleton_comp_list for x in xs]
+    multiple_comp = [x for xs in multiple_comp_list for x in xs]
 
     for m in multiple_comp:
         m._doc["$set"].update({f"beams.{merge_name}.DR1": True})
@@ -369,14 +369,14 @@ def merge_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--datadirs",
-        type=str,
+        type=Path,
         nargs="+",
         help="Directories containing cutouts (in subdir outdir/cutouts)..",
     )
 
     parser.add_argument(
         "--output_dir",
-        type=str,
+        type=Path,
         help="Path to save merged data (in output_dir/merge_name/cutouts)",
     )
     parser.add_argument(

@@ -8,9 +8,10 @@ import logging
 import os
 import time
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
-from typing import Callable, NamedTuple
+from typing import NamedTuple
 
 import astropy.units as u
 import dask.dataframe as dd

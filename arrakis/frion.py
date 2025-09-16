@@ -6,9 +6,9 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
-from typing import Callable
 from typing import NamedTuple as Struct
 from urllib.error import URLError
 
