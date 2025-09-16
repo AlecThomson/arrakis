@@ -1,11 +1,11 @@
 Installation
 ------------
 
-The full python package can be installed using `pip`.
+The full python package can be installed using `pip`. 
 
-To make life easier, both the Python and other dependencies can be installed using conda.
+A small number of compiled packages are required (CASA and MongoDB). To make life easier, both the Python and other dependencies can be installed using `conda`.
 
-First, ensure you have `anaconda <https://www.anaconda.com/products/individual/>`_ or `miniconda <https://docs.conda.io/en/latest/miniconda.html/>`_ installed.
+First, ensure you have  `conda <https://github.com/conda-forge/miniforge>`_ installed (miniforge is recommended).
 
 .. tip::
     I strongly recommend using `mamba <https://github.com/mamba-org/mamba>`_ to install the dependencies. Mamba is essentially a compiled and parallelized version of conda. It will greatly speed up your installation.
@@ -16,11 +16,19 @@ After cloning this repo, please run: ::
 
     conda env create
     # or - if you have mamba:
-    mamba env create
+    mamba env create -f environment.yml
 
-This will install the python dependencies and the command-line scripts into a conda environment called `arrakis310`, which can be activated by: ::
+This will install the non-dependencies, including `uv`, and create a virtual environment called `arrakis310`
+
+Then you can install the Python dependencies and the command-line scripts into the environment using `pip` or `uv` e.g. ::
 
     conda activate arrakis310
+    # Recommended - uses the provided lock file
+    uv sync
+    # or - flexible install
+    uv pip install .
+    # or - same as above but slower
+    pip install .
 
 An installation of Singularity is also required.
 
