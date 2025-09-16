@@ -12,6 +12,7 @@ from glob import glob
 from pathlib import Path
 from pprint import pformat
 from typing import NamedTuple as Struct
+from typing import overload
 
 import astropy.units as u
 import numpy as np
@@ -216,9 +217,21 @@ linmos.removeleakage    = true
     return parset_file
 
 
+@overload
+def linmos(
+    parset: None, fieldname: str, image: str, holofile: Path | None = None
+) -> None: ...
+
+
+@overload
+def linmos(
+    parset: str, fieldname: str, image: str, holofile: Path | None = None
+) -> pymongo.UpdateOne: ...
+
+
 @task(name="Run linmos")
 def linmos(
-    parset: str | None, fieldname: str, image: str, holofile: Path
+    parset: str | None, fieldname: str, image: str, holofile: Path | None = None
 ) -> pymongo.UpdateOne | None:
     """Run linmos
 
@@ -248,12 +261,15 @@ def linmos(
     log_file = parset.replace(".in", ".log")
     linmos_command = shlex.split(f"linmos -c {parset}")
 
-    holo_folder = holofile.parent
+    bind_dir_str = f"{rootdir}:{rootdir}"
+    if holofile is not None:
+        holo_folder = holofile.parent
+        bind_dir_str += f",{holo_folder}:{holo_folder}"
 
     output = sclient.execute(
         image=image,
         command=linmos_command,
-        bind=f"{rootdir}:{rootdir},{holo_folder}:{holo_folder}",
+        bind=bind_dir_str,
         return_result=True,
         quiet=False,
         stream=True,

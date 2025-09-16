@@ -6,9 +6,9 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
-from typing import Callable
 from typing import NamedTuple as Struct
 from urllib.error import URLError
 
@@ -16,7 +16,6 @@ import astropy.units as u
 import numpy as np
 import pymongo
 from astropy.time import Time, TimeDelta
-from FRion import correct, predict
 from prefect import flow, get_run_logger, task
 from tqdm.auto import tqdm
 
@@ -29,6 +28,7 @@ from arrakis.utils.database import (
 )
 from arrakis.utils.fitsutils import getfreq
 from arrakis.utils.pipeline import generic_parser, logo_str, workdir_arg_parser
+from FRion import correct, predict
 
 logger.setLevel(logging.INFO)
 TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
