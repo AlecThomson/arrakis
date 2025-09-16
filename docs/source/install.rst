@@ -23,9 +23,6 @@ This will install the non-dependencies, including `uv`, and create a virtual env
 Then you can install the Python dependencies and the command-line scripts into the environment using `pip` or `uv` e.g. ::
 
     conda activate arrakis310
-    # Recommended - uses the provided lock file
-    uv sync
-    # or - flexible install
     uv pip install .
     # or - same as above but slower
     pip install .
