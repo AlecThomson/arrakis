@@ -11,7 +11,7 @@ authors = [
 description = "Processing the SPICE."
 readme = "README.md"
 license.file = "LICENSE"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers=[
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python",
@@ -48,7 +48,6 @@ dependencies = [
     "RACS-tools>=4.1.2",
     "radio_beam",
     "RMextract>=0.5.1",
-    "schwimmbad",
     "scipy",
     "spectral_cube>=0.6.3",
     "spython",
