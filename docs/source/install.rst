@@ -1,7 +1,7 @@
 Installation
 ------------
 
-The full python package can be installed using `pip`. 
+The full python package can be installed using `pip`.
 
 A small number of compiled packages are required (CASA and MongoDB). To make life easier, both the Python and other dependencies can be installed using `conda`.
 
