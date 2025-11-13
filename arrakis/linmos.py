@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import io
 import logging
 import os
 import shlex
+import subprocess
 import warnings
+from contextlib import redirect_stderr, redirect_stdout
 from glob import glob
 from pathlib import Path
 from pprint import pformat
@@ -266,20 +269,51 @@ def linmos(
         holo_folder = holofile.parent
         bind_dir_str += f",{holo_folder}:{holo_folder}"
 
-    output = sclient.execute(
-        image=image,
-        command=linmos_command,
-        bind=bind_dir_str,
-        return_result=True,
-        quiet=False,
-        stream=True,
-    )
-    with open(log_file, "w") as f:
-        for line in output:
-            # We could log this, but it's a lot of output
-            # We seem to be DDoS'ing the Prefect server
-            # logger.info(line)
-            f.write(line)
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+
+    try:
+        with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
+            output = sclient.execute(
+                image=image,
+                command=linmos_command,
+                bind=bind_dir_str,
+                return_result=True,
+                quiet=False,
+                stream=True,
+            )
+            with open(log_file, "w") as f:
+                for line in output:
+                    f.write(line)
+
+    # An attempt to capture everything
+    except subprocess.CalledProcessError as e:
+        captured_stdout = stdout_buffer.getvalue()
+        captured_stderr = stderr_buffer.getvalue()
+
+        with open(log_file, "a") as f:
+            f.write("\n[PROCESS FAILED]\n")
+            if captured_stdout:
+                f.write("\n[STDOUT]\n" + captured_stdout)
+            if captured_stderr:
+                f.write("\n[STDERR]\n" + captured_stderr)
+
+        if captured_stdout:
+            logger.error("STDOUT:\n%s", captured_stdout)
+        if captured_stderr:
+            logger.error("STDERR:\n%s", captured_stderr)
+        logger.error("Process failed with return code %s", e.returncode)
+        raise
+
+    else:
+        captured_stdout = stdout_buffer.getvalue()
+        captured_stderr = stderr_buffer.getvalue()
+        if captured_stdout or captured_stderr:
+            with open(log_file, "a") as f:
+                if captured_stdout:
+                    f.write("\n[STDOUT]\n" + captured_stdout)
+                if captured_stderr:
+                    f.write("\n[STDERR]\n" + captured_stderr)
 
     new_files = glob(f"{workdir}/*.cutout.image.restored.{stoke.lower()}*.linmos.fits")
 
