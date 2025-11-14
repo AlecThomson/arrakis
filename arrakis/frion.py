@@ -173,8 +173,9 @@ def predict_worker(
                 **proxy_args,
             )
             break
-        except URLError:
+        except URLError as e:
             logger.error(f"Could not find IONEX file with prefix '{_prefix}'")
+            logger.error(e)
             logger.warning("Trying next prefix.")
             continue
     else:
