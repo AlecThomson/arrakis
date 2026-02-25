@@ -515,6 +515,8 @@ def find_max_in_box(
         file_stem = str(file_stem)
     filename = outdir / file_stem
 
+    logger.info(f"Looking for peak in {file_stem} in {box_size}px box")
+
     try:
         with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
             hdu = hdulist[0]
@@ -543,7 +545,11 @@ def find_max_in_box(
     # returns in (row, col) order
     max_y, max_x = np.unravel_index(np.argmax(cutout.data), cutout.data.shape)
 
-    return cast(SkyCoord, cutout.wcs.pixel_to_world(max_x, max_y))
+    new_coord = cast(SkyCoord, cutout.wcs.pixel_to_world(max_x, max_y))
+
+    logger.info(f"Peak coordinate is {new_coord.separation(coord)} from target")
+
+    return new_coord
 
 
 @task(name="1D RM-synthesis")
