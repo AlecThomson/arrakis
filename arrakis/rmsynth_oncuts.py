@@ -594,6 +594,8 @@ def rmsynthoncut1d(
         savePlots (bool, optional): Save plots. Defaults to False.
         debug (bool, optional): Turn on debug plots. Defaults to False.
         rm_verbose (bool, optional): Verbose RMsynth. Defaults to False.
+        find_peak_coord (bool, optional): Find a peak to extract in Stokes I. Defaults to False.
+        find_peak_box_size (int, optional): Box size for peak finding in pixels. Defaults to 5.
     """
     logger.setLevel(logging.INFO)
     save_name = field if sbid is None else f"{field}_{sbid}"
@@ -855,6 +857,8 @@ def main(
     tt1: str | None = None,
     ion: bool = False,
     do_own_fit: bool = False,
+    find_peak_coord: bool = False,
+    find_peak_box_size: int = 5,
 ) -> None:
     """Run RMsynth on cutouts flow
 
@@ -887,6 +891,8 @@ def main(
         tt1 (Union[str, None], optional): Total intensity T1 image. Defaults to None.
         ion (bool, optional): Ion. Defaults to False.
         do_own_fit (bool, optional): Do own fit. Defaults to False.
+        find_peak_coord (bool, optional): Find a peak to extract in Stokes I. Defaults to False.
+        find_peak_box_size (int, optional): Box size for peak finding in pixels. Defaults to 5.
     """
     logger.info(f"Running RMsynth on {field} field")
     outdir = outdir.absolute() / "cutouts"
@@ -1082,6 +1088,8 @@ def main(
                 tt1=tt1,
                 ion=ion,
                 do_own_fit=do_own_fit,
+                find_peak_coord=find_peak_coord,
+                find_peak_box_size=find_peak_box_size,
             )
             outputs.append(output)
 
@@ -1190,6 +1198,18 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         action="store_true",
         help="Use own Stokes I fit function.",
     )
+    parser.add_argument(
+        "--find_peak_coord",
+        action="stor_true",
+        help="Find a peak to extract in Stokes I",
+    )
+    parser.add_argument(
+        "--find_peak_box_size",
+        type=int,
+        default=5,
+        help="Box size for peak finding in pixels",
+    )
+
     # RM-tools args
     parser.add_argument(
         "--weight_type",
@@ -1319,6 +1339,8 @@ def cli():
         tt1=args.tt1,
         ion=args.ion,
         do_own_fit=args.do_own_fit,
+        find_peak_coord=args.find_peak_coord,
+        find_peak_box_size=args.find_peak_box_size,
     )
 
 
