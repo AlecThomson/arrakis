@@ -1206,7 +1206,7 @@ def rmsynth_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--find_peak_coord",
-        action="stor_true",
+        action="store_true",
         help="Find a peak to extract in Stokes I",
     )
     parser.add_argument(
