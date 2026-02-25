@@ -12,6 +12,7 @@ from pathlib import Path
 from pprint import pformat
 from shutil import copyfile
 from typing import NamedTuple as Struct
+from typing import cast
 
 import astropy.units as u
 import matplotlib as mpl
@@ -22,6 +23,7 @@ import pymongo
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.modeling import models
+from astropy.nddata import Cutout2D
 from astropy.stats import mad_std, sigma_clip
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
@@ -496,6 +498,54 @@ def update_rmtools_dict(
     return mDict
 
 
+def find_max_in_box(
+    coord: SkyCoord,
+    box_size: int,
+    field_dict: dict,
+    outdir: Path,
+) -> SkyCoord:
+    stokes = "i"
+    key = f"{stokes}_file"
+
+    file_stem = field_dict.get(key)
+    if file_stem is None:
+        msg = f"Key {key} not found in database entry. Check if previous step was run."
+        raise ValueError(msg)
+    else:
+        file_stem = str(file_stem)
+    filename = outdir / file_stem
+
+    try:
+        with fits.open(filename, mode="denywrite", memmap=True) as hdulist:
+            hdu = hdulist[0]
+            data = np.squeeze(hdu.data)
+            header = hdu.header
+    except Exception as e:
+        msg = f"Error opening {filename}"
+        raise FitsError(msg) from e
+
+    wcs = WCS(header)
+
+    # (z,y,x) -> (y,x) or (freq, dec, ra) -> (dec, ra)
+    cube_flat = np.nanmean(data, axis=0)
+    wcs_flat = wcs.celestial
+
+    # Using Cutout2D to get new WCS
+    cutout = Cutout2D(
+        data=cube_flat,
+        position=coord,
+        size=box_size,
+        wcs=wcs_flat,
+    )
+    if not isinstance(cutout.wcs, WCS):
+        msg = f"2D cutout of {filename} did not contain WCS"
+        raise TypeError(msg)
+    # returns in (row, col) order
+    max_y, max_x = np.unravel_index(np.argmax(cutout.data), cutout.data.shape)
+
+    return cast(SkyCoord, cutout.wcs.pixel_to_world(max_x, max_y))
+
+
 @task(name="1D RM-synthesis")
 def rmsynthoncut1d(
     comp_tuple: tuple[str, pd.Series],
@@ -520,6 +570,8 @@ def rmsynthoncut1d(
     tt1: str | None = None,
     ion: bool = False,
     do_own_fit: bool = False,
+    find_peak_coord: bool = False,
+    find_peak_box_size: int = 5,
 ) -> pymongo.UpdateOne:
     """1D RM synthesis
 
@@ -554,6 +606,16 @@ def rmsynthoncut1d(
     dec = float(comp["Dec"])
     coord = SkyCoord(ra * u.deg, dec * u.deg)
     field_dict = beam["beams"][field]
+
+    peak_coord: SkyCoord | None = None
+    if find_peak_coord:
+        peak_coord = find_max_in_box(
+            coord=coord,
+            box_size=find_peak_box_size,
+            field_dict=field_dict,
+            outdir=outdir,
+        )
+        coord = peak_coord
 
     # Extract the spectra from the cubelets
     stokes_spectra = extract_all_spectra(
@@ -751,6 +813,10 @@ def rmsynthoncut1d(
             "I_bkg": filtered_stokes_spectra.i.bkg.tolist(),
             "Q_bkg": filtered_stokes_spectra.q.bkg.tolist(),
             "U_bkg": filtered_stokes_spectra.u.bkg.tolist(),
+        },
+        "extraction_coord": {
+            "ra": float(coord.ra.deg),
+            "dec": float(coord.dec.deg),
         },
     }
     operation = {"$set": {"rm_outputs_1d.$[elem]": newvalues}}
