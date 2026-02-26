@@ -96,6 +96,8 @@ no_stokes_i: false # ignore the Stokes I spectrum. (default: False)
 show_plots: false # show the plots. (default: False)
 not_rmsf: false # Skip calculation of RMSF? (default: False)
 debug: false # turn on debugging messages & plots. (default: False)
+find_peak_coord: false
+find_peak_box_size: 5
 
 # rm-clean arguments:
 cutoff: -8 # CLEAN cutoff (+ve = absolute, -ve = sigma). (default: -3)
