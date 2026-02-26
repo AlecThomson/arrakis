@@ -1098,7 +1098,7 @@ def main(
     # If we have specified an SBID, we're doing a single field only
     # Therefore we overwrite SBID and field_name with the specified value
     if sbid is not None:
-        rmtab["sbid"] = rmtab["sbid"].astype(int) # cast here to avoid truncation
+        rmtab["sbid"] = rmtab["sbid"].astype(int)  # cast here to avoid truncation
         rmtab["sbid"] = sbid
         rmtab["field_name"] = field
         rmtab["tile_id"] = field
