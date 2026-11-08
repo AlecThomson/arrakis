@@ -21,6 +21,9 @@ env:
   # `JUPYTER_PLATFORM_DIRS=1` and then run `jupyter --paths`.
   # The use of platformdirs will be the default in `jupyter_core` v6
   JUPYTER_PLATFORM_DIRS: 1
+  # Some runner VMs expose an Azure MANA NIC that the mpich wheel's UCX
+  # layer fails to open during MPI_Init; restrict UCX to shm and TCP.
+  UCX_TLS: self,sm,tcp
 
 jobs:
   pre-commit:
