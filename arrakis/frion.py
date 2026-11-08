@@ -24,6 +24,7 @@ from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import (
     get_db,
     get_field_db,
+    get_field_observation,
     test_db,
     validate_sbid_field_pair,
 )
@@ -329,27 +330,9 @@ def main(
     field_col = get_field_db(
         host=host, epoch=epoch, username=username, password=password
     )
-    # SELECT '1' is best field according to the database
-    query_3 = {"$and": [{"FIELD_NAME": f"{field}"}, {"SELECT": 1}]}
-    if sbid is not None:
-        query_3["$and"].append({"SBID": sbid})
-    logger.info(f"{query_3}")
-
-    # Raise error if too much or too little data
-    if field_col.count_documents(query_3) > 1:
-        logger.error(f"More than one SELECT=1 for {field} - try supplying SBID.")
-        raise ValueError(f"More than one SELECT=1 for {field} - try supplying SBID.")
-
-    elif field_col.count_documents(query_3) == 0:
-        logger.error(f"No data for {field} with {query_3}, trying without SELECT=1.")
-        query_3 = query_3 = {"$and": [{"FIELD_NAME": f"{field}"}]}
-        if sbid is not None:
-            query_3["$and"].append({"SBID": sbid})
-        field_data = field_col.find_one({"FIELD_NAME": f"{field}"})
-    else:
-        logger.info(f"Using {query_3}")
-        field_data = field_col.find_one({"FIELD_NAME": f"{field}"})
-
+    # Use the processed SBID's observation if given, otherwise the field's
+    # SELECT=1 observation, so a re-observed field gets the right times
+    field_data = get_field_observation(field_col, field_name=field, sbid=sbid)
     logger.info(f"{field_data=}")
 
     start_time = Time(field_data["SCAN_START"] * u.second, format="mjd")

@@ -37,6 +37,7 @@ from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
 from arrakis.utils.database import (
     get_db,
     get_field_db,
+    get_sbid_observation,
     test_db,
     validate_sbid_field_pair,
 )
@@ -662,28 +663,6 @@ def get_alpha(cat: TableLike) -> SpectralIndices:
         betas=np.array(betas),
         betas_err=np.array(betas_err),
     )
-
-
-def get_sbid_observation(field_col: Collection, sbid: int) -> dict:
-    """Get the field database entry for a single SBID
-
-    Args:
-        field_col (Collection): Field collection.
-        sbid (int): SBID to look up.
-
-    Raises:
-        ValueError: If the SBID is not in the field database.
-
-    Returns:
-        dict: FIELD_NAME, SBID, SCAN_START and SCAN_TINT of the observation.
-    """
-    field_data = field_col.find_one(
-        {"SBID": sbid},
-        {"_id": 0, "FIELD_NAME": 1, "SBID": 1, "SCAN_START": 1, "SCAN_TINT": 1},
-    )
-    if field_data is None:
-        raise ValueError(f"SBID {sbid} not found in field database")
-    return field_data
 
 
 def get_sbid_start_time(field_col: Collection, sbid: int) -> Time:

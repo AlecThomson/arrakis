@@ -16,6 +16,84 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 
+FIELD_OBS_PROJECTION = {
+    "_id": 0,
+    "FIELD_NAME": 1,
+    "SBID": 1,
+    "SELECT": 1,
+    "SCAN_START": 1,
+    "SCAN_TINT": 1,
+}
+
+
+def get_sbid_observation(field_col: Collection, sbid: int) -> dict:
+    """Get the field database entry for a single SBID
+
+    Args:
+        field_col (Collection): Field collection.
+        sbid (int): SBID to look up.
+
+    Raises:
+        ValueError: If the SBID is not in the field database.
+
+    Returns:
+        dict: FIELD_NAME, SBID, SELECT, SCAN_START and SCAN_TINT of the observation.
+    """
+    field_data = field_col.find_one({"SBID": sbid}, FIELD_OBS_PROJECTION)
+    if field_data is None:
+        raise ValueError(f"SBID {sbid} not found in field database")
+    return field_data
+
+
+def get_field_observation(
+    field_col: Collection, field_name: str, sbid: int | None = None
+) -> dict:
+    """Get the field database entry for the observation of a field
+
+    Args:
+        field_col (Collection): Field collection.
+        field_name (str): Field name.
+        sbid (int, optional): If given, use this SBID's observation, whatever
+            its SELECT value. Otherwise use the SELECT=1 observation of the
+            field. Defaults to None.
+
+    Raises:
+        ValueError: If the SBID belongs to another field, if the field has more
+            than one SELECT=1 observation, or if the field is not in the database.
+
+    Returns:
+        dict: FIELD_NAME, SBID, SELECT, SCAN_START and SCAN_TINT of the observation.
+    """
+    # An SBID is unique, so a re-observed field's other SBIDs can't be used
+    if sbid is not None:
+        field_data = get_sbid_observation(field_col, sbid)
+        if field_data["FIELD_NAME"] != field_name:
+            raise ValueError(
+                f"SBID {sbid} is field {field_data['FIELD_NAME']}, not {field_name}"
+            )
+        return field_data
+
+    # SELECT=1 is the best observation of the field according to the database
+    query = {"FIELD_NAME": field_name, "SELECT": 1}
+    n_selected = field_col.count_documents(query)
+    if n_selected > 1:
+        raise ValueError(
+            f"More than one SELECT=1 for {field_name} - try supplying SBID."
+        )
+    if n_selected == 1:
+        return field_col.find_one(query, FIELD_OBS_PROJECTION)
+
+    logger.warning(f"No SELECT=1 for {field_name}, using its highest SBID.")
+    found = list(
+        field_col.find({"FIELD_NAME": field_name}, FIELD_OBS_PROJECTION)
+        .sort("SBID", pymongo.DESCENDING)
+        .limit(1)
+    )
+    if not found:
+        raise ValueError(f"Field {field_name} not found in field database")
+    return found[0]
+
+
 def validate_sbid_field_pair(field_name: str, sbid: int, field_col: Collection) -> bool:
     """Validate field and sbid pair
 
