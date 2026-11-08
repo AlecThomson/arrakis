@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run RM-CLEAN on cutouts in parallel"""
+"""Run RM-synthesis on cutouts in parallel"""
 
 from __future__ import annotations
 
