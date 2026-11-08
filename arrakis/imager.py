@@ -1339,7 +1339,9 @@ def imager_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         help="Disable force mask rounds for polarisation images",
     )
 
-    group = parser.add_argument_group("wsclean container options")
+    # Attach to the top-level parser: nested argument groups are deprecated
+    # and break `parents=[...]` on recent Python patch releases
+    group = img_parser.add_argument_group("wsclean container options")
     mxg = group.add_mutually_exclusive_group()
     mxg.add_argument(
         "--hosted-wsclean",
