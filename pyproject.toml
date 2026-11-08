@@ -80,6 +80,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pre-commit",
+    "mongomock>=4.3.0",
 ]
 docs = [
     "sphinx",
