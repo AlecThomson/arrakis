@@ -701,6 +701,41 @@ def get_sbid_start_time(field_col: Collection, sbid: int) -> Time:
     return Time(field_data["SCAN_START"] * u.second, format="mjd")
 
 
+def set_sbid_columns(
+    rmtab: RMTable, field_col: Collection, field: str, sbid: int
+) -> RMTable:
+    """Set the per-observation columns to the values for a single SBID
+
+    When processing a single SBID every row is measured in that observation,
+    but the source finder columns describe the observation each component was
+    catalogued in, which may be a different field or a different SBID of a
+    re-observed field.
+
+    Args:
+        rmtab (RMTable): Catalogue.
+        field_col (Collection): Field collection.
+        field (str): Field name of the SBID.
+        sbid (int): SBID being processed.
+
+    Returns:
+        RMTable: Catalogue with sbid, field_name, tile_id and start_time set.
+    """
+    n_rows = len(rmtab)
+    # Write whole new columns: assigning a scalar into an existing string
+    # column truncates it to the column's current width (e.g. SBID 50230
+    # into a <U4 column gives "5023")
+    for name, value in (("sbid", str(sbid)), ("field_name", field), ("tile_id", field)):
+        new_col = Column(data=[value] * n_rows, name=name)
+        if name in rmtab.colnames:
+            rmtab.replace_column(name, new_col)
+        else:
+            rmtab.add_column(new_col)
+
+    start_time = get_sbid_start_time(field_col, sbid)
+    rmtab["start_time"] = start_time.mjd  # float column in MJD, set in place
+    return rmtab
+
+
 @task(name="Get integration times")
 def get_integration_time(cat: RMTable, field_col: Collection, sbid: int | None = None):
     """Get the integration time for each row of the catalogue
@@ -1144,14 +1179,9 @@ def main(
 
     # If we have specified an SBID, we're doing a single field only
     # Therefore we overwrite SBID, field_name, tile_id and start_time with the
-    # values for that observation. The source finder's start_time is from the
-    # observation the component was catalogued in, which may be a different
-    # field or a different SBID of a re-observed field.
+    # values for that observation
     if sbid is not None:
-        rmtab["sbid"] = sbid
-        rmtab["field_name"] = field
-        rmtab["tile_id"] = field
-        rmtab["start_time"] = get_sbid_start_time(field_col, sbid).mjd
+        rmtab = set_sbid_columns(rmtab, field_col, field=field, sbid=sbid)
 
     # Add tile separations
     rmtab = update_tile_separations(rmtab, field_col)

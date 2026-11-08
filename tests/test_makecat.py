@@ -10,6 +10,7 @@ from arrakis.makecat import (
     get_integration_time,
     get_sbid_observation,
     get_sbid_start_time,
+    set_sbid_columns,
 )
 from astropy.units import cds
 from rmtable import RMTable
@@ -91,16 +92,40 @@ def test_integration_time_no_sbid_uses_select(field_col) -> None:
     assert u.allclose(tints, [1039.0, 840.0] * u.s)
 
 
-def test_start_time_overwrite_and_epoch(field_col) -> None:
-    """Overwriting start_time as in makecat.main gives a consistent epoch."""
-    # Source finder start times from the catalogued (other) observation
+def test_set_sbid_columns_and_epoch(field_col) -> None:
+    """Processing SBID 100 overwrites the catalogued observation's values."""
+    # Rows catalogued in the latest SBID of this field and in another field
     cat = _make_cat(["RACS_1213-25", "RACS_1237-25"], [59500.5, 59100.75])
-    sbid = 100
-    cat["start_time"] = get_sbid_start_time(field_col, sbid).mjd
+    cat.add_column(["200", "300"], name="sbid")
+    cat = set_sbid_columns(cat, field_col, field="RACS_1213-25", sbid=100)
+
+    assert list(cat["sbid"]) == ["100", "100"]
+    assert list(cat["tile_id"]) == ["RACS_1213-25"] * 2
+    assert list(cat["field_name"]) == ["RACS_1213-25"] * 2
     assert cat["start_time"].unit == cds.MJD
     assert np.allclose(cat["start_time"], 59000.25)
 
-    tints = get_integration_time.fn(cat, field_col, sbid=sbid)
+    # Same steps as makecat.main
+    tints = get_integration_time.fn(cat, field_col, sbid=100)
     epoch = cat["start_time"] + tints / 2
     expected = 59000.25 + 450.0 / SECONDS_PER_DAY
     assert np.allclose(epoch.to_value(cds.MJD), expected)
+
+
+def test_set_sbid_columns_no_truncation(field_col) -> None:
+    """Longer SBIDs and field names are not cut to the old column width."""
+    field_col.insert_one(
+        {
+            "FIELD_NAME": "RACS_1213-25A",
+            "SBID": 50230,
+            "SELECT": 1,
+            "SCAN_START": 60000.0 * SECONDS_PER_DAY,
+            "SCAN_TINT": 900.0,
+        }
+    )
+    cat = _make_cat(["RACS_1213-25"], [59500.5])
+    cat.add_column(["8584"], name="sbid")
+    cat = set_sbid_columns(cat, field_col, field="RACS_1213-25A", sbid=50230)
+
+    assert list(cat["sbid"]) == ["50230"]
+    assert list(cat["tile_id"]) == ["RACS_1213-25A"]
