@@ -8,27 +8,6 @@ and this project adheres to
 
 ## [Unreleased]
 
-### Changed
-
-- The ionospheric correction stage (`frion`) now uses
-  [Spinifex](https://github.com/lofar-astron/spinifex) instead of FRion. Stage
-  name, arguments, database fields and output file names are unchanged. The
-  per-island prediction is now `<island>_ion.fits` (a Spinifex correction
-  table) rather than `<island>_ion.txt`.
-- `--ionex_proxy_server` is ignored, Spinifex uses the `HTTP(S)_PROXY`
-  variables.
-- ASKAP position for the ionospheric prediction fixed (FRion used latitude
-  -25.3 deg instead of -26.7 deg).
-- `columns_possum` no longer calls `cds.enable()` at import, which replaced the
-  global astropy unit registry and broke coordinate transforms elsewhere.
-- Dependencies: FRion and RMextract dropped, Spinifex 2.0 added, fitscube 2.x
-  (brings numpy 2).
-
-### Added
-
-- `--iono_model` and `--spinifex_options KEY=VALUE ...` to use other Spinifex
-  ionospheric models and options.
-
 ## [2.4.1] - 2024-09-18
 
 ##$ What's Changed
