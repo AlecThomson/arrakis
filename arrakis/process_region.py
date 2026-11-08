@@ -6,10 +6,10 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from importlib import resources
 from pathlib import Path
 
 import configargparse
-import pkg_resources
 import yaml
 from astropy.time import Time
 from prefect import flow
@@ -144,8 +144,9 @@ def main(args: configargparse.Namespace) -> None:
         args (configargparse.Namespace): Command line arguments.
     """
     if args.dask_config is None:
-        config_dir = pkg_resources.resource_filename("arrakis", "configs")
-        args.dask_config = os.path.join(config_dir, "default.yaml")
+        # pkg_resources was removed from setuptools; use importlib.resources
+        # (same lookup as process_spice.create_dask_runner)
+        args.dask_config = str(resources.files("arrakis.configs") / "default.yaml")
 
     if args.outfile is None:
         args.outfile = f"{args.merge_name}.pipe.test.fits"

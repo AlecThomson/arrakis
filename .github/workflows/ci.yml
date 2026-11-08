@@ -5,7 +5,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
+      - master
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -57,8 +57,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
 
+      # mpi4py>=4 wheels need an MPI runtime at import time (pulled in via
+      # racs_tools). Install one from PyPI for CI only, so HPC users keep
+      # their system MPI.
       - name: Install package
-        run: python -m pip install uv && uv pip install .[dev] --system
+        run: python -m pip install uv && uv pip install .[dev] mpich --system
 
       - name: Test package
         run: >-
