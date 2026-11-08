@@ -542,8 +542,12 @@ def find_max_in_box(
     if not isinstance(cutout.wcs, WCS):
         msg = f"2D cutout of {filename} did not contain WCS"
         raise TypeError(msg)
+    # Blanked pixels are NaN, and np.argmax would return the first NaN
+    if np.all(np.isnan(cutout.data)):
+        logger.warning(f"No valid pixels in {box_size}px box, keeping target coord")
+        return coord
     # returns in (row, col) order
-    max_y, max_x = np.unravel_index(np.argmax(cutout.data), cutout.data.shape)
+    max_y, max_x = np.unravel_index(np.nanargmax(cutout.data), cutout.data.shape)
 
     new_coord = cast(SkyCoord, cutout.wcs.pixel_to_world(max_x, max_y))
 
