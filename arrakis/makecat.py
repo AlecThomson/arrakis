@@ -23,6 +23,7 @@ from astropy.io import votable as vot
 from astropy.io.votable.tree import VOTableFile
 from astropy.stats import sigma_clip
 from astropy.table import Column, Table
+from astropy.time import Time
 from dask.diagnostics import ProgressBar
 from prefect import flow, task
 from pymongo.collection import Collection
@@ -663,8 +664,64 @@ def get_alpha(cat: TableLike) -> SpectralIndices:
     )
 
 
+def get_sbid_observation(field_col: Collection, sbid: int) -> dict:
+    """Get the field database entry for a single SBID
+
+    Args:
+        field_col (Collection): Field collection.
+        sbid (int): SBID to look up.
+
+    Raises:
+        ValueError: If the SBID is not in the field database.
+
+    Returns:
+        dict: FIELD_NAME, SBID, SCAN_START and SCAN_TINT of the observation.
+    """
+    field_data = field_col.find_one(
+        {"SBID": sbid},
+        {"_id": 0, "FIELD_NAME": 1, "SBID": 1, "SCAN_START": 1, "SCAN_TINT": 1},
+    )
+    if field_data is None:
+        raise ValueError(f"SBID {sbid} not found in field database")
+    return field_data
+
+
+def get_sbid_start_time(field_col: Collection, sbid: int) -> Time:
+    """Get the start time of the observation with a given SBID
+
+    Args:
+        field_col (Collection): Field collection.
+        sbid (int): SBID to look up.
+
+    Returns:
+        Time: Observation start time.
+    """
+    field_data = get_sbid_observation(field_col, sbid)
+    # SCAN_START is stored as MJD in seconds (as in frion.py)
+    return Time(field_data["SCAN_START"] * u.second, format="mjd")
+
+
 @task(name="Get integration times")
 def get_integration_time(cat: RMTable, field_col: Collection, sbid: int | None = None):
+    """Get the integration time for each row of the catalogue
+
+    Args:
+        cat (RMTable): Catalogue.
+        field_col (Collection): Field collection.
+        sbid (int, optional): If given, every row was measured in this SBID, so
+            use its SCAN_TINT. Otherwise use the SELECT=1 observation of each
+            row's tile. Defaults to None.
+
+    Returns:
+        u.Quantity: Integration time for each row.
+    """
+    # A single SBID is unique in the field database, so don't filter on
+    # SELECT: a re-observed field's other SBIDs must not be used
+    if sbid is not None:
+        field_data = get_sbid_observation(field_col, sbid)
+        logger.debug(f"Using integration time for {sbid=}: {field_data=}")
+        return np.full(len(cat), field_data["SCAN_TINT"], dtype=float) * u.s
+
     logger.warning("Will be stripping the trailing field character prefix. ")
     field_names = [
         name[:-1] if name[-1] in ("A", "B") else name for name in list(cat["tile_id"])
@@ -674,16 +731,6 @@ def get_integration_time(cat: RMTable, field_col: Collection, sbid: int | None =
     logger.debug(f"Searching integration times for {unique_field_names=}")
 
     query = {"$and": [{"FIELD_NAME": {"$in": unique_field_names}}, {"SELECT": 1}]}
-
-    # If an SBID is given, we're looking for a specific field
-    if sbid is not None:
-        query["$and"].append({"SBID": sbid})
-        query["$and"].remove({"FIELD_NAME": {"$in": unique_field_names}})
-        # Get the singular field name
-        field_names = [
-            field_col.find_one({"SBID": sbid}, {"FIELD_NAME": 1})["FIELD_NAME"]
-        ] * len(field_names)
-        unique_field_names = list(set(field_names))
 
     return_vals = {"_id": 0, "SCAN_TINT": 1, "FIELD_NAME": 1, "SBID": 1}
 
@@ -1096,11 +1143,15 @@ def main(
         rmtab.add_column(new_col)
 
     # If we have specified an SBID, we're doing a single field only
-    # Therefore we overwrite SBID and field_name with the specified value
+    # Therefore we overwrite SBID, field_name, tile_id and start_time with the
+    # values for that observation. The source finder's start_time is from the
+    # observation the component was catalogued in, which may be a different
+    # field or a different SBID of a re-observed field.
     if sbid is not None:
         rmtab["sbid"] = sbid
         rmtab["field_name"] = field
         rmtab["tile_id"] = field
+        rmtab["start_time"] = get_sbid_start_time(field_col, sbid).mjd
 
     # Add tile separations
     rmtab = update_tile_separations(rmtab, field_col)
@@ -1127,7 +1178,7 @@ def main(
     field_col = get_field_db(
         host=host, epoch=epoch, username=username, password=password
     )
-    tints = get_integration_time(rmtab, field_col)
+    tints = get_integration_time(rmtab, field_col, sbid=sbid)
     rmtab.add_column(Column(data=tints, name="int_time"))
     # Add epoch
     rmtab.add_column(Column(data=rmtab["start_time"] + (tints / 2), name="epoch"))
