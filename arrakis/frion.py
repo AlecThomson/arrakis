@@ -4,20 +4,37 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import ftplib
 import logging
 import os
-from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
+from typing import Any
 from typing import NamedTuple as Struct
-from urllib.error import URLError
 
 import astropy.units as u
 import numpy as np
 import pymongo
+import requests
+from astropy.coordinates import EarthLocation, SkyCoord
 from astropy.time import Time, TimeDelta
-from FRion import correct, predict
 from prefect import flow, get_run_logger, task
+from spinifex.download import download_or_copy_url
+from spinifex.exceptions import IonexError
+from spinifex.get_rm import get_rm_from_skycoord
+from spinifex.image_tools import (
+    correct_fits_images_from_table,
+    get_integrated_rm,
+    write_integrated_rm_table,
+)
+from spinifex.ionospheric.ionex_download import (
+    new_cddis_format,
+    old_cddis_format,
+    should_use_new_cddis_format,
+)
+from spinifex.ionospheric.tec_data import CENTER_NAMES
+from spinifex.times import get_unique_days
 from tqdm.auto import tqdm
 
 from arrakis.logger import TqdmToLogger, UltimateHelpFormatter, logger
@@ -36,7 +53,7 @@ TQDM_OUT = TqdmToLogger(logger, level=logging.INFO)
 
 
 class Prediction(Struct):
-    """FRion prediction"""
+    """Spinifex prediction"""
 
     predict_file: str
     update: pymongo.UpdateOne
@@ -47,6 +64,127 @@ class FrionResults(Struct):
     correction: pymongo.UpdateOne
 
 
+def parse_option_value(value: str) -> Any:
+    """Turn a string with a unit (e.g. '30 min') into a Quantity, else leave it."""
+    try:
+        quantity = u.Quantity(value)
+    except (TypeError, ValueError):
+        return value
+    return value if quantity.unit == u.dimensionless_unscaled else quantity
+
+
+def parse_spinifex_options(options: list[str] | None) -> dict[str, Any]:
+    """Parse KEY=VALUE strings into keyword arguments for the ionospheric model.
+
+    Args:
+        options (list[str] | None): KEY=VALUE strings
+
+    Raises:
+        ValueError: If an option is not KEY=VALUE
+
+    Returns:
+        dict[str, Any]: Keyword arguments
+    """
+    kwargs: dict[str, Any] = {}
+    for option in options or []:
+        key, sep, value = option.partition("=")
+        if not sep:
+            raise ValueError(f"Spinifex option '{option}' is not KEY=VALUE")
+        kwargs[key.strip()] = parse_option_value(value.strip())
+    return kwargs
+
+
+def get_spinifex_server(server: str, formatter: str | None) -> tuple[str, str | None]:
+    """Map FRion's IONEX server and formatter onto a Spinifex server and URL stem.
+
+    The formatter picks the server layout, falling back to the server URL.
+    'aiub' is not a Spinifex server, see `download_aiub_ionex`.
+
+    Args:
+        server (str): IONEX server URL
+        formatter (str | None): FRion formatter name
+
+    Raises:
+        ValueError: If the layout is not recognised
+
+    Returns:
+        tuple[str, str | None]: Server name, and the URL stem if `server` matches it
+    """
+    layout = (formatter or server).lower()
+    for keyword, name in (
+        ("aiub", "aiub"),
+        ("cddis", "cddis"),
+        ("chapman", "chapman"),
+        ("olsztyn", "igsiono"),
+        ("igs", "igsiono"),
+    ):
+        if keyword in layout:
+            url_stem = server.rstrip("/") if keyword in server.lower() else None
+            return name, url_stem
+    raise ValueError(f"Unknown IONEX server layout '{formatter or server}'")
+
+
+def get_iono_kwargs(
+    server: str,
+    prefix: str,
+    formatter: str | None,
+    ionex_dir: Path,
+    iono_model: str = "ionex",
+    spinifex_options: list[str] | None = None,
+) -> dict[str, Any]:
+    """Build the Spinifex ionospheric model options.
+
+    Args:
+        server (str): IONEX server URL
+        prefix (str): Spinifex analysis centre prefix (e.g. 'cod')
+        formatter (str | None): FRion formatter name
+        ionex_dir (Path): Directory to keep ionospheric data in
+        iono_model (str, optional): Spinifex ionospheric model. Defaults to "ionex".
+        spinifex_options (list[str] | None, optional): Extra KEY=VALUE options. Defaults to None.
+
+    Returns:
+        dict[str, Any]: Keyword arguments for `get_rm_from_skycoord`
+    """
+    iono_kwargs: dict[str, Any] = {"output_directory": ionex_dir}
+    # TOMION options reject the IONEX server settings
+    if iono_model.startswith("ionex"):
+        name, url_stem = get_spinifex_server(server, formatter)
+        # AIUB files are fetched by Arrakis and saved under CDDIS names
+        iono_kwargs["server"] = "cddis" if name == "aiub" else name
+        iono_kwargs["url_stem"] = url_stem if name != "aiub" else None
+        iono_kwargs["prefix"] = prefix
+    iono_kwargs.update(parse_spinifex_options(spinifex_options))
+    return iono_kwargs
+
+
+def download_aiub_ionex(times: Time, server: str, prefix: str, ionex_dir: Path) -> None:
+    """Download IONEX files from the AIUB CODE archive.
+
+    Files are saved under the names Spinifex expects from CDDIS, so Spinifex
+    finds them on disk. The day after each observation day is included because
+    Spinifex uses it to remove midnight jumps.
+
+    Args:
+        times (Time): Times of the prediction
+        server (str): AIUB CODE directory URL
+        prefix (str): Spinifex analysis centre prefix
+        ionex_dir (Path): Directory to keep ionospheric data in
+    """
+    ionex_dir.mkdir(parents=True, exist_ok=True)
+    for day in get_unique_days(Time([*times, *(times + 1 * u.day)])):
+        if should_use_new_cddis_format(day, prefix):
+            name = Path(new_cddis_format(day, prefix=prefix)).name
+            aiub_name = name
+        else:
+            name = Path(old_cddis_format(day, prefix=prefix)).name
+            aiub_name = name.upper()
+        if (ionex_dir / name).exists():
+            continue
+        url = f"{server.rstrip('/')}/{day.datetime.year:04d}/{aiub_name}"
+        downloaded = asyncio.run(download_or_copy_url(url, output_directory=ionex_dir))
+        downloaded.rename(ionex_dir / name)
+
+
 @task(name="FRion correction")
 def correct_worker(
     beam: dict,
@@ -55,19 +193,18 @@ def correct_worker(
     prediction: Prediction,
     island: dict,
 ) -> pymongo.UpdateOne:
-    """Apply FRion corrections to a single island
+    """Apply Spinifex corrections to a single island
 
     Args:
         beam (Dict): MongoDB beam document
         outdir (str): Output directory
         field (str): RACS field name
-        predict_file (str): FRion prediction file
-        island_id (str): RACS island ID
+        prediction (Prediction): Spinifex prediction
+        island (dict): RACS island document
 
     Returns:
         pymongo.UpdateOne: Pymongo update query
     """
-    predict_file = prediction.predict_file
     island_id = island["Source_ID"]
     qfile = outdir / str(beam["beams"][field]["q_file"])
     ufile = outdir / str(beam["beams"][field]["u_file"])
@@ -75,15 +212,12 @@ def correct_worker(
     qout = str(beam["beams"][field]["q_file"]).replace(".fits", ".ion.fits")
     uout = str(beam["beams"][field]["u_file"]).replace(".fits", ".ion.fits")
 
-    qout_f = outdir / qout
-    uout_f = outdir / uout
-
-    correct.apply_correction_to_files(
-        Qfile=qfile.as_posix(),
-        Ufile=ufile.as_posix(),
-        predictionfile=predict_file,
-        Qoutfile=qout_f.as_posix(),
-        Uoutfile=uout_f.as_posix(),
+    # Writes <name>.ion.fits next to each input cube
+    correct_fits_images_from_table(
+        stokes_q_path=qfile,
+        stokes_u_path=ufile,
+        correction_path=Path(prediction.predict_file),
+        suffix="ion",
         overwrite=True,
     )
 
@@ -109,11 +243,13 @@ def predict_worker(
     cutdir: Path,
     server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
     prefix: str = "",
-    formatter: str | Callable | None = None,
+    formatter: str | None = None,
     proxy_server: str | None = None,
     pre_download: bool = False,
+    iono_model: str = "ionex",
+    spinifex_options: list[str] | None = None,
 ) -> Prediction:
-    """Make FRion prediction for a single island
+    """Make a Spinifex prediction for a single island
 
     Args:
         island (Dict): Pymongo island document
@@ -121,70 +257,87 @@ def predict_worker(
         beam (Dict): Pymongo beam document
         start_time (Time): Start time of the observation
         end_time (Time): End time of the observation
-        freq (np.ndarray): Array of frequencies with units
+        freq (np.ndarray): Array of frequencies in Hz
         cutdir (str): Cutout directory
+        server (str, optional): IONEX server URL
+        prefix (str, optional): IONEX prefix, FRion style (e.g. 'codg')
+        formatter (str | None, optional): IONEX server layout
+        proxy_server (str | None, optional): Ignored, set HTTP(S)_PROXY instead
+        pre_download (bool, optional): Ignored, files are always downloaded first
+        iono_model (str, optional): Spinifex ionospheric model
+        spinifex_options (list[str] | None, optional): Extra KEY=VALUE model options
 
     Returns:
-        Tuple[str, pymongo.UpdateOne]: FRion prediction file and pymongo update query
+        Prediction: Spinifex prediction file and pymongo update query
     """
     logger.setLevel(logging.INFO)
+
+    if proxy_server is not None:
+        logger.warning(
+            "ionex_proxy_server is ignored, Spinifex uses the HTTP(S)_PROXY variables"
+        )
+    if pre_download:
+        logger.info("IONEX files are always downloaded before the prediction")
 
     ifile: Path = cutdir / beam["beams"][field]["i_file"]
     i_dir = ifile.parent
     iname = island["Source_ID"]
-    ra = island["RA"]
-    dec = island["Dec"]
+    source = SkyCoord(ra=island["RA"] * u.deg, dec=island["Dec"] * u.deg)
+    ionex_dir = cutdir.parent / "IONEXdata"
+    # Hardcoded so compute nodes need no network. From the astropy sites registry.
+    askap = EarthLocation.from_geodetic(
+        lon=116.631424 * u.deg, lat=-26.697 * u.deg, height=360.99 * u.m
+    )
 
-    # Tricking the ionex lookup to use the a custom server
-    proxy_args = {
-        "proxy_type": None,
-        "proxy_port": None,
-        "proxy_user": None,
-        "proxy_pass": None,
-    }
-    logger.info("Set up empty Proxy structure.")
+    # At least 3 samples for the Simpson integration in Spinifex
+    duration = (end_time - start_time).to(u.s)
+    n_times = max(int(np.ceil(duration / (300 * u.s))) + 1, 3)
+    times = start_time + np.linspace(0, 1, n_times) * duration
 
-    # Final solutions from CDDIS
-    _prefixes_to_try = [
-        prefix,
-        "codg",
-        "jplg",
-        "casg",
-        "esag",
-        "upcg",
-        "igsg",
+    # FRion style prefixes (e.g. 'codg') map onto Spinifex centres ('cod')
+    prefixes_to_try = [
+        _prefix[:3].lower()
+        for _prefix in (prefix, "codg", "jplg", "casg", "esag", "upcg", "igsg")
     ]
-    for _prefix in _prefixes_to_try:
+    prefixes_to_try = [p for p in dict.fromkeys(prefixes_to_try) if p in CENTER_NAMES]
+    for _prefix in prefixes_to_try:
+        iono_kwargs = get_iono_kwargs(
+            server=server,
+            prefix=_prefix,
+            formatter=formatter,
+            ionex_dir=ionex_dir,
+            iono_model=iono_model,
+            spinifex_options=spinifex_options,
+        )
         try:
-            times, RMs, theta = predict.calculate_modulation(
-                start_time=start_time.fits,
-                end_time=end_time.fits,
-                freq_array=freq,
-                telescope_location=predict.get_telescope_coordinates("ASKAP"),
-                ra=ra,
-                dec=dec,
-                timestep=300.0,
-                ionexPath=cutdir.parent / "IONEXdata",
-                server=server,
-                proxy_server=proxy_server,
-                use_proxy=True,  # Always use proxy - forces urllib
-                prefix=_prefix,
-                formatter=formatter,
-                pre_download=pre_download,
-                **proxy_args,
+            if iono_model.startswith("ionex") and (
+                get_spinifex_server(server, formatter)[0] == "aiub"
+            ):
+                download_aiub_ionex(times, server, _prefix, ionex_dir)
+            time_dep_rm = get_rm_from_skycoord(
+                loc=askap,
+                times=times,
+                source=source,
+                iono_model_name=iono_model,
+                **iono_kwargs,
             )
             break
-        except URLError:
-            logger.error(f"Could not find IONEX file with prefix '{_prefix}'")
+        except (*ftplib.all_errors, requests.RequestException, IonexError) as e:
+            logger.error(f"Could not get IONEX data with prefix '{_prefix}': {e}")
             logger.warning("Trying next prefix.")
             continue
     else:
         raise FileNotFoundError(
-            f"Could not find IONEX file with prefixes {_prefixes_to_try}"
+            f"Could not find IONEX file with prefixes {prefixes_to_try}"
         )
 
-    predict_file = os.path.join(i_dir, f"{iname}_ion.txt")
-    predict.write_modulation(freq_array=freq, theta=theta, filename=predict_file)
+    freq_hz = np.asarray(freq) * u.Hz
+    integrated_rm = get_integrated_rm(time_dep_rm=time_dep_rm, freq_arr=freq_hz)
+
+    predict_file = os.path.join(i_dir, f"{iname}_ion.fits")
+    write_integrated_rm_table(
+        integrated_rm, freq_hz, Path(predict_file), overwrite=True
+    )
     logger.info(f"Prediction file: {predict_file}")
 
     myquery = {"Source_ID": iname}
@@ -193,11 +346,11 @@ def predict_worker(
         "$set": {
             "frion": {
                 "times": (
-                    times.mjd * 86400.0
+                    time_dep_rm.times.mjd * 86400.0
                 ).tolist(),  # Turn back into MJD seconds for backwards compatibility
-                "RMs": RMs.tolist(),
-                "theta_real": theta.real.tolist(),
-                "theta_imag": theta.imag.tolist(),
+                "RMs": np.asarray(time_dep_rm.rm).tolist(),
+                "theta_real": integrated_rm.theta.real.tolist(),
+                "theta_imag": integrated_rm.theta.imag.tolist(),
             }
         }
     }
@@ -229,8 +382,10 @@ def serial_loop(
     ionex_server: str,
     ionex_prefix: str,
     ionex_proxy_server: str | None,
-    ionex_formatter: str | Callable | None,
+    ionex_formatter: str | None,
     ionex_predownload: bool,
+    iono_model: str = "ionex",
+    spinifex_options: list[str] | None = None,
 ) -> FrionResults:
     prediction = predict_worker.fn(
         island=island,
@@ -245,6 +400,8 @@ def serial_loop(
         proxy_server=ionex_proxy_server,
         formatter=ionex_formatter,
         pre_download=ionex_predownload,
+        iono_model=iono_model,
+        spinifex_options=spinifex_options,
     )
     correction = correct_worker.fn(
         beam=beam,
@@ -270,11 +427,13 @@ def main(
     ionex_server: str = "ftp://ftp.aiub.unibe.ch/CODE/",
     ionex_prefix: str = "codg",
     ionex_proxy_server: str | None = None,
-    ionex_formatter: str | Callable | None = "ftp.aiub.unibe.ch",
+    ionex_formatter: str | None = "ftp.aiub.unibe.ch",
     ionex_predownload: bool = False,
     limit: int | None = None,
+    iono_model: str = "ionex",
+    spinifex_options: list[str] | None = None,
 ) -> None:
-    """FRion flow
+    """Ionospheric Faraday rotation flow, using Spinifex
 
     Args:
         field (str): RACS field name
@@ -286,10 +445,13 @@ def main(
         password (str, optional): Mongo password. Defaults to None.
         database (bool, optional): Update database. Defaults to False.
         ionex_server (str, optional): IONEX server. Defaults to "ftp://ftp.aiub.unibe.ch/CODE/".
-        ionex_proxy_server (str, optional): Proxy server. Defaults to None.
-        ionex_formatter (Union[str, Callable], optional): IONEX formatter. Defaults to "ftp.aiub.unibe.ch".
-        ionex_predownload (bool, optional): Pre-download IONEX files. Defaults to False.
+        ionex_prefix (str, optional): IONEX prefix. Defaults to "codg".
+        ionex_proxy_server (str, optional): Ignored, set HTTP(S)_PROXY instead. Defaults to None.
+        ionex_formatter (str, optional): IONEX server layout. Defaults to "ftp.aiub.unibe.ch".
+        ionex_predownload (bool, optional): Ignored, files are always downloaded first. Defaults to False.
         limit (int, optional): Limit to number of islands. Defaults to None.
+        iono_model (str, optional): Spinifex ionospheric model. Defaults to "ionex".
+        spinifex_options (list[str], optional): Extra KEY=VALUE model options. Defaults to None.
     """
     logger = get_run_logger()
     # Query database for data
@@ -367,6 +529,8 @@ def main(
         proxy_server=ionex_proxy_server,
         formatter=ionex_formatter,
         pre_download=ionex_predownload,
+        iono_model=iono_model,
+        spinifex_options=spinifex_options,
     )
 
     frion_results = []
@@ -390,6 +554,8 @@ def main(
             ionex_proxy_server=ionex_proxy_server,
             ionex_formatter=ionex_formatter,
             ionex_predownload=ionex_predownload,
+            iono_model=iono_model,
+            spinifex_options=spinifex_options,
         )
         frion_results.append(frion_result)
 
@@ -416,7 +582,7 @@ def frion_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
     descStr = f"""
     {logo_str}
     Arrakis Stage:
-    Correct for ionospheric Faraday rotation
+    Correct for ionospheric Faraday rotation using Spinifex
 
     """
 
@@ -452,13 +618,31 @@ def frion_parser(parent_parser: bool = False) -> argparse.ArgumentParser:
         "--ionex_proxy_server",
         type=str,
         default=None,
-        help="Proxy server.",
+        help="Proxy server. Ignored, Spinifex uses the HTTP(S)_PROXY variables.",
     )
 
     parser.add_argument(
         "--ionex_predownload",
         action="store_true",
         help="Pre-download IONEX files.",
+    )
+
+    parser.add_argument(
+        "--iono_model",
+        type=str,
+        default="ionex",
+        choices=["ionex", "ionex_iri", "tomion", "tomion_dual"],
+        help="Spinifex ionospheric model.",
+    )
+
+    parser.add_argument(
+        "--spinifex_options",
+        type=str,
+        nargs="+",
+        default=None,
+        metavar="KEY=VALUE",
+        help="Extra Spinifex ionospheric model options, e.g. 'solution=rapid' "
+        "'height=350 km'. These override the ionex arguments.",
     )
 
     return frion_parser
@@ -508,6 +692,8 @@ def cli():
         ionex_formatter=args.ionex_formatter,
         ionex_prefix=args.ionex_prefix,
         ionex_predownload=args.ionex_predownload,
+        iono_model=args.iono_model,
+        spinifex_options=args.spinifex_options,
     )
 
 

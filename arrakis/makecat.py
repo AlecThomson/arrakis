@@ -896,13 +896,13 @@ def fix_blank_units(rmtab: TableLike) -> TableLike:
     """
     for col in rmtab.colnames:
         if rmtab[col].unit is None or rmtab[col].unit == u.Unit(""):
-            rmtab[col].unit = u.Unit("---")
+            rmtab[col].unit = u.Unit("---", format="cds")
             if isinstance(rmtab, RMTable):
-                rmtab.units[col] = u.Unit("---")
+                rmtab.units[col] = u.Unit("---", format="cds")
         if rmtab[col].unit is None or rmtab[col].unit == u.Unit(""):
-            rmtab[col].unit = u.Unit("---")
+            rmtab[col].unit = u.Unit("---", format="cds")
             if isinstance(rmtab, RMTable):
-                rmtab.units[col] = u.Unit("---")
+                rmtab.units[col] = u.Unit("---", format="cds")
     return rmtab
 
 
@@ -1255,7 +1255,7 @@ def main(
     rmtab["telescope"] = "ASKAP"
     rmtab["pol_bias"] = "2012PASA...29..214G"
     rmtab["catalog"] = catalogue_name
-    rmtab["ionosphere"] = "FRion"
+    rmtab["ionosphere"] = "Spinifex"
     rmtab["flux_type"] = "Peak"
     rmtab["aperture"] = 0 * u.deg
 

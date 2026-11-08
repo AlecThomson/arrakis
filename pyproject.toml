@@ -35,7 +35,6 @@ dependencies = [
     "distributed @ git+https://github.com/AlecThomson/distributed@drainclose",
     "dask_jobqueue",
     "dask_mpi",
-    "FRion>=1.1.5",
     "h5py",
     "matplotlib>=3.8",
     "numba",
@@ -47,7 +46,6 @@ dependencies = [
     "python_casacore",
     "RACS-tools>=4.1.2",
     "radio_beam",
-    "RMextract>=0.5.1",
     "scipy",
     "spectral_cube>=0.6.3",
     "spython",
@@ -61,10 +59,11 @@ dependencies = [
     "PolSpectra>=1.1.0",
     "setuptools",
     "fixms>=0.3.3",
-    "fitscube>=0.5.4",
+    "fitscube>=2.3,<3",
     "psycopg2-binary",
     "sqlalchemy",
     "scikit-image>=0.23",
+    "spinifex>=2.0",
 ]
 
 [project.urls]
