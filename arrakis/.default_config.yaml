@@ -73,6 +73,8 @@ ionex_prefix: codg # IONEX_PREFIX
 # ionex_formatter: null # IONEX formatter. (default: ftp.aiub.unibe.ch)
 # ionex_proxy_server: null # Proxy server. (default: None)
 ionex_predownload: false # Pre-download IONEX files. (default: False)
+# iono_model: ionex # Spinifex ionospheric model. (default: ionex)
+# spinifex_options: [solution=rapid, apply_earth_rotation=0] # Extra Spinifex ionospheric model options. (default: None)
 
 # common rm arguments:
 dimension: 1d # How many dimensions for RMsynth '1d' or '3d'. (default: 1d)

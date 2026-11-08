@@ -101,6 +101,8 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             ionex_formatter=args.ionex_formatter,
             ionex_predownload=args.ionex_predownload,
             limit=args.limit,
+            iono_model=args.iono_model,
+            spinifex_options=args.spinifex_options,
         )
         if not args.skip_frion
         else previous_future

@@ -17,8 +17,6 @@ from __future__ import annotations
 import astropy.units as u
 from astropy.units import cds
 
-cds.enable()
-
 columns = [
     # Relevant quantities from the source finder:
     ("ra", float, "cat", "RA", u.deg),

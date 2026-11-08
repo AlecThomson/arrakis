@@ -12,7 +12,6 @@ import numpy as np
 from astropy.io import fits
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
-from FRion.correct import find_freq_axis
 from spectral_cube.utils import SpectralCubeWarning
 
 from arrakis.logger import logger
@@ -41,6 +40,22 @@ def head2dict(h: fits.Header) -> dict[str, Any]:
             continue
         data[c[0]] = c[1]
     return data
+
+
+def find_freq_axis(header: fits.Header) -> int:
+    """Find the frequency axis, as a 1-based FITS axis number (0 if missing).
+
+    Args:
+        header (fits.Header): FITS header
+
+    Returns:
+        int: FITS axis number of the last axis with FREQ in its CTYPE
+    """
+    freq_axis = 0
+    for axis in range(1, header["NAXIS"] + 1):
+        if "FREQ" in str(header.get(f"CTYPE{axis}", "")).upper():
+            freq_axis = axis
+    return freq_axis
 
 
 def fix_header(cutout_header: fits.Header, original_header: fits.Header) -> fits.Header:

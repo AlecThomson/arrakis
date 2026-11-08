@@ -13,7 +13,7 @@ Details of each module can be found in the API documentation. But broadly the st
 
     * LINMOS - Applies the primary beam and leakage correction to the cutout beam cubes, and then mosaics each into a single cube for each source per field.
 
-    * FRion - Applies time-independent ionospheric Faraday rotation to the mosaicked cubes using `FRion <https://frion.readthedocs.io/en/latest/index.html/>`_.
+    * FRion - Applies time-independent ionospheric Faraday rotation to the mosaicked cubes using `Spinifex <https://spinifex.readthedocs.io>`_. The stage keeps its FRion name and arguments for compatibility.
 
     * RM synthesis - Extracts 1D spectra for each component of each source and runs RM synthesis using `RM-tools <https://github.com/CIRADA-Tools/RM-Tools>`_.
 
@@ -42,7 +42,7 @@ With an initialised database you can call the pipeline on a single field: ::
                          [--gridder {direct-ft,idg,wgridder,tuned-wgridder,wstacking}] [--taper TAPER] [--minuv MINUV] [--parallel PARALLEL] [--purge] [--mpi] [--multiscale] [--multiscale_scale_bias MULTISCALE_SCALE_BIAS] [--multiscale_scales MULTISCALE_SCALES] [--absmem ABSMEM]
                          [--make_residual_cubes] [--ms_glob_pattern MS_GLOB_PATTERN] [--data_column DATA_COLUMN] [--no_mf_weighting] [--skip_fix_ms] [--num_beams NUM_BEAMS] [--disable_pol_local_rms] [--disable_pol_force_mask_rounds]
                          [--hosted-wsclean HOSTED_WSCLEAN | --local_wsclean LOCAL_WSCLEAN] [-p PAD] [-d] [--holofile HOLOFILE] [--yanda YANDA] [--yanda_image YANDA_IMAGE] [--ionex_server IONEX_SERVER] [--ionex_prefix IONEX_PREFIX] [--ionex_formatter IONEX_FORMATTER]
-                         [--ionex_proxy_server IONEX_PROXY_SERVER] [--ionex_predownload] [--dimension DIMENSION] [--save_plots] [--rm_verbose] [--ion] [--tt0 TT0] [--tt1 TT1] [--validate] [--own_fit] [--weight_type WEIGHT_TYPE] [--fit_function FIT_FUNCTION] [--fit_rmsf]
+                         [--ionex_proxy_server IONEX_PROXY_SERVER] [--ionex_predownload] [--iono_model {ionex,ionex_iri,tomion,tomion_dual}] [--spinifex_options KEY=VALUE [KEY=VALUE ...]] [--dimension DIMENSION] [--save_plots] [--rm_verbose] [--ion] [--tt0 TT0] [--tt1 TT1] [--validate] [--own_fit] [--weight_type WEIGHT_TYPE] [--fit_function FIT_FUNCTION] [--fit_rmsf]
                          [--phi_max PHI_MAX] [--dphi DPHI] [--n_samples N_SAMPLES] [--poly_ord POLY_ORD] [--no_stokes_i] [--show_plots] [--not_rmsf] [--debug] [--cutoff CUTOFF] [--max_iter MAX_ITER] [--gain GAIN] [--window WINDOW] [--leakage_degree LEAKAGE_DEGREE]
                          [--leakage_bins LEAKAGE_BINS] [--leakage_snr LEAKAGE_SNR] [--catfile OUTFILE] [--npix NPIX] [--map_size MAP_SIZE] [--overwrite] [--config CONFIG]
                          datadir field msdir
@@ -172,8 +172,12 @@ With an initialised database you can call the pipeline on a single field: ::
       --ionex_formatter IONEX_FORMATTER
                             IONEX formatter. (default: ftp.aiub.unibe.ch)
       --ionex_proxy_server IONEX_PROXY_SERVER
-                            Proxy server. (default: None)
+                            Proxy server. Ignored, Spinifex uses the HTTP(S)_PROXY variables. (default: None)
       --ionex_predownload   Pre-download IONEX files. (default: False)
+      --iono_model {ionex,ionex_iri,tomion,tomion_dual}
+                            Spinifex ionospheric model. (default: ionex)
+      --spinifex_options KEY=VALUE [KEY=VALUE ...]
+                            Extra Spinifex ionospheric model options, e.g. 'solution=rapid' 'height=350 km'. These override the ionex arguments. (default: None)
 
     common rm arguments:
       --dimension DIMENSION
@@ -306,6 +310,8 @@ With an initialised database you can call the pipeline on a single field: ::
   ionex_formatter: null # IONEX formatter. (default: ftp.aiub.unibe.ch)
   ionex_proxy_server: null # Proxy server. (default: None)
   ionex_predownload: false # Pre-download IONEX files. (default: False)
+  iono_model: ionex # Spinifex ionospheric model. (default: ionex)
+  spinifex_options: null # Extra Spinifex ionospheric model options. (default: None)
 
   # common rm arguments:
   dimension: 1d # How many dimensions for RMsynth '1d' or '3d'. (default: 1d)
