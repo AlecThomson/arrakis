@@ -135,6 +135,8 @@ def process_spice(args, host: str, task_runner: BaseTaskRunner) -> None:
             tt1=args.tt1,
             ion=True if not args.skip_frion else False,
             do_own_fit=args.do_own_fit,
+            find_peak_coord=args.find_peak_coord,
+            find_peak_box_size=args.find_peak_box_size,
         )
         if not args.skip_rmsynth
         else previous_future

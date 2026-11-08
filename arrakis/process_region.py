@@ -85,6 +85,8 @@ def process_merge(args, host: str, inter_dir: str, task_runner) -> None:
             tt1=args.tt1,
             ion=False,  # Always False as we don't do Frion twice
             do_own_fit=args.do_own_fit,
+            find_peak_coord=args.find_peak_coord,
+            find_peak_box_size=args.find_peak_box_size,
         )
         if not args.skip_rmsynth
         else previous_future

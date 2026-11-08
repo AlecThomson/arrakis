@@ -8,7 +8,7 @@ import logging
 import os
 import time
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from pprint import pformat
 from typing import NamedTuple
@@ -715,6 +715,37 @@ def set_sbid_columns(
     return rmtab
 
 
+def add_extraction_columns(
+    rmtab: RMTable, extraction_coords: Iterable[dict | None]
+) -> RMTable:
+    """Add the position each row's spectra were extracted at
+
+    This is the component position, or the Stokes I peak near it when
+    RM-synthesis ran with find_peak_coord.
+
+    Args:
+        rmtab (RMTable): Catalogue.
+        extraction_coords (Iterable[dict | None]): One entry per row, with
+            "ra" and "dec" in degrees. Entries written before extraction
+            positions were stored are missing (None or NaN).
+
+    Returns:
+        RMTable: Catalogue with extraction_ra and extraction_dec columns.
+    """
+    ras = []
+    decs = []
+    for coord in extraction_coords:
+        if isinstance(coord, dict):
+            ras.append(coord["ra"])
+            decs.append(coord["dec"])
+        else:
+            ras.append(np.nan)
+            decs.append(np.nan)
+    rmtab.add_column(Column(data=ras, name="extraction_ra", dtype=float, unit=u.deg))
+    rmtab.add_column(Column(data=decs, name="extraction_dec", dtype=float, unit=u.deg))
+    return rmtab
+
+
 @task(name="Get integration times")
 def get_integration_time(cat: RMTable, field_col: Collection, sbid: int | None = None):
     """Get the integration time for each row of the catalogue
@@ -1073,6 +1104,9 @@ def main(
                 "$arrayElemAt": ["$filtered_rm_outputs.rmclean_summary", 0]
             },
             "header": {"$arrayElemAt": ["$filtered_rm_outputs.header", 0]},
+            "extraction_coord": {
+                "$arrayElemAt": ["$filtered_rm_outputs.extraction_coord", 0]
+            },
         }
     )
     pipeline = [{"$match": query}, {"$project": fields}, {"$project": projected_fields}]
@@ -1155,6 +1189,13 @@ def main(
             data += [comp[selcol]]
         new_col = Column(data=data, name=selcol)
         rmtab.add_column(new_col)
+
+    # Missing entirely if no component has an extraction position stored
+    if "extraction_coord" in comps_df.columns:
+        extraction_coords = comps_df["extraction_coord"]
+    else:
+        extraction_coords = [None] * len(comps_df)
+    rmtab = add_extraction_columns(rmtab, extraction_coords)
 
     # If we have specified an SBID, we're doing a single field only
     # Therefore we overwrite SBID, field_name, tile_id and start_time with the

@@ -6,6 +6,7 @@ import astropy.units as u
 import numpy as np
 import pytest
 from arrakis.makecat import (
+    add_extraction_columns,
     get_integration_time,
     get_sbid_observation,
     get_sbid_start_time,
@@ -92,3 +93,16 @@ def test_set_sbid_columns_no_truncation(field_col) -> None:
 
     assert list(cat["sbid"]) == ["50230"]
     assert list(cat["tile_id"]) == ["RACS_1213-25A"]
+
+
+def test_add_extraction_columns() -> None:
+    """Rows without a stored extraction position get NaN."""
+    cat = _make_cat(["RACS_1213-25", "RACS_1213-25"], [59000.25, 59000.25])
+    cat = add_extraction_columns(cat, [{"ra": 183.5, "dec": -25.25}, np.nan])
+
+    assert cat["extraction_ra"].unit == u.deg
+    assert cat["extraction_dec"].unit == u.deg
+    assert cat["extraction_ra"][0] == pytest.approx(183.5)
+    assert cat["extraction_dec"][0] == pytest.approx(-25.25)
+    assert np.isnan(cat["extraction_ra"][1])
+    assert np.isnan(cat["extraction_dec"][1])
