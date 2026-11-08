@@ -201,6 +201,14 @@ sourcefinder_columns = (
 )
 
 extra_column_descriptions = {
+    "extraction_ra": {
+        "description": "Right Ascension where the spectra were extracted",
+        "ucd": "pos.eq.ra",
+    },
+    "extraction_dec": {
+        "description": "Declination where the spectra were extracted",
+        "ucd": "pos.eq.dec",
+    },
     "ra_err": {
         "description": "Error in Right Ascension",
         "ucd": "stat.error;pos.eq.ra",
