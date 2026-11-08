@@ -5,7 +5,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
+      - master
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,6 +21,9 @@ env:
   # `JUPYTER_PLATFORM_DIRS=1` and then run `jupyter --paths`.
   # The use of platformdirs will be the default in `jupyter_core` v6
   JUPYTER_PLATFORM_DIRS: 1
+  # Some runner VMs expose an Azure MANA NIC that the mpich wheel's UCX
+  # layer fails to open during MPI_Init; restrict UCX to shm and TCP.
+  UCX_TLS: self,sm,tcp
 
 jobs:
   pre-commit:
@@ -57,8 +60,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
 
+      # mpi4py>=4 wheels need an MPI runtime at import time (pulled in via
+      # racs_tools). Install one from PyPI for CI only, so HPC users keep
+      # their system MPI.
       - name: Install package
-        run: python -m pip install uv && uv pip install .[dev] --system
+        run: python -m pip install uv && uv pip install .[dev] mpich --system
 
       - name: Test package
         run: >-
