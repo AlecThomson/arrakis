@@ -214,9 +214,9 @@ def plot_rms_bkg(
             overlay[1].tick_params(colors="tab:blue")
             overlay[0].set_axislabel("$l$", color="tab:blue")
             overlay[1].set_axislabel("$b$", color="tab:blue")
-            fig.colorbar(im, ax=ax, label="$\mu$Jy/beam", shrink=0.7, pad=0.15)
+            fig.colorbar(im, ax=ax, label=r"$\mu$Jy/beam", shrink=0.7, pad=0.15)
             ax.set_title(
-                f"Stokes {stokes} {thing} - med: {np.nanmedian(data * 1e6):0.1f}$\pm${np.nanstd(data * 1e6):0.1f} $\mu$Jy/beam\n - min: {np.nanmin(data * 1e6):0.1f} $\mu$Jy/beam",
+                f"Stokes {stokes} {thing} - med: {np.nanmedian(data * 1e6):0.1f}$\\pm${np.nanstd(data * 1e6):0.1f} $\\mu$Jy/beam\n - min: {np.nanmin(data * 1e6):0.1f} $\\mu$Jy/beam",
                 pad=50,
             )
 
@@ -289,7 +289,7 @@ def plot_leakage(
             overlay[1].set_axislabel("$b$", color="tab:blue")
             fig.colorbar(im, ax=ax, label="Fraction", shrink=0.7, pad=0.15)
             ax.set_title(
-                f"Stokes {stokes}/I (binned) - absmed: {np.nanmedian(np.abs(data)) * 100:0.1f}$\pm${np.nanstd(np.abs(data)) * 100:0.1f}%",
+                rf"Stokes {stokes}/I (binned) - absmed: {np.nanmedian(np.abs(data)) * 100:0.1f}$\pm${np.nanstd(np.abs(data)) * 100:0.1f}%",
                 pad=50,
             )
 
@@ -371,7 +371,7 @@ def plot_rm(
                 xerr=racs_match["rm_err"] * 5,
                 yerr=other_match["rm_err"] * 5,
                 fmt="o",
-                label="$\pm 5 \sigma$",
+                label=r"$\pm 5 \sigma$",
             )
             abs_max_val = np.nanmax(
                 np.abs(np.concatenate([racs_match["rm"], other_match["rm"]]))

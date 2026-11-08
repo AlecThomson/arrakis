@@ -423,7 +423,7 @@ def get_fit_func(
                 alpha=1,
                 c=color,
                 linestyle=ls,
-                label=f"${s}\sigma$" if r == "ups" else "",
+                label=rf"${s}\sigma$" if r == "ups" else "",
                 linewidth=2,
             )
     xx = np.linspace(0, 4.5, 100)
