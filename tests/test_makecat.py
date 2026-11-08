@@ -14,8 +14,6 @@ from arrakis.makecat import (
 from astropy.units import cds
 from rmtable import RMTable
 
-SECONDS_PER_DAY = 86400.0
-
 
 def _make_cat(tile_ids: list[str], start_times: list[float]) -> RMTable:
     cat = RMTable()
@@ -73,7 +71,7 @@ def test_set_sbid_columns_and_epoch(field_col) -> None:
     # Same steps as makecat.main
     tints = get_integration_time.fn(cat, field_col, sbid=100)
     epoch = cat["start_time"] + tints / 2
-    expected = 59000.25 + 450.0 / SECONDS_PER_DAY
+    expected = 59000.25 + (450.0 * u.s).to_value(u.day)
     assert np.allclose(epoch.to_value(cds.MJD), expected)
 
 
@@ -84,7 +82,7 @@ def test_set_sbid_columns_no_truncation(field_col) -> None:
             "FIELD_NAME": "RACS_1213-25A",
             "SBID": 50230,
             "SELECT": 1,
-            "SCAN_START": 60000.0 * SECONDS_PER_DAY,
+            "SCAN_START": (60000.0 * u.day).to_value(u.s),
             "SCAN_TINT": 900.0,
         }
     )

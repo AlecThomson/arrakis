@@ -16,16 +16,6 @@ warnings.filterwarnings(action="ignore", category=SpectralCubeWarning, append=Tr
 warnings.simplefilter("ignore", category=AstropyWarning)
 
 
-FIELD_OBS_PROJECTION = {
-    "_id": 0,
-    "FIELD_NAME": 1,
-    "SBID": 1,
-    "SELECT": 1,
-    "SCAN_START": 1,
-    "SCAN_TINT": 1,
-}
-
-
 def get_sbid_observation(field_col: Collection, sbid: int) -> dict:
     """Get the field database entry for a single SBID
 
@@ -39,7 +29,17 @@ def get_sbid_observation(field_col: Collection, sbid: int) -> dict:
     Returns:
         dict: FIELD_NAME, SBID, SELECT, SCAN_START and SCAN_TINT of the observation.
     """
-    field_data = field_col.find_one({"SBID": sbid}, FIELD_OBS_PROJECTION)
+    field_data = field_col.find_one(
+        {"SBID": sbid},
+        {
+            "_id": 0,
+            "FIELD_NAME": 1,
+            "SBID": 1,
+            "SELECT": 1,
+            "SCAN_START": 1,
+            "SCAN_TINT": 1,
+        },
+    )
     if field_data is None:
         raise ValueError(f"SBID {sbid} not found in field database")
     return field_data
@@ -80,18 +80,16 @@ def get_field_observation(
         raise ValueError(
             f"More than one SELECT=1 for {field_name} - try supplying SBID."
         )
-    if n_selected == 1:
-        return field_col.find_one(query, FIELD_OBS_PROJECTION)
+    if n_selected == 0:
+        logger.warning(f"No SELECT=1 for {field_name}, using its highest SBID.")
+        query = {"FIELD_NAME": field_name}
 
-    logger.warning(f"No SELECT=1 for {field_name}, using its highest SBID.")
     found = list(
-        field_col.find({"FIELD_NAME": field_name}, FIELD_OBS_PROJECTION)
-        .sort("SBID", pymongo.DESCENDING)
-        .limit(1)
+        field_col.find(query, {"SBID": 1}).sort("SBID", pymongo.DESCENDING).limit(1)
     )
     if not found:
         raise ValueError(f"Field {field_name} not found in field database")
-    return found[0]
+    return get_sbid_observation(field_col, found[0]["SBID"])
 
 
 def validate_sbid_field_pair(field_name: str, sbid: int, field_col: Collection) -> bool:
